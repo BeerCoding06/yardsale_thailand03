@@ -3,14 +3,14 @@ node_modules/
 .pnp
 .pnp.js
 
-# Nuxt
+# Nuxt build outputs
 .nuxt/
 .output/
 dist/
 .nitro/
 .cache/
 
-# Environment variables
+# Environment files
 .env
 .env.*
 !.env.example
@@ -24,7 +24,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# OS
+# OS files
 .DS_Store
 .DS_Store?
 ._*
@@ -43,13 +43,34 @@ Thumbs.db
 .classpath
 .settings/
 
-# WordPress
-wordpress/wp-config.php
-wordpress/wp-content/uploads/
-wordpress/wp-content/debug.log
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+
+# Scripts
+*.sh
+*.sql
+*.php
+
+# WordPress (if not needed in container)
+wordpress/
 
 # Build outputs
 *.zip
 *.tar.gz
 
-.data
+# Test files
+test/
+tests/
+*.test.*
+*.spec.*
+
+# Coverage
+coverage/
+.nyc_output/
+

@@ -1,8 +1,9 @@
 // nuxt.config.ts
 import pkg from "./package.json";
 
-// Check if we're generating static site
+// Check if we're generating static site or building for Docker
 const isStaticGeneration = process.env.NUXT_GENERATE === 'true' || process.argv.includes('generate');
+const isDockerBuild = process.env.DOCKER_BUILD === 'true';
 
 export default defineNuxtConfig({
   devtools: { enabled: false },
@@ -12,8 +13,8 @@ export default defineNuxtConfig({
     "@nuxt/ui",
     "@nuxt/image",
     "notivue/nuxt",
-    // Only include NuxtHub if not generating static site
-    ...(isStaticGeneration ? [] : ["@nuxthub/core"]),
+    // Only include NuxtHub if not generating static site and not building for Docker
+    ...(isStaticGeneration || isDockerBuild ? [] : ["@nuxthub/core"]),
     "@nuxtjs/i18n",
   ],
 
@@ -41,8 +42,8 @@ export default defineNuxtConfig({
     ],
   },
 
-  // Only configure hub if not generating static site
-  ...(isStaticGeneration ? {} : {
+  // Only configure hub if not generating static site and not building for Docker
+  ...(isStaticGeneration || isDockerBuild ? {} : {
     hub: {
       cache: true,
     },
