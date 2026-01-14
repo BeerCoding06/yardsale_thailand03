@@ -55,10 +55,8 @@ Thumbs.db
 # Scripts
 *.sh
 *.sql
-*.php
-
-# WordPress (if not needed in container)
-wordpress/
+# Note: *.php files are needed for WordPress, so we don't exclude them
+# wordpress/ folder is needed, so we don't exclude it
 
 # Build outputs
 *.zip

@@ -66,7 +66,7 @@ export default defineNuxtConfig({
     wpBasicAuth: process.env.WP_BASIC_AUTH || "",
     wcConsumerKey: process.env.WC_CONSUMER_KEY || "",
     wcConsumerSecret: process.env.WC_CONSUMER_SECRET || "",
-    baseUrl: process.env.BASE_URL || "http://localhost/yardsale_thailand",
+    baseUrl: process.env.BASE_URL || (process.env.DOCKER_BUILD === 'true' ? "http://localhost" : "http://localhost/yardsale_thailand"),
     public: {
       version: pkg.version,
     },
@@ -89,6 +89,8 @@ export default defineNuxtConfig({
     "/login": { prerender: true },
     "/register-user": { prerender: true },
     "/payment-successful": { prerender: false, ssr: false }, // Client-side only
+    // WordPress proxy routes - handled by server route
+    "/wordpress/**": { ssr: true },
   },
 
   nitro: {
