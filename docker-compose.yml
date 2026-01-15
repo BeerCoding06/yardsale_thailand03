@@ -14,6 +14,8 @@ services:
       - BASE_URL=http://localhost:8000
       - INTERNAL_BASE_URL=http://127.0.0.1:80
       # WordPress Configuration
+      - WP_HOME=http://localhost:8000
+      - WP_SITEURL=http://localhost:8000/wordpress
       - WP_MEDIA_HOST=http://localhost:8000/wordpress
       # WordPress Authentication (สำหรับอัปโหลดรูปภาพ)
       - WP_BASIC_AUTH=cGFyYWRvbl9wb2twaW5nbWF1bmc6eDRkTCA4QUp1IHQzSHkgZzIyMyA5aTViIG9hTnk=
