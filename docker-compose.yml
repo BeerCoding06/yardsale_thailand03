@@ -6,7 +6,7 @@ services:
     ports:
       - "8000:80"
     environment:
-      - DB_HOST=157.85.98.150
+      - DB_HOST=mysql
       - DB_NAME=nuxtcommerce_db
       - DB_USER=root
       - 'DB_PASSWORD=KtmdoLt9b$$n!'
