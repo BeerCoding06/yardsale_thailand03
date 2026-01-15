@@ -21,6 +21,9 @@ services:
       - WC_CONSUMER_SECRET=cs_fdcba105736b44ef72f787faeb0f3aec5e74306f
       # GraphQL Host (ถ้ามี)
       - GQL_HOST=http://localhost:8000/wordpress/graphql
+      # Internal Base URL for PHP API calls (ใช้สำหรับ Nuxt server เรียก PHP API ภายใน container)
+      # ใน production ควรตั้งค่าเป็น http://127.0.0.1:80 หรือ http://localhost:80
+      - INTERNAL_BASE_URL=http://127.0.0.1:80
     volumes:
       # Mount WordPress directory for easy config updates
       - ./wordpress:/app/wordpress

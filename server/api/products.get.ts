@@ -7,8 +7,9 @@ export default cachedEventHandler(
       const config = useRuntimeConfig();
       // Use internal port 80 for container communication
       // Nuxt server should call Nginx on port 80 (internal)
-      // Use 127.0.0.1 instead of localhost for better reliability
-      const baseUrl = 'http://127.0.0.1:80';
+      // Try multiple methods to ensure it works in all environments
+      const internalBaseUrl = process.env.INTERNAL_BASE_URL || 'http://127.0.0.1:80';
+      const baseUrl = internalBaseUrl;
       
       // Get query parameters
       const query = getQuery(event);
@@ -43,14 +44,35 @@ export default cachedEventHandler(
       
       const phpApiUrl = `${baseUrl}/server/api/php/getProducts.php?${params.toString()}`;
       
-      // Call PHP API
-      const response = await $fetch(phpApiUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        timeout: 30000, // 30 seconds timeout
-      });
+      // Call PHP API with retry logic
+      let response;
+      let lastError;
+      const urlsToTry = [
+        phpApiUrl,
+        `http://localhost:80/server/api/php/getProducts.php?${params.toString()}`,
+        `http://127.0.0.1:80/server/api/php/getProducts.php?${params.toString()}`,
+      ];
+      
+      for (const url of urlsToTry) {
+        try {
+          response = await $fetch(url, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            timeout: 30000, // 30 seconds timeout
+          });
+          break; // Success, exit loop
+        } catch (error: any) {
+          lastError = error;
+          console.warn(`[products] Failed to fetch from ${url}:`, error?.message);
+          // Continue to next URL
+        }
+      }
+      
+      if (!response) {
+        throw lastError || new Error('All PHP API URLs failed');
+      }
       
       return response;
     } catch (error: any) {
