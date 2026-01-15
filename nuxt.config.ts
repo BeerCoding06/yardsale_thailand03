@@ -91,8 +91,8 @@ export default defineNuxtConfig({
     "/login": { prerender: true },
     "/register-user": { prerender: true },
     "/payment-successful": { prerender: false, ssr: false }, // Client-side only
-    // WordPress proxy routes - handled by server route
-    "/wordpress/**": { ssr: true },
+    // WordPress routes - handled directly by Nginx, not by Nuxt
+    // "/wordpress/**": { ssr: true }, // Disabled - Nginx handles WordPress directly
   },
 
   nitro: {
