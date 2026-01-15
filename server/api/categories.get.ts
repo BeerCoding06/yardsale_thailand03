@@ -7,7 +7,8 @@ export default cachedEventHandler(
       const config = useRuntimeConfig();
       // Use internal port 80 for container communication
       // Nuxt server should call Nginx on port 80 (internal)
-      const baseUrl = 'http://localhost:80';
+      // Use 127.0.0.1 instead of localhost for better reliability
+      const baseUrl = 'http://127.0.0.1:80';
       
       // Get query parameters
       const query = getQuery(event);
@@ -25,14 +26,25 @@ export default cachedEventHandler(
         headers: {
           'Content-Type': 'application/json',
         },
+        timeout: 30000, // 30 seconds timeout
       });
       
       return response;
     } catch (error: any) {
       console.error('[categories] Error:', error);
+      console.error('[categories] PHP API URL:', phpApiUrl);
+      console.error('[categories] Error details:', {
+        message: error?.message,
+        statusCode: error?.statusCode,
+        cause: error?.cause,
+      });
       throw createError({
         statusCode: error?.statusCode || 500,
         message: error?.message || 'Failed to fetch categories from PHP API',
+        data: {
+          phpApiUrl: phpApiUrl,
+          error: error?.message,
+        },
       });
     }
   },
