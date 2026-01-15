@@ -62,13 +62,15 @@ export default defineNuxtConfig({
   ],
 
   runtimeConfig: {
-    wpMediaHost: process.env.WP_MEDIA_HOST || "",
+    wpMediaHost: process.env.WP_MEDIA_HOST || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000/wordpress" : "http://localhost/yardsale_thailand/wordpress"),
     wpBasicAuth: process.env.WP_BASIC_AUTH || "",
     wcConsumerKey: process.env.WC_CONSUMER_KEY || "",
     wcConsumerSecret: process.env.WC_CONSUMER_SECRET || "",
-    baseUrl: process.env.BASE_URL || (process.env.DOCKER_BUILD === 'true' ? "http://localhost" : "http://localhost/yardsale_thailand"),
+    baseUrl: process.env.BASE_URL || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000" : "http://localhost/yardsale_thailand"),
+    gqlHost: process.env.GQL_HOST || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000/wordpress/graphql" : "http://localhost/yardsale_thailand/wordpress/graphql"),
     public: {
       version: pkg.version,
+      wpApiUrl: process.env.BASE_URL ? `${process.env.BASE_URL}/wordpress/wp-json` : (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000/wordpress/wp-json" : "http://localhost/yardsale_thailand/wordpress/wp-json"),
     },
   },
 
@@ -77,8 +79,8 @@ export default defineNuxtConfig({
     "/": { prerender: true },
     "/categories": { prerender: true },
     "/favorites": { prerender: true },
-    // Dynamic routes - will be generated at build time
-    "/product/**": { prerender: true },
+    // Dynamic routes - use SSR instead of prerender to avoid payload file issues
+    "/product/**": { ssr: true, prerender: false },
     "/order/**": { prerender: false, ssr: false }, // Client-side only
     "/my-orders": { prerender: false, ssr: false }, // Client-side only
     "/my-products": { prerender: false, ssr: false }, // Client-side only
