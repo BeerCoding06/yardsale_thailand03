@@ -7,9 +7,7 @@ export default cachedEventHandler(
       const config = useRuntimeConfig();
       // Use internal port 80 for container communication
       // Nuxt server should call Nginx on port 80 (internal)
-      // Try multiple methods to ensure it works in all environments
-      const internalBaseUrl = process.env.INTERNAL_BASE_URL || 'http://127.0.0.1:80';
-      const baseUrl = internalBaseUrl;
+      const baseUrl = 'http://localhost:80';
       
       // Get query parameters
       const query = getQuery(event);
@@ -44,50 +42,34 @@ export default cachedEventHandler(
       
       const phpApiUrl = `${baseUrl}/server/api/php/getProducts.php?${params.toString()}`;
       
-      // Call PHP API with retry logic
-      let response;
-      let lastError;
-      const urlsToTry = [
-        phpApiUrl,
-        `http://localhost:80/server/api/php/getProducts.php?${params.toString()}`,
-        `http://127.0.0.1:80/server/api/php/getProducts.php?${params.toString()}`,
-      ];
-      
-      for (const url of urlsToTry) {
-        try {
-          response = await $fetch(url, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            timeout: 30000, // 30 seconds timeout
-          });
-          break; // Success, exit loop
-        } catch (error: any) {
-          lastError = error;
-          console.warn(`[products] Failed to fetch from ${url}:`, error?.message);
-          // Continue to next URL
-        }
-      }
-      
-      if (!response) {
-        throw lastError || new Error('All PHP API URLs failed');
-      }
+      // Call PHP API
+      const response = await $fetch(phpApiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       
       return response;
     } catch (error: any) {
+      // Make sure all variables are defined in catch block scope
+      const errorBaseUrl = 'http://localhost:80';
+      const errorPhpApiUrl = `${errorBaseUrl}/server/api/php/getProducts.php`;
+      
       console.error('[products] Error:', error);
-      console.error('[products] PHP API URL:', `${baseUrl}/server/api/php/getProducts.php`);
+      console.error('[products] PHP API URL:', errorPhpApiUrl);
       console.error('[products] Error details:', {
         message: error?.message,
         statusCode: error?.statusCode,
         cause: error?.cause,
+        code: error?.code,
       });
       throw createError({
         statusCode: error?.statusCode || 500,
         message: error?.message || 'Failed to fetch products from PHP API',
         data: {
-          phpApiUrl: `${baseUrl}/server/api/php/getProducts.php`,
+          phpApiUrl: errorPhpApiUrl,
+          baseUrl: errorBaseUrl,
           error: error?.message,
         },
       });

@@ -6,8 +6,7 @@ export default cachedEventHandler(
     try {
       const config = useRuntimeConfig();
       // Use internal port 80 for container communication
-      // Use 127.0.0.1 instead of localhost for better reliability
-      const baseUrl = 'http://127.0.0.1:80';
+      const baseUrl = 'http://localhost:80';
       
       // Get query parameters
       const query = getQuery(event);

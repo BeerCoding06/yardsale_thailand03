@@ -7,9 +7,7 @@ export default cachedEventHandler(
       const config = useRuntimeConfig();
       // Use internal port 80 for container communication
       // Nuxt server should call Nginx on port 80 (internal)
-      // Try multiple methods to ensure it works in all environments
-      const internalBaseUrl = process.env.INTERNAL_BASE_URL || 'http://127.0.0.1:80';
-      const baseUrl = internalBaseUrl;
+      const baseUrl = 'http://localhost:80';
       
       // Get query parameters
       const query = getQuery(event);
@@ -21,50 +19,34 @@ export default cachedEventHandler(
       // Build PHP API URL
       const phpApiUrl = `${baseUrl}/server/api/php/getCategories.php?parent=${parent}&hide_empty=${hide_empty}&orderby=${orderby}&order=${order}`;
       
-      // Call PHP API with retry logic
-      let response;
-      let lastError;
-      const urlsToTry = [
-        phpApiUrl,
-        `http://localhost:80/server/api/php/getCategories.php?parent=${parent}&hide_empty=${hide_empty}&orderby=${orderby}&order=${order}`,
-        `http://127.0.0.1:80/server/api/php/getCategories.php?parent=${parent}&hide_empty=${hide_empty}&orderby=${orderby}&order=${order}`,
-      ];
-      
-      for (const url of urlsToTry) {
-        try {
-          response = await $fetch(url, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            timeout: 30000, // 30 seconds timeout
-          });
-          break; // Success, exit loop
-        } catch (error: any) {
-          lastError = error;
-          console.warn(`[categories] Failed to fetch from ${url}:`, error?.message);
-          // Continue to next URL
-        }
-      }
-      
-      if (!response) {
-        throw lastError || new Error('All PHP API URLs failed');
-      }
+      // Call PHP API
+      const response = await $fetch(phpApiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
       
       return response;
     } catch (error: any) {
+      // Make sure all variables are defined in catch block scope
+      const errorBaseUrl = 'http://localhost:80';
+      const errorPhpApiUrl = `${errorBaseUrl}/server/api/php/getCategories.php`;
+      
       console.error('[categories] Error:', error);
-      console.error('[categories] PHP API URL:', phpApiUrl);
+      console.error('[categories] PHP API URL:', errorPhpApiUrl);
       console.error('[categories] Error details:', {
         message: error?.message,
         statusCode: error?.statusCode,
         cause: error?.cause,
+        code: error?.code,
       });
       throw createError({
         statusCode: error?.statusCode || 500,
         message: error?.message || 'Failed to fetch categories from PHP API',
         data: {
-          phpApiUrl: phpApiUrl,
+          phpApiUrl: errorPhpApiUrl,
+          baseUrl: errorBaseUrl,
           error: error?.message,
         },
       });
