@@ -120,7 +120,8 @@ $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8000';
 
 // Define URLs (force override)
 define('WP_HOME', getenv('WP_HOME') ?: $protocol . '://' . $host);
-define('WP_SITEURL', getenv('WP_SITEURL') ?: $protocol . '://' . $host . '/wordpress');
+define('WP_SITEURL', getenv('WP_SITEURL') ?: $protocol . '://' . $host);
+
 
 // Enable Application Passwords for local development (without HTTPS requirement)
 define( 'WP_ENVIRONMENT_TYPE', 'local' );
