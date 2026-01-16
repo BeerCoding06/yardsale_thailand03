@@ -142,30 +142,8 @@ if (!$wp_siteurl) {
 define('WP_HOME', $wp_home);
 define('WP_SITEURL', $wp_siteurl);
 
-// Force WordPress to use correct URLs for media files
-// This filter replaces localhost URLs with the correct domain
-add_filter('wp_get_attachment_url', function($url) {
-    $wp_home = getenv('WP_HOME') ?: (defined('WP_HOME') ? WP_HOME : '');
-    if ($wp_home && strpos($url, 'localhost') !== false) {
-        $url = str_replace('http://localhost', rtrim($wp_home, '/'), $url);
-        $url = str_replace('http://127.0.0.1', rtrim($wp_home, '/'), $url);
-    }
-    return $url;
-}, 10, 1);
-
-// Also filter image URLs in content
-add_filter('wp_calculate_image_srcset', function($sources) {
-    $wp_home = getenv('WP_HOME') ?: (defined('WP_HOME') ? WP_HOME : '');
-    if ($wp_home) {
-        foreach ($sources as &$source) {
-            if (isset($source['url']) && strpos($source['url'], 'localhost') !== false) {
-                $source['url'] = str_replace('http://localhost', rtrim($wp_home, '/'), $source['url']);
-                $source['url'] = str_replace('http://127.0.0.1', rtrim($wp_home, '/'), $source['url']);
-            }
-        }
-    }
-    return $sources;
-}, 10, 1);
+// Note: WordPress filters cannot be added here because wp-config.php is loaded
+// before WordPress core. URL fixing is handled in PHP API files via fix_image_url().
 
 // Enable Application Passwords for local development (without HTTPS requirement)
 define( 'WP_ENVIRONMENT_TYPE', 'local' );
