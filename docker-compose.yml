@@ -37,5 +37,5 @@ services:
       - GQL_HOST=http://app/wordpress/graphql
 
     volumes:
-      # ✅ ถูกต้องแล้ว
-      - ./wordpress/wp-content:/app/wordpress/wp-content
+      # Mount WordPress directory (core + wp-content)
+      - ./wordpress:/app/wordpress
