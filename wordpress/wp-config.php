@@ -119,9 +119,53 @@ $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https'
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8000';
 
 // Define URLs (force override)
-define('WP_HOME', getenv('WP_HOME') ?: $protocol . '://' . $host);
-define('WP_SITEURL', getenv('WP_SITEURL') ?: $protocol . '://' . $host . '/wordpress');
+// Priority: 1. Environment variable, 2. Traefik domain, 3. Auto-detect
+$wp_home = getenv('WP_HOME');
+$wp_siteurl = getenv('WP_SITEURL');
 
+// If not set in env, try to detect from Traefik
+if (!$wp_home) {
+    // Check for Traefik domain in X-Forwarded-Host
+    if (isset($_SERVER['HTTP_X_FORWARDED_HOST'])) {
+        $wp_home = $protocol . '://' . $_SERVER['HTTP_X_FORWARDED_HOST'];
+        $wp_siteurl = $protocol . '://' . $_SERVER['HTTP_X_FORWARDED_HOST'] . '/wordpress';
+    } else {
+        $wp_home = $protocol . '://' . $host;
+        $wp_siteurl = $protocol . '://' . $host . '/wordpress';
+    }
+}
+
+if (!$wp_siteurl) {
+    $wp_siteurl = $wp_home . '/wordpress';
+}
+
+define('WP_HOME', $wp_home);
+define('WP_SITEURL', $wp_siteurl);
+
+// Force WordPress to use correct URLs for media files
+// This filter replaces localhost URLs with the correct domain
+add_filter('wp_get_attachment_url', function($url) {
+    $wp_home = getenv('WP_HOME') ?: (defined('WP_HOME') ? WP_HOME : '');
+    if ($wp_home && strpos($url, 'localhost') !== false) {
+        $url = str_replace('http://localhost', rtrim($wp_home, '/'), $url);
+        $url = str_replace('http://127.0.0.1', rtrim($wp_home, '/'), $url);
+    }
+    return $url;
+}, 10, 1);
+
+// Also filter image URLs in content
+add_filter('wp_calculate_image_srcset', function($sources) {
+    $wp_home = getenv('WP_HOME') ?: (defined('WP_HOME') ? WP_HOME : '');
+    if ($wp_home) {
+        foreach ($sources as &$source) {
+            if (isset($source['url']) && strpos($source['url'], 'localhost') !== false) {
+                $source['url'] = str_replace('http://localhost', rtrim($wp_home, '/'), $source['url']);
+                $source['url'] = str_replace('http://127.0.0.1', rtrim($wp_home, '/'), $source['url']);
+            }
+        }
+    }
+    return $sources;
+}, 10, 1);
 
 // Enable Application Passwords for local development (without HTTPS requirement)
 define( 'WP_ENVIRONMENT_TYPE', 'local' );

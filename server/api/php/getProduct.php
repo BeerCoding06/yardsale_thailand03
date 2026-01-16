@@ -24,6 +24,21 @@ if (!file_exists($wp_load_path)) {
 
 require_once $wp_load_path;
 
+// Helper function to replace localhost URLs with correct domain
+function fix_image_url($url) {
+    if (!$url) return $url;
+    
+    $wp_home = getenv('WP_HOME') ?: (defined('WP_HOME') ? WP_HOME : '');
+    if ($wp_home) {
+        // Replace localhost and 127.0.0.1 with correct domain
+        $url = str_replace('http://localhost', rtrim($wp_home, '/'), $url);
+        $url = str_replace('http://127.0.0.1', rtrim($wp_home, '/'), $url);
+        $url = str_replace('https://localhost', rtrim($wp_home, '/'), $url);
+        $url = str_replace('https://127.0.0.1', rtrim($wp_home, '/'), $url);
+    }
+    return $url;
+}
+
 try {
     // Get query parameters
     $slug = isset($_GET['slug']) ? sanitize_text_field($_GET['slug']) : '';
@@ -149,6 +164,8 @@ try {
         if (!$image_url) {
             $image_url = wp_get_attachment_image_url($image_id, 'full');
         }
+        // Fix URL to use correct domain
+        $image_url = fix_image_url($image_url);
     }
     
     // Get gallery images
@@ -162,6 +179,8 @@ try {
         if (!$gallery_url) {
             $gallery_url = wp_get_attachment_image_url($gallery_id, 'full');
         }
+        // Fix URL to use correct domain
+        $gallery_url = fix_image_url($gallery_url);
         if ($gallery_url) {
             $gallery_images[] = array('sourceUrl' => $gallery_url);
         }
@@ -206,12 +225,16 @@ try {
             $related_image_url = null;
             if ($related_image_id) {
                 $related_image_url = wp_get_attachment_image_url($related_image_id, 'woocommerce_thumbnail');
+                // Fix URL to use correct domain
+                $related_image_url = fix_image_url($related_image_url);
             }
             
             $related_gallery_ids = $related_product->get_gallery_image_ids();
             $related_gallery_images = array();
             foreach ($related_gallery_ids as $gallery_id) {
                 $gallery_url = wp_get_attachment_image_url($gallery_id, 'woocommerce_thumbnail');
+                // Fix URL to use correct domain
+                $gallery_url = fix_image_url($gallery_url);
                 if ($gallery_url) {
                     $related_gallery_images[] = array('sourceUrl' => $gallery_url);
                 }

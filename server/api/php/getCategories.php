@@ -24,6 +24,21 @@ if (!file_exists($wp_load_path)) {
 
 require_once $wp_load_path;
 
+// Helper function to replace localhost URLs with correct domain
+function fix_image_url($url) {
+    if (!$url) return $url;
+    
+    $wp_home = getenv('WP_HOME') ?: (defined('WP_HOME') ? WP_HOME : '');
+    if ($wp_home) {
+        // Replace localhost and 127.0.0.1 with correct domain
+        $url = str_replace('http://localhost', rtrim($wp_home, '/'), $url);
+        $url = str_replace('http://127.0.0.1', rtrim($wp_home, '/'), $url);
+        $url = str_replace('https://localhost', rtrim($wp_home, '/'), $url);
+        $url = str_replace('https://127.0.0.1', rtrim($wp_home, '/'), $url);
+    }
+    return $url;
+}
+
 try {
     // Get query parameters
     $parent = isset($_GET['parent']) ? intval($_GET['parent']) : 0;
@@ -75,6 +90,8 @@ try {
             if (!$image_url) {
                 $image_url = wp_get_attachment_image_url($image_id, 'full');
             }
+            // Fix URL to use correct domain
+            $image_url = fix_image_url($image_url);
         }
         
         // Get product count (only products in stock)
@@ -124,6 +141,8 @@ try {
                     if (!$parent_image_url) {
                         $parent_image_url = wp_get_attachment_image_url($parent_image_id, 'full');
                     }
+                    // Fix URL to use correct domain
+                    $parent_image_url = fix_image_url($parent_image_url);
                 }
                 
                 $parent_info = array(
@@ -146,6 +165,8 @@ try {
                     if (!$child_image_url) {
                         $child_image_url = wp_get_attachment_image_url($child_image_id, 'full');
                     }
+                    // Fix URL to use correct domain
+                    $child_image_url = fix_image_url($child_image_url);
                 }
                 
                 // Check if child has products
