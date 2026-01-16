@@ -142,6 +142,33 @@ if (!$wp_siteurl) {
 define('WP_HOME', $wp_home);
 define('WP_SITEURL', $wp_siteurl);
 
+// Cookie settings for Traefik/proxy environment
+// Set cookie domain to empty string to allow cookies to work across subdomains
+if (!defined('COOKIE_DOMAIN')) {
+    define('COOKIE_DOMAIN', '');
+}
+
+// Set cookie path to /wordpress for WordPress cookies
+if (!defined('COOKIEPATH')) {
+    define('COOKIEPATH', '/wordpress/');
+}
+
+if (!defined('SITECOOKIEPATH')) {
+    define('SITECOOKIEPATH', '/wordpress/');
+}
+
+if (!defined('ADMIN_COOKIE_PATH')) {
+    define('ADMIN_COOKIE_PATH', '/wordpress/wp-admin/');
+}
+
+// Force secure cookies if behind HTTPS proxy
+if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+    $_SERVER['HTTPS'] = 'on';
+    if (!defined('FORCE_SSL_ADMIN')) {
+        define('FORCE_SSL_ADMIN', false); // Set to false if Traefik handles SSL
+    }
+}
+
 // Note: WordPress filters cannot be added here because wp-config.php is loaded
 // before WordPress core. URL fixing is handled in PHP API files via fix_image_url().
 
