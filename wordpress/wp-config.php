@@ -95,8 +95,11 @@ define('WP_MEMORY_LIMIT', '256M'); // เพิ่ม memory limit
 
 /* Add any custom values between this line and the "stop editing" line. */
 
-// WordPress Site URL - Override database values
-// Detect HTTPS behind reverse proxy (Traefik, Nginx, etc.)
+// ===============================
+// Fix HTTPS & Host behind Traefik
+// ===============================
+
+// Detect HTTPS from reverse proxy
 if (
     isset($_SERVER['HTTP_X_FORWARDED_PROTO']) &&
     $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https'
@@ -104,16 +107,20 @@ if (
     $_SERVER['HTTPS'] = 'on';
 }
 
+// Fix host from proxy
+if (isset($_SERVER['HTTP_X_FORWARDED_HOST'])) {
+    $_SERVER['HTTP_HOST'] = $_SERVER['HTTP_X_FORWARDED_HOST'];
+}
+
+// Determine protocol
 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+
+// Determine host safely
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8000';
 
-if (!defined('WP_HOME')) {
-    define('WP_HOME', getenv('WP_HOME') ?: $protocol . '://' . $host);
-}
-
-if (!defined('WP_SITEURL')) {
-    define('WP_SITEURL', getenv('WP_SITEURL') ?: $protocol . '://' . $host . '/wordpress');
-}
+// Define URLs (force override)
+define('WP_HOME', getenv('WP_HOME') ?: $protocol . '://' . $host);
+define('WP_SITEURL', getenv('WP_SITEURL') ?: $protocol . '://' . $host . '/wordpress');
 
 // Enable Application Passwords for local development (without HTTPS requirement)
 define( 'WP_ENVIRONMENT_TYPE', 'local' );
