@@ -31,10 +31,22 @@ function fix_image_url($url) {
     $wp_home = getenv('WP_HOME') ?: (defined('WP_HOME') ? WP_HOME : '');
     if ($wp_home) {
         // Replace localhost and 127.0.0.1 with correct domain
-        $url = str_replace('http://localhost', rtrim($wp_home, '/'), $url);
-        $url = str_replace('http://127.0.0.1', rtrim($wp_home, '/'), $url);
-        $url = str_replace('https://localhost', rtrim($wp_home, '/'), $url);
-        $url = str_replace('https://127.0.0.1', rtrim($wp_home, '/'), $url);
+        // Handle both with and without /wordpress prefix
+        $wp_home_trimmed = rtrim($wp_home, '/');
+        
+        // Replace http://localhost/wordpress with correct domain
+        $url = str_replace('http://localhost/wordpress', $wp_home_trimmed . '/wordpress', $url);
+        $url = str_replace('http://127.0.0.1/wordpress', $wp_home_trimmed . '/wordpress', $url);
+        
+        // Replace http://localhost (without /wordpress) with correct domain/wordpress
+        $url = str_replace('http://localhost/', $wp_home_trimmed . '/wordpress/', $url);
+        $url = str_replace('http://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $url);
+        
+        // Also handle https
+        $url = str_replace('https://localhost/wordpress', $wp_home_trimmed . '/wordpress', $url);
+        $url = str_replace('https://127.0.0.1/wordpress', $wp_home_trimmed . '/wordpress', $url);
+        $url = str_replace('https://localhost/', $wp_home_trimmed . '/wordpress/', $url);
+        $url = str_replace('https://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $url);
     }
     return $url;
 }
