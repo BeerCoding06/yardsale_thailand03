@@ -46,7 +46,7 @@ Thumbs.db
 .settings/
 
 # WordPress
-wordpress/wp-config.php
+# wordpress/wp-config.php  # ✅ Allow wp-config.php
 wordpress/wp-content/uploads/
 wordpress/wp-content/debug.log
 
