@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Fix Image URLs
  * Description: Replace localhost URLs with correct domain for production
- * Version: 2.0
+ * Version: 1.0
  * Author: Auto-generated
  */
 
@@ -20,17 +20,36 @@ if ($wp_home) {
     $fix_urls_callback = function($buffer) use ($wp_home_trimmed) {
         if (!$wp_home_trimmed) return $buffer;
         
-        // Replace all 127.0.0.1 and localhost URLs with correct domain
-        $buffer = str_replace('http://127.0.0.1/wordpress', $wp_home_trimmed . '/wordpress', $buffer);
-        $buffer = str_replace('http://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $buffer);
-        $buffer = str_replace('http://localhost/wordpress', $wp_home_trimmed . '/wordpress', $buffer);
-        $buffer = str_replace('http://localhost/', $wp_home_trimmed . '/wordpress/', $buffer);
+        // Replace all 127.0.0.1 and localhost URLs with Traefik domain
+        // Use regex to catch all variations (with/without protocol, with/without path)
         
-        // Also handle https
-        $buffer = str_replace('https://127.0.0.1/wordpress', $wp_home_trimmed . '/wordpress', $buffer);
-        $buffer = str_replace('https://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $buffer);
-        $buffer = str_replace('https://localhost/wordpress', $wp_home_trimmed . '/wordpress', $buffer);
-        $buffer = str_replace('https://localhost/', $wp_home_trimmed . '/wordpress/', $buffer);
+        // Replace http://127.0.0.1/... (with any path)
+        $buffer = preg_replace(
+            '#https?://127\.0\.0\.1(/[^\s"\'<>]*)?#i',
+            $wp_home_trimmed . '$1',
+            $buffer
+        );
+        
+        // Replace http://localhost/... (with any path)
+        $buffer = preg_replace(
+            '#https?://localhost(/[^\s"\'<>]*)?#i',
+            $wp_home_trimmed . '$1',
+            $buffer
+        );
+        
+        // Also replace in href and src attributes specifically
+        $buffer = preg_replace(
+            '#(href|src)=["\']https?://(127\.0\.0\.1|localhost)(/[^\s"\'<>]*)?["\']#i',
+            '$1="' . $wp_home_trimmed . '$3"',
+            $buffer
+        );
+        
+        // Replace in CSS url() functions
+        $buffer = preg_replace(
+            '#url\(["\']?https?://(127\.0\.0\.1|localhost)(/[^\s"\'<>\)]*)?["\']?\)#i',
+            'url("' . $wp_home_trimmed . '$2")',
+            $buffer
+        );
         
         return $buffer;
     };
