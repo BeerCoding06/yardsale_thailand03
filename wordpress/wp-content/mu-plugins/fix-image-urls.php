@@ -106,35 +106,41 @@ add_filter('style_loader_src', function($src, $handle) {
     return fix_url($src);
 }, 999, 2);
 
-// Override database options using pre_option_* filters
+// ============================================
+// OVERRIDE DATABASE VALUES WITH ENVIRONMENT VARIABLES
+// ============================================
 // pre_option_* filters run BEFORE WordPress queries the database
 // Returning a non-false value will short-circuit the database query
-// This ensures WordPress uses environment variables from docker-compose.yml
+// Priority 1 = highest priority, runs before all other filters
+// This ensures WordPress ALWAYS uses environment variables from docker-compose.yml
+
 add_filter('pre_option_home', function($pre, $option, $default_value) {
-    // First try environment variable (from docker-compose.yml)
+    // Priority: 1. Environment variable (from docker-compose.yml), 2. Constant, 3. Database
     $wp_home = getenv('WP_HOME');
-    if ($wp_home) {
-        return $wp_home;
+    if ($wp_home && $wp_home !== '') {
+        // Return environment variable - this will short-circuit database query
+        return rtrim($wp_home, '/');
     }
-    // Fallback to constant
-    if (defined('WP_HOME')) {
-        return WP_HOME;
+    // Fallback to constant (defined in wp-config.php)
+    if (defined('WP_HOME') && WP_HOME !== '') {
+        return rtrim(WP_HOME, '/');
     }
-    // Return false to allow WordPress to query database
+    // Return false to allow WordPress to query database (fallback)
     return false;
 }, 1, 3);
 
 add_filter('pre_option_siteurl', function($pre, $option, $default_value) {
-    // First try environment variable (from docker-compose.yml)
+    // Priority: 1. Environment variable (from docker-compose.yml), 2. Constant, 3. Database
     $wp_siteurl = getenv('WP_SITEURL');
-    if ($wp_siteurl) {
-        return $wp_siteurl;
+    if ($wp_siteurl && $wp_siteurl !== '') {
+        // Return environment variable - this will short-circuit database query
+        return rtrim($wp_siteurl, '/');
     }
-    // Fallback to constant
-    if (defined('WP_SITEURL')) {
-        return WP_SITEURL;
+    // Fallback to constant (defined in wp-config.php)
+    if (defined('WP_SITEURL') && WP_SITEURL !== '') {
+        return rtrim(WP_SITEURL, '/');
     }
-    // Return false to allow WordPress to query database
+    // Return false to allow WordPress to query database (fallback)
     return false;
 }, 1, 3);
 
