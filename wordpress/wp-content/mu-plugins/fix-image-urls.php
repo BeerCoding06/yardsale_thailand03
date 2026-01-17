@@ -2,9 +2,53 @@
 /**
  * Plugin Name: Fix Image URLs
  * Description: Replace localhost URLs with correct domain for production
- * Version: 1.0
+ * Version: 2.0
  * Author: Auto-generated
  */
+
+// Get correct domain from environment variables
+$wp_home_env = getenv('WP_HOME');
+$wp_home_const = defined('WP_HOME') ? WP_HOME : '';
+$wp_home = $wp_home_env ?: $wp_home_const;
+
+if ($wp_home) {
+    $wp_home_trimmed = rtrim($wp_home, '/');
+    
+    // Use output buffering to replace URLs in final HTML output
+    // This catches ALL URLs including those generated before filters run
+    // Use closure to capture $wp_home_trimmed variable
+    $fix_urls_callback = function($buffer) use ($wp_home_trimmed) {
+        if (!$wp_home_trimmed) return $buffer;
+        
+        // Replace all 127.0.0.1 and localhost URLs with correct domain
+        $buffer = str_replace('http://127.0.0.1/wordpress', $wp_home_trimmed . '/wordpress', $buffer);
+        $buffer = str_replace('http://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('http://localhost/wordpress', $wp_home_trimmed . '/wordpress', $buffer);
+        $buffer = str_replace('http://localhost/', $wp_home_trimmed . '/wordpress/', $buffer);
+        
+        // Also handle https
+        $buffer = str_replace('https://127.0.0.1/wordpress', $wp_home_trimmed . '/wordpress', $buffer);
+        $buffer = str_replace('https://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('https://localhost/wordpress', $wp_home_trimmed . '/wordpress', $buffer);
+        $buffer = str_replace('https://localhost/', $wp_home_trimmed . '/wordpress/', $buffer);
+        
+        return $buffer;
+    };
+    
+    // Start output buffering early (before WordPress outputs anything)
+    add_action('init', function() use ($fix_urls_callback) {
+        if (!ob_get_level()) {
+            ob_start($fix_urls_callback);
+        }
+    }, 1);
+    
+    // Flush output buffer at the end
+    add_action('shutdown', function() {
+        while (ob_get_level() > 0) {
+            ob_end_flush();
+        }
+    }, 999);
+}
 
 // Helper function to fix URLs
 function fix_url($url) {
