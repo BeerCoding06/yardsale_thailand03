@@ -105,6 +105,22 @@ add_filter('style_loader_src', function($src, $handle) {
     return fix_url($src);
 }, 10, 2);
 
+// Override database options to use WP_HOME and WP_SITEURL constants
+// This ensures WordPress uses the correct URLs even if database has wrong values
+add_filter('option_home', function($value) {
+    if (defined('WP_HOME')) {
+        return WP_HOME;
+    }
+    return $value;
+}, 1, 1);
+
+add_filter('option_siteurl', function($value) {
+    if (defined('WP_SITEURL')) {
+        return WP_SITEURL;
+    }
+    return $value;
+}, 1, 1);
+
 // Filter WordPress core URLs
 add_filter('site_url', function($url, $path, $scheme, $blog_id) {
     return fix_url($url);
