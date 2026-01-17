@@ -11,24 +11,61 @@ function fix_url($url) {
     if (!$url) return $url;
     
     $wp_home = getenv('WP_HOME') ?: (defined('WP_HOME') ? WP_HOME : '');
-    if ($wp_home) {
-        $wp_home_trimmed = rtrim($wp_home, '/');
-        
-        // Replace http://127.0.0.1/wordpress with correct domain
-        $url = str_replace('http://127.0.0.1/wordpress', $wp_home_trimmed . '/wordpress', $url);
-        $url = str_replace('http://localhost/wordpress', $wp_home_trimmed . '/wordpress', $url);
-        
-        // Replace http://127.0.0.1 (without /wordpress) with correct domain/wordpress
-        $url = str_replace('http://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $url);
-        $url = str_replace('http://localhost/', $wp_home_trimmed . '/wordpress/', $url);
-        
-        // Also handle https
-        $url = str_replace('https://127.0.0.1/wordpress', $wp_home_trimmed . '/wordpress', $url);
-        $url = str_replace('https://localhost/wordpress', $wp_home_trimmed . '/wordpress', $url);
-        $url = str_replace('https://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $url);
-        $url = str_replace('https://localhost/', $wp_home_trimmed . '/wordpress/', $url);
+    if (!$wp_home) return $url;
+    
+    $wp_home_trimmed = rtrim($wp_home, '/');
+    
+    // Check if URL already contains the correct domain - skip if already fixed
+    if (strpos($url, $wp_home_trimmed) === 0) {
+        // Already has correct domain, but check for duplicate /wordpress/
+        $url = preg_replace('#(/wordpress/wordpress/)#', '/wordpress/', $url);
+        return $url;
     }
-    return $url;
+    
+    // Only replace if URL contains localhost or 127.0.0.1
+    if (strpos($url, '127.0.0.1') === false && strpos($url, 'localhost') === false) {
+        return $url;
+    }
+    
+    // Parse the URL to understand its structure
+    $parsed = parse_url($url);
+    if (!$parsed || !isset($parsed['host'])) {
+        return $url;
+    }
+    
+    // Get the path
+    $path = isset($parsed['path']) ? $parsed['path'] : '/';
+    
+    // Check if path already starts with /wordpress
+    $has_wordpress_prefix = (strpos($path, '/wordpress/') === 0 || $path === '/wordpress');
+    
+    // Replace host and scheme
+    $new_url = $wp_home_trimmed;
+    
+    // If the original URL had /wordpress prefix, keep it
+    // If not, add /wordpress prefix
+    if ($has_wordpress_prefix) {
+        // Path already has /wordpress, so just replace the domain
+        $new_url .= $path;
+    } else {
+        // Path doesn't have /wordpress, add it
+        $new_url .= '/wordpress' . $path;
+    }
+    
+    // Add query string if exists
+    if (isset($parsed['query'])) {
+        $new_url .= '?' . $parsed['query'];
+    }
+    
+    // Add fragment if exists
+    if (isset($parsed['fragment'])) {
+        $new_url .= '#' . $parsed['fragment'];
+    }
+    
+    // Remove any duplicate /wordpress/wordpress/ patterns
+    $new_url = preg_replace('#(/wordpress/wordpress/)#', '/wordpress/', $new_url);
+    
+    return $new_url;
 }
 
 // Force WordPress to use correct URLs for media files
