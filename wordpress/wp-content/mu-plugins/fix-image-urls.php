@@ -106,10 +106,11 @@ add_filter('style_loader_src', function($src, $handle) {
     return fix_url($src);
 }, 999, 2);
 
-// Override database options to use WP_HOME and WP_SITEURL constants
-// Priority 1 = highest priority, runs before all other filters
-// This ensures WordPress uses the correct URLs even if database has wrong values
-add_filter('option_home', function($value) {
+// Override database options using pre_option_* filters
+// pre_option_* filters run BEFORE WordPress queries the database
+// Returning a non-false value will short-circuit the database query
+// This ensures WordPress uses environment variables from docker-compose.yml
+add_filter('pre_option_home', function($pre, $option, $default_value) {
     // First try environment variable (from docker-compose.yml)
     $wp_home = getenv('WP_HOME');
     if ($wp_home) {
@@ -119,10 +120,11 @@ add_filter('option_home', function($value) {
     if (defined('WP_HOME')) {
         return WP_HOME;
     }
-    return $value;
-}, 1, 1);
+    // Return false to allow WordPress to query database
+    return false;
+}, 1, 3);
 
-add_filter('option_siteurl', function($value) {
+add_filter('pre_option_siteurl', function($pre, $option, $default_value) {
     // First try environment variable (from docker-compose.yml)
     $wp_siteurl = getenv('WP_SITEURL');
     if ($wp_siteurl) {
@@ -132,8 +134,9 @@ add_filter('option_siteurl', function($value) {
     if (defined('WP_SITEURL')) {
         return WP_SITEURL;
     }
-    return $value;
-}, 1, 1);
+    // Return false to allow WordPress to query database
+    return false;
+}, 1, 3);
 
 // Filter WordPress core URLs
 // Priority 999 = runs after all other filters to ensure we catch all URLs
