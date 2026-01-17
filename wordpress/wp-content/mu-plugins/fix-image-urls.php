@@ -97,17 +97,25 @@ add_filter('wp_get_attachment_image_src', function($image, $attachment_id, $size
 }, 10, 4);
 
 // Filter script and style URLs (for CSS/JS files)
+// Priority 999 = runs after all other filters to ensure we catch all URLs
 add_filter('script_loader_src', function($src, $handle) {
     return fix_url($src);
-}, 10, 2);
+}, 999, 2);
 
 add_filter('style_loader_src', function($src, $handle) {
     return fix_url($src);
-}, 10, 2);
+}, 999, 2);
 
 // Override database options to use WP_HOME and WP_SITEURL constants
+// Priority 1 = highest priority, runs before all other filters
 // This ensures WordPress uses the correct URLs even if database has wrong values
 add_filter('option_home', function($value) {
+    // First try environment variable (from docker-compose.yml)
+    $wp_home = getenv('WP_HOME');
+    if ($wp_home) {
+        return $wp_home;
+    }
+    // Fallback to constant
     if (defined('WP_HOME')) {
         return WP_HOME;
     }
@@ -115,6 +123,12 @@ add_filter('option_home', function($value) {
 }, 1, 1);
 
 add_filter('option_siteurl', function($value) {
+    // First try environment variable (from docker-compose.yml)
+    $wp_siteurl = getenv('WP_SITEURL');
+    if ($wp_siteurl) {
+        return $wp_siteurl;
+    }
+    // Fallback to constant
     if (defined('WP_SITEURL')) {
         return WP_SITEURL;
     }
@@ -122,29 +136,30 @@ add_filter('option_siteurl', function($value) {
 }, 1, 1);
 
 // Filter WordPress core URLs
+// Priority 999 = runs after all other filters to ensure we catch all URLs
 add_filter('site_url', function($url, $path, $scheme, $blog_id) {
     return fix_url($url);
-}, 10, 4);
+}, 999, 4);
 
 add_filter('home_url', function($url, $path, $scheme, $blog_id) {
     return fix_url($url);
-}, 10, 4);
+}, 999, 4);
 
 add_filter('content_url', function($url, $path) {
     return fix_url($url);
-}, 10, 2);
+}, 999, 2);
 
 add_filter('plugins_url', function($url, $path, $plugin) {
     return fix_url($url);
-}, 10, 3);
+}, 999, 3);
 
 add_filter('includes_url', function($url, $path) {
     return fix_url($url);
-}, 10, 2);
+}, 999, 2);
 
 add_filter('admin_url', function($url, $path, $blog_id) {
     return fix_url($url);
-}, 10, 3);
+}, 999, 3);
 
 // Filter all URLs in content
 add_filter('the_content', function($content) {
