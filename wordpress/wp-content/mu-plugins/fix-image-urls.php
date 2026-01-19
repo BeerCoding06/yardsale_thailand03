@@ -24,10 +24,17 @@ if ($wp_home) {
         // Use multiple strategies to catch all variations
         
         // Strategy 1: Simple string replacement (fastest, catches most cases)
-        $buffer = str_replace('http://127.0.0.1/', $wp_home_trimmed . '/', $buffer);
-        $buffer = str_replace('http://localhost/', $wp_home_trimmed . '/', $buffer);
-        $buffer = str_replace('https://127.0.0.1/', $wp_home_trimmed . '/', $buffer);
-        $buffer = str_replace('https://localhost/', $wp_home_trimmed . '/', $buffer);
+        // Replace with /wordpress path preserved
+        $buffer = str_replace('http://127.0.0.1/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('http://localhost/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('https://127.0.0.1/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('https://localhost/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
+        
+        // Also replace without /wordpress prefix (in case some URLs don't have it)
+        $buffer = str_replace('http://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('http://localhost/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('https://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('https://localhost/', $wp_home_trimmed . '/wordpress/', $buffer);
         
         // Strategy 2: Replace in href and src attributes (more specific)
         $buffer = preg_replace(
@@ -53,17 +60,19 @@ if ($wp_home) {
         return $buffer;
     };
     
-    // Start output buffering early (before WordPress outputs anything)
-    // Use 'template_redirect' hook which runs after WordPress is fully loaded
-    // but before any output is sent
-    add_action('template_redirect', function() use ($fix_urls_callback) {
-        // Only start if no output buffering is active
+    // Start output buffering IMMEDIATELY (mu-plugins load before WordPress)
+    // This ensures we catch ALL output from WordPress
+    if (ob_get_level() === 0) {
+        ob_start($fix_urls_callback);
+    }
+    
+    // Also register hooks as fallback
+    add_action('plugins_loaded', function() use ($fix_urls_callback) {
         if (ob_get_level() === 0) {
             ob_start($fix_urls_callback);
         }
     }, 1);
     
-    // Also try on 'init' hook as fallback
     add_action('init', function() use ($fix_urls_callback) {
         if (ob_get_level() === 0) {
             ob_start($fix_urls_callback);
