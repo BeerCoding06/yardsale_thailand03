@@ -3,6 +3,11 @@
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
   
+  // Redirect incorrect wp-admin.php to wp-admin/
+  if (event.path === '/wordpress/wp-admin.php') {
+    return sendRedirect(event, '/wordpress/wp-admin/', 301);
+  }
+  
   // Use internal URL for container communication (Nginx on port 80)
   // Try multiple internal URLs for reliability
   const internalBaseUrl = process.env.INTERNAL_BASE_URL || 'http://127.0.0.1:80';
