@@ -21,33 +21,32 @@ if ($wp_home) {
         if (!$wp_home_trimmed) return $buffer;
         
         // Replace all 127.0.0.1 and localhost URLs with Traefik domain
-        // Use regex to catch all variations (with/without protocol, with/without path)
+        // Use multiple strategies to catch all variations
         
-        // Replace http://127.0.0.1/... (with any path)
-        $buffer = preg_replace(
-            '#https?://127\.0\.0\.1(/[^\s"\'<>]*)?#i',
-            $wp_home_trimmed . '$1',
-            $buffer
-        );
+        // Strategy 1: Simple string replacement (fastest, catches most cases)
+        $buffer = str_replace('http://127.0.0.1/', $wp_home_trimmed . '/', $buffer);
+        $buffer = str_replace('http://localhost/', $wp_home_trimmed . '/', $buffer);
+        $buffer = str_replace('https://127.0.0.1/', $wp_home_trimmed . '/', $buffer);
+        $buffer = str_replace('https://localhost/', $wp_home_trimmed . '/', $buffer);
         
-        // Replace http://localhost/... (with any path)
-        $buffer = preg_replace(
-            '#https?://localhost(/[^\s"\'<>]*)?#i',
-            $wp_home_trimmed . '$1',
-            $buffer
-        );
-        
-        // Also replace in href and src attributes specifically
+        // Strategy 2: Replace in href and src attributes (more specific)
         $buffer = preg_replace(
             '#(href|src)=["\']https?://(127\.0\.0\.1|localhost)(/[^\s"\'<>]*)?["\']#i',
             '$1="' . $wp_home_trimmed . '$3"',
             $buffer
         );
         
-        // Replace in CSS url() functions
+        // Strategy 3: Replace in CSS url() functions
         $buffer = preg_replace(
             '#url\(["\']?https?://(127\.0\.0\.1|localhost)(/[^\s"\'<>\)]*)?["\']?\)#i',
             'url("' . $wp_home_trimmed . '$2")',
+            $buffer
+        );
+        
+        // Strategy 4: Replace in JavaScript strings and other contexts
+        $buffer = preg_replace(
+            '#["\']https?://(127\.0\.0\.1|localhost)(/[^\s"\'<>\)]*)?["\']#i',
+            '"' . $wp_home_trimmed . '$2"',
             $buffer
         );
         
@@ -55,8 +54,18 @@ if ($wp_home) {
     };
     
     // Start output buffering early (before WordPress outputs anything)
+    // Use 'template_redirect' hook which runs after WordPress is fully loaded
+    // but before any output is sent
+    add_action('template_redirect', function() use ($fix_urls_callback) {
+        // Only start if no output buffering is active
+        if (ob_get_level() === 0) {
+            ob_start($fix_urls_callback);
+        }
+    }, 1);
+    
+    // Also try on 'init' hook as fallback
     add_action('init', function() use ($fix_urls_callback) {
-        if (!ob_get_level()) {
+        if (ob_get_level() === 0) {
             ob_start($fix_urls_callback);
         }
     }, 1);
@@ -180,12 +189,14 @@ add_filter('style_loader_src', function($src, $handle) {
 add_filter('pre_option_home', function($pre, $option, $default_value) {
     // Priority: 1. Environment variable (from docker-compose.yml), 2. Constant, 3. Database
     $wp_home = getenv('WP_HOME');
-    if ($wp_home && $wp_home !== '') {
+    if ($wp_home && $wp_home !== '' && $wp_home !== 'false') {
         // Return environment variable - this will short-circuit database query
-        return rtrim($wp_home, '/');
+        $result = rtrim($wp_home, '/');
+        // Force return non-false value to override database
+        return $result;
     }
     // Fallback to constant (defined in wp-config.php)
-    if (defined('WP_HOME') && WP_HOME !== '') {
+    if (defined('WP_HOME') && WP_HOME !== '' && WP_HOME !== 'false') {
         return rtrim(WP_HOME, '/');
     }
     // Return false to allow WordPress to query database (fallback)
@@ -195,12 +206,14 @@ add_filter('pre_option_home', function($pre, $option, $default_value) {
 add_filter('pre_option_siteurl', function($pre, $option, $default_value) {
     // Priority: 1. Environment variable (from docker-compose.yml), 2. Constant, 3. Database
     $wp_siteurl = getenv('WP_SITEURL');
-    if ($wp_siteurl && $wp_siteurl !== '') {
+    if ($wp_siteurl && $wp_siteurl !== '' && $wp_siteurl !== 'false') {
         // Return environment variable - this will short-circuit database query
-        return rtrim($wp_siteurl, '/');
+        $result = rtrim($wp_siteurl, '/');
+        // Force return non-false value to override database
+        return $result;
     }
     // Fallback to constant (defined in wp-config.php)
-    if (defined('WP_SITEURL') && WP_SITEURL !== '') {
+    if (defined('WP_SITEURL') && WP_SITEURL !== '' && WP_SITEURL !== 'false') {
         return rtrim(WP_SITEURL, '/');
     }
     // Return false to allow WordPress to query database (fallback)
