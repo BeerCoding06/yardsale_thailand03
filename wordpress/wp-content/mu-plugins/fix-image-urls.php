@@ -24,17 +24,24 @@ if ($wp_home) {
         // Use multiple strategies to catch all variations
         
         // Strategy 1: Simple string replacement (fastest, catches most cases)
-        // Replace with /wordpress path preserved
+        // Replace with /wordpress path preserved - MUST be done first
         $buffer = str_replace('http://127.0.0.1/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
         $buffer = str_replace('http://localhost/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
         $buffer = str_replace('https://127.0.0.1/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
         $buffer = str_replace('https://localhost/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
         
         // Also replace without /wordpress prefix (in case some URLs don't have it)
+        // But be careful not to double-replace
         $buffer = str_replace('http://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $buffer);
         $buffer = str_replace('http://localhost/', $wp_home_trimmed . '/wordpress/', $buffer);
         $buffer = str_replace('https://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $buffer);
         $buffer = str_replace('https://localhost/', $wp_home_trimmed . '/wordpress/', $buffer);
+        
+        // Also handle URLs without protocol (relative URLs that got converted)
+        $buffer = str_replace('//127.0.0.1/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('//localhost/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('//127.0.0.1/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('//localhost/', $wp_home_trimmed . '/wordpress/', $buffer);
         
         // Strategy 2: Replace in href and src attributes (more specific)
         $buffer = preg_replace(
