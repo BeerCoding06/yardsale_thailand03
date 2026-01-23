@@ -17,18 +17,20 @@ export default defineEventHandler(async (event) => {
     'http://localhost:80',
   ];
   
-  // Get the path after /wordpress (handle both with and without trailing slash)
-  let path = event.path.replace(/^\/wordpress\/?/, '') || '/';
-  // Ensure path starts with /
-  if (!path.startsWith('/')) {
-    path = '/' + path;
+  // Get the path - keep /wordpress prefix for Nginx routing
+  // Nginx expects /wordpress/ prefix for WordPress routes
+  let path = event.path;
+  // Ensure path starts with /wordpress
+  if (!path.startsWith('/wordpress')) {
+    // If path doesn't start with /wordpress, add it
+    path = '/wordpress' + (path.startsWith('/') ? path : '/' + path);
   }
   
   // Get query string if present
   const queryString = getQuery(event);
   const queryParams = new URLSearchParams(queryString as Record<string, string>).toString();
   
-  // Build the target URL (WordPress is served directly by Nginx, no /wordpress prefix needed in internal URL)
+  // Build the target URL (Nginx expects /wordpress prefix)
   const wpPath = queryParams ? `${path}?${queryParams}` : path;
   
   // Log for debugging
