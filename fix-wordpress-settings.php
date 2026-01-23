@@ -5,7 +5,25 @@
  */
 
 // Load WordPress
-require_once __DIR__ . '/wordpress/wp-load.php';
+// Try multiple paths to find wp-load.php
+$wp_load_paths = [
+    __DIR__ . '/wordpress/wp-load.php',  // From project root
+    __DIR__ . '/wp-load.php',            // From wordpress directory
+    '/app/wordpress/wp-load.php',        // From Docker container
+];
+
+$wp_loaded = false;
+foreach ($wp_load_paths as $path) {
+    if (file_exists($path)) {
+        require_once $path;
+        $wp_loaded = true;
+        break;
+    }
+}
+
+if (!$wp_loaded) {
+    die("❌ Error: Could not find wp-load.php. Please run this script from the project root or Docker container.\n");
+}
 
 echo "=== Fix WordPress Settings ===\n\n";
 
