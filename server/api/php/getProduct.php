@@ -34,6 +34,10 @@ function fix_image_url($url) {
         // Handle both with and without /wordpress prefix
         $wp_home_trimmed = rtrim($wp_home, '/');
         
+        // CRITICAL: Fix duplicate /wordpress/wordpress/ FIRST
+        $url = preg_replace('#(/wordpress/wordpress/)#', '/wordpress/', $url);
+        $url = preg_replace('#(/wordpress/wordpress)$#', '/wordpress', $url);
+        
         // Replace http://localhost/wordpress with correct domain
         $url = str_replace('http://localhost/wordpress', $wp_home_trimmed . '/wordpress', $url);
         $url = str_replace('http://127.0.0.1/wordpress', $wp_home_trimmed . '/wordpress', $url);
@@ -47,6 +51,10 @@ function fix_image_url($url) {
         $url = str_replace('https://127.0.0.1/wordpress', $wp_home_trimmed . '/wordpress', $url);
         $url = str_replace('https://localhost/', $wp_home_trimmed . '/wordpress/', $url);
         $url = str_replace('https://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $url);
+        
+        // Final cleanup: Remove any duplicate /wordpress/wordpress/ that might have been created
+        $url = preg_replace('#(/wordpress/wordpress/)#', '/wordpress/', $url);
+        $url = preg_replace('#(/wordpress/wordpress)$#', '/wordpress', $url);
     }
     return $url;
 }

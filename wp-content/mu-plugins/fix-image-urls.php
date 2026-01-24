@@ -64,6 +64,26 @@ if ($wp_home) {
             $buffer
         );
         
+        // Strategy 5: Fix duplicate /wordpress/wordpress/ paths (CRITICAL)
+        // This must be done AFTER all replacements to catch any duplicates
+        $buffer = preg_replace('#(/wordpress/wordpress/)#', '/wordpress/', $buffer);
+        $buffer = preg_replace('#(/wordpress/wordpress)#', '/wordpress', $buffer);
+        $buffer = preg_replace('#(http://[^/]+/wordpress/wordpress/)#', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = preg_replace('#(https://[^/]+/wordpress/wordpress/)#', $wp_home_trimmed . '/wordpress/', $buffer);
+        
+        // Strategy 6: Final cleanup - replace any remaining localhost/127.0.0.1 with correct domain
+        // This catches any URLs that might have been missed
+        $buffer = preg_replace(
+            '#https?://(127\.0\.0\.1|localhost)(/wordpress/wordpress/)#i',
+            $wp_home_trimmed . '/wordpress/',
+            $buffer
+        );
+        $buffer = preg_replace(
+            '#https?://(127\.0\.0\.1|localhost)(/wordpress/)#i',
+            $wp_home_trimmed . '/wordpress/',
+            $buffer
+        );
+        
         return $buffer;
     };
     
@@ -107,8 +127,13 @@ function fix_url($url) {
     if (strpos($url, $wp_home_trimmed) === 0) {
         // Already has correct domain, but check for duplicate /wordpress/
         $url = preg_replace('#(/wordpress/wordpress/)#', '/wordpress/', $url);
+        $url = preg_replace('#(/wordpress/wordpress)$#', '/wordpress', $url);
         return $url;
     }
+    
+    // Fix duplicate /wordpress/wordpress/ BEFORE processing
+    $url = preg_replace('#(/wordpress/wordpress/)#', '/wordpress/', $url);
+    $url = preg_replace('#(/wordpress/wordpress)$#', '/wordpress', $url);
     
     // Only replace if URL contains localhost or 127.0.0.1
     if (strpos($url, '127.0.0.1') === false && strpos($url, 'localhost') === false) {
