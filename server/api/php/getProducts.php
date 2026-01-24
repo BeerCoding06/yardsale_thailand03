@@ -12,13 +12,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // Load WordPress
-$wp_load_path = __DIR__ . '/../../../wordpress/wp-load.php';
-if (!file_exists($wp_load_path)) {
-    $wp_load_path = __DIR__ . '/../../../../wordpress/wp-load.php';
+// WordPress is at root level, try multiple paths
+$wp_load_paths = [
+    __DIR__ . '/../../../wp-load.php',  // From server/api/php/ to root
+    __DIR__ . '/../../../../wp-load.php', // Alternative path
+    __DIR__ . '/../../../wordpress/wp-load.php', // Fallback: wordpress folder
+    '/app/wp-load.php', // Docker container path
+];
+
+$wp_load_path = null;
+foreach ($wp_load_paths as $path) {
+    if (file_exists($path)) {
+        $wp_load_path = $path;
+        break;
+    }
 }
-if (!file_exists($wp_load_path)) {
+
+if (!$wp_load_path) {
     http_response_code(500);
-    echo json_encode(['error' => 'WordPress not found']);
+    echo json_encode(['error' => 'WordPress not found', 'tried_paths' => $wp_load_paths]);
     exit();
 }
 
