@@ -8,14 +8,14 @@ export default defineEventHandler(async (event) => {
     return sendRedirect(event, '/wordpress/wp-admin/', 301);
   }
   
-  // Use internal URL for container communication (Nginx on port 8080 for WordPress)
-  // Nuxt.js uses port 80, Nginx uses port 8080 for WordPress internal routing
+  // Use internal URL for container communication (Nginx on port 80)
+  // Nuxt.js uses port 3000, Nginx uses port 80 and proxies to Nuxt.js
   // Try multiple internal URLs for reliability
-  const internalBaseUrl = process.env.INTERNAL_BASE_URL || 'http://127.0.0.1:8080';
+  const internalBaseUrl = process.env.INTERNAL_BASE_URL || 'http://127.0.0.1:80';
   const internalUrls = [
     internalBaseUrl,
-    'http://127.0.0.1:8080',
-    'http://localhost:8080',
+    'http://127.0.0.1:80',
+    'http://localhost:80',
   ];
   
   // Get the path - keep /wordpress prefix for Nginx routing

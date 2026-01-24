@@ -5,9 +5,9 @@ export default cachedEventHandler(
   async (event) => {
     try {
       const config = useRuntimeConfig();
-      // Use internal port 8080 for container communication
-      // Nginx is on port 8080 for WordPress/PHP API routing
-      const baseUrl = 'http://localhost:8080';
+      // Use internal port 80 for container communication
+      // Nginx is on port 80 and handles PHP API routing
+      const baseUrl = 'http://localhost:80';
       
       // Get query parameters
       const query = getQuery(event);
