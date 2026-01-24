@@ -21,15 +21,31 @@ export default cachedEventHandler(
       const phpApiUrl = `${baseUrl}/server/api/php/getCategories.php?parent=${parent}&hide_empty=${hide_empty}&orderby=${orderby}&order=${order}`;
       
       // Call PHP API with timeout and error handling
-      const response = await $fetch(phpApiUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        timeout: 30000, // 30 seconds timeout
-      });
+      console.log('[categories] Calling PHP API:', phpApiUrl);
       
-      return response;
+      try {
+        const response = await $fetch(phpApiUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          timeout: 30000, // 30 seconds timeout
+        });
+        
+        console.log('[categories] PHP API response received');
+        return response;
+      } catch (fetchError: any) {
+        console.error('[categories] Fetch error:', fetchError);
+        console.error('[categories] Fetch error details:', {
+          message: fetchError?.message,
+          status: fetchError?.status,
+          statusCode: fetchError?.statusCode,
+          statusText: fetchError?.statusText,
+          cause: fetchError?.cause,
+          code: fetchError?.code,
+        });
+        throw fetchError;
+      }
     } catch (error: any) {
       // Make sure all variables are defined in catch block scope
       const errorBaseUrl = 'http://127.0.0.1:80';
