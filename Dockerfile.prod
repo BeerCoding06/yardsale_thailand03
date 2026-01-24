@@ -79,7 +79,9 @@ COPY server/api/php /app/server/api/php
 RUN chown -R nginx:nginx /app/wp-* /app/index.php /app/xmlrpc.php /app/license.txt /app/readme.html /app/.htaccess && \
     chmod -R 755 /app/wp-* /app/index.php /app/xmlrpc.php && \
     chown -R nginx:nginx /app/server && \
-    chmod -R 755 /app/server
+    chmod -R 755 /app/server && \
+    chown -R nginx:nginx /app/.output && \
+    chmod -R 755 /app/.output
 
 # Configure PHP-FPM - find the correct PHP config directory
 RUN PHP_CONF_DIR=$(find /etc -name "www.conf" -path "*/php-fpm.d/*" | head -1 | xargs dirname) && \
