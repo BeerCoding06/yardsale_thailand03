@@ -9,9 +9,14 @@ services:
     labels:
       # Traefik Configuration
       - "traefik.enable=true"
+      # Route for nuxt domain
       - "traefik.http.routers.app.rule=Host(`yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me`)"
       - "traefik.http.routers.app.entrypoints=web"
       - "traefik.http.services.app.loadbalancer.server.port=80"
+      # Route for wp domain (same service)
+      - "traefik.http.routers.app-wp.rule=Host(`yardsalethailand-wp-8txv8a-1ef772-157-85-98-150.traefik.me`)"
+      - "traefik.http.routers.app-wp.entrypoints=web"
+      - "traefik.http.routers.app-wp.service=app"
       # Note: We don't strip /wordpress prefix because nginx expects it
 
     environment:
@@ -45,5 +50,5 @@ services:
       - GQL_HOST=http://app/wordpress/graphql
 
     volumes:
-      # Mount WordPress directory (core + wp-content)
-      - ./wordpress:/app/wordpress
+      # Mount project root (WordPress files are now at root level)
+      - .:/app

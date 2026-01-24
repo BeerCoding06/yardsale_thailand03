@@ -66,15 +66,18 @@ RUN mkdir -p /var/log/supervisor /var/run/php-fpm /var/lib/nginx/tmp && \
 COPY --from=builder /app/.output ./.output
 COPY --from=builder /app/package.json ./package.json
 
-# Copy WordPress files
-COPY wordpress /app/wordpress
+# Copy WordPress files (now at root level)
+COPY wp-*.php wp-*.txt wp-*.html index.php xmlrpc.php license.txt readme.html .htaccess /app/
+COPY wp-admin /app/wp-admin
+COPY wp-content /app/wp-content
+COPY wp-includes /app/wp-includes
 
 # Copy PHP API files
 COPY server/api/php /app/server/api/php
 
 # Set proper permissions for WordPress and PHP API (nginx user in Alpine)
-RUN chown -R nginx:nginx /app/wordpress && \
-    chmod -R 755 /app/wordpress && \
+RUN chown -R nginx:nginx /app/wp-* /app/index.php /app/xmlrpc.php /app/license.txt /app/readme.html /app/.htaccess && \
+    chmod -R 755 /app/wp-* /app/index.php /app/xmlrpc.php && \
     chown -R nginx:nginx /app/server && \
     chmod -R 755 /app/server
 
