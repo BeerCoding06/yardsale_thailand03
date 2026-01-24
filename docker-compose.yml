@@ -17,7 +17,7 @@ services:
       - "traefik.http.routers.app-wp.rule=Host(`yardsalethailand-wp-8txv8a-1ef772-157-85-98-150.traefik.me`)"
       - "traefik.http.routers.app-wp.entrypoints=web"
       - "traefik.http.routers.app-wp.service=app"
-      # WordPress is at root level, no /wordpress prefix needed
+      # Note: We don't strip /wordpress prefix because nginx expects it
 
     environment:
       # =================
@@ -33,8 +33,8 @@ services:
       # =================
       - BASE_URL=http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me
       - WP_HOME=http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me
-      - WP_SITEURL=http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me
-      - WP_MEDIA_HOST=http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me
+      - WP_SITEURL=http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/wordpress
+      - WP_MEDIA_HOST=http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/wordpress
 
       # =================
       # Internal
@@ -47,7 +47,7 @@ services:
       - WP_BASIC_AUTH=cGFyYWRvbl9wb2twaW5nbWF1bmc6eDRkTCA4QUp1IHQzSHkgZzIyMyA5aTViIG9hTnk=
       - WC_CONSUMER_KEY=ck_6c8520b64c0bac82b407b08e7de3c7908af0de51
       - WC_CONSUMER_SECRET=cs_fdcba105736b44ef72f787faeb0f3aec5e74306f
-      - GQL_HOST=http://app/graphql
+      - GQL_HOST=http://app/wordpress/graphql
 
     volumes:
       # Mount project root (WordPress files are now at root level)

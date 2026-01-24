@@ -12,9 +12,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // Load WordPress
-$wp_load_path = __DIR__ . '/../../../wp-load.php';
+$wp_load_path = __DIR__ . '/../../../wordpress/wp-load.php';
 if (!file_exists($wp_load_path)) {
-    $wp_load_path = __DIR__ . '/../../../../wp-load.php';
+    $wp_load_path = __DIR__ . '/../../../../wordpress/wp-load.php';
 }
 if (!file_exists($wp_load_path)) {
     http_response_code(500);
@@ -31,24 +31,22 @@ function fix_image_url($url) {
     $wp_home = getenv('WP_HOME') ?: (defined('WP_HOME') ? WP_HOME : '');
     if ($wp_home) {
         // Replace localhost and 127.0.0.1 with correct domain
-        // WordPress is at root level, NO /wordpress path
+        // Handle both with and without /wordpress prefix
         $wp_home_trimmed = rtrim($wp_home, '/');
         
-        // Remove /wordpress paths (legacy cleanup)
-        $url = preg_replace('#(/wordpress/)#', '/', $url);
-        $url = preg_replace('#(/wordpress)$#', '', $url);
+        // Replace http://localhost/wordpress with correct domain
+        $url = str_replace('http://localhost/wordpress', $wp_home_trimmed . '/wordpress', $url);
+        $url = str_replace('http://127.0.0.1/wordpress', $wp_home_trimmed . '/wordpress', $url);
         
-        // Replace http://localhost with correct domain
-        $url = str_replace('http://localhost/', $wp_home_trimmed . '/', $url);
-        $url = str_replace('http://127.0.0.1/', $wp_home_trimmed . '/', $url);
+        // Replace http://localhost (without /wordpress) with correct domain/wordpress
+        $url = str_replace('http://localhost/', $wp_home_trimmed . '/wordpress/', $url);
+        $url = str_replace('http://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $url);
         
         // Also handle https
-        $url = str_replace('https://localhost/', $wp_home_trimmed . '/', $url);
-        $url = str_replace('https://127.0.0.1/', $wp_home_trimmed . '/', $url);
-        
-        // Final cleanup: Remove any remaining /wordpress paths
-        $url = preg_replace('#(/wordpress/)#', '/', $url);
-        $url = preg_replace('#(/wordpress)$#', '', $url);
+        $url = str_replace('https://localhost/wordpress', $wp_home_trimmed . '/wordpress', $url);
+        $url = str_replace('https://127.0.0.1/wordpress', $wp_home_trimmed . '/wordpress', $url);
+        $url = str_replace('https://localhost/', $wp_home_trimmed . '/wordpress/', $url);
+        $url = str_replace('https://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $url);
     }
     return $url;
 }

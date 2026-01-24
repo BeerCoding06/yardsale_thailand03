@@ -21,21 +21,27 @@ if ($wp_home) {
         if (!$wp_home_trimmed) return $buffer;
         
         // Replace all 127.0.0.1 and localhost URLs with Traefik domain
-        // WordPress is at root level, NO /wordpress path
+        // Use multiple strategies to catch all variations
         
         // Strategy 1: Simple string replacement (fastest, catches most cases)
-        $buffer = str_replace('http://127.0.0.1/', $wp_home_trimmed . '/', $buffer);
-        $buffer = str_replace('http://localhost/', $wp_home_trimmed . '/', $buffer);
-        $buffer = str_replace('https://127.0.0.1/', $wp_home_trimmed . '/', $buffer);
-        $buffer = str_replace('https://localhost/', $wp_home_trimmed . '/', $buffer);
+        // Replace with /wordpress path preserved - MUST be done first
+        $buffer = str_replace('http://127.0.0.1/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('http://localhost/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('https://127.0.0.1/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('https://localhost/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
+        
+        // Also replace without /wordpress prefix (in case some URLs don't have it)
+        // But be careful not to double-replace
+        $buffer = str_replace('http://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('http://localhost/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('https://127.0.0.1/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('https://localhost/', $wp_home_trimmed . '/wordpress/', $buffer);
         
         // Also handle URLs without protocol (relative URLs that got converted)
-        $buffer = str_replace('//127.0.0.1/', $wp_home_trimmed . '/', $buffer);
-        $buffer = str_replace('//localhost/', $wp_home_trimmed . '/', $buffer);
-        
-        // Remove any /wordpress paths that might still exist (legacy cleanup)
-        $buffer = str_replace('/wordpress/', '/', $buffer);
-        $buffer = str_replace('/wordpress', '/', $buffer);
+        $buffer = str_replace('//127.0.0.1/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('//localhost/wordpress/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('//127.0.0.1/', $wp_home_trimmed . '/wordpress/', $buffer);
+        $buffer = str_replace('//localhost/', $wp_home_trimmed . '/wordpress/', $buffer);
         
         // Strategy 2: Replace in href and src attributes (more specific)
         $buffer = preg_replace(
@@ -57,10 +63,6 @@ if ($wp_home) {
             '"' . $wp_home_trimmed . '$2"',
             $buffer
         );
-        
-        // Strategy 5: Remove /wordpress from URLs (final cleanup)
-        $buffer = preg_replace('#(/wordpress/)#', '/', $buffer);
-        $buffer = preg_replace('#(/wordpress)#', '/', $buffer);
         
         return $buffer;
     };
@@ -103,15 +105,10 @@ function fix_url($url) {
     
     // Check if URL already contains the correct domain - skip if already fixed
     if (strpos($url, $wp_home_trimmed) === 0) {
-        // Already has correct domain, but remove /wordpress if present
-        $url = preg_replace('#(/wordpress/)#', '/', $url);
-        $url = preg_replace('#(/wordpress)$#', '', $url);
+        // Already has correct domain, but check for duplicate /wordpress/
+        $url = preg_replace('#(/wordpress/wordpress/)#', '/wordpress/', $url);
         return $url;
     }
-    
-    // Remove /wordpress prefix from path if present (legacy cleanup)
-    $url = preg_replace('#(/wordpress/)#', '/', $url);
-    $url = preg_replace('#(/wordpress)$#', '', $url);
     
     // Only replace if URL contains localhost or 127.0.0.1
     if (strpos($url, '127.0.0.1') === false && strpos($url, 'localhost') === false) {
@@ -127,14 +124,21 @@ function fix_url($url) {
     // Get the path
     $path = isset($parsed['path']) ? $parsed['path'] : '/';
     
-    // Remove /wordpress prefix from path if present
-    $path = preg_replace('#^/wordpress(/.*)?$#', '$1', $path);
-    if (empty($path)) {
-        $path = '/';
-    }
+    // Check if path already starts with /wordpress
+    $has_wordpress_prefix = (strpos($path, '/wordpress/') === 0 || $path === '/wordpress');
     
     // Replace host and scheme
-    $new_url = $wp_home_trimmed . $path;
+    $new_url = $wp_home_trimmed;
+    
+    // If the original URL had /wordpress prefix, keep it
+    // If not, add /wordpress prefix
+    if ($has_wordpress_prefix) {
+        // Path already has /wordpress, so just replace the domain
+        $new_url .= $path;
+    } else {
+        // Path doesn't have /wordpress, add it
+        $new_url .= '/wordpress' . $path;
+    }
     
     // Add query string if exists
     if (isset($parsed['query'])) {
@@ -145,6 +149,9 @@ function fix_url($url) {
     if (isset($parsed['fragment'])) {
         $new_url .= '#' . $parsed['fragment'];
     }
+    
+    // Remove any duplicate /wordpress/wordpress/ patterns
+    $new_url = preg_replace('#(/wordpress/wordpress/)#', '/wordpress/', $new_url);
     
     return $new_url;
 }
@@ -266,14 +273,15 @@ add_filter('the_content', function($content) {
         
         // Replace in href and src attributes
         $content = preg_replace(
-            '/(href|src)=["\']http:\/\/(127\.0\.0\.1|localhost)\//i',
-            '$1="' . $wp_home_trimmed . '/',
+            '/(href|src)=["\']http:\/\/(127\.0\.0\.1|localhost)\/wordpress\//i',
+            '$1="' . $wp_home_trimmed . '/wordpress/',
             $content
         );
-        
-        // Remove /wordpress paths
-        $content = preg_replace('#(/wordpress/)#', '/', $content);
-        $content = preg_replace('#(/wordpress)#', '/', $content);
+        $content = preg_replace(
+            '/(href|src)=["\']http:\/\/(127\.0\.0\.1|localhost)\//i',
+            '$1="' . $wp_home_trimmed . '/wordpress/',
+            $content
+        );
     }
     return $content;
 }, 999);
