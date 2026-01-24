@@ -7,7 +7,8 @@ export default cachedEventHandler(
       const config = useRuntimeConfig();
       // Use internal port 80 for container communication
       // Nginx is on port 80 and handles PHP API routing
-      const baseUrl = 'http://localhost:80';
+      // Nuxt.js and nginx are in the same container, so use 127.0.0.1:80
+      const baseUrl = 'http://127.0.0.1:80';
       
       // Get query parameters
       const query = getQuery(event);
@@ -42,18 +43,19 @@ export default cachedEventHandler(
       
       const phpApiUrl = `${baseUrl}/server/api/php/getProducts.php?${params.toString()}`;
       
-      // Call PHP API
+      // Call PHP API with timeout and error handling
       const response = await $fetch(phpApiUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
+        timeout: 30000, // 30 seconds timeout
       });
       
       return response;
     } catch (error: any) {
       // Make sure all variables are defined in catch block scope
-      const errorBaseUrl = 'http://localhost:80';
+      const errorBaseUrl = 'http://127.0.0.1:80';
       const errorPhpApiUrl = `${errorBaseUrl}/server/api/php/getProducts.php`;
       
       console.error('[products] Error:', error);

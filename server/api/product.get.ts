@@ -7,7 +7,8 @@ export default cachedEventHandler(
       const config = useRuntimeConfig();
       // Use internal port 80 for container communication
       // Nginx is on port 80 and handles PHP API routing
-      const baseUrl = 'http://localhost:80';
+      // Nuxt.js and nginx are in the same container, so use 127.0.0.1:80
+      const baseUrl = 'http://127.0.0.1:80';
       
       // Get query parameters
       const query = getQuery(event);

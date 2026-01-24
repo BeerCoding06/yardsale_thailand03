@@ -41,7 +41,7 @@ services:
       # =================
       # Internal
       # =================
-      - INTERNAL_BASE_URL=http://app
+      - INTERNAL_BASE_URL=http://127.0.0.1:80
 
       # =================
       # Auth / API
