@@ -20,7 +20,7 @@ $product_id = intval($input['product_id']);
 $user_id = intval($input['user_id']);
 
 // Load WordPress
-$wp_load_path = dirname(__DIR__, 3) . '/wordpress/wp-load.php';
+$wp_load_path = dirname(__DIR__, 3) . '/wp-load.php';
 if (!file_exists($wp_load_path)) {
     http_response_code(500);
     echo json_encode(['error' => 'WordPress not found']);

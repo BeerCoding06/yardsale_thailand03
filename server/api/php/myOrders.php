@@ -22,9 +22,9 @@ if (!$customer_id && !$customer_email) {
 }
 
 // Load WordPress
-$wp_load_path = __DIR__ . '/../../../wordpress/wp-load.php';
+$wp_load_path = __DIR__ . '/../../../wp-load.php';
 if (!file_exists($wp_load_path)) {
-    $wp_load_path = __DIR__ . '/../../../../wordpress/wp-load.php';
+    $wp_load_path = __DIR__ . '/../../../../wp-load.php';
 }
 if (!file_exists($wp_load_path)) {
     http_response_code(500);

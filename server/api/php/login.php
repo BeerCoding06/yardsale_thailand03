@@ -20,10 +20,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // Load WordPress
 // Path from server/api/php/login.php to wordpress/wp-load.php
-$wp_load_path = __DIR__ . '/../../../wordpress/wp-load.php';
+$wp_load_path = __DIR__ . '/../../../wp-load.php';
 if (!file_exists($wp_load_path)) {
     // Try alternative path
-    $wp_load_path = __DIR__ . '/../../../../wordpress/wp-load.php';
+    $wp_load_path = __DIR__ . '/../../../../wp-load.php';
     if (!file_exists($wp_load_path)) {
         http_response_code(500);
         echo json_encode(['error' => 'WordPress not found at: ' . $wp_load_path]);

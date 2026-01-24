@@ -35,7 +35,7 @@ echo "📋 Target Domain: $wp_home_trimmed\n\n";
 
 global $wpdb;
 
-// Patterns to search for
+// Patterns to search for (WordPress is at root, NO /wordpress path)
 $patterns = [
     'http://localhost/wordpress/wordpress/',
     'https://localhost/wordpress/wordpress/',
@@ -52,18 +52,18 @@ $patterns = [
 ];
 
 $replacements = [
-    $wp_home_trimmed . '/wordpress/',
-    $wp_home_trimmed . '/wordpress/',
-    $wp_home_trimmed . '/wordpress/',
-    $wp_home_trimmed . '/wordpress/',
-    $wp_home_trimmed . '/wordpress/',
-    $wp_home_trimmed . '/wordpress/',
-    $wp_home_trimmed . '/wordpress/',
-    $wp_home_trimmed . '/wordpress/',
-    $wp_home_trimmed . '/wordpress/',
-    $wp_home_trimmed . '/wordpress/',
-    $wp_home_trimmed . '/wordpress/',
-    $wp_home_trimmed . '/wordpress/',
+    $wp_home_trimmed . '/',  // Remove /wordpress/wordpress/
+    $wp_home_trimmed . '/',
+    $wp_home_trimmed . '/',
+    $wp_home_trimmed . '/',
+    $wp_home_trimmed . '/',  // Remove /wordpress/
+    $wp_home_trimmed . '/',
+    $wp_home_trimmed . '/',
+    $wp_home_trimmed . '/',
+    $wp_home_trimmed . '/',  // Root level
+    $wp_home_trimmed . '/',
+    $wp_home_trimmed . '/',
+    $wp_home_trimmed . '/',
 ];
 
 // Tables to update
@@ -89,7 +89,7 @@ foreach ($tables as $table => $columns) {
         }
         
         // Count rows that need updating
-        $count_query = "SELECT COUNT(*) as count FROM `$table` WHERE `$column` LIKE '%localhost%' OR `$column` LIKE '%127.0.0.1%' OR `$column` LIKE '%/wordpress/wordpress/%'";
+        $count_query = "SELECT COUNT(*) as count FROM `$table` WHERE `$column` LIKE '%localhost%' OR `$column` LIKE '%127.0.0.1%' OR `$column` LIKE '%/wordpress/%'";
         $count = $wpdb->get_var($count_query);
         
         if ($count > 0) {
@@ -114,17 +114,17 @@ foreach ($tables as $table => $columns) {
                 }
             }
             
-            // Fix duplicate /wordpress/wordpress/ paths
+            // Remove /wordpress/ paths (WordPress is at root)
             $sql = $wpdb->prepare(
                 "UPDATE `$table` SET `$column` = REPLACE(`$column`, %s, %s) WHERE `$column` LIKE %s",
-                '/wordpress/wordpress/',
                 '/wordpress/',
-                '%/wordpress/wordpress/%'
+                '/',
+                '%/wordpress/%'
             );
             
             $result = $wpdb->query($sql);
             if ($result !== false && $result > 0) {
-                echo "      ✅ Fixed " . $result . " duplicate /wordpress/wordpress/ paths\n";
+                echo "      ✅ Removed " . $result . " /wordpress/ paths\n";
                 $total_updated += $result;
             }
         } else {

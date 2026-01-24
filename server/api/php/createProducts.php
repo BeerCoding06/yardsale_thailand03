@@ -333,10 +333,10 @@ if ($http_code >= 200 && $http_code < 300 && isset($response_data['id'])) {
         
         // Load WordPress to use native functions
         // Path from server/api/php/createProducts.php to wordpress/wp-load.php
-        $wp_load_path = __DIR__ . '/../../../wordpress/wp-load.php';
+        $wp_load_path = __DIR__ . '/../../../wp-load.php';
         if (!file_exists($wp_load_path)) {
             // Try alternative path
-            $wp_load_path = __DIR__ . '/../../../../wordpress/wp-load.php';
+            $wp_load_path = __DIR__ . '/../../../../wp-load.php';
         }
         
         error_log('[createProducts] WordPress wp-load.php path: ' . $wp_load_path);

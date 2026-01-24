@@ -4,8 +4,8 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
   
   // Redirect incorrect wp-admin.php to wp-admin/
-  if (event.path === '/wordpress/wp-admin.php') {
-    return sendRedirect(event, '/wordpress/wp-admin/', 301);
+  if (event.path === '/wp-admin.php') {
+    return sendRedirect(event, '/wp-admin/', 301);
   }
   
   // Use internal URL for container communication (Nginx on port 80)
@@ -17,20 +17,18 @@ export default defineEventHandler(async (event) => {
     'http://localhost:80',
   ];
   
-  // Get the path - keep /wordpress prefix for Nginx routing
-  // Nginx expects /wordpress/ prefix for WordPress routes
+  // Get the path - WordPress is now at root, no /wordpress prefix needed
   let path = event.path;
-  // Ensure path starts with /wordpress
-  if (!path.startsWith('/wordpress')) {
-    // If path doesn't start with /wordpress, add it
-    path = '/wordpress' + (path.startsWith('/') ? path : '/' + path);
+  // Ensure path starts with /
+  if (!path.startsWith('/')) {
+    path = '/' + path;
   }
   
   // Get query string if present
   const queryString = getQuery(event);
   const queryParams = new URLSearchParams(queryString as Record<string, string>).toString();
   
-  // Build the target URL (Nginx expects /wordpress prefix)
+  // Build the target URL (no /wordpress prefix)
   const wpPath = queryParams ? `${path}?${queryParams}` : path;
   
   // Log for debugging

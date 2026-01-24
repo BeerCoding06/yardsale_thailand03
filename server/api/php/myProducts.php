@@ -22,9 +22,9 @@ if (!$user_id || $user_id <= 0) {
 }
 
 // โหลด WordPress
-$wp_load_path = __DIR__ . '/../../../wordpress/wp-load.php';
+$wp_load_path = __DIR__ . '/../../../wp-load.php';
 if (!file_exists($wp_load_path)) {
-    $wp_load_path = __DIR__ . '/../../../../wordpress/wp-load.php'; // Fallback path
+    $wp_load_path = __DIR__ . '/../../../../wp-load.php'; // Fallback path
 }
 
 if (!file_exists($wp_load_path)) {

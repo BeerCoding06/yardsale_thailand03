@@ -62,15 +62,15 @@ export default defineNuxtConfig({
   ],
 
   runtimeConfig: {
-    wpMediaHost: process.env.WP_MEDIA_HOST || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000/wordpress" : "http://localhost/yardsale_thailand/wordpress"),
+    wpMediaHost: process.env.WP_MEDIA_HOST || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000" : "http://localhost/yardsale_thailand"),
     wpBasicAuth: process.env.WP_BASIC_AUTH || "",
     wcConsumerKey: process.env.WC_CONSUMER_KEY || "",
     wcConsumerSecret: process.env.WC_CONSUMER_SECRET || "",
     baseUrl: process.env.BASE_URL || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000" : "http://localhost/yardsale_thailand"),
-    gqlHost: process.env.GQL_HOST || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000/wordpress/graphql" : "http://localhost/yardsale_thailand/wordpress/graphql"),
+    gqlHost: process.env.GQL_HOST || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000/graphql" : "http://localhost/yardsale_thailand/graphql"),
     public: {
       version: pkg.version,
-      wpApiUrl: process.env.BASE_URL ? `${process.env.BASE_URL}/wordpress/wp-json` : (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000/wordpress/wp-json" : "http://localhost/yardsale_thailand/wordpress/wp-json"),
+      wpApiUrl: process.env.BASE_URL ? `${process.env.BASE_URL}/wp-json` : (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000/wp-json" : "http://localhost/yardsale_thailand/wp-json"),
     },
   },
 
