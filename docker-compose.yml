@@ -9,15 +9,17 @@ services:
     labels:
       # Traefik Configuration
       - "traefik.enable=true"
-      # Route for nuxt domain
+      # Route for nuxt domain - route to Nuxt.js on port 3000
       - "traefik.http.routers.app.rule=Host(`yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me`)"
       - "traefik.http.routers.app.entrypoints=web"
-      - "traefik.http.services.app.loadbalancer.server.port=80"
-      # Route for wp domain (same service)
+      - "traefik.http.routers.app.service=app"
+      - "traefik.http.services.app.loadbalancer.server.port=3000"
+      # Route for wp domain - route to Nginx on port 80
       - "traefik.http.routers.app-wp.rule=Host(`yardsalethailand-wp-8txv8a-1ef772-157-85-98-150.traefik.me`)"
       - "traefik.http.routers.app-wp.entrypoints=web"
-      - "traefik.http.routers.app-wp.service=app"
-      # Note: We don't strip /wordpress prefix because nginx expects it
+      - "traefik.http.routers.app-wp.service=app-wp"
+      - "traefik.http.services.app-wp.loadbalancer.server.port=80"
+      # Note: Nuxt.js serves on port 3000, Nginx serves WordPress on port 80
 
     environment:
       # =================
