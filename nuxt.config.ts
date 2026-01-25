@@ -90,7 +90,7 @@ export default defineNuxtConfig({
   nitro: {
     prerender: { 
       routes: ["/sitemap.xml", "/robots.txt"],
-      crawlLinks: true, // Crawl all links for static generation
+      crawlLinks: false, // Disable crawlLinks during Docker build to avoid errors
     },
   },
 

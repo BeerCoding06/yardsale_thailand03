@@ -20,10 +20,14 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy project files
 COPY . .
 
+# Prepare build environment
+RUN pnpm prepare || true
+
 # Build the application (disable NuxtHub for Docker)
 ENV DOCKER_BUILD=true
 ENV NITRO_PRESET=node-server
-# Set environment variables for build (can be empty during build)
+ENV NODE_ENV=production
+# Set environment variables for build
 ENV DB_HOST=157.85.98.150:3306
 ENV DB_NAME=nuxtcommerce_db
 ENV DB_USER=root

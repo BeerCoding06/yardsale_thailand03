@@ -5,6 +5,11 @@ import type { Pool } from 'mysql2/promise';
 let pool: Pool | null = null;
 
 export function getDbPool(): Pool | null {
+  // Don't create pool during build time
+  if (process.env.NODE_ENV === 'production' && !process.env.DB_HOST) {
+    return null;
+  }
+  
   if (pool) {
     return pool;
   }
