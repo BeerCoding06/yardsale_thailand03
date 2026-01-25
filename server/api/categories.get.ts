@@ -1,7 +1,7 @@
 // server/api/categories.get.ts
 // Direct database access - no PHP/WordPress
 
-import { getDbPool, fixImageUrl } from '~/server/utils/db';
+import { getDbPool, fixImageUrl } from '../utils/db';
 
 export default cachedEventHandler(
   async (event) => {
