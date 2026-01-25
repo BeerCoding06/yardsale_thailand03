@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile.prod
     ports:
-      - "8000:80"
+      - "3000:3000"
 
     labels:
       # Traefik Configuration
@@ -14,12 +14,6 @@ services:
       - "traefik.http.routers.app.entrypoints=web"
       - "traefik.http.routers.app.service=app"
       - "traefik.http.services.app.loadbalancer.server.port=3000"
-      # Route for wp domain - route to Nginx on port 80
-      - "traefik.http.routers.app-wp.rule=Host(`yardsalethailand-wp-8txv8a-1ef772-157-85-98-150.traefik.me`)"
-      - "traefik.http.routers.app-wp.entrypoints=web"
-      - "traefik.http.routers.app-wp.service=app-wp"
-      - "traefik.http.services.app-wp.loadbalancer.server.port=80"
-      # Note: Nuxt.js serves on port 3000, Nginx serves WordPress on port 80
 
     environment:
       # =================
@@ -34,23 +28,12 @@ services:
       # Public URL (Traefik)
       # =================
       - BASE_URL=http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me
-      - WP_HOME=http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me
-      - WP_SITEURL=http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/wordpress
-      - WP_MEDIA_HOST=http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/wordpress
 
       # =================
       # Internal
       # =================
       - INTERNAL_BASE_URL=http://127.0.0.1:80
 
-      # =================
-      # Auth / API
-      # =================
-      - WP_BASIC_AUTH=cGFyYWRvbl9wb2twaW5nbWF1bmc6eDRkTCA4QUp1IHQzSHkgZzIyMyA5aTViIG9hTnk=
-      - WC_CONSUMER_KEY=ck_6c8520b64c0bac82b407b08e7de3c7908af0de51
-      - WC_CONSUMER_SECRET=cs_fdcba105736b44ef72f787faeb0f3aec5e74306f
-      - GQL_HOST=http://app/wordpress/graphql
-
     volumes:
-      # Mount project root (WordPress files are now at root level)
+      # Mount project root
       - .:/app

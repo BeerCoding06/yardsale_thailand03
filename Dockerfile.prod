@@ -25,30 +25,13 @@ ENV DOCKER_BUILD=true
 ENV NITRO_PRESET=node-server
 RUN pnpm build
 
-# Stage 3: Production with PHP and Nginx
-FROM alpine:latest AS runner
+# Stage 3: Production - Nuxt only (no PHP/Nginx)
+FROM node:20-alpine AS runner
 
-# Install Node.js, PHP, PHP-FPM, Nginx, and required PHP extensions
+# Install Node.js only
 RUN apk add --no-cache \
     nodejs \
     npm \
-    php \
-    php-fpm \
-    php-mysqli \
-    php-pdo \
-    php-pdo_mysql \
-    php-opcache \
-    php-mbstring \
-    php-xml \
-    php-curl \
-    php-gd \
-    php-zip \
-    php-fileinfo \
-    php-intl \
-    php-exif \
-    php-iconv \
-    nginx \
-    supervisor \
     curl
 
 WORKDIR /app
@@ -57,50 +40,17 @@ ENV NODE_ENV=production
 ENV NUXT_HOST=0.0.0.0
 ENV NUXT_PORT=3000
 
-# Create necessary directories and set permissions
-RUN mkdir -p /var/log/supervisor /var/run/php-fpm /var/lib/nginx/tmp && \
-    chown -R nginx:nginx /var/lib/nginx && \
-    chown -R nginx:nginx /var/log/nginx
-
 # Copy built Nuxt application from builder stage
 COPY --from=builder /app/.output ./.output
 COPY --from=builder /app/package.json ./package.json
 
-# Copy WordPress files (now at root level)
-COPY wp-*.php wp-*.txt wp-*.html index.php xmlrpc.php license.txt readme.html .htaccess /app/
-COPY wp-admin /app/wp-admin
-COPY wp-content /app/wp-content
-COPY wp-includes /app/wp-includes
-
-# Copy PHP API files
-COPY server/api/php /app/server/api/php
-
-# Set proper permissions for WordPress and PHP API (nginx user in Alpine)
-RUN chown -R nginx:nginx /app/wp-* /app/index.php /app/xmlrpc.php /app/license.txt /app/readme.html /app/.htaccess && \
-    chmod -R 755 /app/wp-* /app/index.php /app/xmlrpc.php && \
-    chown -R nginx:nginx /app/server && \
-    chmod -R 755 /app/server && \
-    chown -R nginx:nginx /app/.output && \
-    chmod -R 755 /app/.output
-
-# Configure PHP-FPM - find the correct PHP config directory
-RUN PHP_CONF_DIR=$(find /etc -name "www.conf" -path "*/php-fpm.d/*" | head -1 | xargs dirname) && \
-    if [ -n "$PHP_CONF_DIR" ]; then \
-        sed -i 's/listen = 127.0.0.1:9000/listen = \/var\/run\/php-fpm\/php-fpm.sock/' "$PHP_CONF_DIR/www.conf" && \
-        sed -i 's/;listen.owner = nobody/listen.owner = nginx/' "$PHP_CONF_DIR/www.conf" && \
-        sed -i 's/;listen.group = nobody/listen.group = nginx/' "$PHP_CONF_DIR/www.conf" && \
-        sed -i 's/user = nobody/user = nginx/' "$PHP_CONF_DIR/www.conf" && \
-        sed -i 's/group = nobody/group = nginx/' "$PHP_CONF_DIR/www.conf"; \
-    fi
-
-# Copy Nginx configuration
-COPY nginx.conf /etc/nginx/http.d/default.conf
-
-# Copy supervisor configuration
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+# Set proper permissions
+RUN chown -R node:node /app && \
+    chmod -R 755 /app
 
 # Expose port
-EXPOSE 80
+EXPOSE 3000
 
-# Start supervisor which will manage all services
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# Start Nuxt server
+USER node
+CMD ["node", ".output/server/index.mjs"]

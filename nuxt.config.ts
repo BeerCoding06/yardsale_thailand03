@@ -62,15 +62,9 @@ export default defineNuxtConfig({
   ],
 
   runtimeConfig: {
-    wpMediaHost: process.env.WP_MEDIA_HOST || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000/wordpress" : "http://localhost/yardsale_thailand/wordpress"),
-    wpBasicAuth: process.env.WP_BASIC_AUTH || "",
-    wcConsumerKey: process.env.WC_CONSUMER_KEY || "",
-    wcConsumerSecret: process.env.WC_CONSUMER_SECRET || "",
     baseUrl: process.env.BASE_URL || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000" : "http://localhost/yardsale_thailand"),
-    gqlHost: process.env.GQL_HOST || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000/wordpress/graphql" : "http://localhost/yardsale_thailand/wordpress/graphql"),
     public: {
       version: pkg.version,
-      wpApiUrl: process.env.BASE_URL ? `${process.env.BASE_URL}/wordpress/wp-json` : (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000/wordpress/wp-json" : "http://localhost/yardsale_thailand/wordpress/wp-json"),
     },
   },
 
@@ -91,8 +85,6 @@ export default defineNuxtConfig({
     "/login": { prerender: true },
     "/register-user": { prerender: true },
     "/payment-successful": { prerender: false, ssr: false }, // Client-side only
-    // WordPress routes - handled directly by Nginx, not by Nuxt
-    // "/wordpress/**": { ssr: true }, // Disabled - Nginx handles WordPress directly
   },
 
   nitro: {
