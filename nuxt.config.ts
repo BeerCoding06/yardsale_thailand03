@@ -69,10 +69,11 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-    // Prerender static pages
-    "/": { prerender: true },
-    "/categories": { prerender: true },
-    "/favorites": { prerender: true },
+    // Disable prerender during Docker build to avoid errors
+    // All routes use SSR or client-side rendering
+    "/": { ssr: true, prerender: false },
+    "/categories": { ssr: true, prerender: false },
+    "/favorites": { ssr: true, prerender: false },
     // Dynamic routes - use SSR instead of prerender to avoid payload file issues
     "/product/**": { ssr: true, prerender: false },
     "/order/**": { prerender: false, ssr: false }, // Client-side only
@@ -82,14 +83,14 @@ export default defineNuxtConfig({
     "/profile": { prerender: false, ssr: false }, // Client-side only
     "/create-product": { prerender: false, ssr: false }, // Client-side only
     "/edit-product/**": { prerender: false, ssr: false }, // Client-side only
-    "/login": { prerender: true },
-    "/register-user": { prerender: true },
+    "/login": { ssr: true, prerender: false },
+    "/register-user": { ssr: true, prerender: false },
     "/payment-successful": { prerender: false, ssr: false }, // Client-side only
   },
 
   nitro: {
     prerender: { 
-      routes: ["/sitemap.xml", "/robots.txt"],
+      routes: [], // Disable prerender during Docker build
       crawlLinks: false, // Disable crawlLinks during Docker build to avoid errors
     },
   },
