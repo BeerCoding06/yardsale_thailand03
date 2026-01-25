@@ -23,6 +23,13 @@ COPY . .
 # Build the application (disable NuxtHub for Docker)
 ENV DOCKER_BUILD=true
 ENV NITRO_PRESET=node-server
+# Set environment variables for build (can be empty during build)
+ENV DB_HOST=157.85.98.150:3306
+ENV DB_NAME=nuxtcommerce_db
+ENV DB_USER=root
+ENV DB_PASSWORD=RootBeer06032534
+ENV BASE_URL=http://localhost:3000
+# Build the application
 RUN pnpm build
 
 # Stage 3: Production - Nuxt only (no PHP/Nginx)

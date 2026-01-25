@@ -8,6 +8,20 @@ export default cachedEventHandler(
     try {
       const pool = getDbPool();
       
+      // If database is not available, return empty data
+      if (!pool) {
+        console.warn('[products] Database not available, returning empty data');
+        return {
+          products: {
+            nodes: [],
+            pageInfo: {
+              hasNextPage: false,
+              endCursor: null,
+            },
+          },
+        };
+      }
+      
       // Get query parameters
       const query = getQuery(event);
       const after = query.after as string | undefined;
@@ -93,15 +107,30 @@ export default cachedEventHandler(
       }
       
       // Get total count
-      let countSql = `SELECT COUNT(DISTINCT p.ID) as total
-        FROM wp_posts p
-        INNER JOIN wp_postmeta stock_meta ON p.ID = stock_meta.post_id
-        ${categoryJoin}
-        WHERE ${whereConditions.join(' AND ')}`;
-      
-      const [countRows] = await pool.execute(countSql, queryParams) as any[];
-      const totalCount = countRows[0]?.total || 0;
-      const totalPages = Math.ceil(totalCount / perPage);
+      let totalCount = 0;
+      let totalPages = 0;
+      try {
+        let countSql = `SELECT COUNT(DISTINCT p.ID) as total
+          FROM wp_posts p
+          INNER JOIN wp_postmeta stock_meta ON p.ID = stock_meta.post_id
+          ${categoryJoin}
+          WHERE ${whereConditions.join(' AND ')}`;
+        
+        const [countRows] = await pool.execute(countSql, queryParams) as any[];
+        totalCount = countRows[0]?.total || 0;
+        totalPages = Math.ceil(totalCount / perPage);
+      } catch (dbError: any) {
+        console.error('[products] Database count query error:', dbError);
+        return {
+          products: {
+            nodes: [],
+            pageInfo: {
+              hasNextPage: false,
+              endCursor: null,
+            },
+          },
+        };
+      }
       
       // Build main query
       const offset = (page - 1) * perPage;
@@ -115,7 +144,22 @@ export default cachedEventHandler(
         LIMIT ? OFFSET ?`;
       
       queryParams.push(perPage, offset);
-      const [rows] = await pool.execute(sql, queryParams) as any[];
+      let rows: any[] = [];
+      try {
+        const [result] = await pool.execute(sql, queryParams) as any[];
+        rows = result || [];
+      } catch (dbError: any) {
+        console.error('[products] Database query error:', dbError);
+        return {
+          products: {
+            nodes: [],
+            pageInfo: {
+              hasNextPage: false,
+              endCursor: null,
+            },
+          },
+        };
+      }
       
       // Fetch product details
       const products: any[] = [];
@@ -236,10 +280,16 @@ export default cachedEventHandler(
       };
     } catch (error: any) {
       console.error('[products] Error:', error);
-      throw createError({
-        statusCode: 500,
-        message: error?.message || 'Failed to fetch products',
-      });
+      // Return empty data instead of throwing error to keep the app working
+      return {
+        products: {
+          nodes: [],
+          pageInfo: {
+            hasNextPage: false,
+            endCursor: null,
+          },
+        },
+      };
     }
   },
   {

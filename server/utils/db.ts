@@ -1,36 +1,43 @@
 // Database connection helper for Nuxt server API
 import mysql from 'mysql2/promise';
+import type { Pool } from 'mysql2/promise';
 
-let pool: mysql.Pool | null = null;
+let pool: Pool | null = null;
 
-export function getDbPool(): mysql.Pool {
+export function getDbPool(): Pool | null {
   if (pool) {
     return pool;
   }
   
-  // Get database credentials from environment variables
-  const dbHost = process.env.DB_HOST || '157.85.98.150:3306';
-  const [host, port] = dbHost.includes(':') 
-    ? dbHost.split(':') 
-    : [dbHost, '3306'];
-  
-  const dbName = process.env.DB_NAME || 'nuxtcommerce_db';
-  const dbUser = process.env.DB_USER || 'root';
-  const dbPassword = process.env.DB_PASSWORD || 'RootBeer06032534';
+  try {
+    // Get database credentials from environment variables
+    const dbHost = process.env.DB_HOST || '157.85.98.150:3306';
+    const [host, port] = dbHost.includes(':') 
+      ? dbHost.split(':') 
+      : [dbHost, '3306'];
+    
+    const dbName = process.env.DB_NAME || 'nuxtcommerce_db';
+    const dbUser = process.env.DB_USER || 'root';
+    const dbPassword = process.env.DB_PASSWORD || 'RootBeer06032534';
 
-  pool = mysql.createPool({
-    host,
-    port: parseInt(port),
-    user: dbUser,
-    password: dbPassword,
-    database: dbName,
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
-    charset: 'utf8mb4',
-  });
+    pool = mysql.createPool({
+      host,
+      port: parseInt(port),
+      user: dbUser,
+      password: dbPassword,
+      database: dbName,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+      charset: 'utf8mb4',
+      connectTimeout: 5000, // 5 seconds timeout
+    });
 
-  return pool;
+    return pool;
+  } catch (error) {
+    console.error('[db] Failed to create database pool:', error);
+    return null;
+  }
 }
 
 // Helper function to fix image URLs

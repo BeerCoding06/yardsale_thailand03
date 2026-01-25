@@ -8,6 +8,16 @@ export default cachedEventHandler(
     try {
       const pool = getDbPool();
       
+      // If database is not available, return empty data
+      if (!pool) {
+        console.warn('[categories] Database not available, returning empty data');
+        return {
+          productCategories: {
+            nodes: []
+          }
+        };
+      }
+      
       // Get query parameters
       const query = getQuery(event);
       const parent = parseInt(query.parent as string || '0');
@@ -28,14 +38,26 @@ export default cachedEventHandler(
       const dbOrder = order === 'DESC' ? 'DESC' : 'ASC';
       
       // Build query
-      const [rows] = await pool.execute(
-        `SELECT t.term_id, t.name, t.slug, tt.description, tt.parent, tt.count
-         FROM wp_terms t
-         INNER JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id
-         WHERE tt.taxonomy = 'product_cat' AND tt.parent = ?
-         ORDER BY ${dbOrderby} ${dbOrder}`,
-        [parent]
-      ) as any[];
+      let rows: any[] = [];
+      try {
+        const [result] = await pool.execute(
+          `SELECT t.term_id, t.name, t.slug, tt.description, tt.parent, tt.count
+           FROM wp_terms t
+           INNER JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id
+           WHERE tt.taxonomy = 'product_cat' AND tt.parent = ?
+           ORDER BY ${dbOrderby} ${dbOrder}`,
+          [parent]
+        ) as any[];
+        rows = result || [];
+      } catch (dbError: any) {
+        console.error('[categories] Database query error:', dbError);
+        // Return empty data instead of throwing error
+        return {
+          productCategories: {
+            nodes: []
+          }
+        };
+      }
       
       const formattedCategories: any[] = [];
       
@@ -224,10 +246,12 @@ export default cachedEventHandler(
       };
     } catch (error: any) {
       console.error('[categories] Error:', error);
-      throw createError({
-        statusCode: 500,
-        message: error?.message || 'Failed to fetch categories',
-      });
+      // Return empty data instead of throwing error to keep the app working
+      return {
+        productCategories: {
+          nodes: []
+        }
+      };
     }
   },
   {
