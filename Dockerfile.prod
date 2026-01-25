@@ -3,6 +3,12 @@ FROM node:20-alpine AS deps
 RUN corepack enable
 WORKDIR /app
 
+# Install build dependencies for native modules (mysql2)
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++
+
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
@@ -20,29 +26,29 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy project files
 COPY . .
 
-# Build arguments (not sensitive - can be overridden)
+# Build arguments (non-sensitive defaults - can be overridden at build time)
 ARG DB_HOST=157.85.98.150:3306
 ARG DB_NAME=nuxtcommerce_db
 ARG DB_USER=root
-ARG DB_PASSWORD=RootBeer06032534
 ARG BASE_URL=http://localhost:3000
 
 # Build the application (disable NuxtHub for Docker)
 ENV DOCKER_BUILD=true
 ENV NITRO_PRESET=node-server
 ENV NODE_ENV=production
-# Set environment variables for build (from ARG)
+# Set environment variables for build (from ARG - DB_PASSWORD should be set at runtime)
 ENV DB_HOST=${DB_HOST}
 ENV DB_NAME=${DB_NAME}
 ENV DB_USER=${DB_USER}
-ENV DB_PASSWORD=${DB_PASSWORD}
 ENV BASE_URL=${BASE_URL}
+# Note: DB_PASSWORD should be set via docker-compose.yml or runtime environment, not in Dockerfile
 
 # Prepare build environment (generate types)
 RUN pnpm prepare || true
 
 # Build the application
-# Disable telemetry and type checking to avoid build errors
+# Disable telemetry - Database connection is not needed during build
+# Build will work even without database connection due to error handling
 RUN NUXT_TELEMETRY_DISABLED=1 pnpm build
 
 # Stage 3: Production - Nuxt only (no PHP/Nginx)
