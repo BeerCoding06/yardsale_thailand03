@@ -25,8 +25,8 @@ export default defineNuxtConfig({
     detectBrowserLanguage: {
       useCookie: true,
       cookieKey: "i18n_redirected",
-      redirectOn: "root",
-      alwaysRedirect: true,
+      redirectOn: "no prefix", // Only redirect if no locale prefix is present
+      alwaysRedirect: false, // Don't always redirect - preserve current route
     },
     locales: [
       { code: "en", iso: "en-GB", file: "en-GB.json", name: "🇬🇧 English" },
