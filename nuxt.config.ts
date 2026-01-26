@@ -25,7 +25,7 @@ export default defineNuxtConfig({
     detectBrowserLanguage: {
       useCookie: true,
       cookieKey: "i18n_redirected",
-      redirectOn: "no prefix", // Only redirect if no locale prefix is present
+      redirectOn: false, // Disable automatic redirects - let users navigate manually
       alwaysRedirect: false, // Don't always redirect - preserve current route
     },
     locales: [
