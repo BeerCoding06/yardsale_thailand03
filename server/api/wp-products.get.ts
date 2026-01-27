@@ -27,15 +27,26 @@ export default defineEventHandler(async (event: any) => {
     const consumerKey = query.consumer_key as string | undefined;
     const consumerSecret = query.consumer_secret as string | undefined;
     
-    // Use utility function for headers, or override with query params
-    let headers = getWpApiHeaders(true, false);
+    // Use utility function for headers
+    // If consumer key/secret provided via query, use WooCommerce auth
+    // Otherwise use Basic Auth from .env
+    let headers: Record<string, string>;
     
-    // Override with query params if provided
     if (consumerKey && consumerSecret) {
+      // Override with query params if provided
       const auth = globalThis.Buffer 
         ? globalThis.Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')
         : btoa(`${consumerKey}:${consumerSecret}`);
-      headers['Authorization'] = `Basic ${auth}`;
+      headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Basic ${auth}`
+      };
+    } else {
+      // Use WooCommerce auth from .env if available, otherwise Basic Auth
+      headers = getWpApiHeaders(false, true); // Try WooCommerce auth first
+      if (!headers['Authorization']) {
+        headers = getWpApiHeaders(true, false); // Fallback to Basic Auth
+      }
     }
     
     console.log('[wp-products] Fetching from WordPress API:', apiUrl);
