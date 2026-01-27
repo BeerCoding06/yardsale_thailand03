@@ -90,8 +90,14 @@ export function getWpApiHeaders(useBasicAuth: boolean = true, useWooCommerceAuth
     const consumerKey = getWpConsumerKey();
     const consumerSecret = getWpConsumerSecret();
     if (consumerKey && consumerSecret) {
-      const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
-      headers['Authorization'] = `Basic ${auth}`;
+      // Use global Buffer if available, otherwise use btoa
+      const authString = `${consumerKey}:${consumerSecret}`;
+      const auth = typeof Buffer !== 'undefined' 
+        ? Buffer.from(authString).toString('base64')
+        : (typeof btoa !== 'undefined' ? btoa(authString) : '');
+      if (auth) {
+        headers['Authorization'] = `Basic ${auth}`;
+      }
     }
   }
   
