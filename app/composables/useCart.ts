@@ -29,7 +29,13 @@ export const useCart = () => {
       const currentQuantity = existingItem?.quantity || 0;
       const requestedQuantity = currentQuantity + 1;
       
-      const res = await $fetch<AddToCartResponse>('/api/cart/add', { method: 'POST', body: { productId } });
+      console.log('[useCart] Calling /api/cart/add with productId:', productId);
+      const res = await $fetch<AddToCartResponse>('/api/cart/add', { 
+        method: 'POST', 
+        body: { productId },
+        baseURL: '', // Ensure we use relative path, not baseURL
+      });
+      console.log('[useCart] Response from /api/cart/add:', res);
       const incoming = res.addToCart.cartItem;
       
       const idx = cart.value.findIndex(i => i.key === incoming.key);
