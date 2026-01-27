@@ -183,12 +183,22 @@ export default defineEventHandler(async (event) => {
     };
   } catch (error: any) {
     console.error('[cart/add] Error:', error);
+    console.error('[cart/add] Error details:', {
+      message: error?.message,
+      statusCode: error?.statusCode,
+      data: error?.data,
+      cause: error?.cause,
+      stack: error?.stack,
+    });
+    
+    // Don't expose internal error details to client
+    const errorMessage = error?.message || 'Failed to add to cart';
     
     if (error.statusCode) {
       throw createError({
         statusCode: error.statusCode,
-        message: error.message || 'Failed to add to cart',
-        data: error.data || { error: error.message },
+        message: errorMessage,
+        data: { error: errorMessage },
       });
     }
     
@@ -202,8 +212,8 @@ export default defineEventHandler(async (event) => {
     
     throw createError({
       statusCode: 500,
-      message: error.message || 'Failed to add to cart',
-      data: { error: error.message || 'Failed to add to cart' },
+      message: errorMessage,
+      data: { error: errorMessage },
     });
   }
 });
