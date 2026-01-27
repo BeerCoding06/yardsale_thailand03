@@ -1,77 +1,116 @@
 // server/api/search.get.ts
-// Use PHP API instead of GraphQL
+// Search products using WordPress REST API
+
+import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
 
 export default cachedEventHandler(
   async (event) => {
     try {
-      const config = useRuntimeConfig();
-      const baseUrl = config.baseUrl || 'http://localhost/yardsale_thailand';
-      
-      // Get query parameters
       const query = getQuery(event);
+      const wpUtils = await import('../utils/wp');
+      
       const search = (query.search as string) || '';
+      const limit = parseInt(query.limit as string || '6');
       
-      // Build PHP API URL
-      const params = new URLSearchParams();
-      params.set('search', search);
-      params.set('limit', '6');
+      if (!search) {
+        return { products: { nodes: [] } };
+      }
       
-      const phpApiUrl = `${baseUrl}/server/api/php/searchProducts.php?${params.toString()}`;
+      // Use WordPress REST API endpoint
+      const apiUrl = wpUtils.buildWpApiUrl('wp/v2/product', {
+        search: search,
+        per_page: limit,
+        status: 'publish',
+        _embed: '1'
+      });
       
-      // Call PHP API
-      const response = await fetch(phpApiUrl, {
+      const headers = wpUtils.getWpApiHeaders(true, false);
+      
+      console.log('[search] Fetching from WordPress API:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         signal: AbortSignal.timeout(30000),
       });
       
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
-        let errorMessage = `PHP API error (status ${response.status})`;
-        try {
-          const errorJson = JSON.parse(errorText);
-          if (errorJson.error) errorMessage = errorJson.error;
-          else if (errorJson.message) errorMessage = errorJson.message;
-        } catch (e) {
-          /* not JSON */
-          errorMessage = errorText || errorMessage;
-        }
-        throw createError({
-          statusCode: response.status,
-          message: errorMessage,
-        });
+        console.error('[search] WordPress API error:', response.status, errorText);
+        return { products: { nodes: [] } };
       }
       
       const data = await response.json();
       
-      // Ensure response has correct format
-      if (!data || typeof data !== 'object') {
-        return { products: { nodes: [] } };
-      }
+      // Format products to match expected structure
+      const formattedProducts = await Promise.all(
+        (Array.isArray(data) ? data : []).map(async (product: any) => {
+          // Get featured image
+          let imageUrl: string | null = null;
+          if (product._embedded?.['wp:featuredmedia']?.[0]?.source_url) {
+            imageUrl = product._embedded['wp:featuredmedia'][0].source_url;
+          }
+          
+          // Get price from WooCommerce if available
+          let regularPrice = '';
+          let salePrice: string | null = null;
+          let sku = product.slug || `product-${product.id}`;
+          
+          try {
+            const wcHeaders = wpUtils.getWpApiHeaders(false, true);
+            if (wcHeaders['Authorization']) {
+              const wcUrl = wpUtils.buildWpApiUrl(`wc/v3/products/${product.id}`);
+              const wcResponse = await fetch(wcUrl, {
+                method: 'GET',
+                headers: wcHeaders,
+                signal: AbortSignal.timeout(3000),
+              });
+              
+              if (wcResponse.ok) {
+                const wcProduct = await wcResponse.json();
+                if (wcProduct.regular_price) {
+                  const price = parseFloat(wcProduct.regular_price);
+                  regularPrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+                }
+                if (wcProduct.sale_price) {
+                  const price = parseFloat(wcProduct.sale_price);
+                  salePrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+                }
+                if (wcProduct.sku) {
+                  sku = wcProduct.sku;
+                }
+              }
+            }
+          } catch (e) {
+            // Ignore errors for search results
+          }
+          
+          return {
+            id: product.id,
+            databaseId: product.id,
+            sku,
+            slug: product.slug,
+            name: product.title?.rendered || product.title || '',
+            regularPrice,
+            salePrice,
+            image: imageUrl ? { sourceUrl: imageUrl } : null,
+          };
+        })
+      );
       
-      // If response doesn't have products.nodes structure, wrap it
-      if (!data.products) {
-        return { products: { nodes: [] } };
-      }
-      
-      if (!data.products.nodes && Array.isArray(data.products)) {
-        return { products: { nodes: data.products } };
-      }
-      
-      return data;
+      return {
+        products: {
+          nodes: formattedProducts
+        }
+      };
     } catch (error: any) {
       console.error('[search] Error:', error);
-      throw createError({
-        statusCode: error?.statusCode || 500,
-        message: error?.message || 'Failed to search products from PHP API',
-      });
+      return { products: { nodes: [] } };
     }
   },
   {
-    maxAge: 0.5, // Cache for 0.5 seconds (near real-time for search)
-    swr: false, // Disable SWR for immediate updates
+    maxAge: 0.5,
+    swr: false,
     getKey: event => event.req.url!,
   }
 );

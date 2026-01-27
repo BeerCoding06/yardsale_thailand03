@@ -1,60 +1,63 @@
 // server/api/my-products.get.ts
-// ดึงข้อมูล products ที่ผู้ใช้ลงขาย (post_author = user_id)
+// Fetch user's products from WordPress REST API
+
+import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
+    const wpUtils = await import('../utils/wp');
+    
     const userId = query.user_id;
-
+    
     if (!userId) {
       throw createError({
         statusCode: 400,
         message: "user_id is required",
       });
     }
-
-    // เรียก PHP API endpoint
-    const config = useRuntimeConfig();
-    const baseUrl = config.baseUrl || "http://localhost/yardsale_thailand";
-    const phpApiUrl = `${baseUrl}/server/api/php/myProducts.php?user_id=${userId}`;
-
-    console.log("[my-products] Calling PHP API:", phpApiUrl);
-
-    const response = await fetch(phpApiUrl, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
+    
+    // Use WordPress REST API to fetch products by author
+    const apiUrl = wpUtils.buildWpApiUrl('wp/v2/product', {
+      author: userId,
+      per_page: 100,
+      status: 'any', // Include all statuses (publish, draft, etc.)
+      _embed: '1'
+    });
+    
+    const headers = wpUtils.getWpApiHeaders(true, false);
+    
+    console.log('[my-products] Fetching from WordPress API:', apiUrl);
+    
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers,
       signal: AbortSignal.timeout(30000),
     });
-
+    
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      let errorMessage = `PHP API error (status ${response.status})`;
-      try {
-        const errorJson = JSON.parse(errorText);
-        if (errorJson.error) errorMessage = errorJson.error;
-      } catch (e) {
-        /* not JSON */
-      }
-      console.error("[my-products] PHP API Error:", errorMessage);
+      const errorText = await response.text().catch(() => '');
+      console.error('[my-products] WordPress API error:', response.status, errorText);
       throw createError({
         statusCode: response.status,
-        message: errorMessage,
+        message: errorText || 'Failed to fetch products',
       });
     }
-
+    
     const data = await response.json();
-    console.log("[my-products] Successfully fetched products:", {
-      count: data.count,
-    });
-
-    return data;
+    
+    // Format products
+    const products = Array.isArray(data) ? data : [];
+    
+    return {
+      products,
+      count: products.length
+    };
   } catch (error: any) {
-    console.error("[my-products] Error:", error);
+    console.error('[my-products] Error:', error);
     throw createError({
       statusCode: error.statusCode || 500,
-      message: error.message || "Failed to fetch user products",
+      message: error.message || 'Failed to fetch user products',
     });
   }
 });

@@ -1,21 +1,14 @@
 // server/api/product.get.ts
-// Direct database access - no PHP/WordPress
+// Fetch single product from WordPress REST API
 
-import { getDbPool, fixImageUrl } from '../utils/db';
+import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
 
 export default cachedEventHandler(
   async (event) => {
     try {
-      const pool = getDbPool();
-      
-      // If database is not available, return null product
-      if (!pool) {
-        console.warn('[product] Database not available, returning null');
-        return { product: null };
-      }
-      
-      // Get query parameters
       const query = getQuery(event);
+      const wpUtils = await import('../utils/wp');
+      
       const slug = query.slug as string | undefined;
       const sku = query.sku as string | undefined;
       
@@ -24,294 +17,260 @@ export default cachedEventHandler(
       }
       
       let productId: number | null = null;
+      let product: any = null;
       
       // Try to find product by slug first
-      try {
-        if (slug) {
-          const [rows] = await pool.execute(
-            "SELECT ID FROM wp_posts WHERE post_type = 'product' AND post_name = ? LIMIT 1",
-            [slug]
-          ) as any[];
-          if (rows && rows.length > 0) {
-            productId = rows[0].ID;
-          }
-        }
-        
-        // If not found by slug, try by SKU
-        if (!productId && sku) {
-          const [rows] = await pool.execute(
-            "SELECT post_id FROM wp_postmeta WHERE meta_key = '_sku' AND meta_value = ? LIMIT 1",
-            [sku]
-          ) as any[];
-          if (rows && rows.length > 0) {
-            productId = rows[0].post_id;
-          }
-        }
-        
-        if (!productId) {
-          return { product: null };
-        }
-        
-        // Get product post data
-        const [postRows] = await pool.execute(
-          'SELECT ID, post_title, post_name, post_content, post_status FROM wp_posts WHERE ID = ?',
-          [productId]
-        ) as any[];
-        
-        if (!postRows || postRows.length === 0) {
-          return { product: null };
-        }
-        
-        const post = postRows[0];
-        
-        // Get product meta
-        const [metaRows] = await pool.execute(
-          'SELECT meta_key, meta_value FROM wp_postmeta WHERE post_id = ?',
-          [productId]
-        ) as any[];
-      
-        const meta: Record<string, any> = {};
-        for (const row of metaRows) {
-          meta[row.meta_key] = row.meta_value;
-        }
-        
-        // Check if simple product
-        if (meta['_product_type'] !== 'simple') {
-          return { product: null };
-        }
-        
-        // Get product data
-        const productSku = meta['_sku'] || '';
-        const productName = post.post_title;
-        const productDescription = post.post_content;
-        const productStatus = post.post_status;
-        
-        // Get prices
-      let regularPriceRaw = parseFloat(meta['_regular_price'] || '0');
-      const salePriceRaw = parseFloat(meta['_sale_price'] || '0');
-      
-      if (regularPriceRaw <= 0) {
-        regularPriceRaw = parseFloat(meta['_price'] || '0');
-      }
-      
-      // Format prices
-      const regularPrice = regularPriceRaw > 0
-        ? `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${regularPriceRaw.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</span>`
-        : '';
-      
-      const salePrice = salePriceRaw > 0
-        ? `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${salePriceRaw.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</span>`
-        : null;
-      
-      // Get stock
-      const stockQuantity = meta['_stock'] ? parseInt(meta['_stock']) : null;
-      let stockStatus = meta['_stock_status'] || 'instock';
-      
-      // If product status is cancelled or trash, show as in stock
-      if (productStatus === 'cancelled' || productStatus === 'trash') {
-        stockStatus = 'instock';
-      }
-      
-        // Get product image
-        let imageUrl: string | null = null;
-        const imageId = meta['_thumbnail_id'] ? parseInt(meta['_thumbnail_id']) : 0;
-        if (imageId > 0) {
-          try {
-            const [imgRows] = await pool.execute(
-              'SELECT guid FROM wp_posts WHERE ID = ?',
-              [imageId]
-            ) as any[];
-            if (imgRows && imgRows.length > 0) {
-              imageUrl = fixImageUrl(imgRows[0].guid);
+      if (slug) {
+        try {
+          const apiUrl = wpUtils.buildWpApiUrl('wp/v2/product', {
+            slug: slug,
+            per_page: 1,
+            status: 'publish',
+            _embed: '1'
+          });
+          
+          const headers = wpUtils.getWpApiHeaders(true, false);
+          
+          const response = await fetch(apiUrl, {
+            method: 'GET',
+            headers,
+            signal: AbortSignal.timeout(10000),
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data) && data.length > 0) {
+              product = data[0];
+              productId = product.id;
             }
-          } catch (imgError) {
-            console.warn('[product] Error fetching image:', imgError);
           }
+        } catch (e) {
+          console.warn('[product] Error fetching by slug:', e);
         }
-        
-        // Get gallery images
-        const galleryImages: any[] = [];
-        const galleryIdsStr = meta['_product_image_gallery'] || '';
-        if (galleryIdsStr) {
-          const galleryIds = galleryIdsStr.split(',').map(id => parseInt(id.trim())).filter(id => id > 0);
-          for (const galleryId of galleryIds) {
-            try {
-              const [galleryRows] = await pool.execute(
-                'SELECT guid FROM wp_posts WHERE ID = ?',
-                [galleryId]
-              ) as any[];
-              if (galleryRows && galleryRows.length > 0) {
-                const galleryUrl = fixImageUrl(galleryRows[0].guid);
-                if (galleryUrl) {
-                  galleryImages.push({ sourceUrl: galleryUrl });
+      }
+      
+      // If not found by slug, try by SKU using WooCommerce API
+      if (!productId && sku) {
+        try {
+          const wcHeaders = wpUtils.getWpApiHeaders(false, true);
+          if (wcHeaders['Authorization']) {
+            const wcUrl = wpUtils.buildWpApiUrl('wc/v3/products', {
+              sku: sku,
+              per_page: 1
+            });
+            
+            const wcResponse = await fetch(wcUrl, {
+              method: 'GET',
+              headers: wcHeaders,
+              signal: AbortSignal.timeout(10000),
+            });
+            
+            if (wcResponse.ok) {
+              const wcData = await wcResponse.json();
+              if (Array.isArray(wcData) && wcData.length > 0) {
+                productId = wcData[0].id;
+                // Fetch full product from WordPress REST API
+                const wpUrl = wpUtils.buildWpApiUrl(`wp/v2/product/${productId}`, {
+                  _embed: '1'
+                });
+                const wpHeaders = wpUtils.getWpApiHeaders(true, false);
+                const wpResponse = await fetch(wpUrl, {
+                  method: 'GET',
+                  headers: wpHeaders,
+                  signal: AbortSignal.timeout(10000),
+                });
+                if (wpResponse.ok) {
+                  product = await wpResponse.json();
                 }
               }
-            } catch (galleryError) {
-              console.warn('[product] Error fetching gallery image:', galleryError);
             }
           }
+        } catch (e) {
+          console.warn('[product] Error fetching by SKU:', e);
         }
-        
-        // Get PA Style attribute
-        let paStyle: any[] = [];
-        try {
-          const [styleRows] = await pool.execute(
-            `SELECT t.name 
-             FROM wp_terms t
-             INNER JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id
-             INNER JOIN wp_term_relationships tr ON tt.term_taxonomy_id = tr.term_taxonomy_id
-             WHERE tr.object_id = ? AND tt.taxonomy = 'pa_style'`,
-            [productId]
-          ) as any[];
-          paStyle = (styleRows || []).map((row: any) => ({ name: row.name }));
-        } catch (styleError) {
-          console.warn('[product] Error fetching PA Style:', styleError);
-        }
-        
-        // Get PA Color attribute
-        let paColor: any[] = [];
-        try {
-          const [colorRows] = await pool.execute(
-            `SELECT t.name 
-             FROM wp_terms t
-             INNER JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id
-             INNER JOIN wp_term_relationships tr ON tt.term_taxonomy_id = tr.term_taxonomy_id
-             WHERE tr.object_id = ? AND tt.taxonomy = 'pa_color'`,
-            [productId]
-          ) as any[];
-          paColor = (colorRows || []).map((row: any) => ({ name: row.name }));
-        } catch (colorError) {
-          console.warn('[product] Error fetching PA Color:', colorError);
-        }
-        
-        // Get related products (simplified - from same categories)
-        const relatedProducts: any[] = [];
-        try {
-          const [relatedRows] = await pool.execute(
-        `SELECT DISTINCT p.ID, p.post_title, p.post_name
-         FROM wp_posts p
-         INNER JOIN wp_term_relationships tr ON p.ID = tr.object_id
-         INNER JOIN wp_term_taxonomy tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
-         INNER JOIN wp_term_relationships tr2 ON tt.term_id = (
-           SELECT tt2.term_id FROM wp_term_taxonomy tt2
-           INNER JOIN wp_term_relationships tr3 ON tt2.term_taxonomy_id = tr3.term_taxonomy_id
-           WHERE tr3.object_id = ? AND tt2.taxonomy = 'product_cat'
-           LIMIT 1
-         )
-         WHERE p.post_type = 'product'
-         AND p.post_status = 'publish'
-         AND p.ID != ?
-         AND EXISTS (
-           SELECT 1 FROM wp_postmeta pm 
-           WHERE pm.post_id = p.ID 
-           AND pm.meta_key = '_product_type' 
-           AND pm.meta_value = 'simple'
-         )
-           LIMIT 10`,
-            [productId, productId]
-          ) as any[];
-          
-          for (const relatedRow of relatedRows) {
-        const relatedId = relatedRow.ID;
-        
-        // Get related product meta
-        const [relatedMetaRows] = await pool.execute(
-          'SELECT meta_key, meta_value FROM wp_postmeta WHERE post_id = ?',
-          [relatedId]
-        ) as any[];
-        
-        const relatedMeta: Record<string, any> = {};
-        for (const row of relatedMetaRows) {
-          relatedMeta[row.meta_key] = row.meta_value;
-        }
-        
-        const relatedSku = relatedMeta['_sku'] || '';
-        const relatedRegularPrice = relatedMeta['_regular_price'] || '';
-        const relatedSalePrice = relatedMeta['_sale_price'] || '';
-        
-        let relatedImageUrl: string | null = null;
-        const relatedImageId = relatedMeta['_thumbnail_id'] ? parseInt(relatedMeta['_thumbnail_id']) : 0;
-        if (relatedImageId > 0) {
-          const [relatedImgRows] = await pool.execute(
-            'SELECT guid FROM wp_posts WHERE ID = ?',
-            [relatedImageId]
-          ) as any[];
-          if (relatedImgRows && relatedImgRows.length > 0) {
-            relatedImageUrl = fixImageUrl(relatedImgRows[0].guid);
-          }
-        }
-        
-        const relatedGalleryImages: any[] = [];
-        const relatedGalleryIdsStr = relatedMeta['_product_image_gallery'] || '';
-        if (relatedGalleryIdsStr) {
-          const relatedGalleryIds = relatedGalleryIdsStr.split(',').map(id => parseInt(id.trim())).filter(id => id > 0);
-          for (const galleryId of relatedGalleryIds) {
-            const [galleryRows] = await pool.execute(
-              'SELECT guid FROM wp_posts WHERE ID = ?',
-              [galleryId]
-            ) as any[];
-            if (galleryRows && galleryRows.length > 0) {
-              const galleryUrl = fixImageUrl(galleryRows[0].guid);
-              if (galleryUrl) {
-                relatedGalleryImages.push({ sourceUrl: galleryUrl });
-              }
-            }
-          }
-        }
-        
-        const [relatedStyleRows] = await pool.execute(
-          `SELECT t.name 
-           FROM wp_terms t
-           INNER JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id
-           INNER JOIN wp_term_relationships tr ON tt.term_taxonomy_id = tr.term_taxonomy_id
-           WHERE tr.object_id = ? AND tt.taxonomy = 'pa_style'`,
-          [relatedId]
-        ) as any[];
-        
-        const relatedPaStyle = (relatedStyleRows || []).map((row: any) => ({ name: row.name }));
-        
-            relatedProducts.push({
-              sku: relatedSku,
-              slug: relatedRow.post_name,
-              name: relatedRow.post_title,
-              regularPrice: relatedRegularPrice,
-              salePrice: relatedSalePrice || null,
-              allPaStyle: { nodes: relatedPaStyle },
-              image: relatedImageUrl ? { sourceUrl: relatedImageUrl } : null,
-              galleryImages: { nodes: relatedGalleryImages },
-            });
-          }
-        } catch (relatedError) {
-          console.warn('[product] Error fetching related products:', relatedError);
-        }
-        
-        return {
-          product: {
-            databaseId: productId,
-            sku: productSku,
-            slug: post.post_name,
-            name: productName,
-            description: productDescription,
-            regularPrice,
-            salePrice,
-            stockQuantity,
-            stockStatus: stockStatus.toUpperCase(),
-            status: productStatus,
-            image: imageUrl ? { sourceUrl: imageUrl } : null,
-            galleryImages: { nodes: galleryImages },
-            allPaColor: { nodes: paColor },
-            allPaStyle: { nodes: paStyle },
-            related: { nodes: relatedProducts },
-            variations: { nodes: [] },
-          }
-        };
-      } catch (dbError: any) {
-        console.error('[product] Database query error:', dbError);
+      }
+      
+      if (!product || !productId) {
         return { product: null };
       }
+      
+      // Get WooCommerce product data for price, SKU, stock
+      let wcProduct: any = null;
+      try {
+        const wcHeaders = wpUtils.getWpApiHeaders(false, true);
+        if (wcHeaders['Authorization']) {
+          const wcUrl = wpUtils.buildWpApiUrl(`wc/v3/products/${productId}`);
+          const wcResponse = await fetch(wcUrl, {
+            method: 'GET',
+            headers: wcHeaders,
+            signal: AbortSignal.timeout(5000),
+          });
+          
+          if (wcResponse.ok) {
+            wcProduct = await wcResponse.json();
+          }
+        }
+      } catch (e) {
+        console.warn('[product] Error fetching WooCommerce data:', e);
+      }
+      
+      // Get featured image
+      let imageUrl: string | null = null;
+      if (product._embedded?.['wp:featuredmedia']?.[0]?.source_url) {
+        imageUrl = product._embedded['wp:featuredmedia'][0].source_url;
+      } else if (product.featured_media) {
+        try {
+          const mediaUrl = wpUtils.buildWpApiUrl(`wp/v2/media/${product.featured_media}`);
+          const mediaResponse = await fetch(mediaUrl, {
+            method: 'GET',
+            headers: wpUtils.getWpApiHeaders(true, false),
+            signal: AbortSignal.timeout(5000),
+          });
+          if (mediaResponse.ok) {
+            const media = await mediaResponse.json();
+            imageUrl = media.source_url || null;
+          }
+        } catch (e) {
+          console.warn('[product] Error fetching media:', e);
+        }
+      }
+      
+      // Get gallery images (WordPress REST API doesn't provide gallery directly)
+      // We'll use featured image as gallery for now
+      const galleryImages: any[] = [];
+      if (imageUrl) {
+        galleryImages.push({ sourceUrl: imageUrl });
+      }
+      
+      // Get prices from WooCommerce
+      let regularPrice = '';
+      let salePrice: string | null = null;
+      let productSku = product.slug || `product-${productId}`;
+      let stockQuantity: number | null = null;
+      let stockStatus = 'IN_STOCK';
+      
+      if (wcProduct) {
+        if (wcProduct.regular_price) {
+          const price = parseFloat(wcProduct.regular_price);
+          regularPrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+        }
+        if (wcProduct.sale_price) {
+          const price = parseFloat(wcProduct.sale_price);
+          salePrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+        }
+        if (wcProduct.sku) {
+          productSku = wcProduct.sku;
+        }
+        if (wcProduct.stock_quantity !== null && wcProduct.stock_quantity !== undefined) {
+          stockQuantity = parseInt(wcProduct.stock_quantity);
+        }
+        if (wcProduct.stock_status) {
+          stockStatus = wcProduct.stock_status.toUpperCase();
+        }
+      }
+      
+      // Get PA Style and PA Color attributes (if available)
+      const paStyle: any[] = [];
+      const paColor: any[] = [];
+      
+      // Get related products (from same categories)
+      const relatedProducts: any[] = [];
+      try {
+        const productCats = product.product_cat || [];
+        if (productCats.length > 0) {
+          const relatedUrl = wpUtils.buildWpApiUrl('wp/v2/product', {
+            product_cat: productCats[0],
+            per_page: 10,
+            exclude: productId,
+            status: 'publish',
+            _embed: '1'
+          });
+          
+          const relatedResponse = await fetch(relatedUrl, {
+            method: 'GET',
+            headers: wpUtils.getWpApiHeaders(true, false),
+            signal: AbortSignal.timeout(10000),
+          });
+          
+          if (relatedResponse.ok) {
+            const relatedData = await relatedResponse.json();
+            for (const related of Array.isArray(relatedData) ? relatedData : []) {
+              let relatedImageUrl: string | null = null;
+              if (related._embedded?.['wp:featuredmedia']?.[0]?.source_url) {
+                relatedImageUrl = related._embedded['wp:featuredmedia'][0].source_url;
+              }
+              
+              // Get WooCommerce data for related product
+              let relatedRegularPrice = '';
+              let relatedSalePrice: string | null = null;
+              let relatedSku = related.slug || `product-${related.id}`;
+              
+              try {
+                const wcHeaders = wpUtils.getWpApiHeaders(false, true);
+                if (wcHeaders['Authorization']) {
+                  const wcUrl = wpUtils.buildWpApiUrl(`wc/v3/products/${related.id}`);
+                  const wcResponse = await fetch(wcUrl, {
+                    method: 'GET',
+                    headers: wcHeaders,
+                    signal: AbortSignal.timeout(3000),
+                  });
+                  
+                  if (wcResponse.ok) {
+                    const wcRelated = await wcResponse.json();
+                    if (wcRelated.regular_price) {
+                      relatedRegularPrice = wcRelated.regular_price;
+                    }
+                    if (wcRelated.sale_price) {
+                      relatedSalePrice = wcRelated.sale_price;
+                    }
+                    if (wcRelated.sku) {
+                      relatedSku = wcRelated.sku;
+                    }
+                  }
+                }
+              } catch (e) {
+                // Ignore errors for related products
+              }
+              
+              relatedProducts.push({
+                sku: relatedSku,
+                slug: related.slug,
+                name: related.title?.rendered || related.title || '',
+                regularPrice: relatedRegularPrice,
+                salePrice: relatedSalePrice,
+                allPaStyle: { nodes: [] },
+                image: relatedImageUrl ? { sourceUrl: relatedImageUrl } : null,
+                galleryImages: { nodes: relatedImageUrl ? [{ sourceUrl: relatedImageUrl }] : [] },
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[product] Error fetching related products:', e);
+      }
+      
+      return {
+        product: {
+          databaseId: productId,
+          sku: productSku,
+          slug: product.slug,
+          name: product.title?.rendered || product.title || '',
+          description: product.content?.rendered || product.content || '',
+          regularPrice,
+          salePrice,
+          stockQuantity,
+          stockStatus,
+          status: product.status,
+          image: imageUrl ? { sourceUrl: imageUrl } : null,
+          galleryImages: { nodes: galleryImages },
+          allPaColor: { nodes: paColor },
+          allPaStyle: { nodes: paStyle },
+          related: { nodes: relatedProducts },
+          variations: { nodes: [] },
+        }
+      };
     } catch (error: any) {
       console.error('[product] Error:', error);
-      // Return null product instead of throwing error to keep the app working
       return { product: null };
     }
   },

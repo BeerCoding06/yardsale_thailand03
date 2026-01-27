@@ -1,57 +1,48 @@
 // server/api/categories.get.ts
-// Direct database access - no PHP/WordPress
+// Fetch product categories from WordPress REST API
 
-import { getDbPool, fixImageUrl } from '../utils/db';
+import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
 
 export default cachedEventHandler(
   async (event) => {
     try {
-      const pool = getDbPool();
-      
-      // If database is not available, return empty data
-      if (!pool) {
-        console.warn('[categories] Database not available, returning empty data');
-        return {
-          productCategories: {
-            nodes: []
-          }
-        };
-      }
+      const query = getQuery(event);
+      const wpUtils = await import('../utils/wp');
       
       // Get query parameters
-      const query = getQuery(event);
       const parent = parseInt(query.parent as string || '0');
       const hideEmpty = query.hide_empty !== 'false';
       const orderby = (query.orderby as string) || 'name';
       const order = (query.order as string) || 'ASC';
+      const perPage = 100;
       
-      // Map orderby to database fields
-      const orderbyMap: Record<string, string> = {
-        'name': 't.name',
-        'count': 'tt.count',
-        'id': 't.term_id',
-        'slug': 't.slug',
-        'term_group': 't.term_group',
-        'none': 't.term_id',
+      // Build query parameters
+      const params: Record<string, string | number> = {
+        per_page: perPage,
+        page: 1,
+        orderby: orderby,
+        order: order.toLowerCase(),
+        ...(hideEmpty ? { hide_empty: '1' } : {}),
+        ...(parent !== undefined ? { parent: parent } : {})
       };
-      const dbOrderby = orderbyMap[orderby] || 't.name';
-      const dbOrder = order === 'DESC' ? 'DESC' : 'ASC';
       
-      // Build query
-      let rows: any[] = [];
-      try {
-        const querySql = `SELECT t.term_id, t.name, t.slug, tt.description, tt.parent, tt.count
-           FROM wp_terms t
-           INNER JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id
-           WHERE tt.taxonomy = 'product_cat' AND tt.parent = ?
-           ORDER BY ${dbOrderby} ${dbOrder}`;
-        console.log('[categories] Query:', querySql, 'parent:', parent);
-        const [result] = await pool.execute(querySql, [parent]) as any[];
-        rows = result || [];
-        console.log('[categories] Found categories:', rows.length);
-      } catch (dbError: any) {
-        console.error('[categories] Database query error:', dbError);
-        // Return empty data instead of throwing error
+      // Use WordPress REST API endpoint
+      const apiUrl = wpUtils.buildWpApiUrl('wp/v2/product_cat', params);
+      
+      // Use utility function for headers
+      const headers = wpUtils.getWpApiHeaders(true, false);
+      
+      console.log('[categories] Fetching from WordPress API:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(30000),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        console.error('[categories] WordPress API error:', response.status, errorText);
         return {
           productCategories: {
             nodes: []
@@ -59,185 +50,92 @@ export default cachedEventHandler(
         };
       }
       
-      const formattedCategories: any[] = [];
+      let data = await response.json();
       
-      for (const category of rows) {
-        const termId = category.term_id;
-        
-        // Check if category should be hidden (has no products in stock)
-        if (hideEmpty) {
-          const [productCountRows] = await pool.execute(
-            `SELECT COUNT(DISTINCT p.ID) as count
-             FROM wp_posts p
-             INNER JOIN wp_postmeta stock_meta ON p.ID = stock_meta.post_id
-             INNER JOIN wp_term_relationships tr ON p.ID = tr.object_id
-             INNER JOIN wp_term_taxonomy tt_cat ON tr.term_taxonomy_id = tt_cat.term_taxonomy_id
-             WHERE p.post_type = 'product'
-             AND p.post_status = 'publish'
-             AND stock_meta.meta_key = '_stock_status'
-             AND stock_meta.meta_value = 'instock'
-             AND tt_cat.term_id = ?
-             AND tt_cat.taxonomy = 'product_cat'`,
-            [termId]
-          ) as any[];
-          
-          const productCount = productCountRows[0]?.count || 0;
-          if (productCount === 0) {
-            continue;
-          }
-        }
-        
-        // Get category image
-        let imageUrl: string | null = null;
-        const [imageIdRows] = await pool.execute(
-          "SELECT meta_value FROM wp_termmeta WHERE term_id = ? AND meta_key = 'thumbnail_id'",
-          [termId]
-        ) as any[];
-        
-        const imageId = imageIdRows && imageIdRows.length > 0 ? parseInt(imageIdRows[0].meta_value) : 0;
-        if (imageId > 0) {
-          const [imgRows] = await pool.execute(
-            'SELECT guid FROM wp_posts WHERE ID = ?',
-            [imageId]
-          ) as any[];
-          if (imgRows && imgRows.length > 0) {
-            imageUrl = fixImageUrl(imgRows[0].guid);
-          }
-        }
-        
-        // Get parent category info
-        let parentInfo: any = null;
-        if (category.parent > 0) {
-          const [parentRows] = await pool.execute(
-            'SELECT t.term_id, t.name FROM wp_terms t WHERE t.term_id = ?',
-            [category.parent]
-          ) as any[];
-          
-          if (parentRows && parentRows.length > 0) {
-            const parentRow = parentRows[0];
-            const [parentImageIdRows] = await pool.execute(
-              "SELECT meta_value FROM wp_termmeta WHERE term_id = ? AND meta_key = 'thumbnail_id'",
-              [category.parent]
-            ) as any[];
-            
-            let parentImageUrl: string | null = null;
-            const parentImageId = parentImageIdRows && parentImageIdRows.length > 0 
-              ? parseInt(parentImageIdRows[0].meta_value) 
-              : 0;
-            if (parentImageId > 0) {
-              const [parentImgRows] = await pool.execute(
-                'SELECT guid FROM wp_posts WHERE ID = ?',
-                [parentImageId]
-              ) as any[];
-              if (parentImgRows && parentImgRows.length > 0) {
-                parentImageUrl = fixImageUrl(parentImgRows[0].guid);
+      // Format categories to match expected structure
+      const formattedCategories = await Promise.all(
+        (Array.isArray(data) ? data : []).map(async (category: any) => {
+          // Get category image
+          let imageUrl: string | null = null;
+          if (category.image) {
+            imageUrl = category.image;
+          } else if (category._links?.['wp:attachment']?.[0]?.href) {
+            // Try to fetch image from attachment link
+            try {
+              const imageResponse = await fetch(category._links['wp:attachment'][0].href, {
+                method: 'GET',
+                headers,
+                signal: AbortSignal.timeout(5000),
+              });
+              if (imageResponse.ok) {
+                const images = await imageResponse.json();
+                if (Array.isArray(images) && images.length > 0) {
+                  imageUrl = images[0].source_url || null;
+                }
               }
-            }
-            
-            parentInfo = {
-              id: parentRow.term_id,
-              name: parentRow.name,
-              image: parentImageUrl ? { sourceUrl: parentImageUrl } : null,
-            };
-          }
-        }
-        
-        // Get children categories
-        const [childrenRows] = await pool.execute(
-          `SELECT t.term_id, t.name
-           FROM wp_terms t
-           INNER JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id
-           WHERE tt.taxonomy = 'product_cat' AND tt.parent = ?`,
-          [termId]
-        ) as any[];
-        
-        const childrenCategories: any[] = [];
-        for (const child of childrenRows) {
-          const [childImageIdRows] = await pool.execute(
-            "SELECT meta_value FROM wp_termmeta WHERE term_id = ? AND meta_key = 'thumbnail_id'",
-            [child.term_id]
-          ) as any[];
-          
-          let childImageUrl: string | null = null;
-          const childImageId = childImageIdRows && childImageIdRows.length > 0 
-            ? parseInt(childImageIdRows[0].meta_value) 
-            : 0;
-          if (childImageId > 0) {
-            const [childImgRows] = await pool.execute(
-              'SELECT guid FROM wp_posts WHERE ID = ?',
-              [childImageId]
-            ) as any[];
-            if (childImgRows && childImgRows.length > 0) {
-              childImageUrl = fixImageUrl(childImgRows[0].guid);
+            } catch (e) {
+              console.warn('[categories] Error fetching category image:', e);
             }
           }
           
-          // Check if child has products
-          const [childProductCountRows] = await pool.execute(
-            `SELECT COUNT(DISTINCT p.ID) as count
-             FROM wp_posts p
-             INNER JOIN wp_postmeta stock_meta ON p.ID = stock_meta.post_id
-             INNER JOIN wp_term_relationships tr ON p.ID = tr.object_id
-             INNER JOIN wp_term_taxonomy tt_cat ON tr.term_taxonomy_id = tt_cat.term_taxonomy_id
-             WHERE p.post_type = 'product'
-             AND p.post_status = 'publish'
-             AND stock_meta.meta_key = '_stock_status'
-             AND stock_meta.meta_value = 'instock'
-             AND tt_cat.term_id = ?
-             AND tt_cat.taxonomy = 'product_cat'`,
-            [child.term_id]
-          ) as any[];
-          
-          const hasProducts = (childProductCountRows[0]?.count || 0) > 0;
-          
-          childrenCategories.push({
-            id: child.term_id,
-            name: child.name,
-            image: childImageUrl ? { sourceUrl: childImageUrl } : null,
-            parent: {
-              node: {
-                id: termId,
-                name: category.name,
-                image: imageUrl ? { sourceUrl: imageUrl } : null,
+          // Get children categories
+          const children: any[] = [];
+          if (category.count > 0 || !hideEmpty) {
+            // Fetch children if needed
+            try {
+              const childrenUrl = wpUtils.buildWpApiUrl('wp/v2/product_cat', {
+                parent: category.id,
+                per_page: 100,
+                ...(hideEmpty ? { hide_empty: '1' } : {})
+              });
+              const childrenResponse = await fetch(childrenUrl, {
+                method: 'GET',
+                headers,
+                signal: AbortSignal.timeout(10000),
+              });
+              if (childrenResponse.ok) {
+                const childrenData = await childrenResponse.json();
+                children.push(...(Array.isArray(childrenData) ? childrenData : []));
               }
+            } catch (e) {
+              console.warn('[categories] Error fetching children:', e);
+            }
+          }
+          
+          // Get products count (if needed)
+          const products: any[] = [];
+          // WordPress REST API doesn't provide products in category response
+          // We'll leave it empty for now
+          
+          return {
+            id: category.id,
+            databaseId: category.id,
+            name: category.name,
+            slug: category.slug,
+            description: category.description || '',
+            image: imageUrl ? { sourceUrl: imageUrl } : null,
+            parent: category.parent || null,
+            count: category.count || 0,
+            children: {
+              nodes: children.map((child: any) => ({
+                id: child.id,
+                databaseId: child.id,
+                name: child.name,
+                slug: child.slug,
+                description: child.description || '',
+                image: null,
+                parent: child.parent || null,
+                count: child.count || 0,
+              }))
             },
             products: {
-              nodes: hasProducts ? [{ id: '1' }] : []
-            },
-          });
-        }
-        
-        // Check if category has products
-        const [productCountRows] = await pool.execute(
-          `SELECT COUNT(DISTINCT p.ID) as count
-           FROM wp_posts p
-           INNER JOIN wp_postmeta stock_meta ON p.ID = stock_meta.post_id
-           INNER JOIN wp_term_relationships tr ON p.ID = tr.object_id
-           INNER JOIN wp_term_taxonomy tt_cat ON tr.term_taxonomy_id = tt_cat.term_taxonomy_id
-           WHERE p.post_type = 'product'
-           AND p.post_status = 'publish'
-           AND stock_meta.meta_key = '_stock_status'
-           AND stock_meta.meta_value = 'instock'
-           AND tt_cat.term_id = ?
-           AND tt_cat.taxonomy = 'product_cat'`,
-          [termId]
-        ) as any[];
-        
-        const productCount = productCountRows[0]?.count || 0;
-        
-        formattedCategories.push({
-          id: termId,
-          name: category.name,
-          image: imageUrl ? { sourceUrl: imageUrl } : null,
-          parent: parentInfo ? { node: parentInfo } : null,
-          products: {
-            nodes: productCount > 0 ? [{ id: '1' }] : []
-          },
-          children: {
-            nodes: childrenCategories
-          },
-        });
-      }
+              nodes: products
+            }
+          };
+        })
+      );
+      
+      console.log('[categories] Formatted categories:', formattedCategories.length);
       
       return {
         productCategories: {

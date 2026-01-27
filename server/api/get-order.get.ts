@@ -1,67 +1,70 @@
 // server/api/get-order.get.ts
+// Fetch single order from WooCommerce REST API
+
+import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
+
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
-    const config = useRuntimeConfig();
-    const baseUrl = config.baseUrl || "http://localhost/yardsale_thailand";
+    const wpUtils = await import('../utils/wp');
     
     const orderId = query.order_id;
     const customerId = query.customer_id;
-
+    
     if (!orderId) {
       throw createError({
         statusCode: 400,
         message: "order_id is required",
       });
     }
-
-    const phpApiUrl = `${baseUrl}/server/api/php/getOrder.php?${new URLSearchParams({
-      order_id: String(orderId),
-      ...(customerId ? { customer_id: String(customerId) } : {}),
-    })}`;
-
-    console.log("[get-order] Calling PHP API:", phpApiUrl);
-
-    const response = await fetch(phpApiUrl, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      signal: AbortSignal.timeout(30000),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      let errorMessage = `PHP API error (status ${response.status})`;
-      let errorDetails = null;
-      try {
-        const errorJson = JSON.parse(errorText);
-        if (errorJson.error) errorMessage = errorJson.error;
-        else if (errorJson.message) errorMessage = errorJson.message;
-        errorDetails = errorJson;
-      } catch (e) {
-        /* not JSON */
-        errorMessage = errorText || errorMessage;
-      }
-      console.error("[get-order] PHP API Error:", errorMessage);
-      console.error("[get-order] Error details:", errorDetails);
+    
+    // Use WooCommerce REST API to fetch order
+    const wcHeaders = wpUtils.getWpApiHeaders(false, true);
+    
+    if (!wcHeaders['Authorization']) {
       throw createError({
-        statusCode: response.status,
-        message: errorMessage,
-        data: errorDetails,
+        statusCode: 500,
+        message: "WooCommerce API credentials not configured",
       });
     }
-
-    const data = await response.json();
-    console.log("[get-order] Successfully fetched order:", data.order?.id);
-
-    return data;
+    
+    const apiUrl = wpUtils.buildWpApiUrl(`wc/v3/orders/${orderId}`);
+    
+    console.log('[get-order] Fetching from WooCommerce API:', apiUrl);
+    
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers: wcHeaders,
+      signal: AbortSignal.timeout(30000),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      console.error('[get-order] WooCommerce API error:', response.status, errorText);
+      throw createError({
+        statusCode: response.status,
+        message: errorText || 'Failed to fetch order',
+      });
+    }
+    
+    const order = await response.json();
+    
+    // Verify customer if customer_id is provided
+    if (customerId && order.customer_id && parseInt(order.customer_id) !== parseInt(customerId as string)) {
+      throw createError({
+        statusCode: 403,
+        message: "Access denied",
+      });
+    }
+    
+    return {
+      order
+    };
   } catch (error: any) {
-    console.error("[get-order] Error:", error);
+    console.error('[get-order] Error:', error);
     throw createError({
       statusCode: error.statusCode || 500,
-      message: error.message || "Failed to fetch order",
+      message: error.message || 'Failed to fetch order',
     });
   }
 });
-
