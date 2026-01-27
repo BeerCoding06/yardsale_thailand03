@@ -1,12 +1,12 @@
 // server/api/create-user.post.ts
 // สร้างผู้ใช้ใหม่ใน WordPress
 
+import * as wpUtils from '../utils/wp';
+
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
     console.log("[create-user] Received payload:", body);
-
-    const wpUtils = await import('../utils/wp');
     
     const cleanBase = wpUtils.getWpBaseUrl();
     const headers = wpUtils.getWpApiHeaders(true, false);

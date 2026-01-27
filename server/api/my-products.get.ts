@@ -1,12 +1,11 @@
 // server/api/my-products.get.ts
 // Fetch user's products from WordPress REST API
 
-import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
-    const wpUtils = await import('../utils/wp');
     
     const userId = query.user_id;
     

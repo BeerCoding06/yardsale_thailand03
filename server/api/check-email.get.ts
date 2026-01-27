@@ -1,6 +1,8 @@
 // server/api/check-email.get.ts
 // ตรวจสอบว่าอีเมลมีอยู่ในระบบ WordPress หรือไม่
 
+import * as wpUtils from '../utils/wp';
+
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
@@ -12,8 +14,6 @@ export default defineEventHandler(async (event) => {
         message: "Email is required. Use ?email=test@example.com",
       });
     }
-
-    const wpUtils = await import('../utils/wp');
     
     const cleanBase = wpUtils.getWpBaseUrl();
     const headers = wpUtils.getWpApiHeaders(true, false);

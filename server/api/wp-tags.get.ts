@@ -1,7 +1,7 @@
 // server/api/wp-tags.get.ts
 // Fetch product tags from WordPress REST API
 
-import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event: any) => {
   try {
@@ -27,10 +27,10 @@ export default defineEventHandler(async (event: any) => {
     };
     
     // Use WordPress REST API endpoint
-    const apiUrl = buildWpApiUrl('wp/v2/product_tag', params);
+    const apiUrl = wpUtils.buildWpApiUrl('wp/v2/product_tag', params);
     
     // Use utility function for headers
-    const headers = getWpApiHeaders(true, false);
+    const headers = wpUtils.getWpApiHeaders(true, false);
     
     console.log('[wp-tags] Fetching from WordPress API:', apiUrl);
     

@@ -1,10 +1,11 @@
 // server/api/cart/add.post.ts
 // Add product to cart using WooCommerce REST API
 
+import * as wpUtils from '../utils/wp';
+
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    const wpUtils = await import('../utils/wp');
     
     const { productId } = body;
     

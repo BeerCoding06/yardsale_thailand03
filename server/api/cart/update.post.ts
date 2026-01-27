@@ -1,12 +1,11 @@
 // server/api/cart/update.post.ts
 // Update cart items (client-side cart management)
 
-import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    const wpUtils = await import('../utils/wp');
     
     const { items } = body;
     

@@ -1,13 +1,12 @@
 // server/api/product.get.ts
 // Fetch single product from WordPress REST API
 
-import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default cachedEventHandler(
   async (event) => {
     try {
       const query = getQuery(event);
-      const wpUtils = await import('../utils/wp');
       
       const slug = query.slug as string | undefined;
       const sku = query.sku as string | undefined;

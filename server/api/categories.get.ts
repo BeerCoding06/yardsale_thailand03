@@ -1,13 +1,12 @@
 // server/api/categories.get.ts
 // Fetch product categories from WordPress REST API
 
-import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default cachedEventHandler(
   async (event) => {
     try {
       const query = getQuery(event);
-      const wpUtils = await import('../utils/wp');
       
       // Get query parameters
       const parent = parseInt(query.parent as string || '0');

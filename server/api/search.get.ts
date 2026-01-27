@@ -1,13 +1,12 @@
 // server/api/search.get.ts
 // Search products using WordPress REST API
 
-import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default cachedEventHandler(
   async (event) => {
     try {
       const query = getQuery(event);
-      const wpUtils = await import('../utils/wp');
       
       const search = (query.search as string) || '';
       const limit = parseInt(query.limit as string || '6');

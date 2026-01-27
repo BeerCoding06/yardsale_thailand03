@@ -1,12 +1,11 @@
 // server/api/my-orders.get.ts
 // Fetch user's orders from WooCommerce REST API
 
-import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
-    const wpUtils = await import('../utils/wp');
     
     const customerId = query.customer_id;
     const customerEmail = query.customer_email;

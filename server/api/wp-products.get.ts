@@ -1,14 +1,11 @@
 // server/api/wp-products.get.ts
 // Fetch products from WordPress REST API
 
-import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event: any) => {
   try {
     const query = getQuery(event);
-    
-    // WordPress base URL from .env (can be overridden via query parameter)
-    const wpBaseUrl = (query.wp_url as string) || getWpBaseUrl();
     
     // WordPress REST API endpoint for products
     // Use WordPress REST API: /wp-json/wp/v2/product
@@ -17,7 +14,7 @@ export default defineEventHandler(async (event: any) => {
     const search = query.search as string | undefined;
     
     // Use WordPress REST API endpoint
-    let apiUrl = buildWpApiUrl('wp/v2/product', {
+    let apiUrl = wpUtils.buildWpApiUrl('wp/v2/product', {
       per_page: perPage,
       page: page,
       ...(search ? { search: search } : {})
@@ -34,18 +31,17 @@ export default defineEventHandler(async (event: any) => {
     
     if (consumerKey && consumerSecret) {
       // Override with query params if provided
-      const auth = globalThis.Buffer 
-        ? globalThis.Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')
-        : btoa(`${consumerKey}:${consumerSecret}`);
+      // Buffer is available in Node.js server environment
+      const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
       headers = {
         'Content-Type': 'application/json',
         'Authorization': `Basic ${auth}`
       };
     } else {
       // Use WooCommerce auth from .env if available, otherwise Basic Auth
-      headers = getWpApiHeaders(false, true); // Try WooCommerce auth first
+      headers = wpUtils.getWpApiHeaders(false, true); // Try WooCommerce auth first
       if (!headers['Authorization']) {
-        headers = getWpApiHeaders(true, false); // Fallback to Basic Auth
+        headers = wpUtils.getWpApiHeaders(true, false); // Fallback to Basic Auth
       }
     }
     

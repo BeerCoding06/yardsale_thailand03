@@ -1,14 +1,11 @@
 // server/api/wp-categories.get.ts
 // Fetch product categories from WordPress REST API
 
-import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event: any) => {
   try {
     const query = getQuery(event);
-    
-    // WordPress base URL from .env (can be overridden via query parameter)
-    const wpBaseUrl = (query.wp_url as string) || getWpBaseUrl();
     
     // WordPress REST API endpoint for product categories
     // Use WordPress REST API: /wp-json/wp/v2/product_cat
@@ -32,10 +29,10 @@ export default defineEventHandler(async (event: any) => {
     };
     
     // Use WordPress REST API endpoint
-    const apiUrl = buildWpApiUrl('wp/v2/product_cat', params);
+    const apiUrl = wpUtils.buildWpApiUrl('wp/v2/product_cat', params);
     
     // Use utility function for headers
-    const headers = getWpApiHeaders(true, false);
+    const headers = wpUtils.getWpApiHeaders(true, false);
     
     console.log('[wp-categories] Fetching from WordPress API:', apiUrl);
     

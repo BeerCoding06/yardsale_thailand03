@@ -1,12 +1,11 @@
 // server/api/get-customer-data.get.ts
 // Fetch customer data from WordPress REST API
 
-import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
-    const wpUtils = await import('../utils/wp');
     
     const customerId = query.customer_id;
     const customerEmail = query.customer_email;

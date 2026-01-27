@@ -1,13 +1,12 @@
 // server/api/products.get.ts
 // Fetch products from WordPress REST API
 
-import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default cachedEventHandler(
   async (event) => {
     try {
       const query = getQuery(event);
-      const wpUtils = await import('../utils/wp');
       
       // Parse pagination from cursor
       let page = 1;

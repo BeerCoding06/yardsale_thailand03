@@ -1,6 +1,8 @@
 // server/api/upload-image.post.ts
 // Upload image to WordPress media library
 
+import * as wpUtils from '../utils/wp';
+
 export default defineEventHandler(async (event) => {
   try {
     const formData = await readFormData(event);
@@ -12,8 +14,6 @@ export default defineEventHandler(async (event) => {
         message: "No file provided",
       });
     }
-
-    const wpUtils = await import('../utils/wp');
     
     const cleanBase = wpUtils.getWpBaseUrl();
     
