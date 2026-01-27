@@ -30,11 +30,13 @@ export const useCart = () => {
       const requestedQuantity = currentQuantity + 1;
       
       console.log('[useCart] Calling /api/cart/add with productId:', productId);
+      
+      // Use $fetch with explicit relative path - no baseURL to avoid any redirects
       const res = await $fetch<AddToCartResponse>('/api/cart/add', { 
         method: 'POST', 
         body: { productId },
-        baseURL: '', // Ensure we use relative path, not baseURL
       });
+      
       console.log('[useCart] Response from /api/cart/add:', res);
       const incoming = res.addToCart.cartItem;
       
@@ -65,7 +67,20 @@ export const useCart = () => {
       setTimeout(() => (addToCartButtonStatus.value = 'add'), 2000);
     } catch (err: any) {
       addToCartButtonStatus.value = 'add';
+      
+      // Log full error for debugging
       console.error('[useCart] handleAddToCart error:', err);
+      console.error('[useCart] Error URL:', err?.url);
+      console.error('[useCart] Error statusCode:', err?.statusCode);
+      console.error('[useCart] Error data:', err?.data);
+      
+      // Check if error is about PHP endpoint (old code)
+      if (err?.url && err.url.includes('/server/api/php/')) {
+        console.error('[useCart] ERROR: Old PHP endpoint detected! This should not happen.');
+        console.error('[useCart] Please rebuild Docker container and clear browser cache.');
+        push.error('Please refresh the page and try again. If the problem persists, clear your browser cache.');
+        return;
+      }
       
       // Extract error message from various possible locations
       let errorMessage = '';
