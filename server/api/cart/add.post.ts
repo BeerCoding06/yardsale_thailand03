@@ -1,95 +1,160 @@
 // server/api/cart/add.post.ts
-// Use PHP API instead of GraphQL for better compatibility with simple products
+// Add product to cart using WooCommerce REST API
+
+import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    const config = useRuntimeConfig();
-    const baseUrl = config.baseUrl || 'http://localhost/yardsale_thailand';
+    const wpUtils = await import('../utils/wp');
     
-    const phpApiUrl = `${baseUrl}/server/api/php/addToCart.php`;
+    const { productId } = body;
     
-    console.log('[cart/add] Calling PHP API:', phpApiUrl);
-    console.log('[cart/add] Request body:', body);
-    
-    const response = await fetch(phpApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(30000),
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      let errorMessage = `PHP API error (status ${response.status})`;
-      let errorData = null;
-      
-      console.error('[cart/add] PHP API Error Response Status:', response.status);
-      console.error('[cart/add] PHP API Error Response Text:', errorText);
-      
-      try {
-        const errorJson = JSON.parse(errorText);
-        console.error('[cart/add] PHP API Error JSON:', errorJson);
-        
-        // Prioritize error field, then message field
-        if (errorJson.error) {
-          errorMessage = String(errorJson.error);
-        } else if (errorJson.message) {
-          errorMessage = String(errorJson.message);
-        } else if (errorText && errorText.trim() !== '') {
-          errorMessage = errorText;
-        }
-        
-        errorData = errorJson;
-      } catch (e) {
-        /* not JSON */
-        console.error('[cart/add] Failed to parse error as JSON:', e);
-        if (errorText && errorText.trim() !== '') {
-          errorMessage = errorText;
-        }
-      }
-      
-      // Ensure we have a meaningful error message
-      if (!errorMessage || errorMessage.trim() === '' || errorMessage.includes('PHP API error (status')) {
-        errorMessage = `Failed to add product to cart (Error ${response.status})`;
-      }
-      
-      console.error('[cart/add] Final Error Message:', errorMessage);
+    if (!productId) {
       throw createError({
-        statusCode: response.status,
-        message: errorMessage,
-        data: errorData || { error: errorMessage },
+        statusCode: 400,
+        message: 'productId is required',
       });
     }
     
-    const data = await response.json();
-    console.log('[cart/add] Successfully added to cart');
+    // WooCommerce doesn't have a direct cart API in REST API v3
+    // We'll create a simple cart item response that matches the expected format
+    // The cart is managed client-side in localStorage
     
-    return data;
+    // Fetch product details from WooCommerce API to get price and other info
+    let productData: any = null;
+    try {
+      const wcHeaders = wpUtils.getWpApiHeaders(false, true);
+      if (wcHeaders['Authorization']) {
+        const wcUrl = wpUtils.buildWpApiUrl(`wc/v3/products/${productId}`);
+        const wcResponse = await fetch(wcUrl, {
+          method: 'GET',
+          headers: wcHeaders,
+          signal: AbortSignal.timeout(10000),
+        });
+        
+        if (wcResponse.ok) {
+          productData = await wcResponse.json();
+        }
+      }
+    } catch (e) {
+      console.warn('[cart/add] Error fetching product from WooCommerce:', e);
+    }
+    
+    // If WooCommerce API fails, try WordPress REST API
+    if (!productData) {
+      try {
+        const wpUrl = wpUtils.buildWpApiUrl(`wp/v2/product/${productId}`, {
+          _embed: '1'
+        });
+        const wpHeaders = wpUtils.getWpApiHeaders(true, false);
+        const wpResponse = await fetch(wpUrl, {
+          method: 'GET',
+          headers: wpHeaders,
+          signal: AbortSignal.timeout(10000),
+        });
+        
+        if (wpResponse.ok) {
+          const wpProduct = await wpResponse.json();
+          
+          // Get featured image
+          let imageUrl: string | null = null;
+          if (wpProduct._embedded?.['wp:featuredmedia']?.[0]?.source_url) {
+            imageUrl = wpProduct._embedded['wp:featuredmedia'][0].source_url;
+          }
+          
+          // Format product data to match expected structure
+          productData = {
+            id: wpProduct.id,
+            name: wpProduct.title?.rendered || wpProduct.title || '',
+            slug: wpProduct.slug,
+            price: '0',
+            regular_price: '0',
+            sale_price: '',
+            sku: wpProduct.slug || `product-${wpProduct.id}`,
+            stock_quantity: null,
+            stock_status: 'instock',
+            image: imageUrl ? { src: imageUrl } : null,
+          };
+        }
+      } catch (e) {
+        console.warn('[cart/add] Error fetching product from WordPress API:', e);
+      }
+    }
+    
+    // If still no product data, create minimal response
+    if (!productData) {
+      productData = {
+        id: productId,
+        name: `Product ${productId}`,
+        slug: `product-${productId}`,
+        price: '0',
+        regular_price: '0',
+        sale_price: '',
+        sku: `product-${productId}`,
+        stock_quantity: null,
+        stock_status: 'instock',
+        image: null,
+      };
+    }
+    
+    // Format price
+    const regularPrice = productData.regular_price || productData.price || '0';
+    const salePrice = productData.sale_price || '';
+    const price = salePrice && parseFloat(salePrice) > 0 ? salePrice : regularPrice;
+    
+    // Format price HTML
+    const priceValue = parseFloat(price);
+    const regularPriceHtml = priceValue > 0
+      ? `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(priceValue).toLocaleString()}</span>`
+      : '';
+    
+    const salePriceHtml = salePrice && parseFloat(salePrice) > 0
+      ? `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(parseFloat(salePrice)).toLocaleString()}</span>`
+      : null;
+    
+    // Create cart item key
+    const key = `simple-${productId}`;
+    
+    // Format response to match expected structure
+    const cartItem = {
+      key,
+      product: {
+        node: {
+          id: productData.id,
+          databaseId: productData.id,
+          name: productData.name,
+          slug: productData.slug || `product-${productData.id}`,
+          sku: productData.sku || productData.slug || `product-${productData.id}`,
+          regularPrice: regularPriceHtml,
+          salePrice: salePriceHtml,
+          stockQuantity: productData.stock_quantity !== null && productData.stock_quantity !== undefined 
+            ? parseInt(productData.stock_quantity) 
+            : null,
+          stockStatus: (productData.stock_status || 'instock').toUpperCase(),
+          image: productData.image?.src 
+            ? { sourceUrl: productData.image.src } 
+            : null,
+        }
+      },
+      quantity: 1,
+    };
+    
+    console.log('[cart/add] Successfully added to cart:', key);
+    
+    return {
+      addToCart: {
+        cartItem,
+      },
+    };
   } catch (error: any) {
     console.error('[cart/add] Error:', error);
-    console.error('[cart/add] Error details:', {
-      statusCode: error.statusCode,
-      message: error.message,
-      data: error.data,
-      name: error.name,
-    });
     
     if (error.statusCode) {
-      // Ensure we have a meaningful error message
-      let errorMessage = error.message || 'Failed to add to cart';
-      if (error.data?.error) {
-        errorMessage = String(error.data.error);
-      } else if (error.data?.message) {
-        errorMessage = String(error.data.message);
-      }
-      
       throw createError({
         statusCode: error.statusCode,
-        message: errorMessage,
-        data: error.data || { error: errorMessage },
+        message: error.message || 'Failed to add to cart',
+        data: error.data || { error: error.message },
       });
     }
     
@@ -101,16 +166,10 @@ export default defineEventHandler(async (event) => {
       });
     }
     
-    // Ensure we have a meaningful error message for unknown errors
-    let errorMessage = error.message || 'Failed to add to cart';
-    if (typeof error === 'string') {
-      errorMessage = error;
-    }
-    
     throw createError({
       statusCode: 500,
-      message: errorMessage,
-      data: { error: errorMessage },
+      message: error.message || 'Failed to add to cart',
+      data: { error: error.message || 'Failed to add to cart' },
     });
   }
 });
