@@ -1,7 +1,7 @@
 // server/api/my-products.get.ts
 // Fetch user's products from WordPress REST API
 
-import * as wpUtils from '../utils/wp';
+import * as wpUtils from '../utils/wp.js';
 
 export default defineEventHandler(async (event) => {
   try {

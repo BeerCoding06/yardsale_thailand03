@@ -1,7 +1,7 @@
 // server/api/cart/add.post.ts
 // Add product to cart using WooCommerce REST API
 
-import * as wpUtils from '../utils/wp';
+import * as wpUtils from '../utils/wp.js';
 
 export default defineEventHandler(async (event) => {
   try {

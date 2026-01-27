@@ -1,7 +1,7 @@
 // server/api/wp-tags.get.ts
 // Fetch product tags from WordPress REST API
 
-import * as wpUtils from '../utils/wp';
+import * as wpUtils from '../utils/wp.js';
 
 export default defineEventHandler(async (event: any) => {
   try {

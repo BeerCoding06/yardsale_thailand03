@@ -1,7 +1,7 @@
 // server/api/get-customer-data.get.ts
 // Fetch customer data from WordPress REST API
 
-import * as wpUtils from '../utils/wp';
+import * as wpUtils from '../utils/wp.js';
 
 export default defineEventHandler(async (event) => {
   try {
