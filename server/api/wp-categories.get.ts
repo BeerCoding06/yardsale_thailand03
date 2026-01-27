@@ -1,5 +1,5 @@
-// server/api/wp-products.get.ts
-// Fetch products from WordPress REST API
+// server/api/wp-categories.get.ts
+// Fetch product categories from WordPress REST API
 
 import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
 
@@ -10,35 +10,34 @@ export default defineEventHandler(async (event: any) => {
     // WordPress base URL from .env (can be overridden via query parameter)
     const wpBaseUrl = (query.wp_url as string) || getWpBaseUrl();
     
-    // WordPress REST API endpoint for products
-    // Use WordPress REST API: /wp-json/wp/v2/product
-    const perPage = query.per_page ? parseInt(query.per_page as string) : 10;
+    // WordPress REST API endpoint for product categories
+    // Use WordPress REST API: /wp-json/wp/v2/product_cat
+    const perPage = query.per_page ? parseInt(query.per_page as string) : 100;
     const page = query.page ? parseInt(query.page as string) : 1;
+    const parent = query.parent !== undefined ? parseInt(query.parent as string) : undefined;
+    const hideEmpty = query.hide_empty !== 'false';
     const search = query.search as string | undefined;
+    const orderby = (query.orderby as string) || 'name';
+    const order = (query.order as string) || 'ASC';
     
-    // Use WordPress REST API endpoint
-    let apiUrl = buildWpApiUrl('wp/v2/product', {
+    // Build query parameters
+    const params: Record<string, string | number> = {
       per_page: perPage,
       page: page,
+      orderby: orderby,
+      order: order,
+      ...(hideEmpty ? { hide_empty: '1' } : {}),
+      ...(parent !== undefined ? { parent: parent } : {}),
       ...(search ? { search: search } : {})
-    });
+    };
     
-    // Add consumer key and secret if available (for authentication)
-    const consumerKey = query.consumer_key as string | undefined;
-    const consumerSecret = query.consumer_secret as string | undefined;
+    // Use WordPress REST API endpoint
+    const apiUrl = buildWpApiUrl('wp/v2/product_cat', params);
     
-    // Use utility function for headers, or override with query params
-    let headers = getWpApiHeaders(true, false);
+    // Use utility function for headers
+    const headers = getWpApiHeaders(true, false);
     
-    // Override with query params if provided
-    if (consumerKey && consumerSecret) {
-      const auth = globalThis.Buffer 
-        ? globalThis.Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')
-        : btoa(`${consumerKey}:${consumerSecret}`);
-      headers['Authorization'] = `Basic ${auth}`;
-    }
-    
-    console.log('[wp-products] Fetching from WordPress API:', apiUrl);
+    console.log('[wp-categories] Fetching from WordPress API:', apiUrl);
     
     const response = await fetch(apiUrl, {
       method: 'GET',
@@ -48,7 +47,7 @@ export default defineEventHandler(async (event: any) => {
     
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      console.error('[wp-products] WordPress API error:', response.status, errorText);
+      console.error('[wp-categories] WordPress API error:', response.status, errorText);
       throw createError({
         statusCode: response.status,
         message: `WordPress API error: ${errorText || response.statusText}`,
@@ -62,17 +61,17 @@ export default defineEventHandler(async (event: any) => {
     const totalPages = response.headers.get('X-WP-TotalPages') ? parseInt(response.headers.get('X-WP-TotalPages')!) : 0;
     
     return {
-      products: Array.isArray(data) ? data : [],
+      categories: Array.isArray(data) ? data : [],
       total,
       totalPages,
       page,
       perPage,
     };
   } catch (error: any) {
-    console.error('[wp-products] Error:', error);
+    console.error('[wp-categories] Error:', error);
     throw createError({
       statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to fetch products from WordPress',
+      message: error.message || 'Failed to fetch categories from WordPress',
     });
   }
 });

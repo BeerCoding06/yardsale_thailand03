@@ -53,7 +53,10 @@ pnpm preview
 All WordPress API endpoints use the `WP_BASE_URL` from `.env` file. You can override it by setting the environment variable.
 
 ### Available Endpoints:
-- `/api/wp-products` - Fetch products from WordPress REST API
+- `/api/wp-products` - Fetch products from WordPress REST API (`/wp-json/wp/v2/product`)
+- `/api/wp-categories` - Fetch product categories from WordPress REST API (`/wp-json/wp/v2/product_cat`)
+- `/api/wp-tags` - Fetch product tags from WordPress REST API (`/wp-json/wp/v2/product_tag`)
+- `/api/wp-brands` - Fetch product brands from WordPress REST API (`/wp-json/wp/v2/product_brand`)
 - `/api/create-user` - Create WordPress user
 - `/api/check-email` - Check if email exists in WordPress
 - `/api/upload-image` - Upload image to WordPress media library
