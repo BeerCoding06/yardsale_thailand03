@@ -27,17 +27,28 @@ onMounted(async () => {
     const response = await $fetch("/api/categories?parent=0");
     console.log("[categories] Categories response:", response);
 
-    // กรองเฉพาะ parent categories ที่ไม่มี parent (parent = null)
-    categoriesData.value = response.productCategories.nodes.filter(
-      (category) => !category.parent || category.parent === null
-    );
-
-    console.log(
-      "[categories] Filtered parent categories:",
-      categoriesData.value.length
-    );
+    // API already returns categories with parent=0, so use them directly
+    // Since we're querying with parent=0, all returned categories should be parent categories
+    if (response?.productCategories?.nodes) {
+      // Simply use all categories returned (they're already filtered by parent=0 in the API)
+      categoriesData.value = response.productCategories.nodes;
+      
+      console.log(
+        "[categories] Total categories from API:",
+        categoriesData.value.length
+      );
+      
+      // Debug: log first category structure
+      if (categoriesData.value.length > 0) {
+        console.log("[categories] First category structure:", categoriesData.value[0]);
+      }
+    } else {
+      categoriesData.value = [];
+      console.warn("[categories] No categories found in response");
+    }
   } catch (error) {
     console.error("[categories] Error fetching categories:", error);
+    categoriesData.value = [];
   }
 });
 
