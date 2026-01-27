@@ -1,5 +1,7 @@
 // server/api/check-product-has-orders.get.ts
-// Check if a product has been purchased (has orders)
+// Check if a product has been purchased (has orders) using WooCommerce REST API
+
+import { getWpBaseUrl, getWpApiHeaders, buildWpApiUrl } from '../utils/wp';
 
 export default defineCachedEventHandler(async (event) => {
   try {
@@ -13,53 +15,51 @@ export default defineCachedEventHandler(async (event) => {
       });
     }
     
-    const config = useRuntimeConfig();
-    const baseUrl = config.baseUrl || 'http://localhost/yardsale_thailand';
+    // Use WooCommerce REST API to check if product has orders
+    const wpUtils = await import('../utils/wp');
+    const wcHeaders = wpUtils.getWpApiHeaders(false, true);
     
-    const phpApiUrl = `${baseUrl}/server/api/php/checkProductHasOrders.php?product_id=${productId}`;
+    if (!wcHeaders['Authorization']) {
+      // If WooCommerce API not configured, return false (no orders)
+      console.warn('[check-product-has-orders] WooCommerce API not configured, assuming no orders');
+      return { has_orders: false };
+    }
     
-    const response = await fetch(phpApiUrl, {
+    // Search for orders containing this product
+    const apiUrl = wpUtils.buildWpApiUrl('wc/v3/orders', {
+      product: productId,
+      per_page: 1,
+      status: 'completed,processing,on-hold'
+    });
+    
+    console.log('[check-product-has-orders] Checking orders for product:', productId);
+    
+    const response = await fetch(apiUrl, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: wcHeaders,
       signal: AbortSignal.timeout(10000),
     });
     
     if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      let errorMessage = `PHP API error (status ${response.status})`;
-      try {
-        const errorJson = JSON.parse(errorText);
-        if (errorJson.error) errorMessage = errorJson.error;
-        else if (errorJson.message) errorMessage = errorJson.message;
-      } catch (e) {
-        errorMessage = errorText || errorMessage;
-      }
-      throw createError({
-        statusCode: response.status,
-        message: errorMessage,
-      });
+      // If API error, assume no orders (don't block the UI)
+      console.warn('[check-product-has-orders] WooCommerce API error:', response.status);
+      return { has_orders: false };
     }
     
-    const data = await response.json();
-    return data;
+    const orders = await response.json();
+    const hasOrders = Array.isArray(orders) && orders.length > 0;
+    
+    console.log('[check-product-has-orders] Product has orders:', hasOrders);
+    
+    return {
+      has_orders: hasOrders
+    };
   } catch (error: any) {
     console.error('[check-product-has-orders] Error:', error);
     
-    if (error.statusCode) {
-      throw createError({
-        statusCode: error.statusCode,
-        message: error.message || 'Failed to check product orders',
-      });
-    }
-    
-    throw createError({
-      statusCode: 500,
-      message: error.message || 'Failed to check product orders',
-    });
+    // Return false on error to not block the UI
+    return { has_orders: false };
   }
 }, {
-  maxAge: 0.5, // Cache for 0.5 seconds (near real-time)
+  maxAge: 60, // Cache for 60 seconds
 });
-

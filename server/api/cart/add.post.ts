@@ -10,6 +10,8 @@ export default defineEventHandler(async (event) => {
     
     const { productId } = body;
     
+    console.log('[cart/add] Received request:', { productId, body });
+    
     if (!productId) {
       throw createError({
         statusCode: 400,
@@ -27,15 +29,30 @@ export default defineEventHandler(async (event) => {
       const wcHeaders = wpUtils.getWpApiHeaders(false, true);
       if (wcHeaders['Authorization']) {
         const wcUrl = wpUtils.buildWpApiUrl(`wc/v3/products/${productId}`);
+        console.log('[cart/add] Fetching from WooCommerce API:', wcUrl);
         const wcResponse = await fetch(wcUrl, {
           method: 'GET',
           headers: wcHeaders,
           signal: AbortSignal.timeout(10000),
         });
         
+        console.log('[cart/add] WooCommerce API response status:', wcResponse.status);
+        
         if (wcResponse.ok) {
           productData = await wcResponse.json();
+          console.log('[cart/add] WooCommerce product data:', {
+            id: productData.id,
+            name: productData.name,
+            price: productData.price,
+            regular_price: productData.regular_price,
+            sale_price: productData.sale_price,
+          });
+        } else {
+          const errorText = await wcResponse.text().catch(() => '');
+          console.warn('[cart/add] WooCommerce API error:', wcResponse.status, errorText);
         }
+      } else {
+        console.warn('[cart/add] WooCommerce API credentials not configured');
       }
     } catch (e) {
       console.warn('[cart/add] Error fetching product from WooCommerce:', e);
@@ -47,6 +64,7 @@ export default defineEventHandler(async (event) => {
         const wpUrl = wpUtils.buildWpApiUrl(`wp/v2/product/${productId}`, {
           _embed: '1'
         });
+        console.log('[cart/add] Fetching from WordPress REST API:', wpUrl);
         const wpHeaders = wpUtils.getWpApiHeaders(true, false);
         const wpResponse = await fetch(wpUrl, {
           method: 'GET',
@@ -54,8 +72,15 @@ export default defineEventHandler(async (event) => {
           signal: AbortSignal.timeout(10000),
         });
         
+        console.log('[cart/add] WordPress REST API response status:', wpResponse.status);
+        
         if (wpResponse.ok) {
           const wpProduct = await wpResponse.json();
+          console.log('[cart/add] WordPress product data:', {
+            id: wpProduct.id,
+            name: wpProduct.title?.rendered,
+            slug: wpProduct.slug,
+          });
           
           // Get featured image
           let imageUrl: string | null = null;
@@ -76,6 +101,9 @@ export default defineEventHandler(async (event) => {
             stock_status: 'instock',
             image: imageUrl ? { src: imageUrl } : null,
           };
+        } else {
+          const errorText = await wpResponse.text().catch(() => '');
+          console.warn('[cart/add] WordPress REST API error:', wpResponse.status, errorText);
         }
       } catch (e) {
         console.warn('[cart/add] Error fetching product from WordPress API:', e);
@@ -140,7 +168,14 @@ export default defineEventHandler(async (event) => {
       quantity: 1,
     };
     
-    console.log('[cart/add] Successfully added to cart:', key);
+    console.log('[cart/add] Successfully added to cart:', {
+      key,
+      productId: productData.id,
+      name: productData.name,
+      quantity: 1,
+    });
+    
+    console.log('[cart/add] Cart item structure:', JSON.stringify(cartItem, null, 2));
     
     return {
       addToCart: {

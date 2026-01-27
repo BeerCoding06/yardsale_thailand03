@@ -64,21 +64,24 @@ export const useCart = () => {
       // Extract error message from various possible locations
       let errorMessage = '';
       if (err?.data?.error) {
-        errorMessage = err.data.error;
+        errorMessage = String(err.data.error || '');
       } else if (err?.data?.message) {
-        errorMessage = err.data.message;
+        errorMessage = String(err.data.message || '');
       } else if (err?.message) {
-        errorMessage = err.message;
+        errorMessage = String(err.message || '');
       } else if (err?.statusMessage) {
-        errorMessage = err.statusMessage;
+        errorMessage = String(err.statusMessage || '');
       } else if (typeof err === 'string') {
         errorMessage = err;
       }
       
       // If still no message, use default
-      if (!errorMessage || errorMessage.trim() === '') {
+      if (!errorMessage || (typeof errorMessage === 'string' && errorMessage.trim() === '')) {
         errorMessage = t('cart.add_error');
       }
+      
+      // Ensure errorMessage is a string
+      errorMessage = String(errorMessage || t('cart.add_error'));
       
       console.error('[useCart] Displaying error message:', errorMessage);
       push.error(errorMessage);
