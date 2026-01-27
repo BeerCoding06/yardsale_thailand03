@@ -63,6 +63,11 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     baseUrl: process.env.BASE_URL || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000" : "http://localhost/yardsale_thailand"),
+    // WordPress base URL - can be set via .env file
+    wpBaseUrl: process.env.WP_BASE_URL || 'http://157.85.98.150:8080',
+    wpBasicAuth: process.env.WP_BASIC_AUTH || '',
+    wpConsumerKey: process.env.WP_CONSUMER_KEY || '',
+    wpConsumerSecret: process.env.WP_CONSUMER_SECRET || '',
     public: {
       version: pkg.version,
     },

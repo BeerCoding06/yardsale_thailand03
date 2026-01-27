@@ -13,16 +13,12 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const config = useRuntimeConfig();
-    const baseUrl = config.baseUrl || "http://localhost/yardsale_thailand";
-    let wpBase = config.wpMediaHost || `${baseUrl}/wordpress`;
-    if (!wpBase.match(/^https?:\/\//)) {
-      wpBase = `http://${wpBase}`;
-    }
-    const cleanBase = wpBase.replace(/\/$/, "");
-
-    const wpBasicAuth = config.wpBasicAuth;
-    if (!wpBasicAuth) {
+    const wpUtils = await import('../utils/wp');
+    
+    const cleanBase = wpUtils.getWpBaseUrl();
+    const headers = wpUtils.getWpApiHeaders(true, false);
+    
+    if (!headers['Authorization']) {
       throw createError({
         statusCode: 500,
         message: "WP_BASIC_AUTH is not configured",
@@ -30,19 +26,17 @@ export default defineEventHandler(async (event) => {
     }
 
     // WordPress Users REST API endpoint - search by email
-    const searchUrl = `${cleanBase}/wp-json/wp/v2/users?search=${encodeURIComponent(
-      email.trim()
-    )}&per_page=100`;
+    const searchUrl = wpUtils.buildWpApiUrl('wp/v2/users', {
+      search: email.trim(),
+      per_page: '100'
+    });
 
     console.log("[check-email] Checking email:", email);
     console.log("[check-email] Search URL:", searchUrl);
 
     const response = await fetch(searchUrl, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${wpBasicAuth}`,
-      },
+      headers,
       signal: AbortSignal.timeout(10000),
     });
 

@@ -13,16 +13,12 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const config = useRuntimeConfig();
-    const baseUrl = config.baseUrl || "http://localhost/yardsale_thailand";
-    let wpBase = config.wpMediaHost || `${baseUrl}/wordpress`;
-    if (!wpBase.match(/^https?:\/\//)) {
-      wpBase = `http://${wpBase}`;
-    }
-    const cleanBase = wpBase.replace(/\/$/, "");
-
+    const wpUtils = await import('../utils/wp');
+    
+    const cleanBase = wpUtils.getWpBaseUrl();
+    
     // WordPress Media Library endpoint
-    const mediaUrl = `${cleanBase}/wp-json/wp/v2/media`;
+    const mediaUrl = wpUtils.buildWpApiUrl('wp/v2/media');
 
     // Convert File to Buffer
     const arrayBuffer = await file.arrayBuffer();
@@ -39,9 +35,9 @@ export default defineEventHandler(async (event) => {
     wpFormData.append("file", fileObj);
 
     // Use Basic Auth for WordPress REST API
-    const wpBasicAuth = config.wpBasicAuth;
+    const headers = wpUtils.getWpApiHeaders(true, false);
 
-    if (!wpBasicAuth) {
+    if (!headers['Authorization']) {
       throw createError({
         statusCode: 500,
         message: "WP_BASIC_AUTH is not configured",
@@ -53,9 +49,7 @@ export default defineEventHandler(async (event) => {
 
     const response = await fetch(mediaUrl, {
       method: "POST",
-      headers: {
-        Authorization: `Basic ${wpBasicAuth}`,
-      },
+      headers,
       body: wpFormData,
     });
 

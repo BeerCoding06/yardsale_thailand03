@@ -6,16 +6,12 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event);
     console.log("[create-user] Received payload:", body);
 
-    const config = useRuntimeConfig();
-    const baseUrl = config.baseUrl || "http://localhost/yardsale_thailand";
-    let wpBase = config.wpMediaHost || `${baseUrl}/wordpress`;
-    if (!wpBase.match(/^https?:\/\//)) {
-      wpBase = `http://${wpBase}`;
-    }
-    const cleanBase = wpBase.replace(/\/$/, "");
-
-    const wpBasicAuth = config.wpBasicAuth;
-    if (!wpBasicAuth) {
+    const wpUtils = await import('../utils/wp');
+    
+    const cleanBase = wpUtils.getWpBaseUrl();
+    const headers = wpUtils.getWpApiHeaders(true, false);
+    
+    if (!headers['Authorization']) {
       throw createError({
         statusCode: 500,
         message: "WP_BASIC_AUTH is not configured",
@@ -23,7 +19,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // WordPress Users REST API endpoint
-    const usersUrl = `${cleanBase}/wp-json/wp/v2/users`;
+    const usersUrl = wpUtils.buildWpApiUrl('wp/v2/users');
 
     // ตรวจสอบอีเมลและ username ซ้ำก่อนสร้าง user
     const checkEmail = body?.email?.trim().toLowerCase();
@@ -31,16 +27,14 @@ export default defineEventHandler(async (event) => {
 
     if (checkEmail) {
       // ตรวจสอบอีเมลซ้ำ - ใช้ search endpoint
-      const searchEmailUrl = `${usersUrl}?search=${encodeURIComponent(
-        checkEmail
-      )}&per_page=100`;
+      const searchEmailUrl = wpUtils.buildWpApiUrl('wp/v2/users', {
+        search: checkEmail,
+        per_page: '100'
+      });
       try {
         const searchEmailResp = await fetch(searchEmailUrl, {
           method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Basic ${wpBasicAuth}`,
-          },
+          headers,
           signal: AbortSignal.timeout(10000),
         });
 
@@ -71,16 +65,14 @@ export default defineEventHandler(async (event) => {
 
     // ตรวจสอบ username ซ้ำ
     if (checkUsername) {
-      const searchUsernameUrl = `${usersUrl}?search=${encodeURIComponent(
-        checkUsername
-      )}&per_page=100`;
+      const searchUsernameUrl = wpUtils.buildWpApiUrl('wp/v2/users', {
+        search: checkUsername,
+        per_page: '100'
+      });
       try {
         const searchUsernameResp = await fetch(searchUsernameUrl, {
           method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Basic ${wpBasicAuth}`,
-          },
+          headers,
           signal: AbortSignal.timeout(10000),
         });
 
@@ -116,10 +108,7 @@ export default defineEventHandler(async (event) => {
 
     const response = await fetch(usersUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${wpBasicAuth}`,
-      },
+      headers,
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(30000),
     });
