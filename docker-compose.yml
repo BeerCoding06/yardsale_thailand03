@@ -19,9 +19,9 @@ services:
       - .env
     environment:
       # =================
-      # Database (Docker Network)
+      # Database (External MySQL)
       # =================
-      - DB_HOST=${DB_HOST:-mysql}
+      - DB_HOST=${DB_HOST:-157.85.98.150:3306}
       - DB_NAME=${DB_NAME:-nuxtcommerce_db}
       - DB_USER=${DB_USER:-root}
       - DB_PASSWORD=${DB_PASSWORD:-RootBeer06032534}

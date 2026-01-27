@@ -40,15 +40,15 @@ export default cachedEventHandler(
       // Build query
       let rows: any[] = [];
       try {
-        const [result] = await pool.execute(
-          `SELECT t.term_id, t.name, t.slug, tt.description, tt.parent, tt.count
+        const querySql = `SELECT t.term_id, t.name, t.slug, tt.description, tt.parent, tt.count
            FROM wp_terms t
            INNER JOIN wp_term_taxonomy tt ON t.term_id = tt.term_id
            WHERE tt.taxonomy = 'product_cat' AND tt.parent = ?
-           ORDER BY ${dbOrderby} ${dbOrder}`,
-          [parent]
-        ) as any[];
+           ORDER BY ${dbOrderby} ${dbOrder}`;
+        console.log('[categories] Query:', querySql, 'parent:', parent);
+        const [result] = await pool.execute(querySql, [parent]) as any[];
         rows = result || [];
+        console.log('[categories] Found categories:', rows.length);
       } catch (dbError: any) {
         console.error('[categories] Database query error:', dbError);
         // Return empty data instead of throwing error

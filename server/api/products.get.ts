@@ -57,11 +57,10 @@ export default cachedEventHandler(
       const dbOrder = order === 'ASC' ? 'ASC' : 'DESC';
       
       // Build WHERE conditions
+      // Note: Removed stock_status filter to show all published products
       const whereConditions: string[] = [
         "p.post_type = 'product'",
-        "p.post_status = 'publish'",
-        "stock_meta.meta_key = '_stock_status'",
-        "stock_meta.meta_value = 'instock'"
+        "p.post_status = 'publish'"
       ];
       
       // Add search condition
@@ -112,13 +111,13 @@ export default cachedEventHandler(
       try {
         let countSql = `SELECT COUNT(DISTINCT p.ID) as total
           FROM wp_posts p
-          INNER JOIN wp_postmeta stock_meta ON p.ID = stock_meta.post_id
           ${categoryJoin}
           WHERE ${whereConditions.join(' AND ')}`;
         
         const [countRows] = await pool.execute(countSql, queryParams) as any[];
         totalCount = countRows[0]?.total || 0;
         totalPages = Math.ceil(totalCount / perPage);
+        console.log('[products] Total products found:', totalCount);
       } catch (dbError: any) {
         console.error('[products] Database count query error:', dbError);
         return {
@@ -136,20 +135,25 @@ export default cachedEventHandler(
       const offset = (page - 1) * perPage;
       let sql = `SELECT DISTINCT p.ID, p.post_title, p.post_name, p.post_date
         FROM wp_posts p
-        INNER JOIN wp_postmeta stock_meta ON p.ID = stock_meta.post_id
         ${priceJoin}
         ${categoryJoin}
         WHERE ${whereConditions.join(' AND ')}
         ORDER BY ${dbOrderby} ${dbOrder}
         LIMIT ? OFFSET ?`;
       
+      console.log('[products] Query:', sql);
+      console.log('[products] Query params:', queryParams);
+      
       queryParams.push(perPage, offset);
       let rows: any[] = [];
       try {
         const [result] = await pool.execute(sql, queryParams) as any[];
         rows = result || [];
+        console.log('[products] Found products:', rows.length);
       } catch (dbError: any) {
         console.error('[products] Database query error:', dbError);
+        console.error('[products] SQL:', sql);
+        console.error('[products] Params:', queryParams);
         return {
           products: {
             nodes: [],

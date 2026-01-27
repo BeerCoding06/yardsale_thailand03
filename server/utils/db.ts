@@ -7,6 +7,7 @@ let pool: Pool | null = null;
 export function getDbPool(): Pool | null {
   // Don't create pool during build time
   if (process.env.NODE_ENV === 'production' && !process.env.DB_HOST) {
+    console.warn('[db] DB_HOST not set in production, skipping pool creation');
     return null;
   }
   
@@ -25,6 +26,14 @@ export function getDbPool(): Pool | null {
     const dbUser = process.env.DB_USER || 'root';
     const dbPassword = process.env.DB_PASSWORD || 'RootBeer06032534';
 
+    console.log('[db] Creating database pool:', {
+      host,
+      port: parseInt(port),
+      database: dbName,
+      user: dbUser,
+      hasPassword: !!dbPassword
+    });
+
     pool = mysql.createPool({
       host,
       port: parseInt(port),
@@ -35,8 +44,18 @@ export function getDbPool(): Pool | null {
       connectionLimit: 10,
       queueLimit: 0,
       charset: 'utf8mb4',
-      connectTimeout: 5000, // 5 seconds timeout
+      connectTimeout: 10000, // 10 seconds timeout (increased)
     });
+
+    // Test connection
+    pool.getConnection()
+      .then((connection) => {
+        console.log('[db] Database connection successful');
+        connection.release();
+      })
+      .catch((error) => {
+        console.error('[db] Database connection test failed:', error);
+      });
 
     return pool;
   } catch (error) {
