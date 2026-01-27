@@ -15,6 +15,12 @@ Nuxt3 e-commerce application with direct MySQL database access.
 # Install dependencies
 pnpm install
 
+# Copy environment file
+cp env.example .env
+
+# Edit .env file with your configuration
+# nano .env
+
 # Development
 pnpm dev
 

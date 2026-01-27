@@ -15,24 +15,34 @@ services:
       - "traefik.http.routers.app.service=app"
       - "traefik.http.services.app.loadbalancer.server.port=3000"
 
+    env_file:
+      - .env
     environment:
       # =================
       # Database (Docker Network)
       # =================
-      - DB_HOST=mysql
-      - DB_NAME=nuxtcommerce_db
-      - DB_USER=root
-      - DB_PASSWORD=RootBeer06032534
+      - DB_HOST=${DB_HOST:-mysql}
+      - DB_NAME=${DB_NAME:-nuxtcommerce_db}
+      - DB_USER=${DB_USER:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-RootBeer06032534}
+
+      # =================
+      # WordPress Configuration
+      # =================
+      - WP_BASE_URL=${WP_BASE_URL:-http://157.85.98.150:8080}
+      - WP_BASIC_AUTH=${WP_BASIC_AUTH:-}
+      - WP_CONSUMER_KEY=${WP_CONSUMER_KEY:-}
+      - WP_CONSUMER_SECRET=${WP_CONSUMER_SECRET:-}
 
       # =================
       # Public URL (Traefik)
       # =================
-      - BASE_URL=http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me
+      - BASE_URL=${BASE_URL:-http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me}
 
       # =================
       # Internal
       # =================
-      - INTERNAL_BASE_URL=http://127.0.0.1:80
+      - INTERNAL_BASE_URL=${INTERNAL_BASE_URL:-http://127.0.0.1:80}
 
     volumes:
       # Mount project root
