@@ -1,38 +1,77 @@
 // server/api/update-profile.post.ts
+// Update user profile using WordPress REST API
+
+import * as wpUtils from '../utils/wp.js';
+
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    const config = useRuntimeConfig();
-    const baseUrl = config.baseUrl || "http://localhost/yardsale_thailand";
+    
+    const userId = body.user_id || body.id;
 
-    const phpApiUrl = `${baseUrl}/server/api/php/updateProfile.php`;
+    if (!userId) {
+      throw createError({
+        statusCode: 400,
+        message: "user_id is required",
+      });
+    }
 
-    console.log("[update-profile] Calling PHP API:", phpApiUrl);
+    const headers = wpUtils.getWpApiHeaders(true, false); // Use Basic Auth for WP REST API
+    
+    if (!headers['Authorization']) {
+      throw createError({
+        statusCode: 500,
+        message: "WP_BASIC_AUTH is not configured",
+      });
+    }
 
-    const response = await fetch(phpApiUrl, {
+    // Format update data for WordPress REST API
+    const updateData: any = {};
+
+    if (body.first_name) updateData.first_name = body.first_name;
+    if (body.last_name) updateData.last_name = body.last_name;
+    if (body.email) updateData.email = body.email;
+    if (body.display_name) updateData.name = body.display_name;
+    if (body.description) updateData.description = body.description;
+
+    // Update meta fields (billing info) if provided
+    if (body.billing) {
+      updateData.meta = {
+        billing_first_name: body.billing.first_name || body.billing.firstName || '',
+        billing_last_name: body.billing.last_name || body.billing.lastName || '',
+        billing_phone: body.billing.phone || '',
+        billing_address_1: body.billing.address1 || body.billing.address_1 || '',
+        billing_address_2: body.billing.address2 || body.billing.address_2 || '',
+        billing_city: body.billing.city || '',
+        billing_state: body.billing.state || '',
+        billing_postcode: body.billing.postcode || '',
+        billing_country: body.billing.country || '',
+      };
+    }
+
+    const wpUrl = wpUtils.buildWpApiUrl(`wp/v2/users/${userId}`);
+    
+    console.log("[update-profile] Updating profile via WordPress API:", wpUrl);
+
+    const response = await fetch(wpUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
+      headers,
+      body: JSON.stringify(updateData),
       signal: AbortSignal.timeout(30000),
     });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
-      let errorMessage = `PHP API error (status ${response.status})`;
+      let errorMessage = `WordPress API error (status ${response.status})`;
       let errorDetails = null;
       try {
         const errorJson = JSON.parse(errorText);
-        if (errorJson.error) errorMessage = errorJson.error;
-        else if (errorJson.message) errorMessage = errorJson.message;
+        if (errorJson.message) errorMessage = errorJson.message;
         errorDetails = errorJson;
       } catch (e) {
-        /* not JSON */
-        errorMessage = errorText || errorMessage;
+        if (errorText) errorMessage = `${errorMessage}: ${errorText.substring(0, 200)}`;
       }
-      console.error("[update-profile] PHP API Error:", errorMessage);
-      console.error("[update-profile] Error details:", errorDetails);
+      console.error("[update-profile] WordPress API Error:", errorMessage);
       throw createError({
         statusCode: response.status,
         message: errorMessage,
@@ -41,12 +80,17 @@ export default defineEventHandler(async (event) => {
     }
 
     const data = await response.json();
+    
+    // Remove sensitive data
+    const { password, ...safeData } = data;
+    
     console.log("[update-profile] Successfully updated profile");
 
-    return data;
+    return {
+      user: safeData
+    };
   } catch (error: any) {
     console.error("[update-profile] Error:", error);
-    console.error("[update-profile] Error stack:", error.stack);
     
     if (error.statusCode) {
       throw createError({

@@ -1,5 +1,7 @@
 // server/api/create-product.post.ts
-// Nuxt API endpoint ที่เรียก PHP API สำหรับสร้าง WooCommerce products
+// Create product using WooCommerce REST API
+
+import * as wpUtils from '../utils/wp.js';
 
 export default defineEventHandler(async (event) => {
   try {
@@ -11,88 +13,89 @@ export default defineEventHandler(async (event) => {
       regular_price: body.regular_price,
       categories: body.categories,
       imagesCount: body.images?.length || 0,
-      images: body.images,
       post_author: body.post_author,
     });
 
-    // Log full payload for debugging
-    console.log(
-      "[create-product] Full payload:",
-      JSON.stringify(body, null, 2)
-    );
-
-    // ใช้ PHP API endpoint โดยเรียกผ่าน HTTP
-    // หรือใช้ Node.js เรียก PHP file โดยตรง
-    // แต่เนื่องจาก Nuxt ไม่สามารถรัน PHP ได้ ต้องเรียกผ่าน HTTP
-
-    const config = useRuntimeConfig();
-    const baseUrl = config.baseUrl || "http://localhost/yardsale_thailand";
-    let wpBase = config.wpMediaHost || `${baseUrl}/wordpress`;
-    if (!wpBase.match(/^https?:\/\//)) {
-      wpBase = `http://${wpBase}`;
-    }
-    const cleanBase = wpBase.replace(/\/$/, "");
-
-    // เรียก PHP API ผ่าน HTTP
-    // PHP file อยู่ใน /server/api/php/createProducts.php
-    // ต้องเรียกผ่าน MAMP/Apache (ไม่ใช่ Nuxt)
-    const phpApiUrl = `${baseUrl}/server/api/php/createProducts.php`;
-
-    console.log("[create-product] Calling PHP API:", phpApiUrl);
-
-    let response;
-    try {
-      response = await fetch(phpApiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(30000), // 30 second timeout
-      });
-    } catch (fetchError: any) {
-      console.error("[create-product] Fetch error:", fetchError);
+    const wcHeaders = wpUtils.getWpApiHeaders(false, true); // Use WooCommerce auth
+    
+    if (!wcHeaders['Authorization']) {
       throw createError({
         statusCode: 500,
-        message: `Failed to connect to PHP API: ${
-          fetchError?.message || "Network error"
-        }`,
+        message: "WooCommerce Consumer Key/Secret is not configured",
       });
     }
+
+    // Format product data for WooCommerce REST API
+    const productData: any = {
+      name: body.name,
+      type: body.type || 'simple',
+      regular_price: body.regular_price || '0',
+      status: 'pending', // New products start as pending for review
+    };
+
+    // Add categories if provided
+    if (body.categories && Array.isArray(body.categories)) {
+      productData.categories = body.categories.map((cat: any) => ({
+        id: cat.id || cat
+      }));
+    }
+
+    // Add images if provided
+    if (body.images && Array.isArray(body.images)) {
+      productData.images = body.images.map((img: any) => ({
+        src: img.src || img.url || img
+      }));
+    }
+
+    // Add description if provided
+    if (body.description) {
+      productData.description = body.description;
+    }
+
+    // Add short_description if provided
+    if (body.short_description) {
+      productData.short_description = body.short_description;
+    }
+
+    // Add SKU if provided
+    if (body.sku) {
+      productData.sku = body.sku;
+    }
+
+    // Add stock management if provided
+    if (body.manage_stock !== undefined) {
+      productData.manage_stock = body.manage_stock;
+    }
+    if (body.stock_quantity !== undefined) {
+      productData.stock_quantity = body.stock_quantity;
+    }
+
+    const wcUrl = wpUtils.buildWpApiUrl('wc/v3/products');
+    
+    console.log("[create-product] Creating product via WooCommerce API:", wcUrl);
+
+    const response = await fetch(wcUrl, {
+      method: "POST",
+      headers: wcHeaders,
+      body: JSON.stringify(productData),
+      signal: AbortSignal.timeout(30000),
+    });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
-      let errorMessage = `PHP API error (status ${response.status})`;
+      let errorMessage = `WooCommerce API error (status ${response.status})`;
       let errorDetails = null;
-
-      console.error("[create-product] PHP API error response:", {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText.substring(0, 500),
-      });
 
       try {
         const errorJson = JSON.parse(errorText);
-        if (errorJson.error) {
-          errorMessage = errorJson.error;
-        }
-        if (errorJson.message) {
-          errorMessage = errorJson.message;
-        }
+        if (errorJson.message) errorMessage = errorJson.message;
+        if (errorJson.code) errorMessage = `${errorMessage} (${errorJson.code})`;
         errorDetails = errorJson;
       } catch (e) {
-        // Not JSON, use text as is
-        if (errorText) {
-          errorMessage = `${errorMessage}: ${errorText.substring(0, 500)}`;
-        }
+        if (errorText) errorMessage = `${errorMessage}: ${errorText.substring(0, 500)}`;
       }
 
-      console.error(
-        "[create-product] PHP API error:",
-        errorMessage,
-        errorDetails
-      );
-
+      console.error("[create-product] WooCommerce API error:", errorMessage, errorDetails);
       throw createError({
         statusCode: response.status,
         message: errorMessage,
@@ -102,9 +105,15 @@ export default defineEventHandler(async (event) => {
 
     const result = await response.json();
 
-    console.log("[create-product] Success:", result);
+    console.log("[create-product] Successfully created product:", {
+      id: result.id,
+      name: result.name,
+      status: result.status,
+    });
 
-    return result;
+    return {
+      product: result
+    };
   } catch (error: any) {
     console.error("[create-product] Error:", error);
 

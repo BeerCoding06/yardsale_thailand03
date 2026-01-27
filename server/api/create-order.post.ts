@@ -1,34 +1,56 @@
 // server/api/create-order.post.ts
+// Create order using WooCommerce REST API
+
+import * as wpUtils from '../utils/wp.js';
+
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    const config = useRuntimeConfig();
-    const baseUrl = config.baseUrl || "http://localhost/yardsale_thailand";
-    const phpApiUrl = `${baseUrl}/server/api/php/createOrder.php`;
+    
+    console.log("[create-order] Received payload:", JSON.stringify(body, null, 2));
 
-    console.log("[create-order] Calling PHP API:", phpApiUrl);
-    console.log("[create-order] Payload:", JSON.stringify(body, null, 2));
+    const wcHeaders = wpUtils.getWpApiHeaders(false, true); // Use WooCommerce auth
+    
+    if (!wcHeaders['Authorization']) {
+      throw createError({
+        statusCode: 500,
+        message: "WooCommerce Consumer Key/Secret is not configured",
+      });
+    }
 
-    const response = await fetch(phpApiUrl, {
+    // Format order data for WooCommerce REST API
+    const orderData: any = {
+      customer_id: body.customer_id,
+      payment_method: body.payment_method || 'cod',
+      payment_method_title: body.payment_method_title || 'ชำระเงินปลายทาง',
+      set_paid: body.set_paid || false,
+      status: body.status || 'pending',
+      billing: body.billing || {},
+      line_items: body.line_items || [],
+    };
+
+    const wcUrl = wpUtils.buildWpApiUrl('wc/v3/orders');
+    
+    console.log("[create-order] Creating order via WooCommerce API:", wcUrl);
+
+    const response = await fetch(wcUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
+      headers: wcHeaders,
+      body: JSON.stringify(orderData),
       signal: AbortSignal.timeout(30000),
     });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
-      let errorMessage = `PHP API error (status ${response.status})`;
+      let errorMessage = `WooCommerce API error (status ${response.status})`;
       try {
         const errorJson = JSON.parse(errorText);
-        if (errorJson.error) errorMessage = errorJson.error;
-        else if (errorJson.message) errorMessage = errorJson.message;
+        if (errorJson.message) errorMessage = errorJson.message;
+        else if (errorJson.code) errorMessage = `${errorMessage}: ${errorJson.code}`;
       } catch (e) {
-        /* not JSON */
+        if (errorText) errorMessage = `${errorMessage}: ${errorText.substring(0, 200)}`;
       }
-      console.error("[create-order] PHP API Error:", errorMessage);
+      console.error("[create-order] WooCommerce API Error:", errorMessage);
       throw createError({
         statusCode: response.status,
         message: errorMessage,
@@ -37,12 +59,19 @@ export default defineEventHandler(async (event) => {
 
     const data = await response.json();
     console.log("[create-order] Successfully created order:", {
-      id: data.order?.id,
-      order_number: data.order?.number,
-      status: data.order?.status,
+      id: data.id,
+      order_number: data.number,
+      status: data.status,
     });
 
-    return data;
+    return {
+      order: {
+        id: data.id,
+        number: data.number,
+        status: data.status,
+        ...data
+      }
+    };
   } catch (error: any) {
     console.error("[create-order] Error:", error);
     throw createError({

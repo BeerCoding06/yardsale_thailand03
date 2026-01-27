@@ -1,19 +1,12 @@
 // server/api/login.post.ts
-// Handle user login to WordPress
+// Handle user login using WordPress REST API
 
-// Base64 encoding helper for Node.js
-function base64Encode(str: string): string {
-  if (typeof globalThis !== "undefined" && (globalThis as any).Buffer) {
-    return (globalThis as any).Buffer.from(str).toString("base64");
-  }
-  // Fallback for environments without Buffer
-  return btoa(str);
-}
+import * as wpUtils from '../utils/wp.js';
 
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    const { username, password, remember } = body;
+    const { username, password } = body;
 
     if (!username || !password) {
       return sendError(
@@ -25,49 +18,56 @@ export default defineEventHandler(async (event) => {
       );
     }
 
-    // Use custom PHP endpoint for login (uses wp_authenticate and wp_set_auth_cookie)
-    // PHP file is in /server/api/php/login.php
-    // Must call through MAMP/Apache (not Nuxt)
-    const config = useRuntimeConfig();
-    const baseUrl = config.baseUrl || "http://localhost/yardsale_thailand";
-    const loginUrl = `${baseUrl}/server/api/php/login.php`;
+    // Use WordPress REST API to verify credentials
+    // We'll use Basic Auth with username:password to authenticate
+    const wpBaseUrl = wpUtils.getWpBaseUrl();
+    const authString = `${username.trim()}:${password}`;
+    const auth = Buffer.from(authString).toString('base64');
 
-    console.log("[login] Calling PHP API:", loginUrl);
+    // Try to authenticate by calling /wp-json/wp/v2/users/me
+    const meUrl = `${wpBaseUrl}/wp-json/wp/v2/users/me`;
+
+    console.log("[login] Authenticating via WordPress REST API:", meUrl);
 
     try {
-      const loginResponse = await fetch(loginUrl, {
-        method: "POST",
+      const loginResponse = await fetch(meUrl, {
+        method: "GET",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Basic ${auth}`,
         },
-        body: JSON.stringify({
-          username: username.trim(),
-          password: password,
-          remember: remember || false,
-        }),
         signal: AbortSignal.timeout(10000),
       });
 
-      const responseData = await loginResponse.json();
+      if (loginResponse.ok) {
+        const userData = await loginResponse.json();
+        
+        // Remove sensitive data
+        const { password: _, ...safeUserData } = userData;
 
-      if (loginResponse.ok && responseData.success) {
-        // Return user data (without sensitive information)
+        console.log("[login] Login successful for user:", userData.id);
+
         return {
           success: true,
-          user: responseData.user,
-          message: responseData.message || "Login successful",
+          user: safeUserData,
+          message: "Login successful",
         };
       } else {
-        // Login failed
-        const errorMessage =
-          responseData.message ||
-          responseData.error ||
-          "Invalid username or password";
+        // Login failed - invalid credentials
+        const errorText = await loginResponse.text().catch(() => "");
+        let errorMessage = "Invalid username or password";
+        
+        try {
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.message) errorMessage = errorJson.message;
+        } catch (e) {
+          // Use default message
+        }
 
         return sendError(
           event,
           createError({
-            statusCode: loginResponse.status || 401,
+            statusCode: 401,
             message: errorMessage,
           })
         );

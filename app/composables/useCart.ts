@@ -74,14 +74,6 @@ export const useCart = () => {
       console.error('[useCart] Error statusCode:', err?.statusCode);
       console.error('[useCart] Error data:', err?.data);
       
-      // Check if error is about PHP endpoint (old code)
-      if (err?.url && err.url.includes('/server/api/php/')) {
-        console.error('[useCart] ERROR: Old PHP endpoint detected! This should not happen.');
-        console.error('[useCart] Please rebuild Docker container and clear browser cache.');
-        push.error('Please refresh the page and try again. If the problem persists, clear your browser cache.');
-        return;
-      }
-      
       // Extract error message from various possible locations
       let errorMessage = '';
       if (err?.data?.error) {

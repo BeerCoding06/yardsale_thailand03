@@ -1,38 +1,57 @@
 // server/api/change-password.post.ts
+// Change user password using WordPress REST API
+
+import * as wpUtils from '../utils/wp.js';
+
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
-    const config = useRuntimeConfig();
-    const baseUrl = config.baseUrl || "http://localhost/yardsale_thailand";
+    
+    const userId = body.user_id || body.id;
+    const newPassword = body.new_password || body.password;
 
-    const phpApiUrl = `${baseUrl}/server/api/php/changePassword.php`;
+    if (!userId || !newPassword) {
+      throw createError({
+        statusCode: 400,
+        message: "user_id and new_password are required",
+      });
+    }
 
-    console.log("[change-password] Calling PHP API:", phpApiUrl);
+    const headers = wpUtils.getWpApiHeaders(true, false); // Use Basic Auth for WP REST API
+    
+    if (!headers['Authorization']) {
+      throw createError({
+        statusCode: 500,
+        message: "WP_BASIC_AUTH is not configured",
+      });
+    }
 
-    const response = await fetch(phpApiUrl, {
+    // Update password via WordPress REST API
+    const wpUrl = wpUtils.buildWpApiUrl(`wp/v2/users/${userId}`);
+    
+    console.log("[change-password] Changing password via WordPress API:", wpUrl);
+
+    const response = await fetch(wpUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
+      headers,
+      body: JSON.stringify({
+        password: newPassword
+      }),
       signal: AbortSignal.timeout(30000),
     });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
-      let errorMessage = `PHP API error (status ${response.status})`;
+      let errorMessage = `WordPress API error (status ${response.status})`;
       let errorDetails = null;
       try {
         const errorJson = JSON.parse(errorText);
-        if (errorJson.error) errorMessage = errorJson.error;
-        else if (errorJson.message) errorMessage = errorJson.message;
+        if (errorJson.message) errorMessage = errorJson.message;
         errorDetails = errorJson;
       } catch (e) {
-        /* not JSON */
-        errorMessage = errorText || errorMessage;
+        if (errorText) errorMessage = `${errorMessage}: ${errorText.substring(0, 200)}`;
       }
-      console.error("[change-password] PHP API Error:", errorMessage);
-      console.error("[change-password] Error details:", errorDetails);
+      console.error("[change-password] WordPress API Error:", errorMessage);
       throw createError({
         statusCode: response.status,
         message: errorMessage,
@@ -41,12 +60,18 @@ export default defineEventHandler(async (event) => {
     }
 
     const data = await response.json();
+    
+    // Remove sensitive data
+    const { password, ...safeData } = data;
+    
     console.log("[change-password] Successfully changed password");
 
-    return data;
+    return {
+      success: true,
+      user: safeData
+    };
   } catch (error: any) {
     console.error("[change-password] Error:", error);
-    console.error("[change-password] Error stack:", error.stack);
     
     if (error.statusCode) {
       throw createError({
