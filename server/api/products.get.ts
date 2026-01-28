@@ -175,17 +175,50 @@ export default cachedEventHandler(
               },
             };
           } else {
-            console.warn('[products] WooCommerce API failed, falling back to WordPress REST API');
+            const errorText = await wcResponse.text().catch(() => '');
+            console.error('[products] WooCommerce API failed (status:', wcResponse.status, '):', errorText.substring(0, 200));
+            // If we have credentials but API failed, don't fallback (WordPress REST API has no price)
+            // Return empty array instead
+            if (consumerKey && consumerSecret) {
+              console.error('[products] WooCommerce credentials configured but API failed. Cannot fallback to WordPress REST API (no price data).');
+              return {
+                products: {
+                  nodes: [],
+                  pageInfo: {
+                    hasNextPage: false,
+                    endCursor: null,
+                  },
+                },
+              };
+            }
+            // Only fallback if credentials are not configured
             useWooCommerce = false;
           }
         } catch (wcError) {
-          console.warn('[products] WooCommerce API error, falling back to WordPress REST API:', wcError);
+          console.error('[products] WooCommerce API error:', wcError);
+          // If we have credentials but API failed, don't fallback (WordPress REST API has no price)
+          // Return empty array instead
+          if (consumerKey && consumerSecret) {
+            console.error('[products] WooCommerce credentials configured but API error. Cannot fallback to WordPress REST API (no price data).');
+            return {
+              products: {
+                nodes: [],
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
+              },
+            };
+          }
+          // Only fallback if credentials are not configured
           useWooCommerce = false;
         }
       }
       
-      // Fallback to WordPress REST API if WooCommerce not available
+      // Fallback to WordPress REST API ONLY if WooCommerce credentials are NOT configured
+      // WARNING: WordPress REST API does NOT have price data
       if (!useWooCommerce) {
+        console.warn('[products] WooCommerce credentials not configured. Falling back to WordPress REST API (WARNING: no price data available).');
         const orderbyMap: Record<string, string> = {
           'date': 'date',
           'title': 'title',

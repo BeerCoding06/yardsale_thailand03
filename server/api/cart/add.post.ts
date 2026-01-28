@@ -23,123 +23,107 @@ export default defineEventHandler(async (event) => {
     // The cart is managed client-side in localStorage
     
     // Fetch product details from WooCommerce API to get price and other info
+    // IMPORTANT: We MUST use WooCommerce API to get price data
+    // WordPress REST API (wp/v2/product) does NOT have price fields
+    const consumerKey = wpUtils.getWpConsumerKey();
+    const consumerSecret = wpUtils.getWpConsumerSecret();
+    
+    if (!consumerKey || !consumerSecret) {
+      throw createError({
+        statusCode: 500,
+        message: 'WooCommerce API credentials not configured. Price data is required for cart.',
+      });
+    }
+    
     let productData: any = null;
-        try {
-          const consumerKey = wpUtils.getWpConsumerKey();
-          const consumerSecret = wpUtils.getWpConsumerSecret();
-          if (consumerKey && consumerSecret) {
-            const wcUrl = wpUtils.buildWcApiUrl(`wc/v3/products/${productId}`);
-            console.log('[cart/add] Fetching from WooCommerce API:', wcUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
-            const wcResponse = await fetch(wcUrl, {
-              method: 'GET',
-              headers: { 'Content-Type': 'application/json' },
-              signal: AbortSignal.timeout(10000),
-            });
-        
-        console.log('[cart/add] WooCommerce API response status:', wcResponse.status);
-        
-        if (wcResponse.ok) {
-          productData = await wcResponse.json();
-          console.log('[cart/add] WooCommerce product data:', {
-            id: productData.id,
-            name: productData.name,
-            price: productData.price,
-            regular_price: productData.regular_price,
-            sale_price: productData.sale_price,
-          });
-        } else {
-          const errorText = await wcResponse.text().catch(() => '');
-          console.warn('[cart/add] WooCommerce API error:', wcResponse.status, errorText);
-        }
-      } else {
-        console.warn('[cart/add] WooCommerce API credentials not configured');
+    
+    try {
+      const wcUrl = wpUtils.buildWcApiUrl(`wc/v3/products/${productId}`);
+      console.log('[cart/add] Fetching from WooCommerce API:', wcUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
+      
+      const wcResponse = await fetch(wcUrl, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(10000),
+      });
+      
+      console.log('[cart/add] WooCommerce API response status:', wcResponse.status);
+      
+      if (!wcResponse.ok) {
+        const errorText = await wcResponse.text().catch(() => '');
+        console.error('[cart/add] WooCommerce API error:', wcResponse.status, errorText);
+        throw createError({
+          statusCode: wcResponse.status,
+          message: `Failed to fetch product from WooCommerce API: ${errorText.substring(0, 200)}`,
+        });
       }
-    } catch (e) {
-      console.warn('[cart/add] Error fetching product from WooCommerce:', e);
+      
+      productData = await wcResponse.json();
+      console.log('[cart/add] WooCommerce product data:', {
+        id: productData.id,
+        name: productData.name,
+        price: productData.price,
+        regular_price: productData.regular_price,
+        sale_price: productData.sale_price,
+      });
+    } catch (e: any) {
+      console.error('[cart/add] Error fetching product from WooCommerce:', e);
+      
+      // If it's already a createError, re-throw it
+      if (e?.statusCode) {
+        throw e;
+      }
+      
+      // Otherwise, throw a generic error
+      throw createError({
+        statusCode: 500,
+        message: `Failed to fetch product data: ${e?.message || 'Unknown error'}`,
+      });
     }
     
-    // If WooCommerce API fails, try WordPress REST API
+    // Validate that we have product data with price
     if (!productData) {
-      try {
-        const wpUrl = wpUtils.buildWpApiUrl(`wp/v2/product/${productId}`, {
-          _embed: '1'
-        });
-        console.log('[cart/add] Fetching from WordPress REST API:', wpUrl);
-        const wpHeaders = wpUtils.getWpApiHeaders(true, false);
-        const wpResponse = await fetch(wpUrl, {
-          method: 'GET',
-          headers: wpHeaders,
-          signal: AbortSignal.timeout(10000),
-        });
-        
-        console.log('[cart/add] WordPress REST API response status:', wpResponse.status);
-        
-        if (wpResponse.ok) {
-          const wpProduct = await wpResponse.json();
-          console.log('[cart/add] WordPress product data:', {
-            id: wpProduct.id,
-            name: wpProduct.title?.rendered,
-            slug: wpProduct.slug,
-          });
-          
-          // Get featured image
-          let imageUrl: string | null = null;
-          if (wpProduct._embedded?.['wp:featuredmedia']?.[0]?.source_url) {
-            imageUrl = wpProduct._embedded['wp:featuredmedia'][0].source_url;
-          }
-          
-          // Format product data to match expected structure
-          productData = {
-            id: wpProduct.id,
-            name: wpProduct.title?.rendered || wpProduct.title || '',
-            slug: wpProduct.slug,
-            price: '0',
-            regular_price: '0',
-            sale_price: '',
-            sku: wpProduct.slug || `product-${wpProduct.id}`,
-            stock_quantity: null,
-            stock_status: 'instock',
-            image: imageUrl ? { src: imageUrl } : null,
-          };
-        } else {
-          const errorText = await wpResponse.text().catch(() => '');
-          console.warn('[cart/add] WordPress REST API error:', wpResponse.status, errorText);
-        }
-      } catch (e) {
-        console.warn('[cart/add] Error fetching product from WordPress API:', e);
+      throw createError({
+        statusCode: 404,
+        message: 'Product not found',
+      });
+    }
+    
+    // Format prices (handle string, number, null, empty string)
+    let regularPrice = '';
+    let salePrice: string | null = null;
+    
+    // Check regular_price (can be string, number, or null/empty string)
+    let regularPriceValue: string | number | null = null;
+    if (productData.regular_price !== null && productData.regular_price !== undefined && productData.regular_price !== '') {
+      regularPriceValue = productData.regular_price;
+    } else if (productData.price !== null && productData.price !== undefined && productData.price !== '') {
+      regularPriceValue = productData.price;
+    }
+    
+    if (regularPriceValue !== null && regularPriceValue !== undefined && regularPriceValue !== '') {
+      const price = parseFloat(String(regularPriceValue));
+      if (!isNaN(price) && price > 0) {
+        regularPrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
       }
     }
     
-    // If still no product data, create minimal response
-    if (!productData) {
-      productData = {
-        id: productId,
-        name: `Product ${productId}`,
-        slug: `product-${productId}`,
-        price: '0',
-        regular_price: '0',
-        sale_price: '',
-        sku: `product-${productId}`,
-        stock_quantity: null,
-        stock_status: 'instock',
-        image: null,
-      };
+    // Check sale_price (can be string, number, or null/empty string)
+    let salePriceValue: string | number | null = null;
+    if (productData.sale_price !== null && productData.sale_price !== undefined && productData.sale_price !== '') {
+      salePriceValue = productData.sale_price;
     }
     
-    // Format price
-    const regularPrice = productData.regular_price || productData.price || '0';
-    const salePrice = productData.sale_price || '';
-    const price = salePrice && parseFloat(salePrice) > 0 ? salePrice : regularPrice;
-    
-    // Format price HTML
-    const priceValue = parseFloat(price);
-    const regularPriceHtml = priceValue > 0
-      ? `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(priceValue).toLocaleString()}</span>`
-      : '';
-    
-    const salePriceHtml = salePrice && parseFloat(salePrice) > 0
-      ? `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(parseFloat(salePrice)).toLocaleString()}</span>`
-      : null;
+    if (salePriceValue !== null && salePriceValue !== undefined && salePriceValue !== '') {
+      const price = parseFloat(String(salePriceValue));
+      if (!isNaN(price) && price > 0) {
+        // Only set salePrice if it's less than regularPrice
+        const regularPriceNum = regularPriceValue ? parseFloat(String(regularPriceValue)) : 0;
+        if (price < regularPriceNum || regularPriceNum === 0) {
+          salePrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+        }
+      }
+    }
     
     // Create cart item key
     const key = `simple-${productId}`;
@@ -154,8 +138,8 @@ export default defineEventHandler(async (event) => {
           name: productData.name,
           slug: productData.slug || `product-${productData.id}`,
           sku: productData.sku || productData.slug || `product-${productData.id}`,
-          regularPrice: regularPriceHtml,
-          salePrice: salePriceHtml,
+          regularPrice: regularPrice,
+          salePrice: salePrice,
           stockQuantity: productData.stock_quantity !== null && productData.stock_quantity !== undefined 
             ? parseInt(productData.stock_quantity) 
             : null,
