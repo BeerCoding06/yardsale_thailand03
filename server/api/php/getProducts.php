@@ -64,8 +64,24 @@ if (!$result['success']) {
     } elseif (!empty($result['raw_response'])) {
         $errorMsg = 'API Error: ' . substr($result['raw_response'], 0, 200);
     }
-    error_log('[getProducts] WooCommerce API error: ' . $errorMsg . ' (HTTP ' . $result['http_code'] . ')');
-    sendErrorResponse($errorMsg, $result['http_code'] ?: 500);
+    error_log('[getProducts] WooCommerce API error: ' . $errorMsg . ' (HTTP ' . ($result['http_code'] ?? 'N/A') . ')');
+    
+    // Return empty array instead of error to prevent frontend from breaking
+    // But log the error for debugging
+    sendJsonResponse([
+        'products' => [
+            'nodes' => [],
+            'pageInfo' => [
+                'hasNextPage' => false,
+                'endCursor' => null
+            ]
+        ],
+        'error' => $errorMsg,
+        'debug' => [
+            'http_code' => $result['http_code'] ?? 0,
+            'url' => $logUrl
+        ]
+    ]);
 }
 
 $products = $result['data'] ?? [];
@@ -74,10 +90,32 @@ $products = $result['data'] ?? [];
 if (!is_array($products)) {
     error_log('[getProducts] Invalid response format. Expected array, got: ' . gettype($products));
     error_log('[getProducts] Raw response: ' . substr($result['raw_response'] ?? '', 0, 500));
-    $products = [];
+    
+    // Return with debug info
+    sendJsonResponse([
+        'products' => [
+            'nodes' => [],
+            'pageInfo' => [
+                'hasNextPage' => false,
+                'endCursor' => null
+            ]
+        ],
+        'error' => 'Invalid response format from API',
+        'debug' => [
+            'response_type' => gettype($products),
+            'raw_response' => substr($result['raw_response'] ?? '', 0, 500)
+        ]
+    ]);
 }
 
 error_log('[getProducts] Successfully fetched ' . count($products) . ' products');
+
+if (empty($products)) {
+    error_log('[getProducts] WARNING: No products returned from API');
+    error_log('[getProducts] API URL: ' . $logUrl);
+    error_log('[getProducts] HTTP Code: ' . ($result['http_code'] ?? 'N/A'));
+    error_log('[getProducts] Raw response: ' . substr($result['raw_response'] ?? '', 0, 1000));
+}
 
 // Format products to match expected structure (WooCommerce API has price/stock built-in)
 $formattedProducts = [];
@@ -170,7 +208,7 @@ $hasNextPage = count($products) >= $per_page;
 $endCursor = $hasNextPage ? base64_encode('page:' . ($page + 1)) : null;
 
 // Return response
-sendJsonResponse([
+$response = [
     'products' => [
         'nodes' => $formattedProducts,
         'pageInfo' => [
@@ -178,6 +216,24 @@ sendJsonResponse([
             'endCursor' => $endCursor
         ]
     ]
-]);
+];
+
+// Add debug info if no products found
+if (empty($formattedProducts)) {
+    $response['debug'] = [
+        'raw_products_count' => count($products),
+        'api_url' => $logUrl,
+        'http_code' => $result['http_code'] ?? 'N/A',
+        'api_response_sample' => !empty($products) && is_array($products) && count($products) > 0 
+            ? [
+                'first_product_keys' => array_keys($products[0]),
+                'first_product_id' => $products[0]['id'] ?? 'N/A',
+                'first_product_name' => $products[0]['name'] ?? 'N/A'
+            ]
+            : 'No products in response'
+    ];
+}
+
+sendJsonResponse($response);
 
 ?>

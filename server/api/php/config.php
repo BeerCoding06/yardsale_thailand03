@@ -171,6 +171,15 @@ function fetchWooCommerceApi($url, $method = 'GET', $data = null, $useBasicAuth 
         error_log('[fetchWooCommerceApi] Response (first 500 chars): ' . substr($response, 0, 500));
     }
     
+    // Log successful response info
+    if ($http_code >= 200 && $http_code < 300) {
+        if (is_array($decoded)) {
+            error_log('[fetchWooCommerceApi] Success: Got ' . count($decoded) . ' items');
+        } else {
+            error_log('[fetchWooCommerceApi] Success: Response is ' . gettype($decoded));
+        }
+    }
+    
     return [
         'success' => $http_code >= 200 && $http_code < 300,
         'data' => $decoded,

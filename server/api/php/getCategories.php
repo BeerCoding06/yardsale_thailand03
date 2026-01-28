@@ -28,17 +28,55 @@ $url = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query([
     'parent' => $parent
 ]);
 
+// Log the URL
+$logUrl = $url;
+error_log('[getCategories] Fetching from WordPress API: ' . $logUrl);
+
 // Fetch from WordPress REST API (with Basic Auth)
 $result = fetchWordPressApi($url, 'GET');
 
 if (!$result['success']) {
-    sendErrorResponse($result['error'] ?? 'Failed to fetch categories', $result['http_code'] ?: 500);
+    $errorMsg = $result['error'] ?? 'Failed to fetch categories';
+    error_log('[getCategories] WordPress API error: ' . $errorMsg . ' (HTTP ' . ($result['http_code'] ?? 'N/A') . ')');
+    
+    // Return empty array instead of error
+    sendJsonResponse([
+        'productCategories' => [
+            'nodes' => []
+        ],
+        'error' => $errorMsg,
+        'debug' => [
+            'http_code' => $result['http_code'] ?? 0,
+            'url' => $logUrl
+        ]
+    ]);
 }
 
 $categories = $result['data'] ?? [];
 
 if (!is_array($categories)) {
-    $categories = [];
+    error_log('[getCategories] Invalid response format. Expected array, got: ' . gettype($categories));
+    error_log('[getCategories] Raw response: ' . substr($result['raw_response'] ?? '', 0, 500));
+    
+    sendJsonResponse([
+        'productCategories' => [
+            'nodes' => []
+        ],
+        'error' => 'Invalid response format from API',
+        'debug' => [
+            'response_type' => gettype($categories),
+            'raw_response' => substr($result['raw_response'] ?? '', 0, 500)
+        ]
+    ]);
+}
+
+error_log('[getCategories] Successfully fetched ' . count($categories) . ' categories');
+
+if (empty($categories)) {
+    error_log('[getCategories] WARNING: No categories returned from API');
+    error_log('[getCategories] API URL: ' . $logUrl);
+    error_log('[getCategories] HTTP Code: ' . ($result['http_code'] ?? 'N/A'));
+    error_log('[getCategories] Raw response: ' . substr($result['raw_response'] ?? '', 0, 1000));
 }
 
 // Format categories
@@ -92,10 +130,29 @@ foreach ($categories as $category) {
 }
 
 // Return response
-sendJsonResponse([
+$response = [
     'productCategories' => [
         'nodes' => $formattedCategories
     ]
-]);
+];
+
+// Add debug info if no categories found
+if (empty($formattedCategories)) {
+    $response['debug'] = [
+        'raw_categories_count' => count($categories),
+        'api_url' => $logUrl,
+        'http_code' => $result['http_code'] ?? 'N/A',
+        'api_response_sample' => !empty($categories) && is_array($categories) && count($categories) > 0 
+            ? [
+                'first_category_keys' => array_keys($categories[0]),
+                'first_category_id' => $categories[0]['id'] ?? 'N/A',
+                'first_category_name' => $categories[0]['name'] ?? 'N/A'
+            ]
+            : 'No categories in response',
+        'wp_basic_auth_configured' => !empty(WP_BASIC_AUTH)
+    ];
+}
+
+sendJsonResponse($response);
 
 ?>
