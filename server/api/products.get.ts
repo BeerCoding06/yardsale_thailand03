@@ -27,45 +27,26 @@ export default cachedEventHandler(
       const order = (query.order as string)?.toLowerCase() || 'desc';
       const orderby = (query.orderby as string)?.toLowerCase() || 'date';
       
-      // Build PHP API URL
-      const baseUrl = process.env.INTERNAL_BASE_URL || process.env.BASE_URL || 'http://localhost';
-      const phpUrl = `${baseUrl}/server/api/php/getProducts.php`;
+      // Build query params for PHP script
+      const queryParams: Record<string, string | number> = {
+        page,
+        per_page: perPage,
+        order,
+        orderby,
+      };
+      if (search) queryParams.search = search;
+      if (category) queryParams.category = category;
+      if (after) queryParams.after = after;
       
-      // Build query string
-      const queryParams = new URLSearchParams();
-      queryParams.append('page', String(page));
-      queryParams.append('per_page', String(perPage));
-      queryParams.append('order', order);
-      queryParams.append('orderby', orderby);
-      if (search) queryParams.append('search', search);
-      if (category) queryParams.append('category', category);
-      if (after) queryParams.append('after', after);
+      console.log('[products] Executing PHP script: getProducts.php', queryParams);
       
-      const fullUrl = `${phpUrl}?${queryParams.toString()}`;
-      
-      console.log('[products] Fetching from PHP API:', fullUrl);
-      
-      const response = await fetch(fullUrl, {
+      // Execute PHP script directly using PHP CLI
+      const { executePhpScript } = await import('../utils/php-executor');
+      const data = await executePhpScript({
+        script: 'getProducts.php',
+        queryParams,
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(30000),
       });
-      
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        console.error('[products] PHP API error:', response.status, errorText);
-        return {
-          products: {
-            nodes: [],
-            pageInfo: {
-              hasNextPage: false,
-              endCursor: null,
-            },
-          },
-        };
-      }
-      
-      const data = await response.json();
       
       return data;
     } catch (error: any) {

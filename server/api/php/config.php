@@ -5,6 +5,12 @@
  * This file contains configuration for WooCommerce REST API
  */
 
+// Parse query string from environment if running via CLI
+// This allows PHP scripts to work when executed via PHP CLI from Node.js
+if (php_sapi_name() === 'cli' && !empty($_SERVER['QUERY_STRING'])) {
+    parse_str($_SERVER['QUERY_STRING'], $_GET);
+}
+
 // WooCommerce API credentials
 define('WC_BASE_URL', getenv('WP_BASE_URL') ?: 'http://157.85.98.150:8080');
 define('WC_CONSUMER_KEY', getenv('WP_CONSUMER_KEY') ?: 'ck_c079fe80d163d7fd5d1f0bccfe2d198ece614ca4');

@@ -1,0 +1,97 @@
+// server/utils/php-executor.ts
+// Execute PHP scripts and return JSON response
+
+import { spawn } from 'child_process';
+import { join } from 'path';
+
+interface PhpExecutorOptions {
+  script: string;
+  queryParams?: Record<string, string | number | boolean>;
+  method?: 'GET' | 'POST';
+  body?: any;
+}
+
+/**
+ * Execute PHP script and return parsed JSON response
+ * Uses PHP CLI to execute scripts directly (no HTTP server needed)
+ */
+export async function executePhpScript(options: PhpExecutorOptions): Promise<any> {
+  const { script, queryParams = {}, method = 'GET', body } = options;
+  
+  // Build PHP script path
+  const scriptPath = join(process.cwd(), 'server', 'api', 'php', script);
+  
+  // Build query string for $_GET superglobal
+  const queryString = Object.entries(queryParams)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join('&');
+  
+  // Set environment variables to simulate web server environment
+  const env = {
+    ...process.env,
+    REQUEST_METHOD: method,
+    QUERY_STRING: queryString,
+    SERVER_NAME: 'localhost',
+    SERVER_PORT: '80',
+    REQUEST_URI: `/server/api/php/${script}${queryString ? '?' + queryString : ''}`,
+    SCRIPT_NAME: `/server/api/php/${script}`,
+    ...(method === 'POST' && body ? { 
+      HTTP_CONTENT_TYPE: 'application/json',
+      CONTENT_LENGTH: JSON.stringify(body).length.toString()
+    } : {}),
+  };
+  
+  return new Promise((resolve, reject) => {
+    const phpProcess = spawn('php', [scriptPath], {
+      env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    // Write POST body to stdin if provided
+    if (method === 'POST' && body) {
+      phpProcess.stdin.write(JSON.stringify(body));
+      phpProcess.stdin.end();
+    } else {
+      phpProcess.stdin.end();
+    }
+    
+    phpProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    phpProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    phpProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`[php-executor] PHP script exited with code ${code}`);
+        console.error(`[php-executor] stderr: ${stderr}`);
+        reject(new Error(`PHP script failed with code ${code}: ${stderr}`));
+        return;
+      }
+      
+      try {
+        // Try to parse JSON response
+        const jsonData = JSON.parse(stdout);
+        resolve(jsonData);
+      } catch (error) {
+        console.error('[php-executor] Failed to parse JSON response:', stdout.substring(0, 500));
+        reject(new Error(`Failed to parse PHP response as JSON: ${stdout.substring(0, 200)}`));
+      }
+    });
+    
+    phpProcess.on('error', (error: any) => {
+      console.error('[php-executor] Failed to spawn PHP process:', error);
+      // If PHP is not installed, provide helpful error message
+      if (error.code === 'ENOENT') {
+        reject(new Error('PHP is not installed or not in PATH. Please install PHP CLI.'));
+      } else {
+        reject(error);
+      }
+    });
+  });
+}
