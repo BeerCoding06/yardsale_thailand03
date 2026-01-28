@@ -31,12 +31,12 @@ $params = [
 ];
 
 // Build WooCommerce API URL
-$url = buildWcApiUrl('wc/v3/products', $params);
+$url = buildWcApiUrl('wc/v3/products', $params, true); // Use Basic Auth
 $logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
 error_log('[searchProducts] Searching: ' . $logUrl);
 
 // Fetch from WooCommerce API
-$result = fetchWooCommerceApi($url, 'GET', null, false);
+$result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
 
 if (!$result['success']) {
     error_log('[searchProducts] API error: ' . ($result['error'] ?? 'Unknown') . ' (HTTP: ' . ($result['http_code'] ?? 'N/A') . ')');

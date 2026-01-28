@@ -19,10 +19,10 @@ if (!$orderId) {
 }
 
 // Build API URL
-$url = buildWcApiUrl("wc/v3/orders/$orderId");
+$url = buildWcApiUrl("wc/v3/orders/$orderId", [], true); // Use Basic Auth
 
 // Fetch from WooCommerce API
-$result = fetchWooCommerceApi($url, 'GET');
+$result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
 
 if (!$result['success']) {
     sendErrorResponse('Order not found', 404);

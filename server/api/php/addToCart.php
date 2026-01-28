@@ -22,11 +22,11 @@ if (!$productId) {
 }
 
 // Fetch product from WooCommerce API
-$url = buildWcApiUrl("wc/v3/products/$productId");
+$url = buildWcApiUrl("wc/v3/products/$productId", [], true); // Use Basic Auth
 $logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
 error_log('[addToCart] Fetching product: ' . $logUrl);
 
-$result = fetchWooCommerceApi($url, 'GET', null, false);
+$result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
 
 if (!$result['success']) {
     $errorMsg = 'Product not found';

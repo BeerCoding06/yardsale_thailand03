@@ -43,18 +43,34 @@ function buildWpApiUrl($endpoint, $params = []) {
  * @param array $params Query parameters
  * @return string Full API URL
  */
-function buildWcApiUrl($endpoint, $params = []) {
+function buildWcApiUrl($endpoint, $params = [], $useBasicAuth = false) {
     $baseUrl = rtrim(WC_BASE_URL, '/');
+    
+    // Remove leading/trailing slashes from endpoint
+    $endpoint = trim($endpoint, '/');
+    
     $url = $baseUrl . '/wp-json/' . $endpoint;
     
-    // Add credentials to params
-    $params['consumer_key'] = WC_CONSUMER_KEY;
-    $params['consumer_secret'] = WC_CONSUMER_SECRET;
+    // Add credentials to params (only if NOT using Basic Auth)
+    // WooCommerce API can use either:
+    // 1. consumer_key/consumer_secret in query params (legacy)
+    // 2. Basic Auth (recommended, more secure)
+    if (!$useBasicAuth) {
+        if (!empty(WC_CONSUMER_KEY)) {
+            $params['consumer_key'] = WC_CONSUMER_KEY;
+        }
+        if (!empty(WC_CONSUMER_SECRET)) {
+            $params['consumer_secret'] = WC_CONSUMER_SECRET;
+        }
+    }
     
     // Build query string
     if (!empty($params)) {
         $url .= '?' . http_build_query($params);
     }
+    
+    // Remove trailing slash (WooCommerce API doesn't like trailing slashes)
+    $url = rtrim($url, '/');
     
     return $url;
 }
@@ -131,12 +147,19 @@ function fetchWooCommerceApi($url, $method = 'GET', $data = null, $useBasicAuth 
         }
     }
     
+    // Log the full URL for debugging (hide secret)
+    $logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
+    error_log('[fetchWooCommerceApi] Request: ' . $method . ' ' . $logUrl);
+    
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
     
     if ($data && in_array($method, ['POST', 'PUT'])) {
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
@@ -145,11 +168,13 @@ function fetchWooCommerceApi($url, $method = 'GET', $data = null, $useBasicAuth 
     $response = curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $error = curl_error($ch);
+    $curl_info = curl_getinfo($ch);
     
     curl_close($ch);
     
     if ($error) {
         error_log('[fetchWooCommerceApi] cURL error: ' . $error);
+        error_log('[fetchWooCommerceApi] URL: ' . $logUrl);
         return [
             'success' => false,
             'error' => $error,
@@ -158,7 +183,9 @@ function fetchWooCommerceApi($url, $method = 'GET', $data = null, $useBasicAuth 
         ];
     }
     
-    // Log response for debugging (first 500 chars)
+    // Log response for debugging
+    error_log('[fetchWooCommerceApi] Response HTTP ' . $http_code . ' (Content-Type: ' . ($curl_info['content_type'] ?? 'N/A') . ')');
+    
     if ($http_code >= 400) {
         error_log('[fetchWooCommerceApi] HTTP ' . $http_code . ' error. Response: ' . substr($response, 0, 500));
     }
@@ -175,6 +202,9 @@ function fetchWooCommerceApi($url, $method = 'GET', $data = null, $useBasicAuth 
     if ($http_code >= 200 && $http_code < 300) {
         if (is_array($decoded)) {
             error_log('[fetchWooCommerceApi] Success: Got ' . count($decoded) . ' items');
+            if (count($decoded) > 0) {
+                error_log('[fetchWooCommerceApi] First item keys: ' . implode(', ', array_keys($decoded[0])));
+            }
         } else {
             error_log('[fetchWooCommerceApi] Success: Response is ' . gettype($decoded));
         }

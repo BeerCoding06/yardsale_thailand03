@@ -28,9 +28,13 @@ $url = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query([
     'parent' => $parent
 ]);
 
+// Remove trailing slash
+$url = rtrim($url, '/');
+
 // Log the URL
 $logUrl = $url;
 error_log('[getCategories] Fetching from WordPress API: ' . $logUrl);
+error_log('[getCategories] WP_BASIC_AUTH configured: ' . (!empty(WP_BASIC_AUTH) ? 'Yes' : 'No'));
 
 // Fetch from WordPress REST API (with Basic Auth)
 $result = fetchWordPressApi($url, 'GET');

@@ -22,14 +22,14 @@ $debug = [
 ];
 
 // Test 1: WooCommerce Products API
-$test1Url = buildWcApiUrl('wc/v3/products', ['per_page' => 1]);
+$test1Url = buildWcApiUrl('wc/v3/products', ['per_page' => 1], true); // Use Basic Auth
 $logUrl1 = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $test1Url);
 $debug['tests']['woocommerce_products'] = [
     'url' => $logUrl1,
     'status' => 'testing...'
 ];
 
-$result1 = fetchWooCommerceApi($test1Url, 'GET', null, false);
+$result1 = fetchWooCommerceApi($test1Url, 'GET', null, true); // Use Basic Auth
 $debug['tests']['woocommerce_products'] = [
     'url' => $logUrl1,
     'success' => $result1['success'],

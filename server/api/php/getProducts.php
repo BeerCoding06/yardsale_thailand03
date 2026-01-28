@@ -47,15 +47,20 @@ if ($category) {
     $params['category'] = $category;
 }
 
-// Build WooCommerce API URL (use consumer_key/consumer_secret in query params)
-$url = buildWcApiUrl('wc/v3/products', $params);
+// Build WooCommerce API URL (use Basic Auth instead of query params)
+// Postman shows that Basic Auth works, so we'll use that
+$url = buildWcApiUrl('wc/v3/products', $params, true); // true = use Basic Auth
+
+// Ensure URL doesn't have trailing slash (WooCommerce API is sensitive to this)
+$url = rtrim($url, '/');
 
 // Log the URL (without secret for security)
 $logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
 error_log('[getProducts] Fetching from WooCommerce API: ' . $logUrl);
+error_log('[getProducts] Using Basic Auth: ' . (!empty(WP_BASIC_AUTH) ? 'Yes' : 'No'));
 
-// Fetch from WooCommerce API (no Basic Auth needed - uses query params)
-$result = fetchWooCommerceApi($url, 'GET', null, false);
+// Fetch from WooCommerce API (use Basic Auth like Postman)
+$result = fetchWooCommerceApi($url, 'GET', null, true); // true = use Basic Auth
 
 if (!$result['success']) {
     $errorMsg = 'Failed to fetch products';
@@ -114,7 +119,12 @@ if (empty($products)) {
     error_log('[getProducts] WARNING: No products returned from API');
     error_log('[getProducts] API URL: ' . $logUrl);
     error_log('[getProducts] HTTP Code: ' . ($result['http_code'] ?? 'N/A'));
-    error_log('[getProducts] Raw response: ' . substr($result['raw_response'] ?? '', 0, 1000));
+    error_log('[getProducts] Success: ' . ($result['success'] ? 'Yes' : 'No'));
+    error_log('[getProducts] Error: ' . ($result['error'] ?? 'None'));
+    error_log('[getProducts] Response type: ' . gettype($result['data']));
+    if (!empty($result['raw_response'])) {
+        error_log('[getProducts] Raw response (first 1000 chars): ' . substr($result['raw_response'], 0, 1000));
+    }
 }
 
 // Format products to match expected structure (WooCommerce API has price/stock built-in)

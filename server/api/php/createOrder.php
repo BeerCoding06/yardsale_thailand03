@@ -20,10 +20,10 @@ if (!$orderData) {
 }
 
 // Build API URL
-$url = buildWcApiUrl('wc/v3/orders');
+$url = buildWcApiUrl('wc/v3/orders', [], true); // Use Basic Auth
 
 // Create order via WooCommerce API
-$result = fetchWooCommerceApi($url, 'POST', $orderData);
+$result = fetchWooCommerceApi($url, 'POST', $orderData, true); // Use Basic Auth
 
 if (!$result['success']) {
     $errorMessage = 'Failed to create order';

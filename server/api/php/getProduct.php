@@ -29,12 +29,12 @@ if ($slug) {
         'slug' => $slug,
         'per_page' => 1,
         'status' => 'publish'
-    ]);
+    ], true); // Use Basic Auth
     
     $logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
     error_log('[getProduct] Searching by slug: ' . $logUrl);
     
-    $result = fetchWooCommerceApi($url, 'GET', null, false);
+    $result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
     
     if ($result['success'] && !empty($result['data']) && is_array($result['data']) && count($result['data']) > 0) {
         $product = $result['data'][0];
@@ -51,9 +51,9 @@ if (!$productId && $sku) {
         'sku' => $sku,
         'per_page' => 1,
         'status' => 'publish'
-    ]);
+    ], true); // Use Basic Auth
     
-    $result = fetchWooCommerceApi($url, 'GET', null, false);
+    $result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
     
     if ($result['success'] && !empty($result['data']) && is_array($result['data']) && count($result['data']) > 0) {
         $productId = $result['data'][0]['id'];
@@ -67,11 +67,11 @@ if (!$productId && $id) {
 
 // Fetch full product data from WooCommerce API
 if ($productId && !$product) {
-    $url = buildWcApiUrl("wc/v3/products/$productId");
+    $url = buildWcApiUrl("wc/v3/products/$productId", [], true); // Use Basic Auth
     $logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
     error_log('[getProduct] Fetching product by ID: ' . $logUrl);
     
-    $result = fetchWooCommerceApi($url, 'GET', null, false);
+    $result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
     
     if (!$result['success']) {
         $errorMsg = 'Product not found';
@@ -237,9 +237,9 @@ if (!empty($product['categories']) && is_array($product['categories']) && count(
         'per_page' => 10,
         'exclude' => $productId,
         'status' => 'publish'
-    ]);
+    ], true); // Use Basic Auth
     
-    $relatedResult = fetchWooCommerceApi($relatedUrl, 'GET', null, false);
+    $relatedResult = fetchWooCommerceApi($relatedUrl, 'GET', null, true); // Use Basic Auth
     
     if ($relatedResult['success'] && !empty($relatedResult['data']) && is_array($relatedResult['data'])) {
         foreach ($relatedResult['data'] as $relatedProd) {

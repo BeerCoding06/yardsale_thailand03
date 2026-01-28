@@ -37,10 +37,10 @@ if ($status) {
 }
 
 // Build API URL
-$url = buildWcApiUrl('wc/v3/orders', $params);
+$url = buildWcApiUrl('wc/v3/orders', $params, true); // Use Basic Auth
 
 // Fetch from WooCommerce API
-$result = fetchWooCommerceApi($url, 'GET');
+$result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
 
 if (!$result['success']) {
     sendErrorResponse($result['error'] ?? 'Failed to fetch orders', $result['http_code'] ?: 500);
