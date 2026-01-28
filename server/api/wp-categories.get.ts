@@ -1,7 +1,7 @@
 // server/api/wp-categories.get.ts
 // Fetch product categories from WordPress REST API
 
-import * as wpUtils from '../utils/wp.js';
+import * as wpUtils from '~/server/utils/wp';
 
 export default defineEventHandler(async (event: any) => {
   try {

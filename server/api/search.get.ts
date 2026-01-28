@@ -1,7 +1,7 @@
 // server/api/search.get.ts
 // Search products using WordPress REST API
 
-import * as wpUtils from '../utils/wp.js';
+import * as wpUtils from '~/server/utils/wp';
 
 export default cachedEventHandler(
   async (event) => {

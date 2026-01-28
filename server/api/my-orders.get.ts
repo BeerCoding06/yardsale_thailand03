@@ -1,7 +1,7 @@
 // server/api/my-orders.get.ts
 // Fetch user's orders from WooCommerce REST API
 
-import * as wpUtils from '../utils/wp.js';
+import * as wpUtils from '~/server/utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {

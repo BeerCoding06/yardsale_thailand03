@@ -1,7 +1,7 @@
 // server/api/check-product-has-orders.get.ts
 // Check if a product has been purchased (has orders) using WooCommerce REST API
 
-import * as wpUtils from '../utils/wp.js';
+import * as wpUtils from '~/server/utils/wp';
 
 export default defineCachedEventHandler(async (event) => {
   try {

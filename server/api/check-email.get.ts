@@ -1,7 +1,7 @@
 // server/api/check-email.get.ts
 // ตรวจสอบว่าอีเมลมีอยู่ในระบบ WordPress หรือไม่
 
-import * as wpUtils from '../utils/wp.js';
+import * as wpUtils from '~/server/utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {

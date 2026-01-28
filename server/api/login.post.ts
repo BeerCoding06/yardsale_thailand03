@@ -1,7 +1,7 @@
 // server/api/login.post.ts
 // Handle user login using WordPress REST API
 
-import * as wpUtils from '../utils/wp.js';
+import * as wpUtils from '~/server/utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {

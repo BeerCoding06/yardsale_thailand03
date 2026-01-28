@@ -1,7 +1,7 @@
 // server/api/cart/update.post.ts
 // Update cart items (client-side cart management)
 
-import * as wpUtils from '../utils/wp.js';
+import * as wpUtils from '~/server/utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {

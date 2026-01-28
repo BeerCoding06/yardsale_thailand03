@@ -1,7 +1,7 @@
 // server/api/cancel-order.post.ts
 // Cancel order using WooCommerce REST API
 
-import * as wpUtils from '../utils/wp.js';
+import * as wpUtils from '~/server/utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {
