@@ -165,43 +165,47 @@ export default cachedEventHandler(
       let stockQuantity: number | null = null;
       let stockStatus = 'IN_STOCK';
       
-      {
-        // Check regular_price (can be string, number, or null)
-        const regularPriceValue = wcProduct.regular_price !== null && wcProduct.regular_price !== undefined && wcProduct.regular_price !== ''
-          ? wcProduct.regular_price 
-          : (wcProduct.price !== null && wcProduct.price !== undefined && wcProduct.price !== '' ? wcProduct.price : null);
-        
-        if (regularPriceValue !== null && regularPriceValue !== undefined && regularPriceValue !== '') {
-          const price = parseFloat(String(regularPriceValue));
-          if (!isNaN(price) && price > 0) {
-            regularPrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+      // Check regular_price (can be string, number, or null)
+      let regularPriceValue: string | number | null = null;
+      if (wcProduct.regular_price !== null && wcProduct.regular_price !== undefined && wcProduct.regular_price !== '') {
+        regularPriceValue = wcProduct.regular_price;
+      } else if (wcProduct.price !== null && wcProduct.price !== undefined && wcProduct.price !== '') {
+        regularPriceValue = wcProduct.price;
+      }
+      
+      if (regularPriceValue !== null && regularPriceValue !== undefined && regularPriceValue !== '') {
+        const price = parseFloat(String(regularPriceValue));
+        if (!isNaN(price) && price > 0) {
+          regularPrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+        }
+      }
+      
+      // Check sale_price (can be string, number, or null)
+      let salePriceValue: string | number | null = null;
+      if (wcProduct.sale_price !== null && wcProduct.sale_price !== undefined && wcProduct.sale_price !== '') {
+        salePriceValue = wcProduct.sale_price;
+      }
+      
+      if (salePriceValue !== null && salePriceValue !== undefined && salePriceValue !== '') {
+        const price = parseFloat(String(salePriceValue));
+        if (!isNaN(price) && price > 0) {
+          // Only set salePrice if it's less than regularPrice
+          const regularPriceNum = regularPriceValue ? parseFloat(String(regularPriceValue)) : 0;
+          if (price < regularPriceNum || regularPriceNum === 0) {
+            salePrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
           }
         }
-        
-        // Check sale_price (can be string, number, or null)
-        const salePriceValue = wcProduct.sale_price !== null && wcProduct.sale_price !== undefined && wcProduct.sale_price !== ''
-          ? wcProduct.sale_price 
-          : null;
-        
-        if (salePriceValue !== null && salePriceValue !== undefined && salePriceValue !== '') {
-          const price = parseFloat(String(salePriceValue));
-          if (!isNaN(price) && price > 0) {
-            // Only set salePrice if it's less than regularPrice
-            const regularPriceNum = regularPriceValue ? parseFloat(String(regularPriceValue)) : 0;
-            if (price < regularPriceNum || regularPriceNum === 0) {
-              salePrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
-            }
-          }
-        }
-        if (wcProduct.sku) {
-          productSku = wcProduct.sku;
-        }
-        if (wcProduct.stock_quantity !== null && wcProduct.stock_quantity !== undefined) {
-          stockQuantity = parseInt(wcProduct.stock_quantity);
-        }
-        if (wcProduct.stock_status) {
-          stockStatus = wcProduct.stock_status.toUpperCase();
-        }
+      }
+      
+      if (wcProduct.sku) {
+        productSku = wcProduct.sku;
+      }
+      if (wcProduct.stock_quantity !== null && wcProduct.stock_quantity !== undefined) {
+        stockQuantity = parseInt(wcProduct.stock_quantity);
+      }
+      if (wcProduct.stock_status) {
+        stockStatus = wcProduct.stock_status.toUpperCase();
+      }
       
       // Get PA Style and PA Color attributes from WooCommerce API
       const paStyle: any[] = [];
