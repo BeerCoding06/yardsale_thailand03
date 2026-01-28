@@ -149,14 +149,27 @@ function fetchWooCommerceApi($url, $method = 'GET', $data = null, $useBasicAuth 
     curl_close($ch);
     
     if ($error) {
+        error_log('[fetchWooCommerceApi] cURL error: ' . $error);
         return [
             'success' => false,
             'error' => $error,
-            'http_code' => 0
+            'http_code' => 0,
+            'raw_response' => $response
         ];
     }
     
+    // Log response for debugging (first 500 chars)
+    if ($http_code >= 400) {
+        error_log('[fetchWooCommerceApi] HTTP ' . $http_code . ' error. Response: ' . substr($response, 0, 500));
+    }
+    
     $decoded = json_decode($response, true);
+    
+    // Check for JSON decode errors
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        error_log('[fetchWooCommerceApi] JSON decode error: ' . json_last_error_msg());
+        error_log('[fetchWooCommerceApi] Response (first 500 chars): ' . substr($response, 0, 500));
+    }
     
     return [
         'success' => $http_code >= 200 && $http_code < 300,

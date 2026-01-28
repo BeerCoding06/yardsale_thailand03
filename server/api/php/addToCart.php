@@ -20,13 +20,28 @@ if (!$productId) {
 
 // Fetch product from WooCommerce API
 $url = buildWcApiUrl("wc/v3/products/$productId");
+$logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
+error_log('[addToCart] Fetching product: ' . $logUrl);
+
 $result = fetchWooCommerceApi($url, 'GET', null, false);
 
 if (!$result['success']) {
-    sendErrorResponse('Product not found', 404);
+    $errorMsg = 'Product not found';
+    if (!empty($result['raw_response'])) {
+        $errorMsg = 'API Error: ' . substr($result['raw_response'], 0, 200);
+    }
+    error_log('[addToCart] Failed to fetch product ' . $productId . ': ' . $errorMsg . ' (HTTP: ' . ($result['http_code'] ?? 'N/A') . ')');
+    sendErrorResponse($errorMsg, $result['http_code'] ?: 404);
 }
 
 $product = $result['data'];
+
+if (empty($product)) {
+    error_log('[addToCart] Product data is empty for ID: ' . $productId);
+    sendErrorResponse('Product not found', 404);
+}
+
+error_log('[addToCart] Successfully fetched product ' . $productId);
 
 // Get image from WooCommerce API
 $imageUrl = null;

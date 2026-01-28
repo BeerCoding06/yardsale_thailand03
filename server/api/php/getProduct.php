@@ -28,11 +28,17 @@ if ($slug) {
         'status' => 'publish'
     ]);
     
+    $logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
+    error_log('[getProduct] Searching by slug: ' . $logUrl);
+    
     $result = fetchWooCommerceApi($url, 'GET', null, false);
     
     if ($result['success'] && !empty($result['data']) && is_array($result['data']) && count($result['data']) > 0) {
         $product = $result['data'][0];
         $productId = $product['id'];
+        error_log('[getProduct] Found product by slug: ' . $slug . ' (ID: ' . $productId . ')');
+    } else {
+        error_log('[getProduct] Product not found by slug: ' . $slug . ' (HTTP: ' . ($result['http_code'] ?? 'N/A') . ')');
     }
 }
 
@@ -59,49 +65,60 @@ if (!$productId && $id) {
 // Fetch full product data from WooCommerce API
 if ($productId && !$product) {
     $url = buildWcApiUrl("wc/v3/products/$productId");
+    $logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
+    error_log('[getProduct] Fetching product by ID: ' . $logUrl);
+    
     $result = fetchWooCommerceApi($url, 'GET', null, false);
     
     if (!$result['success']) {
-        sendErrorResponse('Product not found', 404);
+        $errorMsg = 'Product not found';
+        if (!empty($result['raw_response'])) {
+            $errorMsg = 'API Error: ' . substr($result['raw_response'], 0, 200);
+        }
+        error_log('[getProduct] Failed to fetch product ' . $productId . ': ' . $errorMsg . ' (HTTP: ' . ($result['http_code'] ?? 'N/A') . ')');
+        sendErrorResponse($errorMsg, $result['http_code'] ?: 404);
     }
     
     $product = $result['data'];
+    
+    if (empty($product)) {
+        error_log('[getProduct] Product data is empty for ID: ' . $productId);
+        sendErrorResponse('Product not found', 404);
+    }
+    
+    error_log('[getProduct] Successfully fetched product ' . $productId);
 }
 
 if (!$product) {
     sendErrorResponse('Product not found', 404);
 }
 
-// Format product data
-// Get featured image from _embedded
+// Format product data from WooCommerce API
+// Get featured image
 $imageUrl = null;
-if (!empty($product['_embedded']['wp:featuredmedia'][0]['source_url'])) {
-    $imageUrl = $product['_embedded']['wp:featuredmedia'][0]['source_url'];
-} elseif (!empty($product['featured_media'])) {
-    // Try to fetch media if not embedded
-    $mediaUrl = buildWpApiUrl("wp/v2/media/{$product['featured_media']}");
-    $mediaResult = fetchWordPressApi($mediaUrl, 'GET');
-    if ($mediaResult['success'] && !empty($mediaResult['data']['source_url'])) {
-        $imageUrl = $mediaResult['data']['source_url'];
+if (!empty($product['images']) && is_array($product['images']) && count($product['images']) > 0) {
+    $imageUrl = $product['images'][0]['src'] ?? null;
+}
+
+// Get gallery images
+$galleryImages = [];
+if (!empty($product['images']) && is_array($product['images'])) {
+    foreach ($product['images'] as $img) {
+        if (!empty($img['src'])) {
+            $galleryImages[] = ['sourceUrl' => $img['src']];
+        }
     }
 }
 
-$galleryImages = [];
-if ($imageUrl) {
-    $galleryImages[] = ['sourceUrl' => $imageUrl];
-}
-
-// Format prices from meta fields (WordPress REST API v2)
+// Format prices from WooCommerce API
 $regularPrice = '';
 $salePrice = null;
 
 $regularPriceValue = null;
-if (!empty($product['meta'])) {
-    if (isset($product['meta']['_regular_price'])) {
-        $regularPriceValue = $product['meta']['_regular_price'];
-    } elseif (isset($product['meta']['_price'])) {
-        $regularPriceValue = $product['meta']['_price'];
-    }
+if (!empty($product['regular_price']) && $product['regular_price'] !== '') {
+    $regularPriceValue = $product['regular_price'];
+} elseif (!empty($product['price']) && $product['price'] !== '') {
+    $regularPriceValue = $product['price'];
 }
 
 if ($regularPriceValue !== null && $regularPriceValue !== '') {
@@ -112,8 +129,8 @@ if ($regularPriceValue !== null && $regularPriceValue !== '') {
 }
 
 $salePriceValue = null;
-if (!empty($product['meta']) && isset($product['meta']['_sale_price']) && $product['meta']['_sale_price'] !== '') {
-    $salePriceValue = $product['meta']['_sale_price'];
+if (!empty($product['sale_price']) && $product['sale_price'] !== '') {
+    $salePriceValue = $product['sale_price'];
 }
 
 if ($salePriceValue !== null && $salePriceValue !== '') {
@@ -126,21 +143,16 @@ if ($salePriceValue !== null && $salePriceValue !== '') {
     }
 }
 
-// Get SKU and stock from meta
-$productSku = $product['slug'] ?? 'product-' . $productId;
-if (!empty($product['meta']) && isset($product['meta']['_sku'])) {
-    $productSku = $product['meta']['_sku'];
-}
+// Get SKU and stock from WooCommerce API
+$productSku = $product['sku'] ?? $product['slug'] ?? 'product-' . $productId;
 
 $stockQuantity = null;
 $stockStatus = 'IN_STOCK';
-if (!empty($product['meta'])) {
-    if (isset($product['meta']['_stock'])) {
-        $stockQuantity = (int)$product['meta']['_stock'];
-    }
-    if (isset($product['meta']['_stock_status'])) {
-        $stockStatus = strtoupper($product['meta']['_stock_status']);
-    }
+if (isset($product['stock_quantity']) && $product['stock_quantity'] !== null) {
+    $stockQuantity = (int)$product['stock_quantity'];
+}
+if (isset($product['stock_status'])) {
+    $stockStatus = strtoupper($product['stock_status']);
 }
 
 // Get attributes from meta (WordPress REST API v2)

@@ -47,18 +47,53 @@ if ($category) {
 // Build WooCommerce API URL (use consumer_key/consumer_secret in query params)
 $url = buildWcApiUrl('wc/v3/products', $params);
 
+// Log the URL (without secret for security)
+$logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
+error_log('[getProducts] Fetching from WooCommerce API: ' . $logUrl);
+
 // Fetch from WooCommerce API (no Basic Auth needed - uses query params)
 $result = fetchWooCommerceApi($url, 'GET', null, false);
 
 if (!$result['success']) {
-    sendErrorResponse($result['error'] ?? 'Failed to fetch products', $result['http_code'] ?: 500);
+    $errorMsg = 'Failed to fetch products';
+    if (!empty($result['error'])) {
+        $errorMsg = $result['error'];
+    } elseif (!empty($result['raw_response'])) {
+        $errorMsg = 'API Error: ' . substr($result['raw_response'], 0, 200);
+    }
+    error_log('[getProducts] WooCommerce API error: ' . $errorMsg . ' (HTTP ' . $result['http_code'] . ')');
+    sendErrorResponse($errorMsg, $result['http_code'] ?: 500);
 }
 
 $products = $result['data'] ?? [];
 
+// Validate response
+if (!is_array($products)) {
+    error_log('[getProducts] Invalid response format. Expected array, got: ' . gettype($products));
+    error_log('[getProducts] Raw response: ' . substr($result['raw_response'] ?? '', 0, 500));
+    $products = [];
+}
+
+error_log('[getProducts] Successfully fetched ' . count($products) . ' products');
+
 // Format products to match expected structure (WooCommerce API has price/stock built-in)
 $formattedProducts = [];
+
+if (empty($products)) {
+    error_log('[getProducts] No products returned from API');
+}
+
 foreach ($products as $product) {
+    // Validate product structure
+    if (!is_array($product)) {
+        error_log('[getProducts] Invalid product format: ' . gettype($product));
+        continue;
+    }
+    
+    if (empty($product['id'])) {
+        error_log('[getProducts] Product missing ID: ' . json_encode($product));
+        continue;
+    }
     // Format prices from WooCommerce API
     $regularPrice = '';
     $salePrice = null;

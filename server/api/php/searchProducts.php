@@ -20,21 +20,24 @@ if (empty($search)) {
     ]);
 }
 
-// Build WordPress REST API v2 parameters
+// Build WooCommerce API parameters
 $params = [
     'search' => $search,
     'per_page' => $limit,
-    'status' => 'publish',
-    '_embed' => '1'
+    'status' => 'publish'
 ];
 
 // Build WooCommerce API URL
 $url = buildWcApiUrl('wc/v3/products', $params);
+$logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
+error_log('[searchProducts] Searching: ' . $logUrl);
 
 // Fetch from WooCommerce API
 $result = fetchWooCommerceApi($url, 'GET', null, false);
 
 if (!$result['success']) {
+    error_log('[searchProducts] API error: ' . ($result['error'] ?? 'Unknown') . ' (HTTP: ' . ($result['http_code'] ?? 'N/A') . ')');
+    // Return empty results instead of error
     sendJsonResponse([
         'products' => [
             'nodes' => []
@@ -44,9 +47,21 @@ if (!$result['success']) {
 
 $products = $result['data'] ?? [];
 
+// Validate response
+if (!is_array($products)) {
+    error_log('[searchProducts] Invalid response format. Expected array, got: ' . gettype($products));
+    $products = [];
+}
+
+error_log('[searchProducts] Found ' . count($products) . ' products');
+
 // Format products from WooCommerce API
 $formattedProducts = [];
 foreach ($products as $product) {
+    // Validate product structure
+    if (!is_array($product) || empty($product['id'])) {
+        continue;
+    }
     // Format prices
     $regularPrice = '';
     $salePrice = null;
