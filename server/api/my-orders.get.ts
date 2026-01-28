@@ -1,7 +1,7 @@
 // server/api/my-orders.get.ts
-// Fetch user's orders from WooCommerce REST API
+// Fetch user's orders via PHP API endpoint
 
-import * as wpUtils from '../utils/wp';
+import { executePhpScript } from '../utils/php-executor';
 
 export default defineEventHandler(async (event) => {
   try {
@@ -17,52 +17,25 @@ export default defineEventHandler(async (event) => {
       });
     }
     
-    // Check WooCommerce credentials
-    const consumerKey = wpUtils.getWpConsumerKey();
-    const consumerSecret = wpUtils.getWpConsumerSecret();
-    
-    if (!consumerKey || !consumerSecret) {
-      throw createError({
-        statusCode: 500,
-        message: "WooCommerce API credentials not configured",
-      });
-    }
-    
-    const params: Record<string, string | number> = {
+    // Build query params for PHP script
+    const queryParams: Record<string, string | number> = {
       per_page: 100,
-      ...(customerId ? { customer: customerId } : {}),
-      ...(customerEmail ? { customer_email: customerEmail } : {})
     };
+    if (customerId) queryParams.customer = Number(customerId);
+    if (customerEmail) queryParams.customer_email = String(customerEmail);
     
-    const apiUrl = wpUtils.buildWcApiUrl('wc/v3/orders', params);
+    console.log('[my-orders] Executing PHP script: getOrders.php', queryParams);
     
-    console.log('[my-orders] Fetching from WooCommerce API:', apiUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
-    
-    const response = await fetch(apiUrl, {
+    // Execute PHP script directly using PHP CLI
+    const data = await executePhpScript({
+      script: 'getOrders.php',
+      queryParams,
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(30000),
     });
     
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      console.error('[my-orders] WooCommerce API error:', response.status, errorText);
-      throw createError({
-        statusCode: response.status,
-        message: errorText || 'Failed to fetch orders',
-      });
-    }
-    
-    const data = await response.json();
-    
-    const orders = Array.isArray(data) ? data : [];
-    
-    return {
-      orders,
-      count: orders.length
-    };
+    return data;
   } catch (error: any) {
-    console.error('[my-orders] Error:', error);
+    console.error('[my-orders] Error:', error.message || error);
     throw createError({
       statusCode: error.statusCode || 500,
       message: error.message || 'Failed to fetch orders',

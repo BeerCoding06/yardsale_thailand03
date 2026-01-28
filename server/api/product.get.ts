@@ -1,6 +1,8 @@
 // server/api/product.get.ts
 // Fetch single product via PHP API endpoint
 
+import { executePhpScript } from '../utils/php-executor';
+
 export default cachedEventHandler(
   async (event) => {
     try {
@@ -14,37 +16,24 @@ export default cachedEventHandler(
         return { product: null };
       }
       
-      // Build PHP API URL
-      const baseUrl = process.env.INTERNAL_BASE_URL || process.env.BASE_URL || 'http://localhost';
-      const phpUrl = `${baseUrl}/server/api/php/getProduct.php`;
+      // Build query params for PHP script
+      const queryParams: Record<string, string | number> = {};
+      if (slug) queryParams.slug = slug;
+      if (sku) queryParams.sku = sku;
+      if (id) queryParams.id = Number(id);
       
-      // Build query string
-      const queryParams = new URLSearchParams();
-      if (slug) queryParams.append('slug', slug);
-      if (sku) queryParams.append('sku', sku);
-      if (id) queryParams.append('id', String(id));
+      console.log('[product] Executing PHP script: getProduct.php', queryParams);
       
-      const fullUrl = `${phpUrl}?${queryParams.toString()}`;
-      
-      console.log('[product] Fetching from PHP API:', fullUrl);
-      
-      const response = await fetch(fullUrl, {
+      // Execute PHP script directly using PHP CLI
+      const data = await executePhpScript({
+        script: 'getProduct.php',
+        queryParams,
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(30000),
       });
-      
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        console.error('[product] PHP API error:', response.status, errorText);
-        return { product: null };
-      }
-      
-      const data = await response.json();
       
       return data;
     } catch (error: any) {
-      console.error('[product] Error:', error);
+      console.error('[product] Error:', error.message || error);
       return { product: null };
     }
   },

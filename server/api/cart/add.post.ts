@@ -1,6 +1,8 @@
 // server/api/cart/add.post.ts
 // Add product to cart via PHP API endpoint
 
+import { executePhpScript } from '../utils/php-executor';
+
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
@@ -14,33 +16,19 @@ export default defineEventHandler(async (event) => {
       });
     }
     
-    // Build PHP API URL
-    const baseUrl = process.env.INTERNAL_BASE_URL || process.env.BASE_URL || 'http://localhost';
-    const phpUrl = `${baseUrl}/server/api/php/addToCart.php`;
+    console.log('[cart/add] Executing PHP script: addToCart.php', { productId });
     
-    console.log('[cart/add] Calling PHP API:', phpUrl);
-    
-    const response = await fetch(phpUrl, {
+    // Execute PHP script directly using PHP CLI
+    const data = await executePhpScript({
+      script: 'addToCart.php',
+      queryParams: {},
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ productId }),
-      signal: AbortSignal.timeout(30000),
+      body: { productId },
     });
-    
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      console.error('[cart/add] PHP API error:', response.status, errorText);
-      throw createError({
-        statusCode: response.status,
-        message: errorText || 'Failed to add to cart',
-      });
-    }
-    
-    const data = await response.json();
     
     return data;
   } catch (error: any) {
-    console.error('[cart/add] Error:', error);
+    console.error('[cart/add] Error:', error.message || error);
     
     if (error.statusCode) {
       throw error;
