@@ -1,4 +1,4 @@
-// server/api/search.get.ts
+// server/api/php-search.get.ts
 // Search products via PHP API endpoint
 
 export default cachedEventHandler(
@@ -14,7 +14,7 @@ export default cachedEventHandler(
       }
       
       // Build PHP API URL
-      const baseUrl = process.env.INTERNAL_BASE_URL || process.env.BASE_URL || 'http://localhost';
+      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
       const phpUrl = `${baseUrl}/server/api/php/searchProducts.php`;
       
       const queryParams = new URLSearchParams({
@@ -24,7 +24,7 @@ export default cachedEventHandler(
       
       const fullUrl = `${phpUrl}?${queryParams.toString()}`;
       
-      console.log('[search] Fetching from PHP API:', fullUrl);
+      console.log('[php-search] Fetching from PHP API:', fullUrl);
       
       const response = await fetch(fullUrl, {
         method: 'GET',
@@ -34,7 +34,7 @@ export default cachedEventHandler(
       
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
-        console.error('[search] PHP API error:', response.status, errorText);
+        console.error('[php-search] PHP API error:', response.status, errorText);
         return { products: { nodes: [] } };
       }
       
@@ -42,7 +42,7 @@ export default cachedEventHandler(
       
       return data;
     } catch (error: any) {
-      console.error('[search] Error:', error);
+      console.error('[php-search] Error:', error);
       return { products: { nodes: [] } };
     }
   },

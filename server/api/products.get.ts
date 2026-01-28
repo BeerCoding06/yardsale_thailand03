@@ -1,7 +1,5 @@
 // server/api/products.get.ts
-// Fetch products from WooCommerce REST API (faster - includes price and stock)
-
-import * as wpUtils from '../utils/wp';
+// Fetch products via PHP API endpoint
 
 export default cachedEventHandler(
   async (event) => {
@@ -29,322 +27,47 @@ export default cachedEventHandler(
       const order = (query.order as string)?.toLowerCase() || 'desc';
       const orderby = (query.orderby as string)?.toLowerCase() || 'date';
       
-      // Map orderby to WooCommerce API format
-      const orderbyMap: Record<string, string> = {
-        'date': 'date',
-        'title': 'title',
-        'price': 'price',
-        'rating': 'rating',
-        'popularity': 'popularity',
-      };
-      const wcOrderby = orderbyMap[orderby] || 'date';
+      // Build PHP API URL
+      const baseUrl = process.env.INTERNAL_BASE_URL || process.env.BASE_URL || 'http://localhost';
+      const phpUrl = `${baseUrl}/server/api/php/getProducts.php`;
       
-      // Try WooCommerce API first (has price and stock built-in)
-      const consumerKey = wpUtils.getWpConsumerKey();
-      const consumerSecret = wpUtils.getWpConsumerSecret();
-      let useWooCommerce = !!(consumerKey && consumerSecret);
+      // Build query string
+      const queryParams = new URLSearchParams();
+      queryParams.append('page', String(page));
+      queryParams.append('per_page', String(perPage));
+      queryParams.append('order', order);
+      queryParams.append('orderby', orderby);
+      if (search) queryParams.append('search', search);
+      if (category) queryParams.append('category', category);
+      if (after) queryParams.append('after', after);
       
-      if (useWooCommerce) {
-        try {
-          // Build WooCommerce API params with consumer_key and consumer_secret in query params
-          const wcParams: Record<string, string | number> = {
-            per_page: perPage,
-            page: page,
-            order: order,
-            orderby: wcOrderby,
-            status: 'publish',
-            ...(search ? { search: search } : {}),
-            ...(category ? { category: category } : {})
-          };
-          
-          const wcUrl = wpUtils.buildWcApiUrl('wc/v3/products', wcParams);
-          console.log('[products] Fetching from WooCommerce API (fast):', wcUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
-          
-          // No headers needed - authentication is via query params
-          const wcHeaders: Record<string, string> = {
-            'Content-Type': 'application/json',
-          };
-          
-          const wcResponse = await fetch(wcUrl, {
-            method: 'GET',
-            headers: wcHeaders,
-            signal: AbortSignal.timeout(15000),
-          });
-          
-          if (wcResponse.ok) {
-            const wcData = await wcResponse.json();
-            console.log('[products] WooCommerce API response sample (first product):', wcData[0] ? {
-              id: wcData[0].id,
-              name: wcData[0].name,
-              regular_price: wcData[0].regular_price,
-              sale_price: wcData[0].sale_price,
-              price: wcData[0].price,
-            } : 'No products');
-            
-            const total = wcResponse.headers.get('X-WP-Total') ? parseInt(wcResponse.headers.get('X-WP-Total')!) : 0;
-            const totalPages = wcResponse.headers.get('X-WP-TotalPages') ? parseInt(wcResponse.headers.get('X-WP-TotalPages')!) : 0;
-            const hasNextPage = page < totalPages;
-            
-            // Format WooCommerce products (already has price and stock)
-            const formattedProducts = (Array.isArray(wcData) ? wcData : []).map((product: any) => {
-              // Format prices
-              let regularPrice = '';
-              let salePrice: string | null = null;
-              
-              // Check regular_price (can be string, number, or null/empty string)
-              // WooCommerce API returns regular_price as string or number
-              let regularPriceValue: string | number | null = null;
-              
-              if (product.regular_price !== null && product.regular_price !== undefined && String(product.regular_price).trim() !== '') {
-                regularPriceValue = product.regular_price;
-              } else if (product.price !== null && product.price !== undefined && String(product.price).trim() !== '') {
-                regularPriceValue = product.price;
-              }
-              
-              if (regularPriceValue !== null && regularPriceValue !== undefined) {
-                const price = parseFloat(String(regularPriceValue));
-                if (!isNaN(price) && price > 0) {
-                  regularPrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
-                }
-              }
-              
-              // Check sale_price (can be string, number, or null/empty string)
-              // WooCommerce API returns sale_price as string or number
-              let salePriceValue: string | number | null = null;
-              
-              if (product.sale_price !== null && product.sale_price !== undefined && String(product.sale_price).trim() !== '') {
-                salePriceValue = product.sale_price;
-              }
-              
-              if (salePriceValue !== null && salePriceValue !== undefined) {
-                const price = parseFloat(String(salePriceValue));
-                if (!isNaN(price) && price > 0) {
-                  // Only set salePrice if it's less than regularPrice
-                  const regularPriceNum = regularPriceValue ? parseFloat(String(regularPriceValue)) : 0;
-                  if (price < regularPriceNum || regularPriceNum === 0) {
-                    salePrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
-                  }
-                }
-              }
-              
-              // Get image
-              let imageUrl: string | null = null;
-              if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-                imageUrl = product.images[0].src || null;
-              }
-              
-              // Get gallery images
-              const galleryImages = (product.images || []).map((img: any) => ({
-                sourceUrl: img.src
-              }));
-              
-              return {
-                id: product.id,
-                databaseId: product.id,
-                sku: product.sku || product.slug || `product-${product.id}`,
-                slug: product.slug,
-                name: product.name || '',
-                description: product.description || '',
-                regularPrice,
-                salePrice,
-                stockQuantity: product.stock_quantity !== null && product.stock_quantity !== undefined
-                  ? parseInt(product.stock_quantity)
-                  : null,
-                stockStatus: (product.stock_status || 'instock').toUpperCase(),
-                image: imageUrl ? { sourceUrl: imageUrl } : null,
-                galleryImages: { nodes: galleryImages },
-                allPaStyle: { nodes: [] },
-                link: product.permalink || '',
-                status: product.status,
-              };
-            });
-            
-            const endCursor = hasNextPage 
-              ? Buffer.from(`page:${page + 1}`).toString('base64')
-              : null;
-            
-            console.log('[products] Formatted products from WooCommerce:', formattedProducts.length);
-            
-            return {
-              products: {
-                nodes: formattedProducts,
-                pageInfo: {
-                  hasNextPage,
-                  endCursor,
-                },
-              },
-            };
-          } else {
-            const errorText = await wcResponse.text().catch(() => '');
-            console.error('[products] WooCommerce API failed (status:', wcResponse.status, '):', errorText.substring(0, 200));
-            // If we have credentials but API failed, don't fallback (WordPress REST API has no price)
-            // Return empty array instead
-            if (consumerKey && consumerSecret) {
-              console.error('[products] WooCommerce credentials configured but API failed. Cannot fallback to WordPress REST API (no price data).');
-              return {
-                products: {
-                  nodes: [],
-                  pageInfo: {
-                    hasNextPage: false,
-                    endCursor: null,
-                  },
-                },
-              };
-            }
-            // Only fallback if credentials are not configured
-            useWooCommerce = false;
-          }
-        } catch (wcError) {
-          console.error('[products] WooCommerce API error:', wcError);
-          // If we have credentials but API failed, don't fallback (WordPress REST API has no price)
-          // Return empty array instead
-          if (consumerKey && consumerSecret) {
-            console.error('[products] WooCommerce credentials configured but API error. Cannot fallback to WordPress REST API (no price data).');
-            return {
-              products: {
-                nodes: [],
-                pageInfo: {
-                  hasNextPage: false,
-                  endCursor: null,
-                },
-              },
-            };
-          }
-          // Only fallback if credentials are not configured
-          useWooCommerce = false;
-        }
-      }
+      const fullUrl = `${phpUrl}?${queryParams.toString()}`;
       
-      // Fallback to WordPress REST API ONLY if WooCommerce credentials are NOT configured
-      // WARNING: WordPress REST API does NOT have price data
-      if (!useWooCommerce) {
-        console.warn('[products] WooCommerce credentials not configured. Falling back to WordPress REST API (WARNING: no price data available).');
-        const orderbyMap: Record<string, string> = {
-          'date': 'date',
-          'title': 'title',
-          'price': 'date',
-          'rating': 'date',
-          'popularity': 'date',
-        };
-        const wpOrderby = orderbyMap[orderby] || 'date';
-        
-        const params: Record<string, string | number> = {
-          per_page: perPage,
-          page: page,
-          order: order,
-          orderby: wpOrderby,
-          status: 'publish',
-          _embed: '1',
-          ...(search ? { search: search } : {})
-        };
-        
-        const apiUrl = wpUtils.buildWpApiUrl('wp/v2/product', params);
-        const headers = wpUtils.getWpApiHeaders(true, false);
-        
-        console.log('[products] Fetching from WordPress API (fallback):', apiUrl);
-        
-        const response = await fetch(apiUrl, {
-          method: 'GET',
-          headers,
-          signal: AbortSignal.timeout(15000),
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text().catch(() => '');
-          console.error('[products] WordPress API error:', response.status, errorText);
-          return {
-            products: {
-              nodes: [],
-              pageInfo: {
-                hasNextPage: false,
-                endCursor: null,
-              },
-            },
-          };
-        }
-        
-        let data = await response.json();
-        
-        // Filter by category if provided
-        if (category && Array.isArray(data)) {
-          try {
-            const categoriesUrl = wpUtils.buildWpApiUrl('wp/v2/product_cat', {
-              search: category,
-              per_page: 100
-            });
-            const categoriesResponse = await fetch(categoriesUrl, {
-              method: 'GET',
-              headers,
-              signal: AbortSignal.timeout(5000),
-            });
-            
-            if (categoriesResponse.ok) {
-              const categories = await categoriesResponse.json();
-              const categoryIds = Array.isArray(categories) 
-                ? categories.map((cat: any) => cat.id)
-                : [];
-              
-              if (categoryIds.length > 0) {
-                data = data.filter((product: any) => {
-                  const productCats = product.product_cat || [];
-                  return productCats.some((catId: number) => categoryIds.includes(catId));
-                });
-              }
-            }
-          } catch (catError) {
-            console.warn('[products] Error filtering by category:', catError);
-          }
-        }
-        
-        const total = response.headers.get('X-WP-Total') ? parseInt(response.headers.get('X-WP-Total')!) : 0;
-        const totalPages = response.headers.get('X-WP-TotalPages') ? parseInt(response.headers.get('X-WP-TotalPages')!) : 0;
-        const hasNextPage = page < totalPages;
-        
-        // Format products (no price/stock from WordPress REST API)
-        const formattedProducts = (Array.isArray(data) ? data : []).map((product: any) => {
-          let imageUrl: string | null = null;
-          if (product._embedded?.['wp:featuredmedia']?.[0]?.source_url) {
-            imageUrl = product._embedded['wp:featuredmedia'][0].source_url;
-          }
-          
-          const galleryImages: any[] = [];
-          if (imageUrl) {
-            galleryImages.push({ sourceUrl: imageUrl });
-          }
-          
-          return {
-            id: product.id,
-            databaseId: product.id,
-            sku: product.slug || `product-${product.id}`,
-            slug: product.slug,
-            name: product.title?.rendered || product.title || '',
-            description: product.content?.rendered || product.content || '',
-            regularPrice: '',
-            salePrice: null,
-            stockQuantity: null,
-            stockStatus: 'IN_STOCK',
-            image: imageUrl ? { sourceUrl: imageUrl } : null,
-            galleryImages: { nodes: galleryImages },
-            allPaStyle: { nodes: [] },
-            link: product.link,
-            status: product.status,
-          };
-        });
-        
-        const endCursor = hasNextPage 
-          ? Buffer.from(`page:${page + 1}`).toString('base64')
-          : null;
-        
+      console.log('[products] Fetching from PHP API:', fullUrl);
+      
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(30000),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        console.error('[products] PHP API error:', response.status, errorText);
         return {
           products: {
-            nodes: formattedProducts,
+            nodes: [],
             pageInfo: {
-              hasNextPage,
-              endCursor,
+              hasNextPage: false,
+              endCursor: null,
             },
           },
         };
       }
+      
+      const data = await response.json();
+      
+      return data;
     } catch (error: any) {
       console.error('[products] Error:', error);
       return {
@@ -359,8 +82,8 @@ export default cachedEventHandler(
     }
   },
   {
-    maxAge: 30, // Cache for 30 seconds (increased from 1 second)
-    swr: true, // Enable stale-while-revalidate
+    maxAge: 30,
+    swr: false,
     getKey: event => event.req.url!,
   }
 );

@@ -1,4 +1,4 @@
-// server/api/cart/add.post.ts
+// server/api/php-cart-add.post.ts
 // Add product to cart via PHP API endpoint
 
 export default defineEventHandler(async (event) => {
@@ -15,10 +15,10 @@ export default defineEventHandler(async (event) => {
     }
     
     // Build PHP API URL
-    const baseUrl = process.env.INTERNAL_BASE_URL || process.env.BASE_URL || 'http://localhost';
+    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
     const phpUrl = `${baseUrl}/server/api/php/addToCart.php`;
     
-    console.log('[cart/add] Calling PHP API:', phpUrl);
+    console.log('[php-cart-add] Calling PHP API:', phpUrl);
     
     const response = await fetch(phpUrl, {
       method: 'POST',
@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
     
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      console.error('[cart/add] PHP API error:', response.status, errorText);
+      console.error('[php-cart-add] PHP API error:', response.status, errorText);
       throw createError({
         statusCode: response.status,
         message: errorText || 'Failed to add to cart',
@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
     
     return data;
   } catch (error: any) {
-    console.error('[cart/add] Error:', error);
+    console.error('[php-cart-add] Error:', error);
     
     if (error.statusCode) {
       throw error;
