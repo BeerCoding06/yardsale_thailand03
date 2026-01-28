@@ -1,7 +1,7 @@
 // server/api/php-cart-add.post.ts
 // Add product to cart via PHP API endpoint
 
-import { executePhpScript } from '~/server/utils/php-executor';
+import { executePhpScript } from '../utils/php-executor';
 
 export default defineEventHandler(async (event) => {
   try {

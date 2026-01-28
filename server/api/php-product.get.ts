@@ -1,7 +1,7 @@
 // server/api/php-product.get.ts
 // Fetch single product via PHP API endpoint
 
-import { executePhpScript } from '~/server/utils/php-executor';
+import { executePhpScript } from '../utils/php-executor';
 
 export default defineEventHandler(async (event) => {
   try {

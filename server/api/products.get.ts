@@ -41,7 +41,7 @@ export default cachedEventHandler(
       console.log('[products] Executing PHP script: getProducts.php', queryParams);
       
       // Execute PHP script directly using PHP CLI
-      const { executePhpScript } = await import('~/server/utils/php-executor');
+      const { executePhpScript } = await import('../utils/php-executor');
       const data = await executePhpScript({
         script: 'getProducts.php',
         queryParams,

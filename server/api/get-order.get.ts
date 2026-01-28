@@ -1,7 +1,7 @@
 // server/api/get-order.get.ts
 // Fetch single order via PHP API endpoint
 
-import { executePhpScript } from '~/server/utils/php-executor';
+import { executePhpScript } from '../utils/php-executor';
 
 export default defineEventHandler(async (event) => {
   try {
