@@ -1,7 +1,7 @@
 // server/api/seller-orders.get.ts
 // Fetch seller orders via PHP API endpoint
 
-import { executePhpScript } from '../utils/php-executor';
+import { executePhpScript } from '~/server/utils/php-executor';
 
 export default defineEventHandler(async (event) => {
   try {

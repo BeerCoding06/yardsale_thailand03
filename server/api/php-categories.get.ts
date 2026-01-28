@@ -1,7 +1,7 @@
 // server/api/php-categories.get.ts
 // Fetch categories via PHP API endpoint
 
-import { executePhpScript } from '../utils/php-executor';
+import { executePhpScript } from '~/server/utils/php-executor';
 
 export default defineEventHandler(async (event) => {
   try {

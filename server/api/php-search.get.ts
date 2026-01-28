@@ -1,7 +1,7 @@
 // server/api/php-search.get.ts
 // Search products via PHP API endpoint
 
-import { executePhpScript } from '../utils/php-executor';
+import { executePhpScript } from '~/server/utils/php-executor';
 
 export default cachedEventHandler(
   async (event) => {
