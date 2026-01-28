@@ -8,6 +8,9 @@
 
 require_once __DIR__ . '/config.php';
 
+// Set CORS headers
+setCorsHeaders();
+
 // Get query parameters
 $customerId = isset($_GET['customer_id']) ? $_GET['customer_id'] : null;
 $customerEmail = isset($_GET['customer_email']) ? $_GET['customer_email'] : null;

@@ -192,11 +192,36 @@ function fetchWordPressApi($url, $method = 'GET', $data = null) {
 }
 
 /**
+ * Set CORS headers
+ */
+function setCorsHeaders() {
+    // Only set headers if not already sent
+    if (headers_sent()) {
+        return;
+    }
+    
+    header("Access-Control-Allow-Origin: *");
+    header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+    header("Access-Control-Allow-Headers: Content-Type, Authorization");
+    header('Content-Type: application/json');
+    
+    // Handle preflight OPTIONS request
+    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        http_response_code(200);
+        exit;
+    }
+}
+
+/**
  * Send JSON response
  */
 function sendJsonResponse($data, $status_code = 200) {
+    // CORS headers are already set by setCorsHeaders() if called separately
+    // But we ensure they're set here too if not already sent
+    if (!headers_sent()) {
+        setCorsHeaders();
+    }
     http_response_code($status_code);
-    header('Content-Type: application/json');
     echo json_encode($data);
     exit;
 }
@@ -205,6 +230,7 @@ function sendJsonResponse($data, $status_code = 200) {
  * Send error response
  */
 function sendErrorResponse($message, $status_code = 500) {
+    // setCorsHeaders() will be called by sendJsonResponse()
     sendJsonResponse([
         'success' => false,
         'error' => $message

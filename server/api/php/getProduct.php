@@ -1,12 +1,15 @@
 <?php
 /**
- * Get Single Product from WordPress REST API v2
+ * Get Single Product from WooCommerce REST API
  * 
  * Endpoint: GET /server/api/php/getProduct.php
  * Query params: slug, sku, id
  */
 
 require_once __DIR__ . '/config.php';
+
+// Set CORS headers
+setCorsHeaders();
 
 // Get query parameters
 $slug = isset($_GET['slug']) ? $_GET['slug'] : null;

@@ -8,6 +8,9 @@
 
 require_once __DIR__ . '/config.php';
 
+// Set CORS headers
+setCorsHeaders();
+
 // Get query parameters
 $parent = isset($_GET['parent']) ? (int)$_GET['parent'] : 0;
 $hide_empty = isset($_GET['hide_empty']) ? $_GET['hide_empty'] !== 'false' : true;

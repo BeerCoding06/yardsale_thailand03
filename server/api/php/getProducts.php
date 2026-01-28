@@ -8,6 +8,9 @@
 
 require_once __DIR__ . '/config.php';
 
+// Set CORS headers
+setCorsHeaders();
+
 // Get query parameters
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $per_page = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 21;

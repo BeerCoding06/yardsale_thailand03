@@ -8,6 +8,9 @@
 
 require_once __DIR__ . '/config.php';
 
+// Set CORS headers
+setCorsHeaders();
+
 // Get query parameters
 $search = isset($_GET['search']) ? $_GET['search'] : '';
 $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 6;

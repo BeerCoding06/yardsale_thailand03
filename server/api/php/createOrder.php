@@ -8,6 +8,9 @@
 
 require_once __DIR__ . '/config.php';
 
+// Set CORS headers
+setCorsHeaders();
+
 // Get request body
 $input = file_get_contents('php://input');
 $orderData = json_decode($input, true);
