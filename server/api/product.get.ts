@@ -33,7 +33,11 @@ export default cachedEventHandler(
       
       return data;
     } catch (error: any) {
-      console.error('[product] Error:', error.message || error);
+      console.error('[product] Error executing PHP script:', error.message || error);
+      // Log full error for debugging
+      if (error.stack) {
+        console.error('[product] Error stack:', error.stack);
+      }
       return { product: null };
     }
   },

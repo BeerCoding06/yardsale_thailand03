@@ -70,7 +70,27 @@ export async function executePhpScript(options: PhpExecutorOptions): Promise<any
       if (code !== 0) {
         console.error(`[php-executor] PHP script exited with code ${code}`);
         console.error(`[php-executor] stderr: ${stderr}`);
-        reject(new Error(`PHP script failed with code ${code}: ${stderr}`));
+        console.error(`[php-executor] stdout (first 500 chars): ${stdout.substring(0, 500)}`);
+        
+        // Try to parse error response if it's JSON
+        let errorMessage = `PHP script failed with code ${code}`;
+        if (stderr) {
+          errorMessage += `: ${stderr}`;
+        } else if (stdout) {
+          try {
+            const errorData = JSON.parse(stdout);
+            if (errorData.error) {
+              errorMessage = errorData.error;
+            } else if (errorData.message) {
+              errorMessage = errorData.message;
+            }
+          } catch (e) {
+            // Not JSON, use raw output
+            errorMessage += `: ${stdout.substring(0, 200)}`;
+          }
+        }
+        
+        reject(new Error(errorMessage));
         return;
       }
       
