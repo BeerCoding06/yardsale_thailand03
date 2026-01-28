@@ -11,8 +11,10 @@ define('WC_CONSUMER_KEY', getenv('WP_CONSUMER_KEY') ?: 'ck_c079fe80d163d7fd5d1f0
 define('WC_CONSUMER_SECRET', getenv('WP_CONSUMER_SECRET') ?: 'cs_787ef53ac512d8cb7a80aec2bffd73476a317afe');
 
 // WordPress Basic Auth (for WordPress REST API)
-// Format: base64(username:application_password)
-// Example: echo -n "username:password" | base64
+// Format 1: username:password (recommended - will be encoded automatically)
+// Format 2: base64(username:password) (already encoded)
+// Example: "paradon_pokpingmaung:W36JN6v85sOY5isnYh86hLLK"
+// Example base64: echo -n "username:password" | base64
 define('WP_BASIC_AUTH', getenv('WP_BASIC_AUTH') ?: '');
 
 /**
@@ -39,6 +41,26 @@ function buildWcApiUrl($endpoint, $params = []) {
 }
 
 /**
+ * Get WordPress Basic Auth credentials
+ * Supports both username:password and base64 encoded formats
+ * 
+ * @return string|null Base64 encoded credentials or null
+ */
+function getWpBasicAuth() {
+    if (empty(WP_BASIC_AUTH)) {
+        return null;
+    }
+    
+    // If it contains ':' it's username:password format, encode it
+    if (strpos(WP_BASIC_AUTH, ':') !== false) {
+        return base64_encode(WP_BASIC_AUTH);
+    }
+    
+    // Otherwise assume it's already base64 encoded
+    return WP_BASIC_AUTH;
+}
+
+/**
  * Get WordPress API headers with Basic Auth
  * 
  * @return array Headers array
@@ -48,8 +70,9 @@ function getWpApiHeaders() {
         'Content-Type: application/json'
     ];
     
-    if (!empty(WP_BASIC_AUTH)) {
-        $headers[] = 'Authorization: Basic ' . WP_BASIC_AUTH;
+    $basicAuth = getWpBasicAuth();
+    if ($basicAuth) {
+        $headers[] = 'Authorization: Basic ' . $basicAuth;
     }
     
     return $headers;
@@ -69,9 +92,24 @@ function fetchWooCommerceApi($url, $method = 'GET', $data = null, $useBasicAuth 
     
     $headers = ['Content-Type: application/json'];
     
-    // Add Basic Auth header if needed (for WordPress REST API)
+    // Add Basic Auth using CURLOPT_USERPWD (more reliable than Authorization header)
     if ($useBasicAuth && !empty(WP_BASIC_AUTH)) {
-        $headers[] = 'Authorization: Basic ' . WP_BASIC_AUTH;
+        // If it contains ':' it's username:password format
+        if (strpos(WP_BASIC_AUTH, ':') !== false) {
+            curl_setopt($ch, CURLOPT_USERPWD, WP_BASIC_AUTH);
+        } else {
+            // Otherwise assume it's base64 encoded, decode it first
+            $decoded = base64_decode(WP_BASIC_AUTH);
+            if ($decoded !== false && strpos($decoded, ':') !== false) {
+                curl_setopt($ch, CURLOPT_USERPWD, $decoded);
+            } else {
+                // Fallback: use Authorization header
+                $basicAuth = getWpBasicAuth();
+                if ($basicAuth) {
+                    $headers[] = 'Authorization: Basic ' . $basicAuth;
+                }
+            }
+        }
     }
     
     curl_setopt($ch, CURLOPT_URL, $url);
