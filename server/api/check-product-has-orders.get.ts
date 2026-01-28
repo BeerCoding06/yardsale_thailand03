@@ -34,14 +34,14 @@ export default defineCachedEventHandler(async (event) => {
       });
       
       console.log('[check-product-has-orders] Checking orders for product:', productId);
-      
+    
       const response = await fetch(apiUrl, {
-        method: 'GET',
+      method: 'GET',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(10000),
-      });
-      
-      if (!response.ok) {
+      signal: AbortSignal.timeout(10000),
+    });
+    
+    if (!response.ok) {
         // If API error, assume no orders (don't block the UI)
         console.warn('[check-product-has-orders] WooCommerce API error:', response.status);
         return { has_orders: false };

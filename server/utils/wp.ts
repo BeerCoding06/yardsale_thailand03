@@ -19,12 +19,35 @@ export function getWpBaseUrl(): string {
 }
 
 /**
- * Get WordPress Basic Auth from runtime config
- * @returns Basic Auth string or null
+ * Get WordPress Basic Auth from runtime config or environment
+ * Supports both username:password and base64 encoded formats
+ * @returns Basic Auth string (username:password format) or null
  */
 export function getWpBasicAuth(): string | null {
+  // Try runtime config first
   const config = useRuntimeConfig();
-  return config.wpBasicAuth || null;
+  if (config.wpBasicAuth) {
+    return config.wpBasicAuth;
+  }
+  
+  // Fallback to environment variable
+  const envAuth = process.env.WP_BASIC_AUTH;
+  if (envAuth) {
+    // If it's base64 encoded, decode it first
+    if (!envAuth.includes(':')) {
+      try {
+        const decoded = Buffer.from(envAuth, 'base64').toString('utf-8');
+        if (decoded.includes(':')) {
+          return decoded;
+        }
+      } catch (e) {
+        // Not base64, return as is
+      }
+    }
+    return envAuth;
+  }
+  
+  return null;
 }
 
 /**

@@ -51,14 +51,18 @@ RUN pnpm prepare || true
 # Build will work even without database connection due to error handling
 RUN sh -c 'NUXT_TELEMETRY_DISABLED=1 pnpm build || (echo "=== Build failed ===" && exit 1)'
 
-# Stage 3: Production - Nuxt only (no PHP/Nginx)
+# Stage 3: Production - Nuxt with PHP CLI
 FROM node:20-alpine AS runner
 
-# Install Node.js only
+# Install Node.js and PHP CLI
 RUN apk add --no-cache \
     nodejs \
     npm \
-    curl
+    curl \
+    php \
+    php-cli \
+    php-curl \
+    php-json
 
 WORKDIR /app
 
@@ -69,6 +73,9 @@ ENV NUXT_PORT=3000
 # Copy built Nuxt application from builder stage
 COPY --from=builder /app/.output ./.output
 COPY --from=builder /app/package.json ./package.json
+
+# Copy PHP scripts (needed for PHP CLI execution)
+COPY --from=builder /app/server/api/php ./server/api/php
 
 # Set proper permissions
 RUN chown -R node:node /app && \
