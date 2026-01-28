@@ -73,6 +73,14 @@ export default cachedEventHandler(
           
           if (wcResponse.ok) {
             const wcData = await wcResponse.json();
+            console.log('[products] WooCommerce API response sample (first product):', wcData[0] ? {
+              id: wcData[0].id,
+              name: wcData[0].name,
+              regular_price: wcData[0].regular_price,
+              sale_price: wcData[0].sale_price,
+              price: wcData[0].price,
+            } : 'No products');
+            
             const total = wcResponse.headers.get('X-WP-Total') ? parseInt(wcResponse.headers.get('X-WP-Total')!) : 0;
             const totalPages = wcResponse.headers.get('X-WP-TotalPages') ? parseInt(wcResponse.headers.get('X-WP-TotalPages')!) : 0;
             const hasNextPage = page < totalPages;
@@ -83,17 +91,39 @@ export default cachedEventHandler(
               let regularPrice = '';
               let salePrice: string | null = null;
               
-              if (product.regular_price && product.regular_price !== '') {
-                const price = parseFloat(product.regular_price);
+              // Check regular_price (can be string, number, or null/empty string)
+              // WooCommerce API returns regular_price as string or number
+              let regularPriceValue: string | number | null = null;
+              
+              if (product.regular_price !== null && product.regular_price !== undefined && String(product.regular_price).trim() !== '') {
+                regularPriceValue = product.regular_price;
+              } else if (product.price !== null && product.price !== undefined && String(product.price).trim() !== '') {
+                regularPriceValue = product.price;
+              }
+              
+              if (regularPriceValue !== null && regularPriceValue !== undefined) {
+                const price = parseFloat(String(regularPriceValue));
                 if (!isNaN(price) && price > 0) {
                   regularPrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
                 }
               }
               
-              if (product.sale_price && product.sale_price !== '') {
-                const price = parseFloat(product.sale_price);
+              // Check sale_price (can be string, number, or null/empty string)
+              // WooCommerce API returns sale_price as string or number
+              let salePriceValue: string | number | null = null;
+              
+              if (product.sale_price !== null && product.sale_price !== undefined && String(product.sale_price).trim() !== '') {
+                salePriceValue = product.sale_price;
+              }
+              
+              if (salePriceValue !== null && salePriceValue !== undefined) {
+                const price = parseFloat(String(salePriceValue));
                 if (!isNaN(price) && price > 0) {
-                  salePrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+                  // Only set salePrice if it's less than regularPrice
+                  const regularPriceNum = regularPriceValue ? parseFloat(String(regularPriceValue)) : 0;
+                  if (price < regularPriceNum || regularPriceNum === 0) {
+                    salePrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+                  }
                 }
               }
               
