@@ -99,18 +99,34 @@ export default cachedEventHandler(
         const wcHeaders = wpUtils.getWpApiHeaders(false, true);
         if (wcHeaders['Authorization']) {
           const wcUrl = wpUtils.buildWpApiUrl(`wc/v3/products/${productId}`);
+          console.log(`[product] Fetching WooCommerce data for product ${productId}:`, wcUrl);
+          
           const wcResponse = await fetch(wcUrl, {
             method: 'GET',
             headers: wcHeaders,
-            signal: AbortSignal.timeout(5000),
+            signal: AbortSignal.timeout(10000), // Increase timeout to 10 seconds
           });
+          
+          console.log(`[product] WooCommerce API response for product ${productId}:`, wcResponse.status);
           
           if (wcResponse.ok) {
             wcProduct = await wcResponse.json();
+            console.log(`[product] WooCommerce product data for ${productId}:`, {
+              hasRegularPrice: !!wcProduct.regular_price,
+              hasSalePrice: !!wcProduct.sale_price,
+              hasSku: !!wcProduct.sku,
+              hasStockQuantity: wcProduct.stock_quantity !== null && wcProduct.stock_quantity !== undefined,
+              stockStatus: wcProduct.stock_status,
+            });
+          } else {
+            const errorText = await wcResponse.text().catch(() => '');
+            console.warn(`[product] WooCommerce API error for product ${productId}:`, wcResponse.status, errorText.substring(0, 200));
           }
+        } else {
+          console.warn(`[product] WooCommerce API credentials not configured for product ${productId}`);
         }
       } catch (e) {
-        console.warn('[product] Error fetching WooCommerce data:', e);
+        console.error(`[product] Error fetching WooCommerce data for product ${productId}:`, e);
       }
       
       // Get featured image
@@ -149,13 +165,17 @@ export default cachedEventHandler(
       let stockStatus = 'IN_STOCK';
       
       if (wcProduct) {
-        if (wcProduct.regular_price) {
+        if (wcProduct.regular_price && wcProduct.regular_price !== '') {
           const price = parseFloat(wcProduct.regular_price);
-          regularPrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+          if (!isNaN(price) && price > 0) {
+            regularPrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+          }
         }
-        if (wcProduct.sale_price) {
+        if (wcProduct.sale_price && wcProduct.sale_price !== '') {
           const price = parseFloat(wcProduct.sale_price);
-          salePrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+          if (!isNaN(price) && price > 0) {
+            salePrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+          }
         }
         if (wcProduct.sku) {
           productSku = wcProduct.sku;
@@ -166,6 +186,8 @@ export default cachedEventHandler(
         if (wcProduct.stock_status) {
           stockStatus = wcProduct.stock_status.toUpperCase();
         }
+      } else {
+        console.warn(`[product] No WooCommerce data available for product ${productId}, prices and stock will be empty`);
       }
       
       // Get PA Style and PA Color attributes (if available)

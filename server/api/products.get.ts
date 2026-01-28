@@ -1,5 +1,5 @@
 // server/api/products.get.ts
-// Fetch products from WordPress REST API
+// Fetch products from WooCommerce REST API (faster - includes price and stock)
 
 import * as wpUtils from '../utils/wp';
 
@@ -23,222 +23,261 @@ export default cachedEventHandler(
         }
       }
       
-      // WordPress REST API endpoint for products
       const perPage = 21;
       const search = query.search as string | undefined;
       const category = query.category as string | undefined;
       const order = (query.order as string)?.toLowerCase() || 'desc';
       const orderby = (query.orderby as string)?.toLowerCase() || 'date';
       
-      // Map orderby to WordPress REST API format
+      // Map orderby to WooCommerce API format
       const orderbyMap: Record<string, string> = {
         'date': 'date',
         'title': 'title',
-        'price': 'date', // WordPress REST API doesn't support price ordering directly
-        'rating': 'date',
-        'popularity': 'date',
+        'price': 'price',
+        'rating': 'rating',
+        'popularity': 'popularity',
       };
-      const wpOrderby = orderbyMap[orderby] || 'date';
+      const wcOrderby = orderbyMap[orderby] || 'date';
       
-      // Build query parameters
-      const params: Record<string, string | number> = {
-        per_page: perPage,
-        page: page,
-        order: order,
-        orderby: wpOrderby,
-        status: 'publish',
-        _embed: '1', // Embed featured media and other linked resources
-        ...(search ? { search: search } : {})
-      };
+      // Try WooCommerce API first (has price and stock built-in)
+      const wcHeaders = wpUtils.getWpApiHeaders(false, true);
+      let useWooCommerce = !!wcHeaders['Authorization'];
       
-      // Use WordPress REST API endpoint
-      const apiUrl = wpUtils.buildWpApiUrl('wp/v2/product', params);
-      
-      // Use utility function for headers
-      const headers = wpUtils.getWpApiHeaders(true, false);
-      
-      console.log('[products] Fetching from WordPress API:', apiUrl);
-      
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers,
-        signal: AbortSignal.timeout(30000),
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        console.error('[products] WordPress API error:', response.status, errorText);
-        return {
-          products: {
-            nodes: [],
-            pageInfo: {
-              hasNextPage: false,
-              endCursor: null,
-            },
-          },
-        };
-      }
-      
-      let data = await response.json();
-      
-      // Filter by category if provided
-      if (category && Array.isArray(data)) {
-        // Fetch categories to match by name
+      if (useWooCommerce) {
         try {
-          const categoriesUrl = wpUtils.buildWpApiUrl('wp/v2/product_cat', {
-            search: category,
-            per_page: 100
-          });
-          const categoriesResponse = await fetch(categoriesUrl, {
+          // Build WooCommerce API params
+          const wcParams: Record<string, string | number> = {
+            per_page: perPage,
+            page: page,
+            order: order,
+            orderby: wcOrderby,
+            status: 'publish',
+            ...(search ? { search: search } : {}),
+            ...(category ? { category: category } : {})
+          };
+          
+          const wcUrl = wpUtils.buildWpApiUrl('wc/v3/products', wcParams);
+          console.log('[products] Fetching from WooCommerce API (fast):', wcUrl);
+          
+          const wcResponse = await fetch(wcUrl, {
             method: 'GET',
-            headers,
-            signal: AbortSignal.timeout(10000),
+            headers: wcHeaders,
+            signal: AbortSignal.timeout(15000),
           });
           
-          if (categoriesResponse.ok) {
-            const categories = await categoriesResponse.json();
-            const categoryIds = Array.isArray(categories) 
-              ? categories.map((cat: any) => cat.id)
-              : [];
+          if (wcResponse.ok) {
+            const wcData = await wcResponse.json();
+            const total = wcResponse.headers.get('X-WP-Total') ? parseInt(wcResponse.headers.get('X-WP-Total')!) : 0;
+            const totalPages = wcResponse.headers.get('X-WP-TotalPages') ? parseInt(wcResponse.headers.get('X-WP-TotalPages')!) : 0;
+            const hasNextPage = page < totalPages;
             
-            if (categoryIds.length > 0) {
-              data = data.filter((product: any) => {
-                const productCats = product.product_cat || [];
-                return productCats.some((catId: number) => categoryIds.includes(catId));
-              });
-            }
+            // Format WooCommerce products (already has price and stock)
+            const formattedProducts = (Array.isArray(wcData) ? wcData : []).map((product: any) => {
+              // Format prices
+              let regularPrice = '';
+              let salePrice: string | null = null;
+              
+              if (product.regular_price && product.regular_price !== '') {
+                const price = parseFloat(product.regular_price);
+                if (!isNaN(price) && price > 0) {
+                  regularPrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+                }
+              }
+              
+              if (product.sale_price && product.sale_price !== '') {
+                const price = parseFloat(product.sale_price);
+                if (!isNaN(price) && price > 0) {
+                  salePrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
+                }
+              }
+              
+              // Get image
+              let imageUrl: string | null = null;
+              if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+                imageUrl = product.images[0].src || null;
+              }
+              
+              // Get gallery images
+              const galleryImages = (product.images || []).map((img: any) => ({
+                sourceUrl: img.src
+              }));
+              
+              return {
+                id: product.id,
+                databaseId: product.id,
+                sku: product.sku || product.slug || `product-${product.id}`,
+                slug: product.slug,
+                name: product.name || '',
+                description: product.description || '',
+                regularPrice,
+                salePrice,
+                stockQuantity: product.stock_quantity !== null && product.stock_quantity !== undefined
+                  ? parseInt(product.stock_quantity)
+                  : null,
+                stockStatus: (product.stock_status || 'instock').toUpperCase(),
+                image: imageUrl ? { sourceUrl: imageUrl } : null,
+                galleryImages: { nodes: galleryImages },
+                allPaStyle: { nodes: [] },
+                link: product.permalink || '',
+                status: product.status,
+              };
+            });
+            
+            const endCursor = hasNextPage 
+              ? Buffer.from(`page:${page + 1}`).toString('base64')
+              : null;
+            
+            console.log('[products] Formatted products from WooCommerce:', formattedProducts.length);
+            
+            return {
+              products: {
+                nodes: formattedProducts,
+                pageInfo: {
+                  hasNextPage,
+                  endCursor,
+                },
+              },
+            };
+          } else {
+            console.warn('[products] WooCommerce API failed, falling back to WordPress REST API');
+            useWooCommerce = false;
           }
-        } catch (catError) {
-          console.warn('[products] Error filtering by category:', catError);
+        } catch (wcError) {
+          console.warn('[products] WooCommerce API error, falling back to WordPress REST API:', wcError);
+          useWooCommerce = false;
         }
       }
       
-      // Get pagination info from headers
-      const total = response.headers.get('X-WP-Total') ? parseInt(response.headers.get('X-WP-Total')!) : 0;
-      const totalPages = response.headers.get('X-WP-TotalPages') ? parseInt(response.headers.get('X-WP-TotalPages')!) : 0;
-      const hasNextPage = page < totalPages;
-      
-      // Format products to match expected structure
-      const formattedProducts = await Promise.all(
-        (Array.isArray(data) ? data : []).map(async (product: any) => {
-          // Get featured image from _embedded
+      // Fallback to WordPress REST API if WooCommerce not available
+      if (!useWooCommerce) {
+        const orderbyMap: Record<string, string> = {
+          'date': 'date',
+          'title': 'title',
+          'price': 'date',
+          'rating': 'date',
+          'popularity': 'date',
+        };
+        const wpOrderby = orderbyMap[orderby] || 'date';
+        
+        const params: Record<string, string | number> = {
+          per_page: perPage,
+          page: page,
+          order: order,
+          orderby: wpOrderby,
+          status: 'publish',
+          _embed: '1',
+          ...(search ? { search: search } : {})
+        };
+        
+        const apiUrl = wpUtils.buildWpApiUrl('wp/v2/product', params);
+        const headers = wpUtils.getWpApiHeaders(true, false);
+        
+        console.log('[products] Fetching from WordPress API (fallback):', apiUrl);
+        
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers,
+          signal: AbortSignal.timeout(15000),
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+          console.error('[products] WordPress API error:', response.status, errorText);
+          return {
+            products: {
+              nodes: [],
+              pageInfo: {
+                hasNextPage: false,
+                endCursor: null,
+              },
+            },
+          };
+        }
+        
+        let data = await response.json();
+        
+        // Filter by category if provided
+        if (category && Array.isArray(data)) {
+          try {
+            const categoriesUrl = wpUtils.buildWpApiUrl('wp/v2/product_cat', {
+              search: category,
+              per_page: 100
+            });
+            const categoriesResponse = await fetch(categoriesUrl, {
+              method: 'GET',
+              headers,
+              signal: AbortSignal.timeout(5000),
+            });
+            
+            if (categoriesResponse.ok) {
+              const categories = await categoriesResponse.json();
+              const categoryIds = Array.isArray(categories) 
+                ? categories.map((cat: any) => cat.id)
+                : [];
+              
+              if (categoryIds.length > 0) {
+                data = data.filter((product: any) => {
+                  const productCats = product.product_cat || [];
+                  return productCats.some((catId: number) => categoryIds.includes(catId));
+                });
+              }
+            }
+          } catch (catError) {
+            console.warn('[products] Error filtering by category:', catError);
+          }
+        }
+        
+        const total = response.headers.get('X-WP-Total') ? parseInt(response.headers.get('X-WP-Total')!) : 0;
+        const totalPages = response.headers.get('X-WP-TotalPages') ? parseInt(response.headers.get('X-WP-TotalPages')!) : 0;
+        const hasNextPage = page < totalPages;
+        
+        // Format products (no price/stock from WordPress REST API)
+        const formattedProducts = (Array.isArray(data) ? data : []).map((product: any) => {
           let imageUrl: string | null = null;
           if (product._embedded?.['wp:featuredmedia']?.[0]?.source_url) {
             imageUrl = product._embedded['wp:featuredmedia'][0].source_url;
-          } else if (product.featured_media) {
-            // Fetch media if not embedded
-            try {
-              const mediaUrl = wpUtils.buildWpApiUrl(`wp/v2/media/${product.featured_media}`);
-              const mediaResponse = await fetch(mediaUrl, {
-                method: 'GET',
-                headers,
-                signal: AbortSignal.timeout(5000),
-              });
-              if (mediaResponse.ok) {
-                const media = await mediaResponse.json();
-                imageUrl = media.source_url || null;
-              }
-            } catch (e) {
-              console.warn('[products] Error fetching media:', e);
-            }
           }
           
-          // Get gallery images from _embedded or fetch
           const galleryImages: any[] = [];
-          // WordPress REST API doesn't provide gallery in standard response
-          // We'll use featured image as gallery for now
           if (imageUrl) {
             galleryImages.push({ sourceUrl: imageUrl });
           }
           
-          // Try to get price from WooCommerce API if available
-          let regularPrice = '';
-          let salePrice: string | null = null;
-          let sku = product.slug || `product-${product.id}`;
-          let stockQuantity: number | null = null;
-          let stockStatus = 'IN_STOCK';
-          
-          // Try WooCommerce API for price and meta data
-          try {
-            const wcHeaders = wpUtils.getWpApiHeaders(false, true); // Use WooCommerce auth
-            if (wcHeaders['Authorization']) {
-              const wcUrl = wpUtils.buildWpApiUrl(`wc/v3/products/${product.id}`);
-              const wcResponse = await fetch(wcUrl, {
-                method: 'GET',
-                headers: wcHeaders,
-                signal: AbortSignal.timeout(5000),
-              });
-              
-              if (wcResponse.ok) {
-                const wcProduct = await wcResponse.json();
-                if (wcProduct.regular_price) {
-                  const price = parseFloat(wcProduct.regular_price);
-                  regularPrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
-                }
-                if (wcProduct.sale_price) {
-                  const price = parseFloat(wcProduct.sale_price);
-                  salePrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
-                }
-                if (wcProduct.sku) {
-                  sku = wcProduct.sku;
-                }
-                if (wcProduct.stock_quantity !== null && wcProduct.stock_quantity !== undefined) {
-                  stockQuantity = parseInt(wcProduct.stock_quantity);
-                }
-                if (wcProduct.stock_status) {
-                  stockStatus = wcProduct.stock_status.toUpperCase();
-                }
-              }
-            }
-          } catch (wcError) {
-            console.warn('[products] Error fetching WooCommerce data:', wcError);
-          }
-          
-          // Get product categories
-          const productCats = product.product_cat || [];
-          
-          // Get PA Style attribute (if available in _embedded)
-          const paStyle: any[] = [];
-          
           return {
             id: product.id,
             databaseId: product.id,
-            sku,
+            sku: product.slug || `product-${product.id}`,
             slug: product.slug,
             name: product.title?.rendered || product.title || '',
             description: product.content?.rendered || product.content || '',
-            regularPrice,
-            salePrice,
-            stockQuantity,
-            stockStatus,
+            regularPrice: '',
+            salePrice: null,
+            stockQuantity: null,
+            stockStatus: 'IN_STOCK',
             image: imageUrl ? { sourceUrl: imageUrl } : null,
             galleryImages: { nodes: galleryImages },
-            allPaStyle: { nodes: paStyle },
+            allPaStyle: { nodes: [] },
             link: product.link,
             status: product.status,
           };
-        })
-      );
-      
-      // Generate cursor for pagination
-      const endCursor = hasNextPage 
-        ? Buffer.from(`page:${page + 1}`).toString('base64')
-        : null;
-      
-      console.log('[products] Formatted products:', formattedProducts.length);
-      
-      return {
-        products: {
-          nodes: formattedProducts,
-          pageInfo: {
-            hasNextPage,
-            endCursor,
+        });
+        
+        const endCursor = hasNextPage 
+          ? Buffer.from(`page:${page + 1}`).toString('base64')
+          : null;
+        
+        return {
+          products: {
+            nodes: formattedProducts,
+            pageInfo: {
+              hasNextPage,
+              endCursor,
+            },
           },
-        },
-      };
+        };
+      }
     } catch (error: any) {
       console.error('[products] Error:', error);
-      // Return empty data instead of throwing error to keep the app working
       return {
         products: {
           nodes: [],
@@ -251,8 +290,8 @@ export default cachedEventHandler(
     }
   },
   {
-    maxAge: 1,
-    swr: false,
+    maxAge: 30, // Cache for 30 seconds (increased from 1 second)
+    swr: true, // Enable stale-while-revalidate
     getKey: event => event.req.url!,
   }
 );

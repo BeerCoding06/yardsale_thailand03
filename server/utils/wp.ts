@@ -94,6 +94,8 @@ export function getWpApiHeaders(useBasicAuth: boolean = true, useWooCommerceAuth
       const authString = `${consumerKey}:${consumerSecret}`;
       const auth = Buffer.from(authString).toString('base64');
       headers['Authorization'] = `Basic ${auth}`;
+    } else {
+      console.warn('[wp] WooCommerce Consumer Key/Secret not configured. Set WP_CONSUMER_KEY and WP_CONSUMER_SECRET in .env file');
     }
   }
   

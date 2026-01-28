@@ -41,61 +41,94 @@ export default cachedEventHandler(
       
       const data = await response.json();
       
-      // Format products to match expected structure
-      const formattedProducts = await Promise.all(
-        (Array.isArray(data) ? data : []).map(async (product: any) => {
-          // Get featured image
-          let imageUrl: string | null = null;
-          if (product._embedded?.['wp:featuredmedia']?.[0]?.source_url) {
-            imageUrl = product._embedded['wp:featuredmedia'][0].source_url;
-          }
+      // Try WooCommerce API first (faster - has price built-in)
+      const wcHeaders = wpUtils.getWpApiHeaders(false, true);
+      if (wcHeaders['Authorization']) {
+        try {
+          const wcUrl = wpUtils.buildWpApiUrl('wc/v3/products', {
+            search: search,
+            per_page: limit,
+            status: 'publish',
+          });
           
-          // Get price from WooCommerce if available
-          let regularPrice = '';
-          let salePrice: string | null = null;
-          let sku = product.slug || `product-${product.id}`;
+          console.log('[search] Fetching from WooCommerce API (fast):', wcUrl);
           
-          try {
-            const wcHeaders = wpUtils.getWpApiHeaders(false, true);
-            if (wcHeaders['Authorization']) {
-              const wcUrl = wpUtils.buildWpApiUrl(`wc/v3/products/${product.id}`);
-              const wcResponse = await fetch(wcUrl, {
-                method: 'GET',
-                headers: wcHeaders,
-                signal: AbortSignal.timeout(3000),
-              });
+          const wcResponse = await fetch(wcUrl, {
+            method: 'GET',
+            headers: wcHeaders,
+            signal: AbortSignal.timeout(10000),
+          });
+          
+          if (wcResponse.ok) {
+            const wcData = await wcResponse.json();
+            
+            // Format WooCommerce products (already has price)
+            const formattedProducts = (Array.isArray(wcData) ? wcData : []).map((product: any) => {
+              // Format prices
+              let regularPrice = '';
+              let salePrice: string | null = null;
               
-              if (wcResponse.ok) {
-                const wcProduct = await wcResponse.json();
-                if (wcProduct.regular_price) {
-                  const price = parseFloat(wcProduct.regular_price);
+              if (product.regular_price && product.regular_price !== '') {
+                const price = parseFloat(product.regular_price);
+                if (!isNaN(price) && price > 0) {
                   regularPrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
                 }
-                if (wcProduct.sale_price) {
-                  const price = parseFloat(wcProduct.sale_price);
+              }
+              
+              if (product.sale_price && product.sale_price !== '') {
+                const price = parseFloat(product.sale_price);
+                if (!isNaN(price) && price > 0) {
                   salePrice = `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(price).toLocaleString()}</span>`;
                 }
-                if (wcProduct.sku) {
-                  sku = wcProduct.sku;
-                }
               }
-            }
-          } catch (e) {
-            // Ignore errors for search results
+              
+              // Get image
+              let imageUrl: string | null = null;
+              if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+                imageUrl = product.images[0].src || null;
+              }
+              
+              return {
+                id: product.id,
+                databaseId: product.id,
+                sku: product.sku || product.slug || `product-${product.id}`,
+                slug: product.slug,
+                name: product.name || '',
+                regularPrice,
+                salePrice,
+                image: imageUrl ? { sourceUrl: imageUrl } : null,
+              };
+            });
+            
+            return {
+              products: {
+                nodes: formattedProducts
+              }
+            };
           }
-          
-          return {
-            id: product.id,
-            databaseId: product.id,
-            sku,
-            slug: product.slug,
-            name: product.title?.rendered || product.title || '',
-            regularPrice,
-            salePrice,
-            image: imageUrl ? { sourceUrl: imageUrl } : null,
-          };
-        })
-      );
+        } catch (wcError) {
+          console.warn('[search] WooCommerce API error, using WordPress REST API:', wcError);
+        }
+      }
+      
+      // Fallback to WordPress REST API (no price)
+      const formattedProducts = (Array.isArray(data) ? data : []).map((product: any) => {
+        let imageUrl: string | null = null;
+        if (product._embedded?.['wp:featuredmedia']?.[0]?.source_url) {
+          imageUrl = product._embedded['wp:featuredmedia'][0].source_url;
+        }
+        
+        return {
+          id: product.id,
+          databaseId: product.id,
+          sku: product.slug || `product-${product.id}`,
+          slug: product.slug,
+          name: product.title?.rendered || product.title || '',
+          regularPrice: '',
+          salePrice: null,
+          image: imageUrl ? { sourceUrl: imageUrl } : null,
+        };
+      });
       
       return {
         products: {
@@ -108,8 +141,8 @@ export default cachedEventHandler(
     }
   },
   {
-    maxAge: 0.5,
-    swr: false,
+    maxAge: 5, // Cache for 5 seconds (increased from 0.5 seconds)
+    swr: true, // Enable stale-while-revalidate
     getKey: event => event.req.url!,
   }
 );
