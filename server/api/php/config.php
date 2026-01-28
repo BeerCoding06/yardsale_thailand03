@@ -10,6 +10,11 @@ define('WC_BASE_URL', getenv('WP_BASE_URL') ?: 'http://157.85.98.150:8080');
 define('WC_CONSUMER_KEY', getenv('WP_CONSUMER_KEY') ?: 'ck_c079fe80d163d7fd5d1f0bccfe2d198ece614ca4');
 define('WC_CONSUMER_SECRET', getenv('WP_CONSUMER_SECRET') ?: 'cs_787ef53ac512d8cb7a80aec2bffd73476a317afe');
 
+// WordPress Basic Auth (for WordPress REST API)
+// Format: base64(username:application_password)
+// Example: echo -n "username:password" | base64
+define('WP_BASIC_AUTH', getenv('WP_BASIC_AUTH') ?: '');
+
 /**
  * Build WooCommerce API URL
  * 
@@ -34,21 +39,44 @@ function buildWcApiUrl($endpoint, $params = []) {
 }
 
 /**
+ * Get WordPress API headers with Basic Auth
+ * 
+ * @return array Headers array
+ */
+function getWpApiHeaders() {
+    $headers = [
+        'Content-Type: application/json'
+    ];
+    
+    if (!empty(WP_BASIC_AUTH)) {
+        $headers[] = 'Authorization: Basic ' . WP_BASIC_AUTH;
+    }
+    
+    return $headers;
+}
+
+/**
  * Fetch data from WooCommerce API using cURL
  * 
  * @param string $url API URL
  * @param string $method HTTP method (GET, POST, PUT, DELETE)
  * @param array $data Request body data (for POST/PUT)
+ * @param bool $useBasicAuth Use Basic Auth for WordPress REST API (default: false)
  * @return array Response data or error
  */
-function fetchWooCommerceApi($url, $method = 'GET', $data = null) {
+function fetchWooCommerceApi($url, $method = 'GET', $data = null, $useBasicAuth = false) {
     $ch = curl_init();
+    
+    $headers = ['Content-Type: application/json'];
+    
+    // Add Basic Auth header if needed (for WordPress REST API)
+    if ($useBasicAuth && !empty(WP_BASIC_AUTH)) {
+        $headers[] = 'Authorization: Basic ' . WP_BASIC_AUTH;
+    }
     
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        'Content-Type: application/json'
-    ]);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_TIMEOUT, 30);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
@@ -79,6 +107,18 @@ function fetchWooCommerceApi($url, $method = 'GET', $data = null) {
         'http_code' => $http_code,
         'raw_response' => $response
     ];
+}
+
+/**
+ * Fetch data from WordPress REST API using cURL (with Basic Auth)
+ * 
+ * @param string $url API URL
+ * @param string $method HTTP method (GET, POST, PUT, DELETE)
+ * @param array $data Request body data (for POST/PUT)
+ * @return array Response data or error
+ */
+function fetchWordPressApi($url, $method = 'GET', $data = null) {
+    return fetchWooCommerceApi($url, $method, $data, true);
 }
 
 /**

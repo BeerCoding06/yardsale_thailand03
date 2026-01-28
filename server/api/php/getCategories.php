@@ -25,23 +25,14 @@ $url = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query([
     'parent' => $parent
 ]);
 
-// Fetch from WordPress REST API
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $url);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+// Fetch from WordPress REST API (with Basic Auth)
+$result = fetchWordPressApi($url, 'GET');
 
-$response = curl_exec($ch);
-$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
-if ($http_code !== 200) {
-    sendErrorResponse('Failed to fetch categories', $http_code ?: 500);
+if (!$result['success']) {
+    sendErrorResponse($result['error'] ?? 'Failed to fetch categories', $result['http_code'] ?: 500);
 }
 
-$categories = json_decode($response, true);
+$categories = $result['data'] ?? [];
 
 if (!is_array($categories)) {
     $categories = [];
@@ -64,17 +55,9 @@ foreach ($categories as $category) {
             'hide_empty' => $hide_empty ? '1' : '0'
         ]);
         
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $childrenUrl);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        $childrenResult = fetchWordPressApi($childrenUrl, 'GET');
         
-        $childrenResponse = curl_exec($ch);
-        curl_close($ch);
-        
-        $childrenData = json_decode($childrenResponse, true);
+        $childrenData = $childrenResult['success'] ? ($childrenResult['data'] ?? []) : [];
         if (is_array($childrenData)) {
             foreach ($childrenData as $child) {
                 $children[] = [
