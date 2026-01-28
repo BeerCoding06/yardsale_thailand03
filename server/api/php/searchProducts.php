@@ -20,18 +20,19 @@ if (empty($search)) {
     ]);
 }
 
-// Build API parameters
+// Build WordPress REST API v2 parameters
 $params = [
     'search' => $search,
     'per_page' => $limit,
-    'status' => 'publish'
+    'status' => 'publish',
+    '_embed' => '1'
 ];
 
-// Build API URL
-$url = buildWcApiUrl('wc/v3/products', $params);
+// Build WordPress REST API v2 URL
+$url = buildWpApiUrl('wp/v2/product', $params);
 
-// Fetch from WooCommerce API
-$result = fetchWooCommerceApi($url, 'GET');
+// Fetch from WordPress REST API v2 (with Basic Auth)
+$result = fetchWordPressApi($url, 'GET');
 
 if (!$result['success']) {
     sendJsonResponse([
@@ -46,15 +47,23 @@ $products = $result['data'] ?? [];
 // Format products
 $formattedProducts = [];
 foreach ($products as $product) {
-    // Format prices
+    // Get featured image from _embedded
+    $imageUrl = null;
+    if (!empty($product['_embedded']['wp:featuredmedia'][0]['source_url'])) {
+        $imageUrl = $product['_embedded']['wp:featuredmedia'][0]['source_url'];
+    }
+    
+    // Get price from meta fields
     $regularPrice = '';
     $salePrice = null;
     
     $regularPriceValue = null;
-    if (!empty($product['regular_price']) && $product['regular_price'] !== '') {
-        $regularPriceValue = $product['regular_price'];
-    } elseif (!empty($product['price']) && $product['price'] !== '') {
-        $regularPriceValue = $product['price'];
+    if (!empty($product['meta'])) {
+        if (isset($product['meta']['_regular_price'])) {
+            $regularPriceValue = $product['meta']['_regular_price'];
+        } elseif (isset($product['meta']['_price'])) {
+            $regularPriceValue = $product['meta']['_price'];
+        }
     }
     
     if ($regularPriceValue !== null && $regularPriceValue !== '') {
@@ -65,8 +74,8 @@ foreach ($products as $product) {
     }
     
     $salePriceValue = null;
-    if (!empty($product['sale_price']) && $product['sale_price'] !== '') {
-        $salePriceValue = $product['sale_price'];
+    if (!empty($product['meta']) && isset($product['meta']['_sale_price']) && $product['meta']['_sale_price'] !== '') {
+        $salePriceValue = $product['meta']['_sale_price'];
     }
     
     if ($salePriceValue !== null && $salePriceValue !== '') {
@@ -79,18 +88,18 @@ foreach ($products as $product) {
         }
     }
     
-    // Get image
-    $imageUrl = null;
-    if (!empty($product['images']) && is_array($product['images']) && count($product['images']) > 0) {
-        $imageUrl = $product['images'][0]['src'] ?? null;
+    // Get SKU from meta
+    $sku = $product['slug'] ?? 'product-' . $product['id'];
+    if (!empty($product['meta']) && isset($product['meta']['_sku'])) {
+        $sku = $product['meta']['_sku'];
     }
     
     $formattedProducts[] = [
         'id' => $product['id'],
         'databaseId' => $product['id'],
-        'sku' => $product['sku'] ?? $product['slug'] ?? 'product-' . $product['id'],
+        'sku' => $sku,
         'slug' => $product['slug'],
-        'name' => $product['name'] ?? '',
+        'name' => $product['title']['rendered'] ?? $product['title'] ?? '',
         'regularPrice' => $regularPrice,
         'salePrice' => $salePrice,
         'image' => $imageUrl ? ['sourceUrl' => $imageUrl] : null

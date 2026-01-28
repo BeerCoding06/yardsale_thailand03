@@ -18,9 +18,9 @@ if (!$productId) {
     sendErrorResponse('productId is required', 400);
 }
 
-// Fetch product from WooCommerce API
-$url = buildWcApiUrl("wc/v3/products/$productId");
-$result = fetchWooCommerceApi($url, 'GET');
+// Fetch product from WordPress REST API v2
+$url = buildWpApiUrl("wp/v2/product/$productId", ['_embed' => '1']);
+$result = fetchWordPressApi($url, 'GET');
 
 if (!$result['success']) {
     sendErrorResponse('Product not found', 404);
@@ -28,15 +28,23 @@ if (!$result['success']) {
 
 $product = $result['data'];
 
-// Format prices
+// Get featured image from _embedded
+$imageUrl = null;
+if (!empty($product['_embedded']['wp:featuredmedia'][0]['source_url'])) {
+    $imageUrl = $product['_embedded']['wp:featuredmedia'][0]['source_url'];
+}
+
+// Format prices from meta fields
 $regularPrice = '';
 $salePrice = null;
 
 $regularPriceValue = null;
-if (!empty($product['regular_price']) && $product['regular_price'] !== '') {
-    $regularPriceValue = $product['regular_price'];
-} elseif (!empty($product['price']) && $product['price'] !== '') {
-    $regularPriceValue = $product['price'];
+if (!empty($product['meta'])) {
+    if (isset($product['meta']['_regular_price'])) {
+        $regularPriceValue = $product['meta']['_regular_price'];
+    } elseif (isset($product['meta']['_price'])) {
+        $regularPriceValue = $product['meta']['_price'];
+    }
 }
 
 if ($regularPriceValue !== null && $regularPriceValue !== '') {
@@ -47,8 +55,8 @@ if ($regularPriceValue !== null && $regularPriceValue !== '') {
 }
 
 $salePriceValue = null;
-if (!empty($product['sale_price']) && $product['sale_price'] !== '') {
-    $salePriceValue = $product['sale_price'];
+if (!empty($product['meta']) && isset($product['meta']['_sale_price']) && $product['meta']['_sale_price'] !== '') {
+    $salePriceValue = $product['meta']['_sale_price'];
 }
 
 if ($salePriceValue !== null && $salePriceValue !== '') {
@@ -61,10 +69,21 @@ if ($salePriceValue !== null && $salePriceValue !== '') {
     }
 }
 
-// Get image
-$imageUrl = null;
-if (!empty($product['images']) && is_array($product['images']) && count($product['images']) > 0) {
-    $imageUrl = $product['images'][0]['src'] ?? null;
+// Get SKU and stock from meta
+$productSku = $product['slug'] ?? 'product-' . $product['id'];
+if (!empty($product['meta']) && isset($product['meta']['_sku'])) {
+    $productSku = $product['meta']['_sku'];
+}
+
+$stockQuantity = null;
+$stockStatus = 'IN_STOCK';
+if (!empty($product['meta'])) {
+    if (isset($product['meta']['_stock'])) {
+        $stockQuantity = (int)$product['meta']['_stock'];
+    }
+    if (isset($product['meta']['_stock_status'])) {
+        $stockStatus = strtoupper($product['meta']['_stock_status']);
+    }
 }
 
 // Create cart item key
@@ -79,13 +98,13 @@ sendJsonResponse([
                 'node' => [
                     'id' => $product['id'],
                     'databaseId' => $product['id'],
-                    'name' => $product['name'],
+                    'name' => $product['title']['rendered'] ?? $product['title'] ?? '',
                     'slug' => $product['slug'],
-                    'sku' => $product['sku'] ?? $product['slug'] ?? 'product-' . $product['id'],
+                    'sku' => $productSku,
                     'regularPrice' => $regularPrice,
                     'salePrice' => $salePrice,
-                    'stockQuantity' => isset($product['stock_quantity']) && $product['stock_quantity'] !== null ? (int)$product['stock_quantity'] : null,
-                    'stockStatus' => strtoupper($product['stock_status'] ?? 'instock'),
+                    'stockQuantity' => $stockQuantity,
+                    'stockStatus' => $stockStatus,
                     'image' => $imageUrl ? ['sourceUrl' => $imageUrl] : null
                 ]
             ],

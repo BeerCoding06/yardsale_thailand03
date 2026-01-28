@@ -18,7 +18,26 @@ define('WC_CONSUMER_SECRET', getenv('WP_CONSUMER_SECRET') ?: 'cs_787ef53ac512d8c
 define('WP_BASIC_AUTH', getenv('WP_BASIC_AUTH') ?: '');
 
 /**
- * Build WooCommerce API URL
+ * Build WordPress REST API v2 URL
+ * 
+ * @param string $endpoint API endpoint (e.g., 'wp/v2/product', 'wp/v2/product_cat')
+ * @param array $params Query parameters
+ * @return string Full API URL
+ */
+function buildWpApiUrl($endpoint, $params = []) {
+    $baseUrl = rtrim(WC_BASE_URL, '/');
+    $url = $baseUrl . '/wp-json/' . $endpoint;
+    
+    // Build query string
+    if (!empty($params)) {
+        $url .= '?' . http_build_query($params);
+    }
+    
+    return $url;
+}
+
+/**
+ * Build WooCommerce API URL (deprecated - use buildWpApiUrl for wp/v2)
  * 
  * @param string $endpoint API endpoint (e.g., 'wc/v3/products', 'wc/v3/orders')
  * @param array $params Query parameters

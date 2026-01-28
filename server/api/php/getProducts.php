@@ -59,70 +59,83 @@ $products = $result['data'] ?? [];
 // Format products to match expected structure
 $formattedProducts = [];
 foreach ($products as $product) {
-    // Format prices
+    // Get featured image from _embedded
+    $imageUrl = null;
+    if (!empty($product['_embedded']['wp:featuredmedia'][0]['source_url'])) {
+        $imageUrl = $product['_embedded']['wp:featuredmedia'][0]['source_url'];
+    } elseif (!empty($product['featured_media'])) {
+        // Try to fetch media if not embedded
+        $mediaUrl = buildWpApiUrl("wp/v2/media/{$product['featured_media']}");
+        $mediaResult = fetchWordPressApi($mediaUrl, 'GET');
+        if ($mediaResult['success'] && !empty($mediaResult['data']['source_url'])) {
+            $imageUrl = $mediaResult['data']['source_url'];
+        }
+    }
+    
+    // Get gallery images (from meta or embedded)
+    $galleryImages = [];
+    if ($imageUrl) {
+        $galleryImages[] = ['sourceUrl' => $imageUrl];
+    }
+    
+    // Get price from meta fields (WordPress REST API v2 doesn't have price fields)
     $regularPrice = '';
     $salePrice = null;
     
-    $regularPriceValue = null;
-    if (!empty($product['regular_price']) && $product['regular_price'] !== '') {
-        $regularPriceValue = $product['regular_price'];
-    } elseif (!empty($product['price']) && $product['price'] !== '') {
-        $regularPriceValue = $product['price'];
-    }
-    
-    if ($regularPriceValue !== null && $regularPriceValue !== '') {
-        $price = (float)$regularPriceValue;
-        if ($price > 0) {
-            $regularPrice = '<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>' . number_format(round($price)) . '</span>';
+    // Try to get price from meta
+    if (!empty($product['meta'])) {
+        $regularPriceValue = null;
+        if (isset($product['meta']['_regular_price'])) {
+            $regularPriceValue = $product['meta']['_regular_price'];
+        } elseif (isset($product['meta']['_price'])) {
+            $regularPriceValue = $product['meta']['_price'];
         }
-    }
-    
-    $salePriceValue = null;
-    if (!empty($product['sale_price']) && $product['sale_price'] !== '') {
-        $salePriceValue = $product['sale_price'];
-    }
-    
-    if ($salePriceValue !== null && $salePriceValue !== '') {
-        $price = (float)$salePriceValue;
-        if ($price > 0) {
-            $regularPriceNum = $regularPriceValue ? (float)$regularPriceValue : 0;
-            if ($price < $regularPriceNum || $regularPriceNum === 0) {
-                $salePrice = '<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>' . number_format(round($price)) . '</span>';
+        
+        if ($regularPriceValue !== null && $regularPriceValue !== '') {
+            $price = (float)$regularPriceValue;
+            if ($price > 0) {
+                $regularPrice = '<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>' . number_format(round($price)) . '</span>';
+            }
+        }
+        
+        if (isset($product['meta']['_sale_price']) && $product['meta']['_sale_price'] !== '') {
+            $salePriceValue = (float)$product['meta']['_sale_price'];
+            if ($salePriceValue > 0) {
+                $regularPriceNum = $regularPriceValue ? (float)$regularPriceValue : 0;
+                if ($salePriceValue < $regularPriceNum || $regularPriceNum === 0) {
+                    $salePrice = '<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>' . number_format(round($salePriceValue)) . '</span>';
+                }
             }
         }
     }
     
-    // Get image
-    $imageUrl = null;
-    if (!empty($product['images']) && is_array($product['images']) && count($product['images']) > 0) {
-        $imageUrl = $product['images'][0]['src'] ?? null;
-    }
-    
-    // Get gallery images
-    $galleryImages = [];
-    if (!empty($product['images']) && is_array($product['images'])) {
-        foreach ($product['images'] as $img) {
-            if (!empty($img['src'])) {
-                $galleryImages[] = ['sourceUrl' => $img['src']];
-            }
+    // Get stock from meta
+    $stockQuantity = null;
+    $stockStatus = 'IN_STOCK';
+    if (!empty($product['meta'])) {
+        if (isset($product['meta']['_stock'])) {
+            $stockQuantity = (int)$product['meta']['_stock'];
+        }
+        if (isset($product['meta']['_stock_status'])) {
+            $stockStatus = strtoupper($product['meta']['_stock_status']);
         }
     }
     
     $formattedProducts[] = [
         'id' => $product['id'],
         'databaseId' => $product['id'],
-        'sku' => $product['sku'] ?? $product['slug'] ?? 'product-' . $product['id'],
+        'sku' => $product['slug'] ?? 'product-' . $product['id'],
         'slug' => $product['slug'],
-        'name' => $product['name'] ?? '',
-        'description' => $product['description'] ?? '',
+        'name' => $product['title']['rendered'] ?? $product['title'] ?? '',
+        'description' => $product['content']['rendered'] ?? $product['content'] ?? '',
         'regularPrice' => $regularPrice,
         'salePrice' => $salePrice,
-        'stockQuantity' => isset($product['stock_quantity']) && $product['stock_quantity'] !== null ? (int)$product['stock_quantity'] : null,
-        'stockStatus' => strtoupper($product['stock_status'] ?? 'instock'),
+        'stockQuantity' => $stockQuantity,
+        'stockStatus' => $stockStatus,
         'image' => $imageUrl ? ['sourceUrl' => $imageUrl] : null,
         'galleryImages' => ['nodes' => $galleryImages],
         'allPaStyle' => ['nodes' => []],
-        'link' => $product['permalink'] ?? '',
+        'link' => $product['link'] ?? '',
         'status' => $product['status'] ?? 'publish'
     ];
 }

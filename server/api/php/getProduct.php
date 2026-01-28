@@ -1,6 +1,6 @@
 <?php
 /**
- * Get Single Product from WooCommerce REST API
+ * Get Single Product from WordPress REST API v2
  * 
  * Endpoint: GET /server/api/php/getProduct.php
  * Query params: slug, sku, id
@@ -22,13 +22,14 @@ $product = null;
 
 // Try to find product by slug
 if ($slug) {
-    $url = buildWcApiUrl('wc/v3/products', [
+    $url = buildWpApiUrl('wp/v2/product', [
         'slug' => $slug,
         'per_page' => 1,
-        'status' => 'publish'
+        'status' => 'publish',
+        '_embed' => '1'
     ]);
     
-    $result = fetchWooCommerceApi($url, 'GET');
+    $result = fetchWordPressApi($url, 'GET');
     
     if ($result['success'] && !empty($result['data']) && is_array($result['data']) && count($result['data']) > 0) {
         $product = $result['data'][0];
@@ -36,18 +37,26 @@ if ($slug) {
     }
 }
 
-// Try to find product by SKU
+// Try to find product by SKU (search in meta)
 if (!$productId && $sku) {
-    $url = buildWcApiUrl('wc/v3/products', [
-        'sku' => $sku,
-        'per_page' => 1,
-        'status' => 'publish'
+    $url = buildWpApiUrl('wp/v2/product', [
+        'search' => $sku,
+        'per_page' => 100,
+        'status' => 'publish',
+        '_embed' => '1'
     ]);
     
-    $result = fetchWooCommerceApi($url, 'GET');
+    $result = fetchWordPressApi($url, 'GET');
     
-    if ($result['success'] && !empty($result['data']) && is_array($result['data']) && count($result['data']) > 0) {
-        $productId = $result['data'][0]['id'];
+    if ($result['success'] && !empty($result['data']) && is_array($result['data'])) {
+        foreach ($result['data'] as $p) {
+            // Check meta for SKU
+            if (!empty($p['meta']['_sku']) && $p['meta']['_sku'] === $sku) {
+                $product = $p;
+                $productId = $p['id'];
+                break;
+            }
+        }
     }
 }
 
@@ -58,8 +67,8 @@ if (!$productId && $id) {
 
 // Fetch full product data
 if ($productId && !$product) {
-    $url = buildWcApiUrl("wc/v3/products/$productId");
-    $result = fetchWooCommerceApi($url, 'GET');
+    $url = buildWpApiUrl("wp/v2/product/$productId", ['_embed' => '1']);
+    $result = fetchWordPressApi($url, 'GET');
     
     if (!$result['success']) {
         sendErrorResponse('Product not found', 404);
@@ -73,29 +82,35 @@ if (!$product) {
 }
 
 // Format product data
+// Get featured image from _embedded
 $imageUrl = null;
-if (!empty($product['images']) && is_array($product['images']) && count($product['images']) > 0) {
-    $imageUrl = $product['images'][0]['src'] ?? null;
-}
-
-$galleryImages = [];
-if (!empty($product['images']) && is_array($product['images'])) {
-    foreach ($product['images'] as $img) {
-        if (!empty($img['src'])) {
-            $galleryImages[] = ['sourceUrl' => $img['src']];
-        }
+if (!empty($product['_embedded']['wp:featuredmedia'][0]['source_url'])) {
+    $imageUrl = $product['_embedded']['wp:featuredmedia'][0]['source_url'];
+} elseif (!empty($product['featured_media'])) {
+    // Try to fetch media if not embedded
+    $mediaUrl = buildWpApiUrl("wp/v2/media/{$product['featured_media']}");
+    $mediaResult = fetchWordPressApi($mediaUrl, 'GET');
+    if ($mediaResult['success'] && !empty($mediaResult['data']['source_url'])) {
+        $imageUrl = $mediaResult['data']['source_url'];
     }
 }
 
-// Format prices
+$galleryImages = [];
+if ($imageUrl) {
+    $galleryImages[] = ['sourceUrl' => $imageUrl];
+}
+
+// Format prices from meta fields (WordPress REST API v2)
 $regularPrice = '';
 $salePrice = null;
 
 $regularPriceValue = null;
-if (!empty($product['regular_price']) && $product['regular_price'] !== '') {
-    $regularPriceValue = $product['regular_price'];
-} elseif (!empty($product['price']) && $product['price'] !== '') {
-    $regularPriceValue = $product['price'];
+if (!empty($product['meta'])) {
+    if (isset($product['meta']['_regular_price'])) {
+        $regularPriceValue = $product['meta']['_regular_price'];
+    } elseif (isset($product['meta']['_price'])) {
+        $regularPriceValue = $product['meta']['_price'];
+    }
 }
 
 if ($regularPriceValue !== null && $regularPriceValue !== '') {
@@ -106,8 +121,8 @@ if ($regularPriceValue !== null && $regularPriceValue !== '') {
 }
 
 $salePriceValue = null;
-if (!empty($product['sale_price']) && $product['sale_price'] !== '') {
-    $salePriceValue = $product['sale_price'];
+if (!empty($product['meta']) && isset($product['meta']['_sale_price']) && $product['meta']['_sale_price'] !== '') {
+    $salePriceValue = $product['meta']['_sale_price'];
 }
 
 if ($salePriceValue !== null && $salePriceValue !== '') {
@@ -120,29 +135,32 @@ if ($salePriceValue !== null && $salePriceValue !== '') {
     }
 }
 
-// Get attributes
-$paColor = [];
-$paStyle = [];
-if (!empty($product['attributes']) && is_array($product['attributes'])) {
-    foreach ($product['attributes'] as $attr) {
-        if (isset($attr['slug']) && $attr['slug'] === 'pa_color' && !empty($attr['options'])) {
-            foreach ($attr['options'] as $opt) {
-                $paColor[] = ['name' => $opt];
-            }
-        } elseif (isset($attr['slug']) && $attr['slug'] === 'pa_style' && !empty($attr['options'])) {
-            foreach ($attr['options'] as $opt) {
-                $paStyle[] = ['name' => $opt];
-            }
-        }
+// Get SKU and stock from meta
+$productSku = $product['slug'] ?? 'product-' . $productId;
+if (!empty($product['meta']) && isset($product['meta']['_sku'])) {
+    $productSku = $product['meta']['_sku'];
+}
+
+$stockQuantity = null;
+$stockStatus = 'IN_STOCK';
+if (!empty($product['meta'])) {
+    if (isset($product['meta']['_stock'])) {
+        $stockQuantity = (int)$product['meta']['_stock'];
+    }
+    if (isset($product['meta']['_stock_status'])) {
+        $stockStatus = strtoupper($product['meta']['_stock_status']);
     }
 }
 
-// Get variations
+// Get attributes from meta (WordPress REST API v2)
+$paColor = [];
+$paStyle = [];
+// Attributes are typically stored in meta or taxonomy terms
+// This is a simplified version - you may need to adjust based on your setup
+
+// Get variations (simplified - WordPress REST API v2 doesn't have direct variations endpoint)
 $variations = [];
-if (!empty($product['variations']) && is_array($product['variations'])) {
-    foreach ($product['variations'] as $variationId) {
-        $varUrl = buildWcApiUrl("wc/v3/products/$productId/variations/$variationId");
-        $varResult = fetchWooCommerceApi($varUrl, 'GET');
+// Variations would need to be fetched differently in wp/v2
         
         if ($varResult['success'] && !empty($varResult['data'])) {
             $variation = $varResult['data'];
@@ -204,34 +222,38 @@ if (!empty($product['variations']) && is_array($product['variations'])) {
     }
 }
 
-// Get related products
+// Get related products from WordPress REST API v2
 $relatedProducts = [];
-if (!empty($product['categories']) && is_array($product['categories']) && count($product['categories']) > 0) {
-    $mainCategoryId = $product['categories'][0]['id'];
-    $relatedUrl = buildWcApiUrl('wc/v3/products', [
-        'category' => $mainCategoryId,
+if (!empty($product['product_cat']) && is_array($product['product_cat']) && count($product['product_cat']) > 0) {
+    $mainCategoryId = $product['product_cat'][0];
+    $relatedUrl = buildWpApiUrl('wp/v2/product', [
+        'product_cat' => $mainCategoryId,
         'per_page' => 10,
         'exclude' => $productId,
-        'status' => 'publish'
+        'status' => 'publish',
+        '_embed' => '1'
     ]);
     
-    $relatedResult = fetchWooCommerceApi($relatedUrl, 'GET');
+    $relatedResult = fetchWordPressApi($relatedUrl, 'GET');
     
     if ($relatedResult['success'] && !empty($relatedResult['data']) && is_array($relatedResult['data'])) {
         foreach ($relatedResult['data'] as $relatedProd) {
             $relatedImageUrl = null;
-            if (!empty($relatedProd['images']) && is_array($relatedProd['images']) && count($relatedProd['images']) > 0) {
-                $relatedImageUrl = $relatedProd['images'][0]['src'] ?? null;
+            if (!empty($relatedProd['_embedded']['wp:featuredmedia'][0]['source_url'])) {
+                $relatedImageUrl = $relatedProd['_embedded']['wp:featuredmedia'][0]['source_url'];
             }
             
             $relatedRegularPrice = '';
             $relatedSalePrice = null;
             
+            // Get price from meta
             $relatedRegularPriceValue = null;
-            if (!empty($relatedProd['regular_price']) && $relatedProd['regular_price'] !== '') {
-                $relatedRegularPriceValue = $relatedProd['regular_price'];
-            } elseif (!empty($relatedProd['price']) && $relatedProd['price'] !== '') {
-                $relatedRegularPriceValue = $relatedProd['price'];
+            if (!empty($relatedProd['meta'])) {
+                if (isset($relatedProd['meta']['_regular_price'])) {
+                    $relatedRegularPriceValue = $relatedProd['meta']['_regular_price'];
+                } elseif (isset($relatedProd['meta']['_price'])) {
+                    $relatedRegularPriceValue = $relatedProd['meta']['_price'];
+                }
             }
             
             if ($relatedRegularPriceValue !== null && $relatedRegularPriceValue !== '') {
@@ -242,8 +264,8 @@ if (!empty($product['categories']) && is_array($product['categories']) && count(
             }
             
             $relatedSalePriceValue = null;
-            if (!empty($relatedProd['sale_price']) && $relatedProd['sale_price'] !== '') {
-                $relatedSalePriceValue = $relatedProd['sale_price'];
+            if (!empty($relatedProd['meta']) && isset($relatedProd['meta']['_sale_price']) && $relatedProd['meta']['_sale_price'] !== '') {
+                $relatedSalePriceValue = $relatedProd['meta']['_sale_price'];
             }
             
             if ($relatedSalePriceValue !== null && $relatedSalePriceValue !== '') {
@@ -256,10 +278,15 @@ if (!empty($product['categories']) && is_array($product['categories']) && count(
                 }
             }
             
+            $relatedSku = $relatedProd['slug'] ?? 'product-' . $relatedProd['id'];
+            if (!empty($relatedProd['meta']) && isset($relatedProd['meta']['_sku'])) {
+                $relatedSku = $relatedProd['meta']['_sku'];
+            }
+            
             $relatedProducts[] = [
-                'sku' => $relatedProd['sku'] ?? $relatedProd['slug'] ?? 'product-' . $relatedProd['id'],
+                'sku' => $relatedSku,
                 'slug' => $relatedProd['slug'],
-                'name' => $relatedProd['name'] ?? '',
+                'name' => $relatedProd['title']['rendered'] ?? $relatedProd['title'] ?? '',
                 'regularPrice' => $relatedRegularPrice,
                 'salePrice' => $relatedSalePrice,
                 'allPaStyle' => ['nodes' => []],
@@ -274,14 +301,14 @@ if (!empty($product['categories']) && is_array($product['categories']) && count(
 sendJsonResponse([
     'product' => [
         'databaseId' => $productId,
-        'sku' => $product['sku'] ?? $product['slug'] ?? 'product-' . $productId,
+        'sku' => $productSku,
         'slug' => $product['slug'],
-        'name' => $product['name'] ?? '',
-        'description' => $product['description'] ?? '',
+        'name' => $product['title']['rendered'] ?? $product['title'] ?? '',
+        'description' => $product['content']['rendered'] ?? $product['content'] ?? '',
         'regularPrice' => $regularPrice,
         'salePrice' => $salePrice,
-        'stockQuantity' => isset($product['stock_quantity']) && $product['stock_quantity'] !== null ? (int)$product['stock_quantity'] : null,
-        'stockStatus' => strtoupper($product['stock_status'] ?? 'instock'),
+        'stockQuantity' => $stockQuantity,
+        'stockStatus' => $stockStatus,
         'status' => $product['status'] ?? 'publish',
         'image' => $imageUrl ? ['sourceUrl' => $imageUrl] : null,
         'galleryImages' => ['nodes' => $galleryImages],
