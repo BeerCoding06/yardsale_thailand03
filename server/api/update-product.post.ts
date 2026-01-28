@@ -1,7 +1,7 @@
 // server/api/update-product.post.ts
 // Update product using WooCommerce REST API - set status to pending after update
 
-import * as wpUtils from '~/server/utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {

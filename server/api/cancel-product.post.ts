@@ -1,7 +1,7 @@
 // server/api/cancel-product.post.ts
 // Cancel product using WooCommerce REST API (set status to draft)
 
-import * as wpUtils from '~/server/utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {

@@ -1,7 +1,7 @@
 // server/api/upload-image.post.ts
 // Upload image to WordPress media library
 
-import * as wpUtils from '~/server/utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {

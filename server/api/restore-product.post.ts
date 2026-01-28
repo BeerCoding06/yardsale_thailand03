@@ -1,7 +1,7 @@
 // server/api/restore-product.post.ts
 // Restore product using WooCommerce REST API (set status to pending for review)
 
-import * as wpUtils from '~/server/utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {

@@ -1,7 +1,7 @@
 // server/api/update-profile.post.ts
 // Update user profile using WordPress REST API
 
-import * as wpUtils from '~/server/utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {

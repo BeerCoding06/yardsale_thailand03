@@ -1,7 +1,7 @@
 // server/api/upload-profile-picture.post.ts
 // Upload profile picture using WordPress REST API (same as upload-image.post.ts)
 
-import * as wpUtils from '~/server/utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {

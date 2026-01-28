@@ -1,7 +1,7 @@
 // server/api/create-user.post.ts
 // สร้างผู้ใช้ใหม่ใน WordPress
 
-import * as wpUtils from '~/server/utils/wp';
+import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {
