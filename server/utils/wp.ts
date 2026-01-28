@@ -28,21 +28,19 @@ export function getWpBasicAuth(): string | null {
 }
 
 /**
- * Get WooCommerce Consumer Key from runtime config
+ * Get WooCommerce Consumer Key from environment variables
  * @returns Consumer Key or null
  */
 export function getWpConsumerKey(): string | null {
-  const config = useRuntimeConfig();
-  return config.wpConsumerKey || null;
+  return process.env.WP_CONSUMER_KEY || null;
 }
 
 /**
- * Get WooCommerce Consumer Secret from runtime config
+ * Get WooCommerce Consumer Secret from environment variables
  * @returns Consumer Secret or null
  */
 export function getWpConsumerSecret(): string | null {
-  const config = useRuntimeConfig();
-  return config.wpConsumerSecret || null;
+  return process.env.WP_CONSUMER_SECRET || null;
 }
 
 /**
