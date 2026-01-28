@@ -1,6 +1,8 @@
 // server/api/php-search.get.ts
 // Search products via PHP API endpoint
 
+import { executePhpScript } from '../utils/php-executor';
+
 export default cachedEventHandler(
   async (event) => {
     try {
@@ -13,36 +15,24 @@ export default cachedEventHandler(
         return { products: { nodes: [] } };
       }
       
-      // Build PHP API URL
-      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
-      const phpUrl = `${baseUrl}/server/api/php/searchProducts.php`;
+      // Build query params for PHP script
+      const queryParams: Record<string, string | number> = {
+        search,
+        limit,
+      };
       
-      const queryParams = new URLSearchParams({
-        search: search,
-        limit: String(limit)
-      });
+      console.log('[php-search] Executing PHP script: searchProducts.php', queryParams);
       
-      const fullUrl = `${phpUrl}?${queryParams.toString()}`;
-      
-      console.log('[php-search] Fetching from PHP API:', fullUrl);
-      
-      const response = await fetch(fullUrl, {
+      // Execute PHP script directly using PHP CLI
+      const data = await executePhpScript({
+        script: 'searchProducts.php',
+        queryParams,
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(30000),
       });
-      
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        console.error('[php-search] PHP API error:', response.status, errorText);
-        return { products: { nodes: [] } };
-      }
-      
-      const data = await response.json();
       
       return data;
     } catch (error: any) {
-      console.error('[php-search] Error:', error);
+      console.error('[php-search] Error:', error.message || error);
       return { products: { nodes: [] } };
     }
   },

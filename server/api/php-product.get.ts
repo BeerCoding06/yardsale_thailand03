@@ -1,45 +1,38 @@
 // server/api/php-product.get.ts
 // Fetch single product via PHP API endpoint
 
+import { executePhpScript } from '../utils/php-executor';
+
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
     
-    // Build PHP API URL
-    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
-    const phpUrl = `${baseUrl}/server/api/php/getProduct.php`;
+    const slug = query.slug as string | undefined;
+    const sku = query.sku as string | undefined;
+    const id = query.id as string | undefined;
     
-    // Build query string
-    const queryParams = new URLSearchParams();
-    if (query.slug) queryParams.append('slug', String(query.slug));
-    if (query.sku) queryParams.append('sku', String(query.sku));
-    if (query.id) queryParams.append('id', String(query.id));
-    
-    if (queryParams.toString() === '') {
+    if (!slug && !sku && !id) {
       return { product: null };
     }
     
-    const fullUrl = `${phpUrl}?${queryParams.toString()}`;
+    // Build query params for PHP script
+    const queryParams: Record<string, string | number> = {};
+    if (slug) queryParams.slug = slug;
+    if (sku) queryParams.sku = sku;
+    if (id) queryParams.id = Number(id);
     
-    console.log('[php-product] Fetching from PHP API:', fullUrl);
+    console.log('[php-product] Executing PHP script: getProduct.php', queryParams);
     
-    const response = await fetch(fullUrl, {
+    // Execute PHP script directly using PHP CLI
+    const data = await executePhpScript({
+      script: 'getProduct.php',
+      queryParams,
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(30000),
     });
-    
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      console.error('[php-product] PHP API error:', response.status, errorText);
-      return { product: null };
-    }
-    
-    const data = await response.json();
     
     return data;
   } catch (error: any) {
-    console.error('[php-product] Error:', error);
+    console.error('[php-product] Error:', error.message || error);
     return { product: null };
   }
 });

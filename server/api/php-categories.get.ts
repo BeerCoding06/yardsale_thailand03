@@ -1,46 +1,31 @@
 // server/api/php-categories.get.ts
 // Fetch categories via PHP API endpoint
 
+import { executePhpScript } from '../utils/php-executor';
+
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
     
-    // Build PHP API URL
-    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
-    const phpUrl = `${baseUrl}/server/api/php/getCategories.php`;
+    // Build query params for PHP script
+    const queryParams: Record<string, string | number | boolean> = {};
+    if (query.parent !== undefined) queryParams.parent = Number(query.parent);
+    if (query.hide_empty !== undefined) queryParams.hide_empty = query.hide_empty !== 'false';
+    if (query.orderby) queryParams.orderby = String(query.orderby);
+    if (query.order) queryParams.order = String(query.order);
     
-    // Build query string
-    const queryParams = new URLSearchParams();
-    if (query.parent !== undefined) queryParams.append('parent', String(query.parent));
-    if (query.hide_empty !== undefined) queryParams.append('hide_empty', String(query.hide_empty));
-    if (query.orderby) queryParams.append('orderby', String(query.orderby));
-    if (query.order) queryParams.append('order', String(query.order));
+    console.log('[php-categories] Executing PHP script: getCategories.php', queryParams);
     
-    const fullUrl = queryParams.toString() ? `${phpUrl}?${queryParams.toString()}` : phpUrl;
-    
-    console.log('[php-categories] Fetching from PHP API:', fullUrl);
-    
-    const response = await fetch(fullUrl, {
+    // Execute PHP script directly using PHP CLI
+    const data = await executePhpScript({
+      script: 'getCategories.php',
+      queryParams,
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(30000),
     });
-    
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      console.error('[php-categories] PHP API error:', response.status, errorText);
-      return {
-        productCategories: {
-          nodes: []
-        }
-      };
-    }
-    
-    const data = await response.json();
     
     return data;
   } catch (error: any) {
-    console.error('[php-categories] Error:', error);
+    console.error('[php-categories] Error:', error.message || error);
     return {
       productCategories: {
         nodes: []
