@@ -42,16 +42,22 @@ export default cachedEventHandler(
       const data = await response.json();
       
       // Try WooCommerce API first (faster - has price built-in)
-      const wcHeaders = wpUtils.getWpApiHeaders(false, true);
-      if (wcHeaders['Authorization']) {
+      const consumerKey = wpUtils.getWpConsumerKey();
+      const consumerSecret = wpUtils.getWpConsumerSecret();
+      if (consumerKey && consumerSecret) {
         try {
-          const wcUrl = wpUtils.buildWpApiUrl('wc/v3/products', {
+          const wcUrl = wpUtils.buildWcApiUrl('wc/v3/products', {
             search: search,
             per_page: limit,
             status: 'publish',
           });
           
-          console.log('[search] Fetching from WooCommerce API (fast):', wcUrl);
+          console.log('[search] Fetching from WooCommerce API (fast):', wcUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
+          
+          // No headers needed - authentication is via query params
+          const wcHeaders: Record<string, string> = {
+            'Content-Type': 'application/json',
+          };
           
           const wcResponse = await fetch(wcUrl, {
             method: 'GET',

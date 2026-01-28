@@ -16,9 +16,10 @@ export default defineEventHandler(async (event) => {
       post_author: body.post_author,
     });
 
-    const wcHeaders = wpUtils.getWpApiHeaders(false, true); // Use WooCommerce auth
+    const consumerKey = wpUtils.getWpConsumerKey();
+    const consumerSecret = wpUtils.getWpConsumerSecret();
     
-    if (!wcHeaders['Authorization']) {
+    if (!consumerKey || !consumerSecret) {
       throw createError({
         statusCode: 500,
         message: "WooCommerce Consumer Key/Secret is not configured",
@@ -70,13 +71,13 @@ export default defineEventHandler(async (event) => {
       productData.stock_quantity = body.stock_quantity;
     }
 
-    const wcUrl = wpUtils.buildWpApiUrl('wc/v3/products');
+    const wcUrl = wpUtils.buildWcApiUrl('wc/v3/products');
     
-    console.log("[create-product] Creating product via WooCommerce API:", wcUrl);
+    console.log("[create-product] Creating product via WooCommerce API:", wcUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
 
     const response = await fetch(wcUrl, {
       method: "POST",
-      headers: wcHeaders,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(productData),
       signal: AbortSignal.timeout(30000),
     });

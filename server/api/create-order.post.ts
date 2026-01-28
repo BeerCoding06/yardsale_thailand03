@@ -9,9 +9,10 @@ export default defineEventHandler(async (event) => {
     
     console.log("[create-order] Received payload:", JSON.stringify(body, null, 2));
 
-    const wcHeaders = wpUtils.getWpApiHeaders(false, true); // Use WooCommerce auth
+    const consumerKey = wpUtils.getWpConsumerKey();
+    const consumerSecret = wpUtils.getWpConsumerSecret();
     
-    if (!wcHeaders['Authorization']) {
+    if (!consumerKey || !consumerSecret) {
       throw createError({
         statusCode: 500,
         message: "WooCommerce Consumer Key/Secret is not configured",
@@ -29,13 +30,13 @@ export default defineEventHandler(async (event) => {
       line_items: body.line_items || [],
     };
 
-    const wcUrl = wpUtils.buildWpApiUrl('wc/v3/orders');
+    const wcUrl = wpUtils.buildWcApiUrl('wc/v3/orders');
     
-    console.log("[create-order] Creating order via WooCommerce API:", wcUrl);
+    console.log("[create-order] Creating order via WooCommerce API:", wcUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
 
     const response = await fetch(wcUrl, {
       method: "POST",
-      headers: wcHeaders,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(orderData),
       signal: AbortSignal.timeout(30000),
     });

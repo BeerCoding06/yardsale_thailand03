@@ -40,12 +40,13 @@ export default cachedEventHandler(
       const wcOrderby = orderbyMap[orderby] || 'date';
       
       // Try WooCommerce API first (has price and stock built-in)
-      const wcHeaders = wpUtils.getWpApiHeaders(false, true);
-      let useWooCommerce = !!wcHeaders['Authorization'];
+      const consumerKey = wpUtils.getWpConsumerKey();
+      const consumerSecret = wpUtils.getWpConsumerSecret();
+      let useWooCommerce = !!(consumerKey && consumerSecret);
       
       if (useWooCommerce) {
         try {
-          // Build WooCommerce API params
+          // Build WooCommerce API params with consumer_key and consumer_secret in query params
           const wcParams: Record<string, string | number> = {
             per_page: perPage,
             page: page,
@@ -56,8 +57,13 @@ export default cachedEventHandler(
             ...(category ? { category: category } : {})
           };
           
-          const wcUrl = wpUtils.buildWpApiUrl('wc/v3/products', wcParams);
-          console.log('[products] Fetching from WooCommerce API (fast):', wcUrl);
+          const wcUrl = wpUtils.buildWcApiUrl('wc/v3/products', wcParams);
+          console.log('[products] Fetching from WooCommerce API (fast):', wcUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
+          
+          // No headers needed - authentication is via query params
+          const wcHeaders: Record<string, string> = {
+            'Content-Type': 'application/json',
+          };
           
           const wcResponse = await fetch(wcUrl, {
             method: 'GET',

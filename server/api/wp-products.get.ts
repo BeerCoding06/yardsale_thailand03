@@ -1,5 +1,5 @@
 // server/api/wp-products.get.ts
-// Fetch products from WordPress REST API
+// Fetch products from WooCommerce REST API
 
 import * as wpUtils from '../utils/wp';
 
@@ -7,45 +7,38 @@ export default defineEventHandler(async (event: any) => {
   try {
     const query = getQuery(event);
     
-    // WordPress REST API endpoint for products
-    // Use WordPress REST API: /wp-json/wp/v2/product
+    // WooCommerce REST API endpoint for products
+    // Use WooCommerce REST API: /wp-json/wc/v3/products
     const perPage = query.per_page ? parseInt(query.per_page as string) : 10;
     const page = query.page ? parseInt(query.page as string) : 1;
     const search = query.search as string | undefined;
     
-    // Use WordPress REST API endpoint
-    let apiUrl = wpUtils.buildWpApiUrl('wp/v2/product', {
+    // Get consumer key and secret from query params or .env
+    const consumerKey = (query.consumer_key as string | undefined) || wpUtils.getWpConsumerKey();
+    const consumerSecret = (query.consumer_secret as string | undefined) || wpUtils.getWpConsumerSecret();
+    
+    // Build WooCommerce API URL with consumer_key and consumer_secret in query params
+    const wcParams: Record<string, string | number> = {
       per_page: perPage,
       page: page,
       ...(search ? { search: search } : {})
-    });
+    };
     
-    // Add consumer key and secret if available (for authentication)
-    const consumerKey = query.consumer_key as string | undefined;
-    const consumerSecret = query.consumer_secret as string | undefined;
-    
-    // Use utility function for headers
-    // If consumer key/secret provided via query, use WooCommerce auth
-    // Otherwise use Basic Auth from .env
-    let headers: Record<string, string>;
-    
+    // Use buildWcApiUrl which automatically adds consumer_key and consumer_secret
+    // Or use query params if provided
     if (consumerKey && consumerSecret) {
-      // Override with query params if provided
-      // Buffer is available in Node.js server environment
-      const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
-      headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${auth}`
-      };
-    } else {
-      // Use WooCommerce auth from .env if available, otherwise Basic Auth
-      headers = wpUtils.getWpApiHeaders(false, true); // Try WooCommerce auth first
-      if (!headers['Authorization']) {
-        headers = wpUtils.getWpApiHeaders(true, false); // Fallback to Basic Auth
-      }
+      wcParams['consumer_key'] = consumerKey;
+      wcParams['consumer_secret'] = consumerSecret;
     }
     
-    console.log('[wp-products] Fetching from WordPress API:', apiUrl);
+    const apiUrl = wpUtils.buildWcApiUrl('wc/v3/products', wcParams);
+    
+    console.log('[wp-products] Fetching from WooCommerce API:', apiUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
+    
+    // No headers needed - authentication is via query params
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
     
     const response = await fetch(apiUrl, {
       method: 'GET',
@@ -55,10 +48,10 @@ export default defineEventHandler(async (event: any) => {
     
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      console.error('[wp-products] WordPress API error:', response.status, errorText);
+      console.error('[wp-products] WooCommerce API error:', response.status, errorText);
       throw createError({
         statusCode: response.status,
-        message: `WordPress API error: ${errorText || response.statusText}`,
+        message: `WooCommerce API error: ${errorText || response.statusText}`,
       });
     }
     
@@ -79,7 +72,7 @@ export default defineEventHandler(async (event: any) => {
     console.error('[wp-products] Error:', error);
     throw createError({
       statusCode: error.statusCode || 500,
-      message: error.message || 'Failed to fetch products from WordPress',
+      message: error.message || 'Failed to fetch products from WooCommerce',
     });
   }
 });

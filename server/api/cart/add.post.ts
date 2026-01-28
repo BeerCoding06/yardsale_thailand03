@@ -24,16 +24,17 @@ export default defineEventHandler(async (event) => {
     
     // Fetch product details from WooCommerce API to get price and other info
     let productData: any = null;
-    try {
-      const wcHeaders = wpUtils.getWpApiHeaders(false, true);
-      if (wcHeaders['Authorization']) {
-        const wcUrl = wpUtils.buildWpApiUrl(`wc/v3/products/${productId}`);
-        console.log('[cart/add] Fetching from WooCommerce API:', wcUrl);
-        const wcResponse = await fetch(wcUrl, {
-          method: 'GET',
-          headers: wcHeaders,
-          signal: AbortSignal.timeout(10000),
-        });
+        try {
+          const consumerKey = wpUtils.getWpConsumerKey();
+          const consumerSecret = wpUtils.getWpConsumerSecret();
+          if (consumerKey && consumerSecret) {
+            const wcUrl = wpUtils.buildWcApiUrl(`wc/v3/products/${productId}`);
+            console.log('[cart/add] Fetching from WooCommerce API:', wcUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
+            const wcResponse = await fetch(wcUrl, {
+              method: 'GET',
+              headers: { 'Content-Type': 'application/json' },
+              signal: AbortSignal.timeout(10000),
+            });
         
         console.log('[cart/add] WooCommerce API response status:', wcResponse.status);
         

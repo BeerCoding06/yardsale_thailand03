@@ -51,16 +51,17 @@ export default cachedEventHandler(
       // If not found by slug, try by SKU using WooCommerce API
       if (!productId && sku) {
         try {
-          const wcHeaders = wpUtils.getWpApiHeaders(false, true);
-          if (wcHeaders['Authorization']) {
-            const wcUrl = wpUtils.buildWpApiUrl('wc/v3/products', {
+          const consumerKey = wpUtils.getWpConsumerKey();
+          const consumerSecret = wpUtils.getWpConsumerSecret();
+          if (consumerKey && consumerSecret) {
+            const wcUrl = wpUtils.buildWcApiUrl('wc/v3/products', {
               sku: sku,
               per_page: 1
             });
             
             const wcResponse = await fetch(wcUrl, {
               method: 'GET',
-              headers: wcHeaders,
+              headers: { 'Content-Type': 'application/json' },
               signal: AbortSignal.timeout(10000),
             });
             
@@ -96,14 +97,15 @@ export default cachedEventHandler(
       // Get WooCommerce product data for price, SKU, stock
       let wcProduct: any = null;
       try {
-        const wcHeaders = wpUtils.getWpApiHeaders(false, true);
-        if (wcHeaders['Authorization']) {
-          const wcUrl = wpUtils.buildWpApiUrl(`wc/v3/products/${productId}`);
-          console.log(`[product] Fetching WooCommerce data for product ${productId}:`, wcUrl);
+        const consumerKey = wpUtils.getWpConsumerKey();
+        const consumerSecret = wpUtils.getWpConsumerSecret();
+        if (consumerKey && consumerSecret) {
+          const wcUrl = wpUtils.buildWcApiUrl(`wc/v3/products/${productId}`);
+          console.log(`[product] Fetching WooCommerce data for product ${productId}:`, wcUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
           
           const wcResponse = await fetch(wcUrl, {
             method: 'GET',
-            headers: wcHeaders,
+            headers: { 'Content-Type': 'application/json' },
             signal: AbortSignal.timeout(10000), // Increase timeout to 10 seconds
           });
           
@@ -227,12 +229,13 @@ export default cachedEventHandler(
               let relatedSku = related.slug || `product-${related.id}`;
               
               try {
-                const wcHeaders = wpUtils.getWpApiHeaders(false, true);
-                if (wcHeaders['Authorization']) {
-                  const wcUrl = wpUtils.buildWpApiUrl(`wc/v3/products/${related.id}`);
+                const consumerKey = wpUtils.getWpConsumerKey();
+                const consumerSecret = wpUtils.getWpConsumerSecret();
+                if (consumerKey && consumerSecret) {
+                  const wcUrl = wpUtils.buildWcApiUrl(`wc/v3/products/${related.id}`);
                   const wcResponse = await fetch(wcUrl, {
                     method: 'GET',
-                    headers: wcHeaders,
+                    headers: { 'Content-Type': 'application/json' },
                     signal: AbortSignal.timeout(3000),
                   });
                   
