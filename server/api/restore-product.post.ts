@@ -17,9 +17,11 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const wcHeaders = wpUtils.getWpApiHeaders(false, true); // Use WooCommerce auth
+    // Check WooCommerce credentials
+    const consumerKey = wpUtils.getWpConsumerKey();
+    const consumerSecret = wpUtils.getWpConsumerSecret();
     
-    if (!wcHeaders['Authorization']) {
+    if (!consumerKey || !consumerSecret) {
       throw createError({
         statusCode: 500,
         message: "WooCommerce Consumer Key/Secret is not configured",
@@ -27,11 +29,11 @@ export default defineEventHandler(async (event) => {
     }
 
     // First, verify the product exists and belongs to the user
-    const wcUrl = wpUtils.buildWpApiUrl(`wc/v3/products/${productId}`);
+    const wcUrl = wpUtils.buildWcApiUrl(`wc/v3/products/${productId}`);
     
     const getResponse = await fetch(wcUrl, {
       method: "GET",
-      headers: wcHeaders,
+      headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(10000),
     });
 
@@ -53,11 +55,11 @@ export default defineEventHandler(async (event) => {
     }
 
     // Update product status to pending
-    console.log("[restore-product] Restoring product via WooCommerce API:", wcUrl);
+    console.log("[restore-product] Restoring product via WooCommerce API:", wcUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
 
     const response = await fetch(wcUrl, {
       method: "PUT",
-      headers: wcHeaders,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         status: 'pending'
       }),

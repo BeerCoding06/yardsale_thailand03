@@ -17,9 +17,11 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const wcHeaders = wpUtils.getWpApiHeaders(false, true); // Use WooCommerce auth
+    // Check WooCommerce credentials
+    const consumerKey = wpUtils.getWpConsumerKey();
+    const consumerSecret = wpUtils.getWpConsumerSecret();
     
-    if (!wcHeaders['Authorization']) {
+    if (!consumerKey || !consumerSecret) {
       throw createError({
         statusCode: 500,
         message: "WooCommerce Consumer Key/Secret is not configured",
@@ -27,13 +29,13 @@ export default defineEventHandler(async (event) => {
     }
 
     // First, verify the product exists and belongs to the user
-    const wcUrl = wpUtils.buildWpApiUrl(`wc/v3/products/${productId}`);
+    const wcUrl = wpUtils.buildWcApiUrl(`wc/v3/products/${productId}`);
     
-    console.log("[update-product] Fetching product from WooCommerce API:", wcUrl);
+    console.log("[update-product] Fetching product from WooCommerce API:", wcUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
 
     const getResponse = await fetch(wcUrl, {
       method: "GET",
-      headers: wcHeaders,
+      headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(10000),
     });
 
@@ -85,12 +87,12 @@ export default defineEventHandler(async (event) => {
     if (body.stock_quantity !== undefined) updateData.stock_quantity = body.stock_quantity;
     if (body.stock_status) updateData.stock_status = body.stock_status;
 
-    console.log("[update-product] Updating product via WooCommerce API:", wcUrl);
+    console.log("[update-product] Updating product via WooCommerce API:", wcUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
     console.log("[update-product] Update data:", JSON.stringify(updateData, null, 2));
 
     const response = await fetch(wcUrl, {
       method: "PUT",
-      headers: wcHeaders,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updateData),
       signal: AbortSignal.timeout(30000),
     });

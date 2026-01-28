@@ -46,12 +46,13 @@ export default defineEventHandler(async (event) => {
         // Optionally verify product exists and check stock
         if (quantity > 0) {
           try {
-            const wcHeaders = wpUtils.getWpApiHeaders(false, true);
-            if (wcHeaders['Authorization']) {
-              const wcUrl = wpUtils.buildWpApiUrl(`wc/v3/products/${productId}`);
+            const consumerKey = wpUtils.getWpConsumerKey();
+            const consumerSecret = wpUtils.getWpConsumerSecret();
+            if (consumerKey && consumerSecret) {
+              const wcUrl = wpUtils.buildWcApiUrl(`wc/v3/products/${productId}`);
               const wcResponse = await fetch(wcUrl, {
                 method: 'GET',
-                headers: wcHeaders,
+                headers: { 'Content-Type': 'application/json' },
                 signal: AbortSignal.timeout(5000),
               });
               
