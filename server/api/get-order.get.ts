@@ -17,23 +17,24 @@ export default defineEventHandler(async (event) => {
       });
     }
     
-    // Use WooCommerce REST API to fetch order
-    const wcHeaders = wpUtils.getWpApiHeaders(false, true);
+    // Check WooCommerce credentials
+    const consumerKey = wpUtils.getWpConsumerKey();
+    const consumerSecret = wpUtils.getWpConsumerSecret();
     
-    if (!wcHeaders['Authorization']) {
+    if (!consumerKey || !consumerSecret) {
       throw createError({
         statusCode: 500,
         message: "WooCommerce API credentials not configured",
       });
     }
     
-    const apiUrl = wpUtils.buildWpApiUrl(`wc/v3/orders/${orderId}`);
+    const apiUrl = wpUtils.buildWcApiUrl(`wc/v3/orders/${orderId}`);
     
-    console.log('[get-order] Fetching from WooCommerce API:', apiUrl);
+    console.log('[get-order] Fetching from WooCommerce API:', apiUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
     
     const response = await fetch(apiUrl, {
       method: 'GET',
-      headers: wcHeaders,
+      headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(30000),
     });
     

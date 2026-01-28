@@ -17,16 +17,17 @@ export default defineCachedEventHandler(async (event) => {
     // Use WooCommerce REST API to check if product has orders
     
     try {
-      const wcHeaders = wpUtils.getWpApiHeaders(false, true);
+      const consumerKey = wpUtils.getWpConsumerKey();
+      const consumerSecret = wpUtils.getWpConsumerSecret();
       
-      if (!wcHeaders['Authorization']) {
+      if (!consumerKey || !consumerSecret) {
         // If WooCommerce API not configured, return false (no orders)
         console.warn('[check-product-has-orders] WooCommerce API not configured, assuming no orders');
         return { has_orders: false };
       }
       
       // Search for orders containing this product
-      const apiUrl = wpUtils.buildWpApiUrl('wc/v3/orders', {
+      const apiUrl = wpUtils.buildWcApiUrl('wc/v3/orders', {
         product: productId,
         per_page: 1,
         status: 'completed,processing,on-hold'
@@ -36,7 +37,7 @@ export default defineCachedEventHandler(async (event) => {
       
       const response = await fetch(apiUrl, {
         method: 'GET',
-        headers: wcHeaders,
+        headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(10000),
       });
       

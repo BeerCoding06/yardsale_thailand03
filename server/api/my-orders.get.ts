@@ -17,10 +17,11 @@ export default defineEventHandler(async (event) => {
       });
     }
     
-    // Use WooCommerce REST API to fetch orders
-    const wcHeaders = wpUtils.getWpApiHeaders(false, true);
+    // Check WooCommerce credentials
+    const consumerKey = wpUtils.getWpConsumerKey();
+    const consumerSecret = wpUtils.getWpConsumerSecret();
     
-    if (!wcHeaders['Authorization']) {
+    if (!consumerKey || !consumerSecret) {
       throw createError({
         statusCode: 500,
         message: "WooCommerce API credentials not configured",
@@ -33,13 +34,13 @@ export default defineEventHandler(async (event) => {
       ...(customerEmail ? { customer_email: customerEmail } : {})
     };
     
-    const apiUrl = wpUtils.buildWpApiUrl('wc/v3/orders', params);
+    const apiUrl = wpUtils.buildWcApiUrl('wc/v3/orders', params);
     
-    console.log('[my-orders] Fetching from WooCommerce API:', apiUrl);
+    console.log('[my-orders] Fetching from WooCommerce API:', apiUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
     
     const response = await fetch(apiUrl, {
       method: 'GET',
-      headers: wcHeaders,
+      headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(30000),
     });
     

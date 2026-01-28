@@ -16,9 +16,11 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const wcHeaders = wpUtils.getWpApiHeaders(false, true); // Use WooCommerce auth
+    // Check WooCommerce credentials
+    const consumerKey = wpUtils.getWpConsumerKey();
+    const consumerSecret = wpUtils.getWpConsumerSecret();
     
-    if (!wcHeaders['Authorization']) {
+    if (!consumerKey || !consumerSecret) {
       throw createError({
         statusCode: 500,
         message: "WooCommerce Consumer Key/Secret is not configured",
@@ -29,16 +31,16 @@ export default defineEventHandler(async (event) => {
     // Strategy: Get all orders, then filter by checking product authors
     // For better performance, we'll batch fetch products
     
-    const wcUrl = wpUtils.buildWpApiUrl('wc/v3/orders', {
+    const wcUrl = wpUtils.buildWcApiUrl('wc/v3/orders', {
       per_page: 100,
       status: 'any', // Get all statuses
     });
 
-    console.log("[seller-orders] Fetching orders from WooCommerce API:", wcUrl);
+    console.log("[seller-orders] Fetching orders from WooCommerce API:", wcUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
 
     const response = await fetch(wcUrl, {
       method: "GET",
-      headers: wcHeaders,
+      headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(30000),
     });
 
