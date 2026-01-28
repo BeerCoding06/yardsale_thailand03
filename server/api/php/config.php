@@ -7,8 +7,22 @@
 
 // Parse query string from environment if running via CLI
 // This allows PHP scripts to work when executed via PHP CLI from Node.js
-if (php_sapi_name() === 'cli' && !empty($_SERVER['QUERY_STRING'])) {
-    parse_str($_SERVER['QUERY_STRING'], $_GET);
+if (php_sapi_name() === 'cli') {
+    // Initialize $_GET if not already set
+    if (!isset($_GET)) {
+        $_GET = [];
+    }
+    
+    // Parse QUERY_STRING from environment if available
+    if (!empty($_SERVER['QUERY_STRING'])) {
+        parse_str($_SERVER['QUERY_STRING'], $_GET);
+    }
+    
+    // Also check if $_GET is empty but we have query params in environment
+    // Some PHP versions may not populate $_GET from QUERY_STRING automatically
+    if (empty($_GET) && !empty($_SERVER['QUERY_STRING'])) {
+        parse_str($_SERVER['QUERY_STRING'], $_GET);
+    }
 }
 
 // WooCommerce API credentials

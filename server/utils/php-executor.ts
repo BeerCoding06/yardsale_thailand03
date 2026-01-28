@@ -21,6 +21,9 @@ export async function executePhpScript(options: PhpExecutorOptions): Promise<any
   // Build PHP script path
   const scriptPath = join(process.cwd(), 'server', 'api', 'php', script);
   
+  // Log for debugging
+  console.log(`[php-executor] Executing PHP script: ${script} with params:`, queryParams);
+  
   // Build query string for $_GET superglobal
   const queryString = Object.entries(queryParams)
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
@@ -40,6 +43,10 @@ export async function executePhpScript(options: PhpExecutorOptions): Promise<any
       CONTENT_LENGTH: JSON.stringify(body).length.toString()
     } : {}),
   };
+  
+  // Log environment setup
+  console.log(`[php-executor] PHP script path: ${scriptPath}`);
+  console.log(`[php-executor] Query string: ${queryString}`);
   
   return new Promise((resolve, reject) => {
     const phpProcess = spawn('php', [scriptPath], {
