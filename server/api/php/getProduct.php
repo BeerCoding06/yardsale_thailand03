@@ -20,16 +20,15 @@ if (!$slug && !$sku && !$id) {
 $productId = null;
 $product = null;
 
-// Try to find product by slug
+// Try to find product by slug using WooCommerce API
 if ($slug) {
-    $url = buildWpApiUrl('wp/v2/product', [
+    $url = buildWcApiUrl('wc/v3/products', [
         'slug' => $slug,
         'per_page' => 1,
-        'status' => 'publish',
-        '_embed' => '1'
+        'status' => 'publish'
     ]);
     
-    $result = fetchWordPressApi($url, 'GET');
+    $result = fetchWooCommerceApi($url, 'GET', null, false);
     
     if ($result['success'] && !empty($result['data']) && is_array($result['data']) && count($result['data']) > 0) {
         $product = $result['data'][0];
@@ -37,26 +36,18 @@ if ($slug) {
     }
 }
 
-// Try to find product by SKU (search in meta)
+// Try to find product by SKU using WooCommerce API
 if (!$productId && $sku) {
-    $url = buildWpApiUrl('wp/v2/product', [
-        'search' => $sku,
-        'per_page' => 100,
-        'status' => 'publish',
-        '_embed' => '1'
+    $url = buildWcApiUrl('wc/v3/products', [
+        'sku' => $sku,
+        'per_page' => 1,
+        'status' => 'publish'
     ]);
     
-    $result = fetchWordPressApi($url, 'GET');
+    $result = fetchWooCommerceApi($url, 'GET', null, false);
     
-    if ($result['success'] && !empty($result['data']) && is_array($result['data'])) {
-        foreach ($result['data'] as $p) {
-            // Check meta for SKU
-            if (!empty($p['meta']['_sku']) && $p['meta']['_sku'] === $sku) {
-                $product = $p;
-                $productId = $p['id'];
-                break;
-            }
-        }
+    if ($result['success'] && !empty($result['data']) && is_array($result['data']) && count($result['data']) > 0) {
+        $productId = $result['data'][0]['id'];
     }
 }
 
@@ -65,10 +56,10 @@ if (!$productId && $id) {
     $productId = $id;
 }
 
-// Fetch full product data
+// Fetch full product data from WooCommerce API
 if ($productId && !$product) {
-    $url = buildWpApiUrl("wp/v2/product/$productId", ['_embed' => '1']);
-    $result = fetchWordPressApi($url, 'GET');
+    $url = buildWcApiUrl("wc/v3/products/$productId");
+    $result = fetchWooCommerceApi($url, 'GET', null, false);
     
     if (!$result['success']) {
         sendErrorResponse('Product not found', 404);
@@ -222,38 +213,34 @@ $variations = [];
     }
 }
 
-// Get related products from WordPress REST API v2
+// Get related products from WooCommerce API
 $relatedProducts = [];
-if (!empty($product['product_cat']) && is_array($product['product_cat']) && count($product['product_cat']) > 0) {
-    $mainCategoryId = $product['product_cat'][0];
-    $relatedUrl = buildWpApiUrl('wp/v2/product', [
-        'product_cat' => $mainCategoryId,
+if (!empty($product['categories']) && is_array($product['categories']) && count($product['categories']) > 0) {
+    $mainCategoryId = $product['categories'][0]['id'];
+    $relatedUrl = buildWcApiUrl('wc/v3/products', [
+        'category' => $mainCategoryId,
         'per_page' => 10,
         'exclude' => $productId,
-        'status' => 'publish',
-        '_embed' => '1'
+        'status' => 'publish'
     ]);
     
-    $relatedResult = fetchWordPressApi($relatedUrl, 'GET');
+    $relatedResult = fetchWooCommerceApi($relatedUrl, 'GET', null, false);
     
     if ($relatedResult['success'] && !empty($relatedResult['data']) && is_array($relatedResult['data'])) {
         foreach ($relatedResult['data'] as $relatedProd) {
             $relatedImageUrl = null;
-            if (!empty($relatedProd['_embedded']['wp:featuredmedia'][0]['source_url'])) {
-                $relatedImageUrl = $relatedProd['_embedded']['wp:featuredmedia'][0]['source_url'];
+            if (!empty($relatedProd['images']) && is_array($relatedProd['images']) && count($relatedProd['images']) > 0) {
+                $relatedImageUrl = $relatedProd['images'][0]['src'] ?? null;
             }
             
             $relatedRegularPrice = '';
             $relatedSalePrice = null;
             
-            // Get price from meta
             $relatedRegularPriceValue = null;
-            if (!empty($relatedProd['meta'])) {
-                if (isset($relatedProd['meta']['_regular_price'])) {
-                    $relatedRegularPriceValue = $relatedProd['meta']['_regular_price'];
-                } elseif (isset($relatedProd['meta']['_price'])) {
-                    $relatedRegularPriceValue = $relatedProd['meta']['_price'];
-                }
+            if (!empty($relatedProd['regular_price']) && $relatedProd['regular_price'] !== '') {
+                $relatedRegularPriceValue = $relatedProd['regular_price'];
+            } elseif (!empty($relatedProd['price']) && $relatedProd['price'] !== '') {
+                $relatedRegularPriceValue = $relatedProd['price'];
             }
             
             if ($relatedRegularPriceValue !== null && $relatedRegularPriceValue !== '') {
@@ -264,8 +251,8 @@ if (!empty($product['product_cat']) && is_array($product['product_cat']) && coun
             }
             
             $relatedSalePriceValue = null;
-            if (!empty($relatedProd['meta']) && isset($relatedProd['meta']['_sale_price']) && $relatedProd['meta']['_sale_price'] !== '') {
-                $relatedSalePriceValue = $relatedProd['meta']['_sale_price'];
+            if (!empty($relatedProd['sale_price']) && $relatedProd['sale_price'] !== '') {
+                $relatedSalePriceValue = $relatedProd['sale_price'];
             }
             
             if ($relatedSalePriceValue !== null && $relatedSalePriceValue !== '') {
@@ -278,15 +265,10 @@ if (!empty($product['product_cat']) && is_array($product['product_cat']) && coun
                 }
             }
             
-            $relatedSku = $relatedProd['slug'] ?? 'product-' . $relatedProd['id'];
-            if (!empty($relatedProd['meta']) && isset($relatedProd['meta']['_sku'])) {
-                $relatedSku = $relatedProd['meta']['_sku'];
-            }
-            
             $relatedProducts[] = [
-                'sku' => $relatedSku,
+                'sku' => $relatedProd['sku'] ?? $relatedProd['slug'] ?? 'product-' . $relatedProd['id'],
                 'slug' => $relatedProd['slug'],
-                'name' => $relatedProd['title']['rendered'] ?? $relatedProd['title'] ?? '',
+                'name' => $relatedProd['name'] ?? '',
                 'regularPrice' => $relatedRegularPrice,
                 'salePrice' => $relatedSalePrice,
                 'allPaStyle' => ['nodes' => []],
@@ -303,8 +285,8 @@ sendJsonResponse([
         'databaseId' => $productId,
         'sku' => $productSku,
         'slug' => $product['slug'],
-        'name' => $product['title']['rendered'] ?? $product['title'] ?? '',
-        'description' => $product['content']['rendered'] ?? $product['content'] ?? '',
+        'name' => $product['name'] ?? '',
+        'description' => $product['description'] ?? '',
         'regularPrice' => $regularPrice,
         'salePrice' => $salePrice,
         'stockQuantity' => $stockQuantity,

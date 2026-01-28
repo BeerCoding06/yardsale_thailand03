@@ -27,7 +27,7 @@ $orderbyMap = [
 ];
 $wcOrderby = isset($orderbyMap[$orderby]) ? $orderbyMap[$orderby] : 'date';
 
-// Build API parameters
+// Build WooCommerce API parameters
 $params = [
     'per_page' => $per_page,
     'page' => $page,
@@ -44,11 +44,11 @@ if ($category) {
     $params['category'] = $category;
 }
 
-// Build API URL
+// Build WooCommerce API URL (use consumer_key/consumer_secret in query params)
 $url = buildWcApiUrl('wc/v3/products', $params);
 
-// Fetch from WooCommerce API
-$result = fetchWooCommerceApi($url, 'GET');
+// Fetch from WooCommerce API (no Basic Auth needed - uses query params)
+$result = fetchWooCommerceApi($url, 'GET', null, false);
 
 if (!$result['success']) {
     sendErrorResponse($result['error'] ?? 'Failed to fetch products', $result['http_code'] ?: 500);
@@ -56,86 +56,73 @@ if (!$result['success']) {
 
 $products = $result['data'] ?? [];
 
-// Format products to match expected structure
+// Format products to match expected structure (WooCommerce API has price/stock built-in)
 $formattedProducts = [];
 foreach ($products as $product) {
-    // Get featured image from _embedded
-    $imageUrl = null;
-    if (!empty($product['_embedded']['wp:featuredmedia'][0]['source_url'])) {
-        $imageUrl = $product['_embedded']['wp:featuredmedia'][0]['source_url'];
-    } elseif (!empty($product['featured_media'])) {
-        // Try to fetch media if not embedded
-        $mediaUrl = buildWpApiUrl("wp/v2/media/{$product['featured_media']}");
-        $mediaResult = fetchWordPressApi($mediaUrl, 'GET');
-        if ($mediaResult['success'] && !empty($mediaResult['data']['source_url'])) {
-            $imageUrl = $mediaResult['data']['source_url'];
-        }
-    }
-    
-    // Get gallery images (from meta or embedded)
-    $galleryImages = [];
-    if ($imageUrl) {
-        $galleryImages[] = ['sourceUrl' => $imageUrl];
-    }
-    
-    // Get price from meta fields (WordPress REST API v2 doesn't have price fields)
+    // Format prices from WooCommerce API
     $regularPrice = '';
     $salePrice = null;
     
-    // Try to get price from meta
-    if (!empty($product['meta'])) {
-        $regularPriceValue = null;
-        if (isset($product['meta']['_regular_price'])) {
-            $regularPriceValue = $product['meta']['_regular_price'];
-        } elseif (isset($product['meta']['_price'])) {
-            $regularPriceValue = $product['meta']['_price'];
+    $regularPriceValue = null;
+    if (!empty($product['regular_price']) && $product['regular_price'] !== '') {
+        $regularPriceValue = $product['regular_price'];
+    } elseif (!empty($product['price']) && $product['price'] !== '') {
+        $regularPriceValue = $product['price'];
+    }
+    
+    if ($regularPriceValue !== null && $regularPriceValue !== '') {
+        $price = (float)$regularPriceValue;
+        if ($price > 0) {
+            $regularPrice = '<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>' . number_format(round($price)) . '</span>';
         }
-        
-        if ($regularPriceValue !== null && $regularPriceValue !== '') {
-            $price = (float)$regularPriceValue;
-            if ($price > 0) {
-                $regularPrice = '<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>' . number_format(round($price)) . '</span>';
-            }
-        }
-        
-        if (isset($product['meta']['_sale_price']) && $product['meta']['_sale_price'] !== '') {
-            $salePriceValue = (float)$product['meta']['_sale_price'];
-            if ($salePriceValue > 0) {
-                $regularPriceNum = $regularPriceValue ? (float)$regularPriceValue : 0;
-                if ($salePriceValue < $regularPriceNum || $regularPriceNum === 0) {
-                    $salePrice = '<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>' . number_format(round($salePriceValue)) . '</span>';
-                }
+    }
+    
+    $salePriceValue = null;
+    if (!empty($product['sale_price']) && $product['sale_price'] !== '') {
+        $salePriceValue = $product['sale_price'];
+    }
+    
+    if ($salePriceValue !== null && $salePriceValue !== '') {
+        $price = (float)$salePriceValue;
+        if ($price > 0) {
+            $regularPriceNum = $regularPriceValue ? (float)$regularPriceValue : 0;
+            if ($price < $regularPriceNum || $regularPriceNum === 0) {
+                $salePrice = '<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>' . number_format(round($price)) . '</span>';
             }
         }
     }
     
-    // Get stock from meta
-    $stockQuantity = null;
-    $stockStatus = 'IN_STOCK';
-    if (!empty($product['meta'])) {
-        if (isset($product['meta']['_stock'])) {
-            $stockQuantity = (int)$product['meta']['_stock'];
-        }
-        if (isset($product['meta']['_stock_status'])) {
-            $stockStatus = strtoupper($product['meta']['_stock_status']);
+    // Get image from WooCommerce API
+    $imageUrl = null;
+    if (!empty($product['images']) && is_array($product['images']) && count($product['images']) > 0) {
+        $imageUrl = $product['images'][0]['src'] ?? null;
+    }
+    
+    // Get gallery images
+    $galleryImages = [];
+    if (!empty($product['images']) && is_array($product['images'])) {
+        foreach ($product['images'] as $img) {
+            if (!empty($img['src'])) {
+                $galleryImages[] = ['sourceUrl' => $img['src']];
+            }
         }
     }
     
     $formattedProducts[] = [
         'id' => $product['id'],
         'databaseId' => $product['id'],
-        'sku' => $product['slug'] ?? 'product-' . $product['id'],
+        'sku' => $product['sku'] ?? $product['slug'] ?? 'product-' . $product['id'],
         'slug' => $product['slug'],
-        'name' => $product['title']['rendered'] ?? $product['title'] ?? '',
-        'description' => $product['content']['rendered'] ?? $product['content'] ?? '',
+        'name' => $product['name'] ?? '',
+        'description' => $product['description'] ?? '',
         'regularPrice' => $regularPrice,
         'salePrice' => $salePrice,
-        'stockQuantity' => $stockQuantity,
-        'stockStatus' => $stockStatus,
+        'stockQuantity' => isset($product['stock_quantity']) && $product['stock_quantity'] !== null ? (int)$product['stock_quantity'] : null,
+        'stockStatus' => strtoupper($product['stock_status'] ?? 'instock'),
         'image' => $imageUrl ? ['sourceUrl' => $imageUrl] : null,
         'galleryImages' => ['nodes' => $galleryImages],
         'allPaStyle' => ['nodes' => []],
-        'link' => $product['link'] ?? '',
+        'link' => $product['permalink'] ?? '',
         'status' => $product['status'] ?? 'publish'
     ];
 }
