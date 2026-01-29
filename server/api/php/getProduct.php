@@ -16,7 +16,13 @@ $slug = isset($_GET['slug']) ? $_GET['slug'] : null;
 $sku = isset($_GET['sku']) ? $_GET['sku'] : null;
 $id = isset($_GET['id']) ? (int)$_GET['id'] : null;
 
+// Log received parameters for debugging
+error_log('[getProduct] Received parameters - slug: ' . ($slug ?? 'null') . ', sku: ' . ($sku ?? 'null') . ', id: ' . ($id ?? 'null'));
+error_log('[getProduct] $_GET: ' . print_r($_GET, true));
+error_log('[getProduct] QUERY_STRING: ' . (isset($_SERVER['QUERY_STRING']) ? $_SERVER['QUERY_STRING'] : 'not set'));
+
 if (!$slug && !$sku && !$id) {
+    error_log('[getProduct] Error: No slug, sku, or id provided');
     sendErrorResponse('slug, sku, or id is required', 400);
 }
 
@@ -164,13 +170,19 @@ $paStyle = [];
 // Attributes are typically stored in meta or taxonomy terms
 // This is a simplified version - you may need to adjust based on your setup
 
-// Get variations (simplified - WordPress REST API v2 doesn't have direct variations endpoint)
+// Get variations from WooCommerce API
 $variations = [];
-// Variations would need to be fetched differently in wp/v2
-        
-        if ($varResult['success'] && !empty($varResult['data'])) {
-            $variation = $varResult['data'];
-            
+if ($productId && !empty($product['type']) && $product['type'] === 'variable') {
+    // Fetch variations for variable products
+    $varUrl = buildWcApiUrl("wc/v3/products/$productId/variations", [
+        'per_page' => 100,
+        'status' => 'publish'
+    ], true); // Use Basic Auth
+    
+    $varResult = fetchWooCommerceApi($varUrl, 'GET', null, true); // Use Basic Auth
+    
+    if ($varResult['success'] && !empty($varResult['data']) && is_array($varResult['data'])) {
+        foreach ($varResult['data'] as $variation) {
             $varImageUrl = null;
             if (!empty($variation['image']['src'])) {
                 $varImageUrl = $variation['image']['src'];
@@ -210,8 +222,8 @@ $variations = [];
             
             $varAttributes = [];
             if (!empty($variation['attributes']) && is_array($variation['attributes'])) {
-                foreach ($variation['attributes'] as $attr) {
-                    $varAttributes[] = ['value' => $attr['option'] ?? ''];
+                foreach ($variation['attributes'] as $key => $attr) {
+                    $varAttributes[] = ['value' => $attr['option'] ?? $attr ?? ''];
                 }
             }
             

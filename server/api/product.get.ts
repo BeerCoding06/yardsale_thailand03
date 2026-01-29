@@ -31,6 +31,14 @@ export default cachedEventHandler(
         method: 'GET',
       });
       
+      console.log('[product] PHP script response:', JSON.stringify(data).substring(0, 200));
+      
+      // Check if product exists in response
+      if (!data || !data.product) {
+        console.warn('[product] No product data in response:', data);
+        return { product: null };
+      }
+      
       return data;
     } catch (error: any) {
       console.error('[product] Error executing PHP script:', error.message || error);
