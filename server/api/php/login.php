@@ -1,6 +1,6 @@
 <?php
 /**
- * User Login using WordPress REST API
+ * User Login using WordPress wp_signon()
  * 
  * Endpoint: POST /server/api/php/login.php
  * Body: { username: string, password: string }
@@ -31,78 +31,223 @@ if (!is_array($body)) {
 $username = isset($body['username']) ? trim($body['username']) : null;
 $password = isset($body['password']) ? $body['password'] : null;
 
-// Remove spaces from password (Application Passwords may have spaces)
-$originalPassword = $password;
-if ($password) {
-    $password = str_replace(' ', '', $password);
-}
-
 error_log('[login] Attempting login for username: ' . ($username ?? 'null'));
 error_log('[login] Password length: ' . strlen($password ?? ''));
-error_log('[login] Original password had spaces: ' . (strpos($originalPassword ?? '', ' ') !== false ? 'yes' : 'no'));
 
 if (!$username || !$password) {
     error_log('[login] Error: username or password is missing');
     sendErrorResponse('Username and password are required', 400);
 }
 
-// Use WordPress REST API to verify credentials
-// We'll use Basic Auth with username:password to authenticate
+// Use wp_signon() to authenticate with WordPress
+// This requires WordPress core to be loaded
 $baseUrl = rtrim(WC_BASE_URL, '/');
-$meUrl = $baseUrl . '/wp-json/wp/v2/users/me';
 
-error_log('[login] Authenticating via WordPress REST API: ' . $meUrl);
 error_log('[login] Base URL: ' . $baseUrl);
 error_log('[login] Username/Email: ' . $username);
 
-// WordPress REST API /users/me endpoint requires Basic Auth
-// Note: WordPress REST API may require Application Password instead of regular password
-// Format: username:application_password or email:application_password
+// Try to load WordPress core
+// WordPress may be in a different location, so we'll try multiple paths
+$wpLoadPaths = [
+    $baseUrl . '/wp-load.php',  // Standard WordPress location
+    '/var/www/html/wp-load.php', // Common Docker path
+    '/app/wp-load.php',          // Alternative Docker path
+    dirname(__DIR__) . '/../../wp-load.php', // Relative path
+];
 
-// First, try to find the actual username if email is provided
-$actualUsername = $username;
-$isEmail = filter_var($username, FILTER_VALIDATE_EMAIL);
+$wpLoaded = false;
+$wpLoadPath = null;
 
-if ($isEmail) {
-    error_log('[login] Username appears to be an email, searching for actual username...');
-    
-    // Search for user by email using admin credentials
-    $searchUrl = $baseUrl . '/wp-json/wp/v2/users?search=' . urlencode($username) . '&per_page=100';
-    
-    $wpBasicAuth = getWpBasicAuth();
-    if ($wpBasicAuth) {
-        $searchCh = curl_init();
-        curl_setopt($searchCh, CURLOPT_URL, $searchUrl);
-        curl_setopt($searchCh, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($searchCh, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-            'Authorization: Basic ' . $wpBasicAuth
-        ]);
-        curl_setopt($searchCh, CURLOPT_TIMEOUT, 10);
-        curl_setopt($searchCh, CURLOPT_SSL_VERIFYPEER, false);
-        
-        $searchResponse = curl_exec($searchCh);
-        $searchHttpCode = curl_getinfo($searchCh, CURLINFO_HTTP_CODE);
-        curl_close($searchCh);
-        
-        if ($searchHttpCode === 200) {
-            $users = json_decode($searchResponse, true);
-            if (is_array($users) && !empty($users)) {
-                // Find user with matching email
-                foreach ($users as $user) {
-                    if (isset($user['email']) && strtolower(trim($user['email'])) === strtolower($username)) {
-                        $actualUsername = $user['username'] ?? $username;
-                        error_log('[login] Found user with username: ' . $actualUsername . ' (email: ' . $user['email'] . ')');
-                        break;
-                    }
-                }
-            }
-        } else {
-            error_log('[login] Search request failed with HTTP ' . $searchHttpCode);
-        }
-    } else {
-        error_log('[login] WP_BASIC_AUTH not configured, cannot search for username');
+foreach ($wpLoadPaths as $path) {
+    // For remote paths, we'll need to use HTTP request
+    if (strpos($path, 'http://') === 0 || strpos($path, 'https://') === 0) {
+        // Can't directly require remote file, will use remote wp_signon instead
+        break;
     }
+    
+    if (file_exists($path)) {
+        error_log('[login] Found WordPress at: ' . $path);
+        try {
+            require_once $path;
+            $wpLoaded = true;
+            $wpLoadPath = $path;
+            break;
+        } catch (Exception $e) {
+            error_log('[login] Failed to load WordPress from ' . $path . ': ' . $e->getMessage());
+        }
+    }
+}
+
+if (!$wpLoaded) {
+    error_log('[login] WordPress core not found locally, using remote wp_signon via HTTP...');
+    
+    // Use remote WordPress login endpoint that uses wp_signon()
+    // Create a custom WordPress endpoint or use existing login mechanism
+    $loginEndpoint = $baseUrl . '/wp-login.php';
+    
+    // Try to authenticate via WordPress login form and get user data
+    // We'll use wp_signon() logic via a custom endpoint or direct database check
+    // For now, let's use a workaround: call WordPress REST API after login form
+    
+    // Step 1: Use login form to authenticate
+    $loginUrl = $baseUrl . '/wp-login.php';
+    $loginPostData = http_build_query([
+        'log' => $username,
+        'pwd' => $password,
+        'wp-submit' => 'Log In',
+        'redirect_to' => $baseUrl . '/wp-admin/',
+        'testcookie' => '1'
+    ]);
+    
+    $cookieFile = sys_get_temp_dir() . '/wp_login_cookies_' . uniqid() . '.txt';
+    
+    $loginCh = curl_init();
+    curl_setopt($loginCh, CURLOPT_URL, $loginUrl);
+    curl_setopt($loginCh, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($loginCh, CURLOPT_POST, true);
+    curl_setopt($loginCh, CURLOPT_POSTFIELDS, $loginPostData);
+    curl_setopt($loginCh, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/x-www-form-urlencoded',
+        'User-Agent: Mozilla/5.0 (compatible; WordPress Login)'
+    ]);
+    curl_setopt($loginCh, CURLOPT_TIMEOUT, 30);
+    curl_setopt($loginCh, CURLOPT_CONNECTTIMEOUT, 10);
+    curl_setopt($loginCh, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($loginCh, CURLOPT_FOLLOWLOCATION, false);
+    curl_setopt($loginCh, CURLOPT_COOKIEJAR, $cookieFile);
+    curl_setopt($loginCh, CURLOPT_COOKIEFILE, $cookieFile);
+    curl_setopt($loginCh, CURLOPT_HEADER, true);
+    
+    $loginResponse = curl_exec($loginCh);
+    $loginHttpCode = curl_getinfo($loginCh, CURLINFO_HTTP_CODE);
+    $loginHeaderSize = curl_getinfo($loginCh, CURLINFO_HEADER_SIZE);
+    curl_close($loginCh);
+    
+    $loginHeaders = substr($loginResponse, 0, $loginHeaderSize);
+    $loginBody = substr($loginResponse, $loginHeaderSize);
+    
+    // Check if login was successful (redirect indicates success)
+    $loginSuccessful = ($loginHttpCode >= 300 && $loginHttpCode < 400) || 
+                       strpos($loginBody, 'wp-admin') !== false ||
+                       strpos($loginBody, 'dashboard') !== false;
+    
+    if (!$loginSuccessful) {
+        // Check for error messages
+        if (strpos($loginBody, 'incorrect password') !== false || 
+            strpos($loginBody, 'Invalid username') !== false ||
+            strpos($loginBody, 'ERROR') !== false) {
+            error_log('[login] Login failed: Invalid credentials');
+            if (file_exists($cookieFile)) {
+                @unlink($cookieFile);
+            }
+            sendErrorResponse('Invalid username or password', 401);
+        }
+    }
+    
+    // Step 2: Get user data using REST API with cookies
+    if ($loginSuccessful && file_exists($cookieFile)) {
+        $meUrl = $baseUrl . '/wp-json/wp/v2/users/me';
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $meUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
+        curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile);
+        
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        $curl_info = curl_getinfo($ch);
+        curl_close($ch);
+        
+        @unlink($cookieFile);
+        
+        if ($http_code >= 200 && $http_code < 300) {
+            $userData = json_decode($response, true);
+            
+            if (json_last_error() === JSON_ERROR_NONE && is_array($userData) && !empty($userData)) {
+                unset($userData['password']);
+                unset($userData['user_pass']);
+                
+                error_log('[login] Login successful for user ID: ' . ($userData['id'] ?? 'N/A'));
+                
+                sendJsonResponse([
+                    'success' => true,
+                    'user' => $userData,
+                    'message' => 'Login successful'
+                ]);
+            }
+        }
+    }
+    
+    error_log('[login] Remote login failed');
+    sendErrorResponse('Invalid username or password', 401);
+}
+
+// WordPress core is loaded locally, use wp_signon()
+error_log('[login] WordPress core loaded, using wp_signon()...');
+
+// Check if WordPress functions are available
+if (function_exists('wp_signon')) {
+    // Prepare credentials for wp_signon()
+    $credentials = [
+        'user_login' => $username,
+        'user_password' => $password,
+        'remember' => false
+    ];
+    
+    // Use wp_signon() to authenticate
+    /** @var WP_User|WP_Error $user */
+    $user = wp_signon($credentials, false);
+    
+    /** @var bool $isError */
+    if (is_wp_error($user)) {
+        $errorMessage = $user->get_error_message();
+        error_log('[login] wp_signon() failed: ' . $errorMessage);
+        sendErrorResponse($errorMessage, 401);
+    }
+    
+    // Login successful, get user data
+    /** @var WP_User $user */
+    $userData = [
+        'id' => $user->ID,
+        'username' => $user->user_login,
+        'email' => $user->user_email,
+        'name' => $user->display_name,
+    ];
+    
+    // Add optional fields if functions exist
+    if (function_exists('get_user_meta')) {
+        /** @var string $firstName */
+        $firstName = get_user_meta($user->ID, 'first_name', true);
+        /** @var string $lastName */
+        $lastName = get_user_meta($user->ID, 'last_name', true);
+        $userData['first_name'] = $firstName;
+        $userData['last_name'] = $lastName;
+    }
+    
+    if (isset($user->roles)) {
+        $userData['roles'] = $user->roles;
+    }
+    if (isset($user->allcaps)) {
+        $userData['capabilities'] = $user->allcaps;
+    }
+    
+    error_log('[login] Login successful for user ID: ' . $userData['id']);
+    
+    sendJsonResponse([
+        'success' => true,
+        'user' => $userData,
+        'message' => 'Login successful'
+    ]);
+} else {
+    error_log('[login] wp_signon() function not available, WordPress core may not be fully loaded');
+    sendErrorResponse('WordPress core not properly loaded', 500);
 }
 
 // WordPress REST API /users/me endpoint requires Application Password for Basic Auth
