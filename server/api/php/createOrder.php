@@ -11,11 +11,20 @@ require_once __DIR__ . '/config.php';
 // Set CORS headers
 setCorsHeaders();
 
-// Get request body
-$input = file_get_contents('php://input');
+// Get request body (supports both web server and CLI)
+$input = getRequestBody();
+error_log('[createOrder] Request body length: ' . strlen($input));
+
 $orderData = json_decode($input, true);
 
+if (json_last_error() !== JSON_ERROR_NONE) {
+    error_log('[createOrder] JSON decode error: ' . json_last_error_msg());
+    error_log('[createOrder] Raw input (first 500 chars): ' . substr($input, 0, 500));
+    sendErrorResponse('Invalid JSON in request body: ' . json_last_error_msg(), 400);
+}
+
 if (!$orderData) {
+    error_log('[createOrder] Error: orderData is empty or invalid');
     sendErrorResponse('Invalid order data', 400);
 }
 

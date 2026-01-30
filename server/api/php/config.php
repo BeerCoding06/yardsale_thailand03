@@ -23,6 +23,43 @@ if (php_sapi_name() === 'cli') {
     if (empty($_GET) && !empty($_SERVER['QUERY_STRING'])) {
         parse_str($_SERVER['QUERY_STRING'], $_GET);
     }
+    
+    // Initialize $_POST if not already set
+    if (!isset($_POST)) {
+        $_POST = [];
+    }
+}
+
+/**
+ * Get request body (supports both web server and CLI)
+ * When running via CLI, reads from stdin or REQUEST_BODY environment variable
+ * When running via web server, reads from php://input
+ * 
+ * @return string Request body content
+ */
+function getRequestBody() {
+    // If running via CLI, try to read from stdin or environment variable
+    if (php_sapi_name() === 'cli') {
+        // First try environment variable (set by php-executor.ts)
+        if (!empty($_SERVER['REQUEST_BODY'])) {
+            return $_SERVER['REQUEST_BODY'];
+        }
+        
+        // Fallback: try to read from stdin
+        $input = '';
+        $handle = fopen('php://stdin', 'r');
+        if ($handle) {
+            while (!feof($handle)) {
+                $input .= fread($handle, 8192);
+            }
+            fclose($handle);
+        }
+        
+        return $input;
+    }
+    
+    // When running via web server, use php://input
+    return file_get_contents('php://input');
 }
 
 // WooCommerce API credentials

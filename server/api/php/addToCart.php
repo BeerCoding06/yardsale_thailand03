@@ -11,13 +11,24 @@ require_once __DIR__ . '/config.php';
 // Set CORS headers
 setCorsHeaders();
 
-// Get request body
-$input = file_get_contents('php://input');
+// Get request body (supports both web server and CLI)
+$input = getRequestBody();
+error_log('[addToCart] Request body: ' . substr($input, 0, 200));
+
 $body = json_decode($input, true);
+
+if (json_last_error() !== JSON_ERROR_NONE) {
+    error_log('[addToCart] JSON decode error: ' . json_last_error_msg());
+    error_log('[addToCart] Raw input: ' . substr($input, 0, 500));
+    sendErrorResponse('Invalid JSON in request body: ' . json_last_error_msg(), 400);
+}
 
 $productId = isset($body['productId']) ? (int)$body['productId'] : null;
 
+error_log('[addToCart] Parsed productId: ' . ($productId ?? 'null'));
+
 if (!$productId) {
+    error_log('[addToCart] Error: productId is required');
     sendErrorResponse('productId is required', 400);
 }
 

@@ -40,7 +40,8 @@ export async function executePhpScript(options: PhpExecutorOptions): Promise<any
     SCRIPT_NAME: `/server/api/php/${script}`,
     ...(method === 'POST' && body ? { 
       HTTP_CONTENT_TYPE: 'application/json',
-      CONTENT_LENGTH: JSON.stringify(body).length.toString()
+      CONTENT_LENGTH: JSON.stringify(body).length.toString(),
+      REQUEST_BODY: JSON.stringify(body) // Send body via environment variable for CLI
     } : {}),
   };
   
@@ -57,9 +58,11 @@ export async function executePhpScript(options: PhpExecutorOptions): Promise<any
     let stdout = '';
     let stderr = '';
     
-    // Write POST body to stdin if provided
+    // For POST requests, body is sent via REQUEST_BODY environment variable
+    // We still write to stdin as a fallback, but PHP script will prefer REQUEST_BODY
     if (method === 'POST' && body) {
-      phpProcess.stdin.write(JSON.stringify(body));
+      const bodyJson = JSON.stringify(body);
+      phpProcess.stdin.write(bodyJson);
       phpProcess.stdin.end();
     } else {
       phpProcess.stdin.end();
