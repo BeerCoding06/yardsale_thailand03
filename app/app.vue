@@ -28,19 +28,25 @@ const categoriesData = ref([]);
 
 onMounted(async () => {
   try {
-    const response = await $fetch("/api/categories");
+    const response = await $fetch("/api/categories?parent=0");
     console.log("[app] Categories response:", response);
 
-    // ลดเงื่อนไข filter ให้ง่ายขึ้น - แสดง categories ที่มี children หรือ products
-    categoriesData.value = response.productCategories.nodes.filter(
-      (category) =>
-        category.products?.nodes?.length > 0 ||
-        category.children?.nodes?.length > 0
-    );
-
-    console.log("[app] Filtered categories:", categoriesData.value.length);
+    // แสดง categories ทั้งหมดที่ดึงมา (ไม่ต้อง filter เพราะ API ดึงมาแล้ว)
+    if (response?.productCategories?.nodes) {
+      categoriesData.value = response.productCategories.nodes;
+      console.log("[app] Loaded categories:", categoriesData.value.length);
+      
+      // Debug: log first category structure
+      if (categoriesData.value.length > 0) {
+        console.log("[app] First category:", categoriesData.value[0]);
+      }
+    } else {
+      categoriesData.value = [];
+      console.warn("[app] No categories in response");
+    }
   } catch (error) {
     console.error("[app] Error fetching categories:", error);
+    categoriesData.value = [];
   }
 });
 

@@ -85,27 +85,28 @@ if (empty($categories)) {
 
 // Format categories
 $formattedCategories = [];
-foreach ($categories as $category) {
-    $imageUrl = null;
-    if (!empty($category['image'])) {
-        $imageUrl = $category['image'];
-    }
+
+// If parent=0, we can fetch all children in one request instead of per-category
+$allChildren = [];
+if ($parent === 0) {
+    // Fetch all categories (including children) in one request for better performance
+    // Then filter to get only children (parent != 0)
+    $allCategoriesUrl = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query([
+        'per_page' => 100,
+        'hide_empty' => $hide_empty ? '1' : '0'
+    ]);
     
-    // Get children categories
-    $children = [];
-    if ($category['count'] > 0 || !$hide_empty) {
-        $childrenUrl = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query([
-            'parent' => $category['id'],
-            'per_page' => 100,
-            'hide_empty' => $hide_empty ? '1' : '0'
-        ]);
-        
-        $childrenResult = fetchWordPressApi($childrenUrl, 'GET');
-        
-        $childrenData = $childrenResult['success'] ? ($childrenResult['data'] ?? []) : [];
-        if (is_array($childrenData)) {
-            foreach ($childrenData as $child) {
-                $children[] = [
+    $allCategoriesResult = fetchWordPressApi($allCategoriesUrl, 'GET');
+    if ($allCategoriesResult['success'] && is_array($allCategoriesResult['data'])) {
+        // Group children by parent ID (filter out parent categories)
+        foreach ($allCategoriesResult['data'] as $child) {
+            $parentId = $child['parent'] ?? 0;
+            // Only include categories that have a parent (are children)
+            if ($parentId > 0) {
+                if (!isset($allChildren[$parentId])) {
+                    $allChildren[$parentId] = [];
+                }
+                $allChildren[$parentId][] = [
                     'id' => $child['id'],
                     'databaseId' => $child['id'],
                     'name' => $child['name'],
@@ -115,6 +116,48 @@ foreach ($categories as $category) {
                     'parent' => $child['parent'] ?? null,
                     'count' => $child['count'] ?? 0
                 ];
+            }
+        }
+        error_log('[getCategories] Pre-fetched ' . count($allCategoriesResult['data']) . ' total categories, grouped into ' . count($allChildren) . ' parent groups');
+    }
+}
+
+foreach ($categories as $category) {
+    $imageUrl = null;
+    if (!empty($category['image'])) {
+        $imageUrl = $category['image'];
+    }
+    
+    // Get children categories - use pre-fetched data if available
+    $children = [];
+    if ($parent === 0 && isset($allChildren[$category['id']])) {
+        // Use pre-fetched children
+        $children = $allChildren[$category['id']];
+    } elseif ($parent !== 0) {
+        // For non-parent requests, fetch children individually
+        if ($category['count'] > 0 || !$hide_empty) {
+            $childrenUrl = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query([
+                'parent' => $category['id'],
+                'per_page' => 100,
+                'hide_empty' => $hide_empty ? '1' : '0'
+            ]);
+            
+            $childrenResult = fetchWordPressApi($childrenUrl, 'GET');
+            
+            $childrenData = $childrenResult['success'] ? ($childrenResult['data'] ?? []) : [];
+            if (is_array($childrenData)) {
+                foreach ($childrenData as $child) {
+                    $children[] = [
+                        'id' => $child['id'],
+                        'databaseId' => $child['id'],
+                        'name' => $child['name'],
+                        'slug' => $child['slug'],
+                        'description' => $child['description'] ?? '',
+                        'image' => null,
+                        'parent' => $child['parent'] ?? null,
+                        'count' => $child['count'] ?? 0
+                    ];
+                }
             }
         }
     }

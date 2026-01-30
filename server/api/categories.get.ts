@@ -35,7 +35,11 @@ export default cachedEventHandler(
     }
   },
   {
-    maxAge: 1,
-    swr: false,
+    maxAge: 60 * 5, // Cache for 5 minutes
+    swr: true, // Enable stale-while-revalidate
+    getKey: (event) => {
+      const query = getQuery(event);
+      return `categories-${query.parent || 0}-${query.hide_empty || true}-${query.orderby || 'name'}-${query.order || 'ASC'}`;
+    },
   }
 );
