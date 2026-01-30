@@ -16,7 +16,8 @@ $parent = isset($_GET['parent']) ? (int)$_GET['parent'] : 0;
 // Default hide_empty to false to show all categories (even if they have no products)
 $hide_empty = isset($_GET['hide_empty']) ? $_GET['hide_empty'] !== 'false' : false;
 $orderby = isset($_GET['orderby']) ? $_GET['orderby'] : 'name';
-$order = isset($_GET['order']) ? strtoupper($_GET['order']) : 'ASC';
+// WooCommerce API requires lowercase for order parameter (asc/desc)
+$order = isset($_GET['order']) ? strtolower($_GET['order']) : 'asc';
 
 error_log('[getCategories] Query params - parent: ' . $parent . ', hide_empty: ' . ($hide_empty ? 'true' : 'false') . ', orderby: ' . $orderby . ', order: ' . $order);
 
@@ -29,10 +30,8 @@ $queryParams = [
     'parent' => $parent
 ];
 
-// WooCommerce API supports hide_empty parameter
-if ($hide_empty !== null) {
-    $queryParams['hide_empty'] = $hide_empty ? 'true' : 'false';
-}
+// WooCommerce API v3 may not support hide_empty parameter, so we'll skip it
+// Categories will be filtered client-side if needed
 
 // Use WooCommerce API v3 for categories
 $url = buildWcApiUrl('wc/v3/products/categories', $queryParams, true); // Use Basic Auth
@@ -108,9 +107,7 @@ if ($parent === 0) {
     $allCategoriesParams = [
         'per_page' => 100
     ];
-    if ($hide_empty !== null) {
-        $allCategoriesParams['hide_empty'] = $hide_empty ? 'true' : 'false';
-    }
+    // Don't include hide_empty as WooCommerce API may not support it
     
     $allCategoriesUrl = buildWcApiUrl('wc/v3/products/categories', $allCategoriesParams, true); // Use Basic Auth
     $allCategoriesLogUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $allCategoriesUrl);
@@ -165,9 +162,7 @@ foreach ($categories as $category) {
                 'parent' => $category['id'],
                 'per_page' => 100
             ];
-            if ($hide_empty !== null) {
-                $childrenParams['hide_empty'] = $hide_empty ? 'true' : 'false';
-            }
+            // Don't include hide_empty as WooCommerce API may not support it
             
             $childrenUrl = buildWcApiUrl('wc/v3/products/categories', $childrenParams, true); // Use Basic Auth
             $childrenResult = fetchWooCommerceApi($childrenUrl, 'GET', null, true); // Use Basic Auth
