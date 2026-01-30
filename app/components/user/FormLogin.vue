@@ -74,9 +74,9 @@ const handleSubmit = async (e) => {
       // Wait for auth state to update and close any modals
       await nextTick();
 
-      // Redirect to home page after 1 second
+      // Redirect to profile page after 1 second
       setTimeout(() => {
-        navigateTo("/");
+        navigateTo("/profile");
       }, 1000);
     } else {
       throw new Error(result.error || "Login failed");

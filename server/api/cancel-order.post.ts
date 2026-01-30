@@ -1,7 +1,7 @@
 // server/api/cancel-order.post.ts
-// Cancel order using WooCommerce REST API
+// Cancel order via PHP API endpoint
 
-import * as wpUtils from '../utils/wp';
+import { executePhpScript } from '../utils/php-executor';
 
 export default defineEventHandler(async (event) => {
   try {
@@ -17,80 +17,21 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Check WooCommerce credentials
-    const consumerKey = wpUtils.getWpConsumerKey();
-    const consumerSecret = wpUtils.getWpConsumerSecret();
+    console.log('[cancel-order] Executing PHP script: cancelOrder.php');
     
-    if (!consumerKey || !consumerSecret) {
-      throw createError({
-        statusCode: 500,
-        message: "WooCommerce Consumer Key/Secret is not configured",
-      });
-    }
-
-    // First, verify the order exists and belongs to the customer
-    const wcUrl = wpUtils.buildWcApiUrl(`wc/v3/orders/${orderId}`);
+    // Execute PHP script directly using PHP CLI
+    const data = await executePhpScript({
+      script: 'cancelOrder.php',
+      body: body,
+      method: 'POST',
+    });
     
-    const getResponse = await fetch(wcUrl, {
-      method: "GET",
-      headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!getResponse.ok) {
-      throw createError({
-        statusCode: getResponse.status,
-        message: "Order not found",
-      });
-    }
-
-    const existingOrder = await getResponse.json();
-
-    // Verify ownership if customerId is provided
-    if (customerId && existingOrder.customer_id && parseInt(existingOrder.customer_id) !== parseInt(customerId)) {
-      throw createError({
-        statusCode: 403,
-        message: "You don't have permission to cancel this order",
-      });
-    }
-
-    // Update order status to cancelled
-    console.log("[cancel-order] Cancelling order via WooCommerce API:", wcUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***'));
-
-    const response = await fetch(wcUrl, {
-      method: "PUT",
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        status: 'cancelled'
-      }),
-      signal: AbortSignal.timeout(30000),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => "");
-      let errorMessage = `WooCommerce API error (status ${response.status})`;
-      try {
-        const errorJson = JSON.parse(errorText);
-        if (errorJson.message) errorMessage = errorJson.message;
-      } catch (e) {
-        if (errorText) errorMessage = `${errorMessage}: ${errorText.substring(0, 200)}`;
-      }
-      console.error("[cancel-order] WooCommerce API Error:", errorMessage);
-      throw createError({
-        statusCode: response.status,
-        message: errorMessage,
-      });
-    }
-
-    const data = await response.json();
     console.log("[cancel-order] Successfully cancelled order:", {
-      orderId: data.id,
-      status: data.status,
+      orderId: data?.order?.id,
+      status: data?.order?.status,
     });
 
-    return {
-      order: data
-    };
+    return data;
   } catch (error: any) {
     console.error("[cancel-order] Error:", error);
     throw createError({

@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
     const queryParams: Record<string, string | number> = {
       per_page: 100,
     };
-    if (customerId) queryParams.customer = Number(customerId);
+    if (customerId) queryParams.customer_id = Number(customerId);
     if (customerEmail) queryParams.customer_email = String(customerEmail);
     
     console.log('[my-orders] Executing PHP script: getOrders.php', queryParams);
