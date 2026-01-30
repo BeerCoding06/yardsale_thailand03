@@ -28,29 +28,55 @@ const categoriesData = ref([]);
 
 onMounted(async () => {
   try {
+    console.log("[app] Fetching categories from /api/categories?parent=0");
     const response = await $fetch("/api/categories?parent=0");
     console.log("[app] Categories response:", response);
+    console.log("[app] Response type:", typeof response);
+    console.log("[app] Has productCategories?", !!response?.productCategories);
+    console.log("[app] Has nodes?", !!response?.productCategories?.nodes);
+    console.log("[app] Nodes is array?", Array.isArray(response?.productCategories?.nodes));
 
     // แสดง categories ทั้งหมดที่ดึงมา (ไม่ต้อง filter เพราะ API ดึงมาแล้ว)
-    if (response?.productCategories?.nodes) {
+    if (response?.productCategories?.nodes && Array.isArray(response.productCategories.nodes)) {
       categoriesData.value = response.productCategories.nodes;
       console.log("[app] Loaded categories:", categoriesData.value.length);
       
       // Debug: log first category structure
       if (categoriesData.value.length > 0) {
         console.log("[app] First category:", categoriesData.value[0]);
+        console.log("[app] First category keys:", Object.keys(categoriesData.value[0]));
+      } else {
+        console.warn("[app] Categories array is empty");
       }
     } else {
       categoriesData.value = [];
       console.warn("[app] No categories in response");
+      console.warn("[app] Response structure:", {
+        hasProductCategories: !!response?.productCategories,
+        hasNodes: !!response?.productCategories?.nodes,
+        nodesType: typeof response?.productCategories?.nodes,
+        isArray: Array.isArray(response?.productCategories?.nodes),
+        fullResponse: response
+      });
     }
   } catch (error) {
     console.error("[app] Error fetching categories:", error);
+    console.error("[app] Error details:", {
+      message: error?.message,
+      statusCode: error?.statusCode,
+      data: error?.data
+    });
     categoriesData.value = [];
   }
 });
 
 const categories = computed(() => categoriesData.value);
+
+// Debug: Watch categories changes
+watch(categories, (newCategories) => {
+  console.log('[app] Categories computed changed:', newCategories?.length || 0);
+  console.log('[app] Categories data:', newCategories);
+}, { deep: true, immediate: true });
 </script>
 
 <template>

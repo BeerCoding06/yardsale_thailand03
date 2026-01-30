@@ -1,6 +1,6 @@
 <!--app/components/CarouselCategories.vue-->
 <script setup>
-import { ref } from "vue";
+import { ref, watch, onMounted } from "vue";
 const router = useRouter();
 const route = useRoute();
 const localePath = useLocalePath();
@@ -10,6 +10,19 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+});
+
+// Debug: Watch categories prop changes
+watch(() => props.categories, (newCategories) => {
+  console.log('[CarouselCategories] Categories prop changed:', newCategories?.length || 0);
+  console.log('[CarouselCategories] Categories data:', newCategories);
+}, { deep: true, immediate: true });
+
+onMounted(() => {
+  console.log('[CarouselCategories] Component mounted');
+  console.log('[CarouselCategories] Categories prop:', props.categories);
+  console.log('[CarouselCategories] Categories length:', props.categories?.length || 0);
+  console.log('[CarouselCategories] Is array?', Array.isArray(props.categories));
 });
 
 const cardsSlider = ref(null);
