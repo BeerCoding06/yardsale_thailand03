@@ -163,6 +163,10 @@ if (preg_match_all('/Set-Cookie: ([^;]+)/i', $loginHeaders, $matches)) {
 
 error_log('[login] Login form response HTTP code: ' . $loginHttpCode);
 error_log('[login] Found ' . count($cookies) . ' cookies');
+if (!empty($cookies)) {
+    error_log('[login] Cookies: ' . implode(', ', array_slice($cookies, 0, 3)) . '...');
+}
+error_log('[login] Login body preview (first 200 chars): ' . substr($loginBody, 0, 200));
 
 // Check if login was successful (WordPress redirects on successful login)
 // If we get a redirect (3xx) or the response contains admin dashboard, login was successful
@@ -170,20 +174,27 @@ $loginSuccessful = false;
 if ($loginHttpCode >= 300 && $loginHttpCode < 400) {
     $loginSuccessful = true;
     error_log('[login] Login form returned redirect (likely successful)');
-} elseif (strpos($loginResponse, 'wp-admin') !== false || strpos($loginResponse, 'dashboard') !== false) {
+} elseif (strpos($loginBody, 'wp-admin') !== false || strpos($loginBody, 'dashboard') !== false || strpos($loginBody, 'wp-login.php?loggedout') !== false) {
     $loginSuccessful = true;
     error_log('[login] Login form response contains admin dashboard (likely successful)');
-} elseif (strpos($loginResponse, 'incorrect password') !== false || strpos($loginResponse, 'Invalid username') !== false) {
+} elseif (strpos($loginBody, 'incorrect password') !== false || strpos($loginBody, 'Invalid username') !== false || strpos($loginBody, 'ERROR') !== false) {
     $loginSuccessful = false;
     error_log('[login] Login form indicates incorrect credentials');
+    error_log('[login] Login body (first 500 chars): ' . substr($loginBody, 0, 500));
 } else {
     // Try to get user data with cookies to verify
     error_log('[login] Login form response unclear, verifying with REST API...');
+    error_log('[login] Login body (first 500 chars): ' . substr($loginBody, 0, 500));
 }
 
 // Step 2: If login was successful, get user data using REST API with cookies
+// Always try to use cookies if we have them, even if login check was unclear
 if ($loginSuccessful || !empty($cookies) || file_exists($cookieFile)) {
     error_log('[login] Attempting to get user data via REST API with session cookies...');
+    error_log('[login] Cookie file exists: ' . (file_exists($cookieFile) ? 'yes' : 'no'));
+    if (file_exists($cookieFile)) {
+        error_log('[login] Cookie file size: ' . filesize($cookieFile) . ' bytes');
+    }
     
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $meUrl);
@@ -205,7 +216,10 @@ if ($loginSuccessful || !empty($cookies) || file_exists($cookieFile)) {
     // If REST API with cookies works, we're done
     if ($http_code >= 200 && $http_code < 300) {
         error_log('[login] Successfully authenticated with regular password via login form');
+        error_log('[login] REST API response (first 500 chars): ' . substr($response, 0, 500));
     } else {
+        error_log('[login] REST API with cookies failed, HTTP code: ' . $http_code);
+        error_log('[login] REST API response (first 500 chars): ' . substr($response, 0, 500));
         // Fallback: Try Application Password method
         error_log('[login] Cookie-based auth failed, trying Application Password method...');
         $authString = $actualUsername . ':' . $password;
