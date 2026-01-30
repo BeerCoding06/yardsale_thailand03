@@ -22,14 +22,25 @@ error_log('[getCategories] Query params - parent: ' . $parent . ', hide_empty: '
 
 // Build WordPress REST API URL (categories are from WordPress, not WooCommerce)
 $baseUrl = rtrim(WC_BASE_URL, '/');
-$url = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query([
+
+// WordPress REST API v2 uses boolean for hide_empty, not string
+$queryParams = [
     'per_page' => 100,
     'page' => 1,
     'orderby' => $orderby,
     'order' => $order,
-    'hide_empty' => $hide_empty ? '1' : '0',
     'parent' => $parent
-]);
+];
+
+// Only add hide_empty if it's explicitly set (WordPress API may not support it in all versions)
+// Try without hide_empty first, as it might cause 400 errors
+if ($hide_empty === false) {
+    // WordPress REST API expects boolean true/false, not string
+    // But some versions may not support it, so we'll try without it first
+    // $queryParams['hide_empty'] = false;
+}
+
+$url = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query($queryParams);
 
 // Remove trailing slash
 $url = rtrim($url, '/');
@@ -44,23 +55,61 @@ $result = fetchWordPressApi($url, 'GET');
 
 if (!$result['success']) {
     $errorMsg = $result['error'] ?? 'Failed to fetch categories';
-    error_log('[getCategories] WordPress API error: ' . $errorMsg . ' (HTTP ' . ($result['http_code'] ?? 'N/A') . ')');
+    $httpCode = $result['http_code'] ?? 0;
+    $rawResponse = $result['raw_response'] ?? '';
     
-    // Return empty array instead of error
-    sendJsonResponse([
-        'productCategories' => [
-            'nodes' => []
-        ],
-        'error' => $errorMsg,
-        'debug' => [
-            'http_code' => $result['http_code'] ?? 0,
-            'url' => $logUrl
-        ]
-    ]);
+    error_log('[getCategories] WordPress API error: ' . $errorMsg . ' (HTTP ' . $httpCode . ')');
+    error_log('[getCategories] API URL: ' . $logUrl);
+    error_log('[getCategories] Raw response (first 500 chars): ' . substr($rawResponse, 0, 500));
+    
+    // If 400 error, try without parent parameter (some WordPress versions may not support it)
+    if ($httpCode === 400 && $parent === 0) {
+        error_log('[getCategories] Trying fallback: fetch all categories without parent filter');
+        $fallbackUrl = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query([
+            'per_page' => 100,
+            'page' => 1,
+            'orderby' => $orderby,
+            'order' => $order
+        ]);
+        
+        $fallbackResult = fetchWordPressApi($fallbackUrl, 'GET');
+        
+        if ($fallbackResult['success'] && is_array($fallbackResult['data'])) {
+            // Filter to get only parent categories (parent === 0)
+            $categories = array_filter($fallbackResult['data'], function($cat) {
+                return ($cat['parent'] ?? 0) === 0;
+            });
+            $categories = array_values($categories); // Re-index array
+            error_log('[getCategories] Fallback successful: Got ' . count($categories) . ' parent categories');
+        } else {
+            $categories = [];
+            error_log('[getCategories] Fallback also failed');
+        }
+    } else {
+        $categories = [];
+    }
+    
+    // If still no categories, return error
+    if (empty($categories)) {
+        sendJsonResponse([
+            'productCategories' => [
+                'nodes' => []
+            ],
+            'error' => $errorMsg,
+            'debug' => [
+                'http_code' => $httpCode,
+                'url' => $logUrl,
+                'raw_response' => substr($rawResponse, 0, 500),
+                'wp_basic_auth_configured' => !empty(WP_BASIC_AUTH)
+            ]
+        ]);
+    }
+    // Continue with filtered categories if fallback worked
+} else {
+    $categories = $result['data'] ?? [];
 }
 
-$categories = $result['data'] ?? [];
-
+// Ensure categories is an array
 if (!is_array($categories)) {
     error_log('[getCategories] Invalid response format. Expected array, got: ' . gettype($categories));
     error_log('[getCategories] Raw response: ' . substr($result['raw_response'] ?? '', 0, 500));
@@ -94,10 +143,11 @@ $allChildren = [];
 if ($parent === 0) {
     // Fetch all categories (including children) in one request for better performance
     // Then filter to get only children (parent != 0)
-    $allCategoriesUrl = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query([
-        'per_page' => 100,
-        'hide_empty' => $hide_empty ? '1' : '0'
-    ]);
+    $allCategoriesParams = [
+        'per_page' => 100
+    ];
+    // Don't include hide_empty as it may cause 400 errors
+    $allCategoriesUrl = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query($allCategoriesParams);
     
     $allCategoriesResult = fetchWordPressApi($allCategoriesUrl, 'GET');
     if ($allCategoriesResult['success'] && is_array($allCategoriesResult['data'])) {
@@ -139,11 +189,12 @@ foreach ($categories as $category) {
     } elseif ($parent !== 0) {
         // For non-parent requests, fetch children individually
         if ($category['count'] > 0 || !$hide_empty) {
-            $childrenUrl = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query([
+            $childrenParams = [
                 'parent' => $category['id'],
-                'per_page' => 100,
-                'hide_empty' => $hide_empty ? '1' : '0'
-            ]);
+                'per_page' => 100
+            ];
+            // Don't include hide_empty as it may cause 400 errors
+            $childrenUrl = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query($childrenParams);
             
             $childrenResult = fetchWordPressApi($childrenUrl, 'GET');
             
