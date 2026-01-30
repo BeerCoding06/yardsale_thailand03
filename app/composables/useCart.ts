@@ -57,7 +57,13 @@ export const useCart = () => {
 
       if (idx > -1) {
         console.log('[useCart] Item already exists in cart, updating quantity');
-        const merged = { ...cart.value[idx], ...incoming };
+        const existingItem = cart.value[idx];
+        const merged = { 
+          ...existingItem, 
+          ...incoming,
+          // Increment quantity instead of replacing it
+          quantity: existingItem.quantity + (incoming.quantity || 1)
+        };
         
         // Update stock quantity for both simple and variable products
         if (incoming.variation?.node && typeof incoming.variation.node.stockQuantity === 'number') {
@@ -74,13 +80,17 @@ export const useCart = () => {
         }
         const updatedCart = [...cart.value.slice(0, idx), merged, ...cart.value.slice(idx + 1)];
         console.log('[useCart] Updated cart:', updatedCart);
+        console.log('[useCart] Updated cart length:', updatedCart.length);
         updateCart(updatedCart);
       } else {
         console.log('[useCart] Adding new item to cart');
         const updatedCart = [...cart.value, incoming];
         console.log('[useCart] New cart:', updatedCart);
+        console.log('[useCart] New cart length:', updatedCart.length);
         updateCart(updatedCart);
       }
+      
+      console.log('[useCart] Final cart state after update:', cart.value.length, 'items');
 
       addToCartButtonStatus.value = 'added';
       setTimeout(() => (addToCartButtonStatus.value = 'add'), 2000);

@@ -3,15 +3,29 @@
 const { cart, increment, decrement, removeItem } = useCart();
 const { order } = useCheckout();
 
+// Create computed for cart length to ensure reactivity
+const cartLength = computed(() => cart.value?.length || 0);
+const cartItems = computed(() => cart.value || []);
+
 // Debug: Watch cart changes
-watch(cart, (newCart) => {
-  console.log('[Cart] Cart changed, items:', newCart.length);
+watch(() => cart.value, (newCart) => {
+  console.log('[Cart] Cart changed, items:', newCart?.length || 0);
   console.log('[Cart] Cart data:', newCart);
+  console.log('[Cart] Is array?', Array.isArray(newCart));
+  if (newCart && newCart.length > 0) {
+    console.log('[Cart] First item:', newCart[0]);
+    console.log('[Cart] First item has product?', !!newCart[0].product);
+    console.log('[Cart] First item product node?', !!newCart[0].product?.node);
+    console.log('[Cart] First item product name?', newCart[0].product?.node?.name);
+  }
 }, { deep: true, immediate: true });
 
 onMounted(() => {
-  console.log('[Cart] Component mounted, cart items:', cart.value.length);
-  console.log('[Cart] Cart data:', cart.value);
+  console.log('[Cart] Component mounted');
+  console.log('[Cart] Cart ref:', cart);
+  console.log('[Cart] Cart value:', cart.value);
+  console.log('[Cart] Cart items:', cartLength.value);
+  console.log('[Cart] Cart is array?', Array.isArray(cart.value));
 });
 </script>
 
@@ -20,15 +34,15 @@ onMounted(() => {
     class="select-none mx-3 lg:mx-5 shadow-2xl mt-20 rounded-[2rem] right-0 fixed flex z-50 bg-white/85 dark:bg-black/85 dark:border dark:border-white/10 cart-button-bezel backdrop-blur-lg overflow-hidden"
   >
     <Transition name="fade" mode="out-in">
-      <PaymentSuccessful v-if="order?.orderNumber && !cart.length" />
+      <PaymentSuccessful v-if="order?.orderNumber && !cartLength" />
       <div
-        v-else-if="cart.length"
+        v-else-if="cartLength > 0"
         class="flex w-full h-full max-md:flex-col max-md:max-h-[calc(100vh-92px)] max-md:overflow-auto"
       >
         <div class="w-[calc(100vw-24px)] sm:w-full md:w-80 relative">
           <div class="md:absolute h-full w-full overflow-auto">
             <div
-              v-for="product in cart.slice().reverse()"
+              v-for="product in cartItems.slice().reverse()"
               :key="product.key"
               class="flex bg-black/5 dark:bg-white/10 m-3 p-3 gap-3 rounded-3xl items-center group relative max-md:pr-9"
             >

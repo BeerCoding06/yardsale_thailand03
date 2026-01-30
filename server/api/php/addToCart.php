@@ -13,14 +13,26 @@ setCorsHeaders();
 
 // Get request body (supports both web server and CLI)
 $input = getRequestBody();
-error_log('[addToCart] Request body: ' . substr($input, 0, 200));
+
+if (empty($input)) {
+    error_log('[addToCart] Error: Empty request body');
+    sendErrorResponse('Request body is required', 400);
+}
+
+error_log('[addToCart] Request body length: ' . strlen($input));
+error_log('[addToCart] Request body (first 200 chars): ' . substr($input, 0, 200));
 
 $body = json_decode($input, true);
 
 if (json_last_error() !== JSON_ERROR_NONE) {
     error_log('[addToCart] JSON decode error: ' . json_last_error_msg());
-    error_log('[addToCart] Raw input: ' . substr($input, 0, 500));
+    error_log('[addToCart] Raw input (first 500 chars): ' . substr($input, 0, 500));
     sendErrorResponse('Invalid JSON in request body: ' . json_last_error_msg(), 400);
+}
+
+if (!is_array($body)) {
+    error_log('[addToCart] Error: Request body is not an array/object');
+    sendErrorResponse('Invalid request body format', 400);
 }
 
 $productId = isset($body['productId']) ? (int)$body['productId'] : null;

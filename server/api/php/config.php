@@ -42,24 +42,44 @@ function getRequestBody() {
     if (php_sapi_name() === 'cli') {
         // First try environment variable (set by php-executor.ts)
         if (!empty($_SERVER['REQUEST_BODY'])) {
-            return $_SERVER['REQUEST_BODY'];
+            $body = $_SERVER['REQUEST_BODY'];
+            error_log('[getRequestBody] Read from REQUEST_BODY env var, length: ' . strlen($body));
+            return $body;
         }
         
         // Fallback: try to read from stdin
         $input = '';
-        $handle = fopen('php://stdin', 'r');
+        $handle = @fopen('php://stdin', 'r');
         if ($handle) {
+            stream_set_blocking($handle, false);
             while (!feof($handle)) {
-                $input .= fread($handle, 8192);
+                $chunk = fread($handle, 8192);
+                if ($chunk === false) {
+                    break;
+                }
+                $input .= $chunk;
             }
             fclose($handle);
+            error_log('[getRequestBody] Read from stdin, length: ' . strlen($input));
+        } else {
+            error_log('[getRequestBody] Failed to open stdin');
+        }
+        
+        if (empty($input)) {
+            error_log('[getRequestBody] Warning: Empty request body in CLI mode');
         }
         
         return $input;
     }
     
     // When running via web server, use php://input
-    return file_get_contents('php://input');
+    $input = @file_get_contents('php://input');
+    if ($input === false) {
+        error_log('[getRequestBody] Failed to read php://input');
+        return '';
+    }
+    error_log('[getRequestBody] Read from php://input, length: ' . strlen($input));
+    return $input;
 }
 
 // WooCommerce API credentials
@@ -259,8 +279,11 @@ function fetchWooCommerceApi($url, $method = 'GET', $data = null, $useBasicAuth 
     if ($http_code >= 200 && $http_code < 300) {
         if (is_array($decoded)) {
             error_log('[fetchWooCommerceApi] Success: Got ' . count($decoded) . ' items');
-            if (count($decoded) > 0) {
-                error_log('[fetchWooCommerceApi] First item keys: ' . implode(', ', array_keys($decoded[0])));
+            if (count($decoded) > 0 && isset($decoded[0]) && is_array($decoded[0])) {
+                $keys = array_keys($decoded[0]);
+                if (!empty($keys)) {
+                    error_log('[fetchWooCommerceApi] First item keys: ' . implode(', ', $keys));
+                }
             }
         } else {
             error_log('[fetchWooCommerceApi] Success: Response is ' . gettype($decoded));

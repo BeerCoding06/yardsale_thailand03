@@ -48,6 +48,11 @@ export async function executePhpScript(options: PhpExecutorOptions): Promise<any
   // Log environment setup
   console.log(`[php-executor] PHP script path: ${scriptPath}`);
   console.log(`[php-executor] Query string: ${queryString}`);
+  if (method === 'POST' && body) {
+    const bodyJson = JSON.stringify(body);
+    console.log(`[php-executor] POST body: ${bodyJson}`);
+    console.log(`[php-executor] REQUEST_BODY env var will be set: ${bodyJson.substring(0, 100)}...`);
+  }
   
   return new Promise((resolve, reject) => {
     const phpProcess = spawn('php', [scriptPath], {
