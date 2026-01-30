@@ -175,13 +175,18 @@ onBeforeUnmount(() => {
           <!-- Debug info -->
           <div
             v-if="!props.categories || props.categories.length === 0"
-            class="p-4 text-sm text-gray-500 dark:text-gray-400"
+            class="p-4 text-sm text-gray-500 dark:text-gray-400 border border-yellow-500 rounded-lg bg-yellow-50 dark:bg-yellow-900/20"
           >
-            <p>ไม่พบข้อมูลหมวดหมู่</p>
+            <p class="font-semibold text-yellow-700 dark:text-yellow-400">⚠️ ไม่พบข้อมูลหมวดหมู่</p>
             <p class="text-xs mt-1">
-              Categories: {{ props.categories?.length || 0 }}
+              Categories count: {{ props.categories?.length || 0 }}
             </p>
-            <p class="text-xs mt-1">ตรวจสอบ console log สำหรับรายละเอียด</p>
+            <p class="text-xs mt-1">กรุณาตรวจสอบ:</p>
+            <ul class="text-xs mt-1 list-disc list-inside">
+              <li>Console log สำหรับรายละเอียด</li>
+              <li>WordPress API มี product categories หรือไม่</li>
+              <li>API endpoint ทำงานถูกต้องหรือไม่</li>
+            </ul>
           </div>
 
           <div

@@ -13,9 +13,12 @@ setCorsHeaders();
 
 // Get query parameters
 $parent = isset($_GET['parent']) ? (int)$_GET['parent'] : 0;
-$hide_empty = isset($_GET['hide_empty']) ? $_GET['hide_empty'] !== 'false' : true;
+// Default hide_empty to false to show all categories (even if they have no products)
+$hide_empty = isset($_GET['hide_empty']) ? $_GET['hide_empty'] !== 'false' : false;
 $orderby = isset($_GET['orderby']) ? $_GET['orderby'] : 'name';
 $order = isset($_GET['order']) ? strtoupper($_GET['order']) : 'ASC';
+
+error_log('[getCategories] Query params - parent: ' . $parent . ', hide_empty: ' . ($hide_empty ? 'true' : 'false') . ', orderby: ' . $orderby . ', order: ' . $order);
 
 // Build WordPress REST API URL (categories are from WordPress, not WooCommerce)
 $baseUrl = rtrim(WC_BASE_URL, '/');
@@ -183,22 +186,27 @@ $response = [
     ]
 ];
 
-// Add debug info if no categories found
-if (empty($formattedCategories)) {
-    $response['debug'] = [
-        'raw_categories_count' => count($categories),
-        'api_url' => $logUrl,
-        'http_code' => $result['http_code'] ?? 'N/A',
-        'api_response_sample' => !empty($categories) && is_array($categories) && count($categories) > 0 
-            ? [
-                'first_category_keys' => array_keys($categories[0]),
-                'first_category_id' => $categories[0]['id'] ?? 'N/A',
-                'first_category_name' => $categories[0]['name'] ?? 'N/A'
-            ]
-            : 'No categories in response',
-        'wp_basic_auth_configured' => !empty(WP_BASIC_AUTH)
-    ];
-}
+// Always add debug info for troubleshooting
+$response['debug'] = [
+    'raw_categories_count' => count($categories),
+    'formatted_categories_count' => count($formattedCategories),
+    'api_url' => $logUrl,
+    'http_code' => $result['http_code'] ?? 'N/A',
+    'parent_filter' => $parent,
+    'hide_empty' => $hide_empty,
+    'wp_basic_auth_configured' => !empty(WP_BASIC_AUTH),
+    'api_response_sample' => !empty($categories) && is_array($categories) && count($categories) > 0 
+        ? [
+            'first_category_keys' => array_keys($categories[0]),
+            'first_category_id' => $categories[0]['id'] ?? 'N/A',
+            'first_category_name' => $categories[0]['name'] ?? 'N/A',
+            'first_category_parent' => $categories[0]['parent'] ?? 'N/A'
+        ]
+        : 'No categories in response'
+];
+
+error_log('[getCategories] Returning response with ' . count($formattedCategories) . ' formatted categories');
+error_log('[getCategories] Debug info: ' . json_encode($response['debug']));
 
 sendJsonResponse($response);
 

@@ -24,6 +24,21 @@ export default cachedEventHandler(
         method: 'GET',
       });
       
+      console.log('[categories] PHP script response:', JSON.stringify(data).substring(0, 500));
+      console.log('[categories] Has productCategories?', !!data?.productCategories);
+      console.log('[categories] Has nodes?', !!data?.productCategories?.nodes);
+      console.log('[categories] Nodes length:', data?.productCategories?.nodes?.length || 0);
+      
+      // Ensure response structure is correct
+      if (!data || !data.productCategories || !Array.isArray(data.productCategories.nodes)) {
+        console.warn('[categories] Invalid response structure, returning empty array');
+        return {
+          productCategories: {
+            nodes: []
+          }
+        };
+      }
+      
       return data;
     } catch (error: any) {
       console.error('[categories] Error:', error.message || error);

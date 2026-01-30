@@ -28,8 +28,9 @@ const categoriesData = ref([]);
 
 onMounted(async () => {
   try {
-    console.log("[app] Fetching categories from /api/categories?parent=0");
-    const response = await $fetch("/api/categories?parent=0");
+    console.log("[app] Fetching categories from /api/categories?parent=0&hide_empty=false");
+    // Use hide_empty=false to show all categories even if they have no products
+    const response = await $fetch("/api/categories?parent=0&hide_empty=false");
     console.log("[app] Categories response:", response);
     console.log("[app] Response type:", typeof response);
     console.log("[app] Has productCategories?", !!response?.productCategories);
@@ -47,6 +48,10 @@ onMounted(async () => {
         console.log("[app] First category keys:", Object.keys(categoriesData.value[0]));
       } else {
         console.warn("[app] Categories array is empty");
+        // Show debug info if available
+        if (response.debug) {
+          console.warn("[app] Debug info:", response.debug);
+        }
       }
     } else {
       categoriesData.value = [];
@@ -56,6 +61,8 @@ onMounted(async () => {
         hasNodes: !!response?.productCategories?.nodes,
         nodesType: typeof response?.productCategories?.nodes,
         isArray: Array.isArray(response?.productCategories?.nodes),
+        debug: response?.debug,
+        error: response?.error,
         fullResponse: response
       });
     }
