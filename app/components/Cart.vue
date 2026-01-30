@@ -2,6 +2,17 @@
 <script setup>
 const { cart, increment, decrement, removeItem } = useCart();
 const { order } = useCheckout();
+
+// Debug: Watch cart changes
+watch(cart, (newCart) => {
+  console.log('[Cart] Cart changed, items:', newCart.length);
+  console.log('[Cart] Cart data:', newCart);
+}, { deep: true, immediate: true });
+
+onMounted(() => {
+  console.log('[Cart] Component mounted, cart items:', cart.value.length);
+  console.log('[Cart] Cart data:', cart.value);
+});
 </script>
 
 <template>
@@ -29,7 +40,7 @@ const { order } = useCheckout();
                 <div
                   class="font-medium text-sm line-clamp-2 overflow-hidden text-ellipsis"
                 >
-                  {{ product.product.node.name }}
+                  {{ product.product?.node?.name || product.variation?.node?.name || 'Product' }}
                 </div>
                 <ProductPrice
                   :sale-price="product.variation?.node?.salePrice || product.product?.node?.salePrice"

@@ -16,8 +16,13 @@ export const useCart = () => {
   };
 
   const updateCart = (next: CartItem[]) => {
+    console.log('[useCart] updateCart called with', next.length, 'items');
     cart.value = next;
-    if (import.meta.client) localStorage.setItem('cart', JSON.stringify(next));
+    if (import.meta.client) {
+      localStorage.setItem('cart', JSON.stringify(next));
+      console.log('[useCart] Cart saved to localStorage');
+    }
+    console.log('[useCart] Cart state updated, current length:', cart.value.length);
   };
 
   const handleAddToCart = async (productId: number) => {
@@ -38,11 +43,20 @@ export const useCart = () => {
       });
       
       console.log('[useCart] Response from /api/cart/add:', res);
+      
+      if (!res || !res.addToCart || !res.addToCart.cartItem) {
+        console.error('[useCart] Invalid response structure:', res);
+        throw new Error('Invalid response from add to cart API');
+      }
+      
       const incoming = res.addToCart.cartItem;
+      console.log('[useCart] Incoming cart item:', incoming);
+      console.log('[useCart] Current cart items:', cart.value.length);
       
       const idx = cart.value.findIndex(i => i.key === incoming.key);
 
       if (idx > -1) {
+        console.log('[useCart] Item already exists in cart, updating quantity');
         const merged = { ...cart.value[idx], ...incoming };
         
         // Update stock quantity for both simple and variable products
@@ -58,9 +72,14 @@ export const useCart = () => {
             merged.product.node.stockStatus = incoming.product.node.stockStatus;
           }
         }
-        updateCart([...cart.value.slice(0, idx), merged, ...cart.value.slice(idx + 1)]);
+        const updatedCart = [...cart.value.slice(0, idx), merged, ...cart.value.slice(idx + 1)];
+        console.log('[useCart] Updated cart:', updatedCart);
+        updateCart(updatedCart);
       } else {
-        updateCart([...cart.value, incoming]);
+        console.log('[useCart] Adding new item to cart');
+        const updatedCart = [...cart.value, incoming];
+        console.log('[useCart] New cart:', updatedCart);
+        updateCart(updatedCart);
       }
 
       addToCartButtonStatus.value = 'added';
@@ -228,10 +247,36 @@ export const useCart = () => {
   onMounted(() => {
     if (!import.meta.client) return;
     const stored = localStorage.getItem('cart');
-    if (!stored) return;
+    console.log('[useCart] Loading cart from localStorage:', stored ? 'found' : 'not found');
+    if (!stored) {
+      console.log('[useCart] No cart data in localStorage, starting with empty cart');
+      return;
+    }
     try {
-      updateCart(JSON.parse(stored) as CartItem[]);
-    } catch {
+      const parsed = JSON.parse(stored) as CartItem[];
+      console.log('[useCart] Parsed cart data:', parsed);
+      console.log('[useCart] Cart items count:', parsed.length);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Validate cart items structure
+        const validItems = parsed.filter(item => {
+          const isValid = item && 
+            typeof item.key === 'string' && 
+            typeof item.quantity === 'number' &&
+            item.product && 
+            item.product.node;
+          if (!isValid) {
+            console.warn('[useCart] Invalid cart item:', item);
+          }
+          return isValid;
+        });
+        console.log('[useCart] Valid cart items:', validItems.length);
+        updateCart(validItems);
+      } else {
+        console.log('[useCart] Cart is empty or invalid');
+        updateCart([]);
+      }
+    } catch (error) {
+      console.error('[useCart] Error parsing cart from localStorage:', error);
       updateCart([]);
     }
   });
