@@ -1,6 +1,6 @@
 <?php
 /**
- * Get Categories from WordPress REST API
+ * Get Categories from WooCommerce REST API
  * 
  * Endpoint: GET /server/api/php/getCategories.php
  * Query params: parent, hide_empty, orderby, order
@@ -20,10 +20,7 @@ $order = isset($_GET['order']) ? strtoupper($_GET['order']) : 'ASC';
 
 error_log('[getCategories] Query params - parent: ' . $parent . ', hide_empty: ' . ($hide_empty ? 'true' : 'false') . ', orderby: ' . $orderby . ', order: ' . $order);
 
-// Build WordPress REST API URL (categories are from WordPress, not WooCommerce)
-$baseUrl = rtrim(WC_BASE_URL, '/');
-
-// WordPress REST API v2 uses boolean for hide_empty, not string
+// Build WooCommerce API URL for categories
 $queryParams = [
     'per_page' => 100,
     'page' => 1,
@@ -32,82 +29,47 @@ $queryParams = [
     'parent' => $parent
 ];
 
-// Only add hide_empty if it's explicitly set (WordPress API may not support it in all versions)
-// Try without hide_empty first, as it might cause 400 errors
-if ($hide_empty === false) {
-    // WordPress REST API expects boolean true/false, not string
-    // But some versions may not support it, so we'll try without it first
-    // $queryParams['hide_empty'] = false;
+// WooCommerce API supports hide_empty parameter
+if ($hide_empty !== null) {
+    $queryParams['hide_empty'] = $hide_empty ? 'true' : 'false';
 }
 
-$url = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query($queryParams);
-
-// Remove trailing slash
-$url = rtrim($url, '/');
+// Use WooCommerce API v3 for categories
+$url = buildWcApiUrl('wc/v3/products/categories', $queryParams, true); // Use Basic Auth
 
 // Log the URL
-$logUrl = $url;
-error_log('[getCategories] Fetching from WordPress API: ' . $logUrl);
+$logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
+error_log('[getCategories] Fetching from WooCommerce API: ' . $logUrl);
 error_log('[getCategories] WP_BASIC_AUTH configured: ' . (!empty(WP_BASIC_AUTH) ? 'Yes' : 'No'));
 
-// Fetch from WordPress REST API (with Basic Auth)
-$result = fetchWordPressApi($url, 'GET');
+// Fetch from WooCommerce API (with Basic Auth)
+$result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
 
 if (!$result['success']) {
     $errorMsg = $result['error'] ?? 'Failed to fetch categories';
     $httpCode = $result['http_code'] ?? 0;
     $rawResponse = $result['raw_response'] ?? '';
     
-    error_log('[getCategories] WordPress API error: ' . $errorMsg . ' (HTTP ' . $httpCode . ')');
+    error_log('[getCategories] WooCommerce API error: ' . $errorMsg . ' (HTTP ' . $httpCode . ')');
     error_log('[getCategories] API URL: ' . $logUrl);
     error_log('[getCategories] Raw response (first 500 chars): ' . substr($rawResponse, 0, 500));
     
-    // If 400 error, try without parent parameter (some WordPress versions may not support it)
-    if ($httpCode === 400 && $parent === 0) {
-        error_log('[getCategories] Trying fallback: fetch all categories without parent filter');
-        $fallbackUrl = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query([
-            'per_page' => 100,
-            'page' => 1,
-            'orderby' => $orderby,
-            'order' => $order
-        ]);
-        
-        $fallbackResult = fetchWordPressApi($fallbackUrl, 'GET');
-        
-        if ($fallbackResult['success'] && is_array($fallbackResult['data'])) {
-            // Filter to get only parent categories (parent === 0)
-            $categories = array_filter($fallbackResult['data'], function($cat) {
-                return ($cat['parent'] ?? 0) === 0;
-            });
-            $categories = array_values($categories); // Re-index array
-            error_log('[getCategories] Fallback successful: Got ' . count($categories) . ' parent categories');
-        } else {
-            $categories = [];
-            error_log('[getCategories] Fallback also failed');
-        }
-    } else {
-        $categories = [];
-    }
-    
-    // If still no categories, return error
-    if (empty($categories)) {
-        sendJsonResponse([
-            'productCategories' => [
-                'nodes' => []
-            ],
-            'error' => $errorMsg,
-            'debug' => [
-                'http_code' => $httpCode,
-                'url' => $logUrl,
-                'raw_response' => substr($rawResponse, 0, 500),
-                'wp_basic_auth_configured' => !empty(WP_BASIC_AUTH)
-            ]
-        ]);
-    }
-    // Continue with filtered categories if fallback worked
-} else {
-    $categories = $result['data'] ?? [];
+    // Return error response
+    sendJsonResponse([
+        'productCategories' => [
+            'nodes' => []
+        ],
+        'error' => $errorMsg,
+        'debug' => [
+            'http_code' => $httpCode,
+            'url' => $logUrl,
+            'raw_response' => substr($rawResponse, 0, 500),
+            'wp_basic_auth_configured' => !empty(WP_BASIC_AUTH)
+        ]
+    ]);
 }
+
+$categories = $result['data'] ?? [];
 
 // Ensure categories is an array
 if (!is_array($categories)) {
@@ -146,10 +108,15 @@ if ($parent === 0) {
     $allCategoriesParams = [
         'per_page' => 100
     ];
-    // Don't include hide_empty as it may cause 400 errors
-    $allCategoriesUrl = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query($allCategoriesParams);
+    if ($hide_empty !== null) {
+        $allCategoriesParams['hide_empty'] = $hide_empty ? 'true' : 'false';
+    }
     
-    $allCategoriesResult = fetchWordPressApi($allCategoriesUrl, 'GET');
+    $allCategoriesUrl = buildWcApiUrl('wc/v3/products/categories', $allCategoriesParams, true); // Use Basic Auth
+    $allCategoriesLogUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $allCategoriesUrl);
+    error_log('[getCategories] Pre-fetching all categories: ' . $allCategoriesLogUrl);
+    
+    $allCategoriesResult = fetchWooCommerceApi($allCategoriesUrl, 'GET', null, true); // Use Basic Auth
     if ($allCategoriesResult['success'] && is_array($allCategoriesResult['data'])) {
         // Group children by parent ID (filter out parent categories)
         foreach ($allCategoriesResult['data'] as $child) {
@@ -165,7 +132,7 @@ if ($parent === 0) {
                     'name' => $child['name'],
                     'slug' => $child['slug'],
                     'description' => $child['description'] ?? '',
-                    'image' => null,
+                    'image' => $child['image'] ? ['sourceUrl' => $child['image']['src'] ?? $child['image']] : null,
                     'parent' => $child['parent'] ?? null,
                     'count' => $child['count'] ?? 0
                 ];
@@ -176,9 +143,14 @@ if ($parent === 0) {
 }
 
 foreach ($categories as $category) {
+    // WooCommerce API returns image as object with 'src' property
     $imageUrl = null;
     if (!empty($category['image'])) {
-        $imageUrl = $category['image'];
+        if (is_array($category['image']) && isset($category['image']['src'])) {
+            $imageUrl = $category['image']['src'];
+        } elseif (is_string($category['image'])) {
+            $imageUrl = $category['image'];
+        }
     }
     
     // Get children categories - use pre-fetched data if available
@@ -193,21 +165,32 @@ foreach ($categories as $category) {
                 'parent' => $category['id'],
                 'per_page' => 100
             ];
-            // Don't include hide_empty as it may cause 400 errors
-            $childrenUrl = $baseUrl . '/wp-json/wp/v2/product_cat?' . http_build_query($childrenParams);
+            if ($hide_empty !== null) {
+                $childrenParams['hide_empty'] = $hide_empty ? 'true' : 'false';
+            }
             
-            $childrenResult = fetchWordPressApi($childrenUrl, 'GET');
+            $childrenUrl = buildWcApiUrl('wc/v3/products/categories', $childrenParams, true); // Use Basic Auth
+            $childrenResult = fetchWooCommerceApi($childrenUrl, 'GET', null, true); // Use Basic Auth
             
             $childrenData = $childrenResult['success'] ? ($childrenResult['data'] ?? []) : [];
             if (is_array($childrenData)) {
                 foreach ($childrenData as $child) {
+                    $childImageUrl = null;
+                    if (!empty($child['image'])) {
+                        if (is_array($child['image']) && isset($child['image']['src'])) {
+                            $childImageUrl = $child['image']['src'];
+                        } elseif (is_string($child['image'])) {
+                            $childImageUrl = $child['image'];
+                        }
+                    }
+                    
                     $children[] = [
                         'id' => $child['id'],
                         'databaseId' => $child['id'],
                         'name' => $child['name'],
                         'slug' => $child['slug'],
                         'description' => $child['description'] ?? '',
-                        'image' => null,
+                        'image' => $childImageUrl ? ['sourceUrl' => $childImageUrl] : null,
                         'parent' => $child['parent'] ?? null,
                         'count' => $child['count'] ?? 0
                     ];
