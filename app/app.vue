@@ -43,23 +43,33 @@ onMounted(async () => {
       console.log("[app] Raw nodes:", nodes);
       console.log("[app] Nodes length:", nodes.length);
       
-      // Ensure all categories have required fields
-      categoriesData.value = nodes.map((cat, index) => {
-        const category = {
-          id: cat.id || cat.databaseId || index,
-          databaseId: cat.databaseId || cat.id || index,
-          name: cat.name || 'Unnamed Category',
-          slug: cat.slug || '',
-          description: cat.description || '',
-          image: cat.image || null,
-          parent: cat.parent || null,
-          count: cat.count || 0,
-          children: cat.children || { nodes: [] },
-          products: cat.products || { nodes: [] }
-        };
-        console.log(`[app] Category ${index}:`, category);
-        return category;
-      });
+      // Filter out categories with "No Category" name and ensure all categories have required fields
+      categoriesData.value = nodes
+        .filter((cat) => {
+          // Filter out categories with "No Category" name or empty name
+          const name = (cat.name || '').trim();
+          const lowerName = name.toLowerCase();
+          return name !== '' && 
+                 lowerName !== 'no category' && 
+                 lowerName !== 'uncategorized' &&
+                 lowerName !== 'uncategorised';
+        })
+        .map((cat, index) => {
+          const category = {
+            id: cat.id || cat.databaseId || index,
+            databaseId: cat.databaseId || cat.id || index,
+            name: cat.name || 'Unnamed Category',
+            slug: cat.slug || '',
+            description: cat.description || '',
+            image: cat.image || null,
+            parent: cat.parent || null,
+            count: cat.count || 0,
+            children: cat.children || { nodes: [] },
+            products: cat.products || { nodes: [] }
+          };
+          console.log(`[app] Category ${index}:`, category);
+          return category;
+        });
       
       console.log("[app] Loaded categories:", categoriesData.value.length);
       

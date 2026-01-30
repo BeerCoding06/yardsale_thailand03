@@ -20,6 +20,8 @@ $order = isset($_GET['order']) ? $_GET['order'] : 'desc';
 $orderby = isset($_GET['orderby']) ? $_GET['orderby'] : 'date';
 $after = isset($_GET['after']) ? $_GET['after'] : null;
 
+error_log('[getProducts] Category parameter: ' . ($category ?? 'null'));
+
 // Map orderby to WooCommerce format
 $orderbyMap = [
     'date' => 'date',
@@ -29,6 +31,63 @@ $orderbyMap = [
     'popularity' => 'popularity'
 ];
 $wcOrderby = isset($orderbyMap[$orderby]) ? $orderbyMap[$orderby] : 'date';
+
+// If category is provided, try to find category ID by name or slug
+$categoryId = null;
+if ($category) {
+    // First, check if category is already a numeric ID
+    if (is_numeric($category)) {
+        $categoryId = (int)$category;
+        error_log('[getProducts] Category is numeric ID: ' . $categoryId);
+    } else {
+        // Category is a name or slug, need to find the ID
+        error_log('[getProducts] Looking up category by name/slug: ' . $category);
+        
+        // Fetch all categories to find matching one by name or slug
+        // WooCommerce API search parameter may not work well, so fetch all and filter
+        $categoriesUrl = buildWcApiUrl('wc/v3/products/categories', [
+            'per_page' => 100
+        ], true); // Use Basic Auth
+        
+        $categoriesResult = fetchWooCommerceApi($categoriesUrl, 'GET', null, true);
+        
+        if ($categoriesResult['success'] && is_array($categoriesResult['data'])) {
+            $searchCategory = strtolower(trim($category));
+            
+            // Try to find category by name or slug with flexible matching
+            foreach ($categoriesResult['data'] as $cat) {
+                $catName = strtolower(trim($cat['name'] ?? ''));
+                $catSlug = strtolower(trim($cat['slug'] ?? ''));
+                
+                // Exact match
+                if ($catName === $searchCategory || $catSlug === $searchCategory) {
+                    $categoryId = (int)$cat['id'];
+                    error_log('[getProducts] Found category ID (exact match): ' . $categoryId . ' for: ' . $category);
+                    break;
+                }
+                
+                // Flexible matching - handle spaces, hyphens, underscores
+                $normalizedCatName = str_replace([' ', '_'], '-', $catName);
+                $normalizedSearch = str_replace([' ', '_'], '-', $searchCategory);
+                
+                if ($normalizedCatName === $normalizedSearch || 
+                    $catSlug === $normalizedSearch ||
+                    str_replace('-', ' ', $catName) === str_replace('-', ' ', $searchCategory)) {
+                    $categoryId = (int)$cat['id'];
+                    error_log('[getProducts] Found category ID (flexible match): ' . $categoryId . ' for: ' . $category);
+                    break;
+                }
+            }
+            
+            if (!$categoryId) {
+                error_log('[getProducts] WARNING: Category not found: ' . $category);
+                error_log('[getProducts] Searched in ' . count($categoriesResult['data']) . ' categories');
+            }
+        } else {
+            error_log('[getProducts] Failed to fetch categories for lookup');
+        }
+    }
+}
 
 // Build WooCommerce API parameters
 $params = [
@@ -43,8 +102,19 @@ if ($search) {
     $params['search'] = $search;
 }
 
-if ($category) {
-    $params['category'] = $category;
+// Use category ID if found, otherwise use original category parameter (might be ID already)
+if ($categoryId) {
+    $params['category'] = $categoryId;
+    error_log('[getProducts] Using category ID: ' . $categoryId);
+} elseif ($category) {
+    // If category is numeric, use it directly
+    if (is_numeric($category)) {
+        $params['category'] = (int)$category;
+    } else {
+        error_log('[getProducts] WARNING: Category not found, filtering may not work: ' . $category);
+        // Still try to use it, WooCommerce might accept it
+        $params['category'] = $category;
+    }
 }
 
 // Build WooCommerce API URL (use Basic Auth instead of query params)

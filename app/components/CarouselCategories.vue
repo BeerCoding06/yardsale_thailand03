@@ -68,7 +68,11 @@ const setCategory = (category) => {
 
 // New function for all categories category
 const goToAllCategories = () => {
-  window.location.href = "http://localhost:3000/categories";
+  router.push({
+    path: localePath('/'),
+    query: {} // Clear category filter
+  });
+  isCollapsed.value = false; // Close sidebar
 };
 
 const expandedCategory = ref(null); // เก็บ state toggle ของแต่ละ parent
@@ -206,7 +210,7 @@ onBeforeUnmount(() => {
           <div
             @click="goToAllCategories"
             :class="[
-              'card h-[50px] transition',
+              'card h-[50px] transition cursor-pointer',
               !route.query.category
                 ? 'selected'
                 : 'bg-[#efefef] hover:bg-[#e2e2e2] dark:bg-[#262626] hover:dark:bg-[#333] text-black dark:text-white',
