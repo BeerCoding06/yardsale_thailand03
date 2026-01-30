@@ -23,35 +23,43 @@ class SimplePasswordHash {
     private $iteration_count_log2 = 8;
     
     public function CheckPassword($password, $stored_hash) {
-        if (strlen($stored_hash) != 34) {
+        // WordPress Portable Hash must be 34 characters
+        if (strlen($stored_hash) < 34) {
             return false;
         }
         
-        if (substr($stored_hash, 0, 3) != '$P$' && substr($stored_hash, 0, 3) != '$H$') {
+        // Check hash format ($P$ or $H$)
+        $hashPrefix = substr($stored_hash, 0, 3);
+        if ($hashPrefix != '$P$' && $hashPrefix != '$H$') {
             return false;
         }
         
+        // Get iteration count from hash
         $count_log2 = strpos($this->itoa64, $stored_hash[3]);
-        if ($count_log2 < 7 || $count_log2 > 30) {
+        if ($count_log2 === false || $count_log2 < 7 || $count_log2 > 30) {
             return false;
         }
         
         $count = 1 << $count_log2;
-        $salt = substr($stored_hash, 4, 8);
         
+        // Extract salt (8 characters after the iteration count)
+        $salt = substr($stored_hash, 4, 8);
         if (strlen($salt) != 8) {
             return false;
         }
         
+        // Hash password with salt
         $hash = md5($salt . $password);
         for ($i = 0; $i < $count; $i++) {
             $hash = md5($hash . $password);
         }
         
+        // Build expected hash
         $output = substr($stored_hash, 0, 12);
         $output .= $this->encode64($hash, 16);
         
-        return ($output == $stored_hash);
+        // Compare
+        return ($output === $stored_hash);
     }
     
     private function encode64($input, $count) {
@@ -82,6 +90,49 @@ class SimplePasswordHash {
 }
 
 /**
+ * Helper function to unserialize (WordPress style)
+ */
+function maybe_unserialize($data) {
+    if (is_serialized($data)) {
+        return unserialize($data);
+    }
+    return $data;
+}
+
+/**
+ * Check if data is serialized (WordPress style)
+ */
+function is_serialized($data) {
+    if (!is_string($data)) {
+        return false;
+    }
+    $data = trim($data);
+    if ('N;' == $data) {
+        return true;
+    }
+    if (!preg_match('/^([adObis]):/', $data, $badions)) {
+        return false;
+    }
+    switch ($badions[1]) {
+        case 'a':
+        case 'O':
+        case 's':
+            if (preg_match("/^{$badions[1]}:[0-9]+:.*[;}]\$/s", $data)) {
+                return true;
+            }
+            break;
+        case 'b':
+        case 'i':
+        case 'd':
+            if (preg_match("/^{$badions[1]}:[0-9.E-]+;\$/", $data)) {
+                return true;
+            }
+            break;
+    }
+    return false;
+}
+
+/**
  * Verify WordPress password hash
  * Supports both modern PHP password hashes and WordPress Portable Hashes
  */
@@ -93,8 +144,13 @@ function verify_wordpress_password($password, $hash) {
     
     // Check if it's a WordPress Portable Hash ($P$ or $H$)
     if (substr($hash, 0, 3) === '$P$' || substr($hash, 0, 3) === '$H$') {
-        $hasher = new SimplePasswordHash();
-        return $hasher->CheckPassword($password, $hash);
+        try {
+            $hasher = new SimplePasswordHash();
+            return $hasher->CheckPassword($password, $hash);
+        } catch (Exception $e) {
+            error_log('[login] PHPass error: ' . $e->getMessage());
+            return false;
+        }
     }
     
     return false;
@@ -107,7 +163,12 @@ $dbUser = getenv('DB_USER') ?: 'root';
 $dbPassword = getenv('DB_PASSWORD') ?: '';
 
 // Parse host and port
-list($dbHostOnly, $dbPort) = explode(':', $dbHost) + [null, '3306'];
+$hostParts = explode(':', $dbHost);
+$dbHostOnly = $hostParts[0];
+$dbPort = isset($hostParts[1]) ? $hostParts[1] : '3306';
+
+// WordPress table prefix (usually 'wp_' but can be customized)
+$tablePrefix = getenv('WP_TABLE_PREFIX') ?: 'wp_';
 
 error_log('[login] Connecting to database: ' . $dbHostOnly . ':' . $dbPort . '/' . $dbName);
 
@@ -120,12 +181,15 @@ try {
         [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false
+            PDO::ATTR_EMULATE_PREPARES => false,
+            PDO::ATTR_TIMEOUT => 5
         ]
     );
+    error_log('[login] Database connection successful');
 } catch (PDOException $e) {
     error_log('[login] Database connection failed: ' . $e->getMessage());
-    sendErrorResponse('Database connection failed', 500);
+    error_log('[login] Connection details: host=' . $dbHostOnly . ', port=' . $dbPort . ', db=' . $dbName);
+    sendErrorResponse('Database connection failed: ' . $e->getMessage(), 500);
 }
 
 // Get request body (supports both web server and CLI)
@@ -155,7 +219,7 @@ $isEmail = filter_var($usernameOrEmail, FILTER_VALIDATE_EMAIL);
 
 // Query user from database
 $query = "SELECT ID, user_login, user_email, user_pass, display_name, user_nicename 
-          FROM wp_users 
+          FROM {$tablePrefix}users 
           WHERE " . ($isEmail ? "user_email = :identifier" : "user_login = :identifier") . "
           LIMIT 1";
 
@@ -186,8 +250,8 @@ try {
     error_log('[login] Password verified successfully');
     
     // Password is valid, get user roles from database
-    $rolesQuery = "SELECT meta_value FROM wp_usermeta 
-                   WHERE user_id = :user_id AND meta_key = 'wp_capabilities' 
+    $rolesQuery = "SELECT meta_value FROM {$tablePrefix}usermeta 
+                   WHERE user_id = :user_id AND meta_key = '{$tablePrefix}capabilities' 
                    LIMIT 1";
     $rolesStmt = $pdo->prepare($rolesQuery);
     $rolesStmt->execute([':user_id' => $user['ID']]);
@@ -195,48 +259,15 @@ try {
     
     $roles = ['subscriber']; // Default role
     if ($rolesRow && $rolesRow['meta_value']) {
-        $capabilities = maybe_unserialize($rolesRow['meta_value']);
-        if (is_array($capabilities)) {
-            $roles = array_keys($capabilities);
+        try {
+            $capabilities = maybe_unserialize($rolesRow['meta_value']);
+            if (is_array($capabilities)) {
+                $roles = array_keys($capabilities);
+            }
+        } catch (Exception $e) {
+            error_log('[login] Error unserializing roles: ' . $e->getMessage());
+            // Keep default role
         }
-    }
-    
-    // Helper function to unserialize (WordPress style)
-    function maybe_unserialize($data) {
-        if (is_serialized($data)) {
-            return unserialize($data);
-        }
-        return $data;
-    }
-    
-    function is_serialized($data) {
-        if (!is_string($data)) {
-            return false;
-        }
-        $data = trim($data);
-        if ('N;' == $data) {
-            return true;
-        }
-        if (!preg_match('/^([adObis]):/', $data, $badions)) {
-            return false;
-        }
-        switch ($badions[1]) {
-            case 'a':
-            case 'O':
-            case 's':
-                if (preg_match("/^{$badions[1]}:[0-9]+:.*[;}]\$/s", $data)) {
-                    return true;
-                }
-                break;
-            case 'b':
-            case 'i':
-            case 'd':
-                if (preg_match("/^{$badions[1]}:[0-9.E-]+;\$/", $data)) {
-                    return true;
-                }
-                break;
-        }
-        return false;
     }
     
     error_log('[login] Login successful for user ID: ' . $user['ID'] . ', username: ' . $user['user_login']);
@@ -254,7 +285,12 @@ try {
     
 } catch (PDOException $e) {
     error_log('[login] Database query failed: ' . $e->getMessage());
-    sendErrorResponse('Database query failed', 500);
+    error_log('[login] Query: ' . $query);
+    sendErrorResponse('Database query failed: ' . $e->getMessage(), 500);
+} catch (Exception $e) {
+    error_log('[login] Unexpected error: ' . $e->getMessage());
+    error_log('[login] Stack trace: ' . $e->getTraceAsString());
+    sendErrorResponse('Unexpected error: ' . $e->getMessage(), 500);
 }
 
 exit;
