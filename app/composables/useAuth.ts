@@ -12,9 +12,13 @@ export const useAuth = () => {
     remember?: boolean
   ) => {
     try {
+      console.log("[useAuth] Attempting login for username:", username);
+      
       const response = await $fetch<{
         success: boolean;
         user?: any;
+        message?: string;
+        error?: string;
       }>("/api/login", {
         method: "POST",
         body: {
@@ -24,19 +28,46 @@ export const useAuth = () => {
         },
       });
 
-      if (response.success && response.user) {
+      console.log("[useAuth] Login response:", response);
+      console.log("[useAuth] Response success:", response?.success);
+      console.log("[useAuth] Response has user:", !!response?.user);
+
+      if (response && response.success && response.user) {
         user.value = response.user;
         if (import.meta.client) {
           localStorage.setItem("user", JSON.stringify(response.user));
         }
+        console.log("[useAuth] Login successful, user saved");
         return { success: true, user: response.user };
       }
-      return { success: false, error: "Login failed" };
+      
+      const errorMsg = response?.error || response?.message || "Login failed";
+      console.warn("[useAuth] Login failed:", errorMsg);
+      return { success: false, error: errorMsg };
     } catch (error: any) {
       console.error("[useAuth] Login error:", error);
+      console.error("[useAuth] Error details:", {
+        message: error?.message,
+        statusCode: error?.statusCode,
+        data: error?.data,
+        response: error?.response
+      });
+      
+      // Extract error message from various possible locations
+      let errorMessage = "Login failed";
+      if (error?.data?.error) {
+        errorMessage = error.data.error;
+      } else if (error?.data?.message) {
+        errorMessage = error.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.statusMessage) {
+        errorMessage = error.statusMessage;
+      }
+      
       return {
         success: false,
-        error: error.data?.message || error.message || "Login failed",
+        error: errorMessage,
       };
     }
   };

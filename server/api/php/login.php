@@ -44,15 +44,13 @@ $baseUrl = rtrim(WC_BASE_URL, '/');
 $meUrl = $baseUrl . '/wp-json/wp/v2/users/me';
 
 error_log('[login] Authenticating via WordPress REST API: ' . $meUrl);
+error_log('[login] Base URL: ' . $baseUrl);
+error_log('[login] Username: ' . $username);
 
 // Use Basic Auth with username:password
 $authString = $username . ':' . $password;
 
-// Fetch user data using Basic Auth
-$result = fetchWooCommerceApi($meUrl, 'GET', null, false); // Don't use WP_BASIC_AUTH, use provided credentials
-
-// But we need to use the provided username:password for Basic Auth
-// So we'll use a custom fetch function
+// Use cURL with provided username:password for Basic Auth
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $meUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -65,9 +63,13 @@ curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
 // Use provided username:password for Basic Auth
 curl_setopt($ch, CURLOPT_USERPWD, $authString);
 
+// Enable verbose logging for debugging (only log to error_log, not output)
+curl_setopt($ch, CURLOPT_VERBOSE, false);
+
 $response = curl_exec($ch);
 $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $error = curl_error($ch);
+$curl_info = curl_getinfo($ch);
 curl_close($ch);
 
 if ($error) {
@@ -76,13 +78,26 @@ if ($error) {
 }
 
 error_log('[login] WordPress API response HTTP code: ' . $http_code);
+error_log('[login] cURL info: ' . json_encode([
+    'url' => $curl_info['url'] ?? 'N/A',
+    'http_code' => $http_code,
+    'content_type' => $curl_info['content_type'] ?? 'N/A',
+    'total_time' => $curl_info['total_time'] ?? 'N/A'
+]));
+error_log('[login] WordPress API response (first 500 chars): ' . substr($response, 0, 500));
 
 if ($http_code >= 200 && $http_code < 300) {
     $userData = json_decode($response, true);
     
     if (json_last_error() !== JSON_ERROR_NONE) {
         error_log('[login] JSON decode error: ' . json_last_error_msg());
-        sendErrorResponse('Invalid response from WordPress', 500);
+        error_log('[login] Raw response: ' . substr($response, 0, 1000));
+        sendErrorResponse('Invalid response from WordPress: ' . json_last_error_msg(), 500);
+    }
+    
+    if (!is_array($userData) || empty($userData)) {
+        error_log('[login] Invalid user data structure');
+        sendErrorResponse('Invalid user data from WordPress', 500);
     }
     
     // Remove sensitive data
@@ -101,11 +116,19 @@ if ($http_code >= 200 && $http_code < 300) {
     $errorData = json_decode($response, true);
     $errorMessage = 'Invalid username or password';
     
-    if (is_array($errorData) && isset($errorData['message'])) {
-        $errorMessage = $errorData['message'];
+    if (is_array($errorData)) {
+        if (isset($errorData['message'])) {
+            $errorMessage = $errorData['message'];
+        } elseif (isset($errorData['code'])) {
+            $errorMessage = $errorData['code'];
+        }
+    } elseif (!empty($response)) {
+        // If response is not JSON, use it as error message
+        $errorMessage = substr($response, 0, 200);
     }
     
     error_log('[login] Login failed: ' . $errorMessage . ' (HTTP ' . $http_code . ')');
+    error_log('[login] Full error response: ' . substr($response, 0, 1000));
     sendErrorResponse($errorMessage, 401);
 }
 
