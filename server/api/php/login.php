@@ -32,12 +32,14 @@ $username = isset($body['username']) ? trim($body['username']) : null;
 $password = isset($body['password']) ? $body['password'] : null;
 
 // Remove spaces from password (Application Passwords may have spaces)
+$originalPassword = $password;
 if ($password) {
     $password = str_replace(' ', '', $password);
 }
 
 error_log('[login] Attempting login for username: ' . ($username ?? 'null'));
 error_log('[login] Password length: ' . strlen($password ?? ''));
+error_log('[login] Original password had spaces: ' . (strpos($originalPassword ?? '', ' ') !== false ? 'yes' : 'no'));
 
 if (!$username || !$password) {
     error_log('[login] Error: username or password is missing');
@@ -103,32 +105,155 @@ if ($isEmail) {
     }
 }
 
-// Use Basic Auth with username:password (or username:application_password)
-$authString = $actualUsername . ':' . $password;
+// WordPress REST API /users/me endpoint requires Application Password for Basic Auth
+// Regular password will NOT work with this endpoint directly
+// We need to use WordPress login form to authenticate with regular password first
+// Then use the session cookie to get user data
 
-error_log('[login] Attempting login with: ' . $actualUsername . ' (original: ' . $username . ')');
+error_log('[login] Attempting login with regular password using WordPress login form...');
+error_log('[login] Username: ' . $actualUsername . ' (original: ' . $username . ')');
 
-// Use cURL with provided username:password for Basic Auth
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $meUrl);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
-// Use provided username:password for Basic Auth
-curl_setopt($ch, CURLOPT_USERPWD, $authString);
+// Step 1: Login via WordPress login form to get session cookie
+$loginUrl = $baseUrl . '/wp-login.php';
+$loginPostData = http_build_query([
+    'log' => $actualUsername,
+    'pwd' => $password,
+    'wp-submit' => 'Log In',
+    'redirect_to' => $baseUrl . '/wp-admin/',
+    'testcookie' => '1'
+]);
 
-// Enable verbose logging for debugging (only log to error_log, not output)
-curl_setopt($ch, CURLOPT_VERBOSE, false);
+// Use temporary file for cookies
+$cookieFile = sys_get_temp_dir() . '/wp_login_cookies_' . uniqid() . '.txt';
 
-$response = curl_exec($ch);
-$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$error = curl_error($ch);
-$curl_info = curl_getinfo($ch);
-curl_close($ch);
+$loginCh = curl_init();
+curl_setopt($loginCh, CURLOPT_URL, $loginUrl);
+curl_setopt($loginCh, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($loginCh, CURLOPT_POST, true);
+curl_setopt($loginCh, CURLOPT_POSTFIELDS, $loginPostData);
+curl_setopt($loginCh, CURLOPT_HTTPHEADER, [
+    'Content-Type: application/x-www-form-urlencoded',
+    'User-Agent: Mozilla/5.0 (compatible; WordPress Login)'
+]);
+curl_setopt($loginCh, CURLOPT_TIMEOUT, 30);
+curl_setopt($loginCh, CURLOPT_CONNECTTIMEOUT, 10);
+curl_setopt($loginCh, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($loginCh, CURLOPT_FOLLOWLOCATION, false); // Don't follow redirects, we want to check the response
+curl_setopt($loginCh, CURLOPT_COOKIEJAR, $cookieFile); // Store cookies in file
+curl_setopt($loginCh, CURLOPT_COOKIEFILE, $cookieFile); // Use cookies from file
+curl_setopt($loginCh, CURLOPT_HEADER, true); // Include headers in response to extract cookies
+
+$loginResponse = curl_exec($loginCh);
+$loginHttpCode = curl_getinfo($loginCh, CURLINFO_HTTP_CODE);
+$loginError = curl_error($loginCh);
+$loginHeaderSize = curl_getinfo($loginCh, CURLINFO_HEADER_SIZE);
+curl_close($loginCh);
+
+// Extract response body and headers
+$loginHeaders = substr($loginResponse, 0, $loginHeaderSize);
+$loginBody = substr($loginResponse, $loginHeaderSize);
+
+// Extract cookies from response headers
+$cookies = [];
+if (preg_match_all('/Set-Cookie: ([^;]+)/i', $loginHeaders, $matches)) {
+    foreach ($matches[1] as $cookie) {
+        $cookies[] = $cookie;
+    }
+}
+
+error_log('[login] Login form response HTTP code: ' . $loginHttpCode);
+error_log('[login] Found ' . count($cookies) . ' cookies');
+
+// Check if login was successful (WordPress redirects on successful login)
+// If we get a redirect (3xx) or the response contains admin dashboard, login was successful
+$loginSuccessful = false;
+if ($loginHttpCode >= 300 && $loginHttpCode < 400) {
+    $loginSuccessful = true;
+    error_log('[login] Login form returned redirect (likely successful)');
+} elseif (strpos($loginResponse, 'wp-admin') !== false || strpos($loginResponse, 'dashboard') !== false) {
+    $loginSuccessful = true;
+    error_log('[login] Login form response contains admin dashboard (likely successful)');
+} elseif (strpos($loginResponse, 'incorrect password') !== false || strpos($loginResponse, 'Invalid username') !== false) {
+    $loginSuccessful = false;
+    error_log('[login] Login form indicates incorrect credentials');
+} else {
+    // Try to get user data with cookies to verify
+    error_log('[login] Login form response unclear, verifying with REST API...');
+}
+
+// Step 2: If login was successful, get user data using REST API with cookies
+if ($loginSuccessful || !empty($cookies) || file_exists($cookieFile)) {
+    error_log('[login] Attempting to get user data via REST API with session cookies...');
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $meUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
+    curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile); // Use cookies from file
+    
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    $curl_info = curl_getinfo($ch);
+    curl_close($ch);
+    
+    // If REST API with cookies works, we're done
+    if ($http_code >= 200 && $http_code < 300) {
+        error_log('[login] Successfully authenticated with regular password via login form');
+    } else {
+        // Fallback: Try Application Password method
+        error_log('[login] Cookie-based auth failed, trying Application Password method...');
+        $authString = $actualUsername . ':' . $password;
+        
+        $ch2 = curl_init();
+        curl_setopt($ch2, CURLOPT_URL, $meUrl);
+        curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch2, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch2, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch2, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch2, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch2, CURLOPT_MAXREDIRS, 5);
+        curl_setopt($ch2, CURLOPT_USERPWD, $authString);
+        
+    $response = curl_exec($ch2);
+    $http_code = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch2);
+    $curl_info = curl_getinfo($ch2);
+    curl_close($ch2);
+    }
+    
+    // Clean up cookie file
+    if (file_exists($cookieFile)) {
+        @unlink($cookieFile);
+    }
+} else {
+    // Login form failed, try Application Password as fallback
+    error_log('[login] Login form failed, trying Application Password method...');
+    $authString = $actualUsername . ':' . $password;
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $meUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
+    curl_setopt($ch, CURLOPT_USERPWD, $authString);
+    
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    $curl_info = curl_getinfo($ch);
+    curl_close($ch);
+}
 
 if ($error) {
     error_log('[login] cURL error: ' . $error);
@@ -147,10 +272,8 @@ error_log('[login] WordPress API response (first 500 chars): ' . substr($respons
 // If login failed with 401, provide more detailed error message
 if ($http_code === 401) {
     error_log('[login] Authentication failed (401)');
-    error_log('[login] This may indicate:');
-    error_log('[login] 1. Invalid username or password');
-    error_log('[login] 2. WordPress requires Application Password instead of regular password');
-    error_log('[login] 3. User account may be disabled or locked');
+    error_log('[login] Both login form and REST API methods failed');
+    error_log('[login] Please verify username and password are correct');
 }
 
 if ($http_code >= 200 && $http_code < 300) {
