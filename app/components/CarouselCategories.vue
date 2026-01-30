@@ -12,10 +12,20 @@ const props = defineProps({
   },
 });
 
+// Create computed for reactive categories
+const categoriesList = computed(() => {
+  const cats = props.categories || [];
+  console.log('[CarouselCategories] Computed categories:', cats.length, cats);
+  return cats;
+});
+
 // Debug: Watch categories prop changes
 watch(() => props.categories, (newCategories) => {
   console.log('[CarouselCategories] Categories prop changed:', newCategories?.length || 0);
   console.log('[CarouselCategories] Categories data:', newCategories);
+  if (newCategories && newCategories.length > 0) {
+    console.log('[CarouselCategories] First category:', newCategories[0]);
+  }
 }, { deep: true, immediate: true });
 
 onMounted(() => {
@@ -23,6 +33,9 @@ onMounted(() => {
   console.log('[CarouselCategories] Categories prop:', props.categories);
   console.log('[CarouselCategories] Categories length:', props.categories?.length || 0);
   console.log('[CarouselCategories] Is array?', Array.isArray(props.categories));
+  if (props.categories && props.categories.length > 0) {
+    console.log('[CarouselCategories] First category structure:', props.categories[0]);
+  }
 });
 
 const cardsSlider = ref(null);
@@ -174,17 +187,18 @@ onBeforeUnmount(() => {
         >
           <!-- Debug info -->
           <div
-            v-if="!props.categories || props.categories.length === 0"
+            v-if="!categoriesList || categoriesList.length === 0"
             class="p-4 text-sm text-gray-500 dark:text-gray-400 border border-yellow-500 rounded-lg bg-yellow-50 dark:bg-yellow-900/20"
           >
             <p class="font-semibold text-yellow-700 dark:text-yellow-400">⚠️ ไม่พบข้อมูลหมวดหมู่</p>
             <p class="text-xs mt-1">
-              Categories count: {{ props.categories?.length || 0 }}
+              Categories count: {{ categoriesList?.length || 0 }}
             </p>
+            <p class="text-xs mt-1">Props categories: {{ props.categories?.length || 0 }}</p>
             <p class="text-xs mt-1">กรุณาตรวจสอบ:</p>
             <ul class="text-xs mt-1 list-disc list-inside">
               <li>Console log สำหรับรายละเอียด</li>
-              <li>WordPress API มี product categories หรือไม่</li>
+              <li>WooCommerce API มี product categories หรือไม่</li>
               <li>API endpoint ทำงานถูกต้องหรือไม่</li>
             </ul>
           </div>
@@ -201,8 +215,8 @@ onBeforeUnmount(() => {
             <div class="px-3.5">{{ $t("filter.all_categories") }}</div>
           </div>
           <div
-            v-for="(category, i) in props.categories"
-            :key="category.id || category.name || i"
+            v-for="(category, i) in categoriesList"
+            :key="category.id || category.databaseId || category.name || i"
             class="mb-2"
           >
             <!-- Parent Category Container -->
@@ -216,7 +230,7 @@ onBeforeUnmount(() => {
             >
               <!-- Parent Category Button -->
               <div
-                @click="toggleCategory(category.id)"
+                @click="toggleCategory(category.id || category.databaseId)"
                 :class="[
                   'card h-[50px] text-black transition cat-button-bezel flex items-center justify-between',
                   route.query.category === category.name
@@ -226,31 +240,38 @@ onBeforeUnmount(() => {
               >
                 <div class="flex items-center gap-2">
                   <NuxtImg
+                    v-if="category.image?.sourceUrl"
                     :alt="category.name"
                     loading="lazy"
-                    :src="category.image?.sourceUrl"
+                    :src="category.image.sourceUrl"
                     class="w-[38px] h-[38px] rounded-full object-cover border border-transparent dark:bg-black/15 bg-white/30"
                   />
+                  <div
+                    v-else
+                    class="w-[38px] h-[38px] rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center"
+                  >
+                    <UIcon name="i-iconamoon-category-fill" size="20" class="text-gray-400" />
+                  </div>
                   <div class="px-3.5">{{ category.name }}</div>
                 </div>
                 <span
                   v-if="category.children?.nodes?.length"
                   class="cursor-pointer px-[20px]"
                 >
-                  {{ isExpanded(category.id) ? "-" : "+" }}
+                  {{ isExpanded(category.id || category.databaseId) ? "-" : "+" }}
                 </span>
               </div>
 
               <!-- Child categories - แสดงภายใน main category -->
               <div
                 v-if="
-                  category.children?.nodes?.length && isExpanded(category.id)
+                  category.children?.nodes?.length && isExpanded(category.id || category.databaseId)
                 "
                 class="px-3 pb-2 pt-1 flex gap-2 flex-wrap"
               >
                 <div
                   v-for="child in category.children.nodes"
-                  :key="child.name"
+                  :key="child.id || child.databaseId || child.name"
                   @click.stop="setCategory(child.name)"
                   :class="[
                     'card h-[40px] text-black transition cat-button-bezel flex items-center gap-2',
@@ -260,11 +281,18 @@ onBeforeUnmount(() => {
                   ]"
                 >
                   <NuxtImg
+                    v-if="child.image?.sourceUrl"
                     :alt="child.name"
                     loading="lazy"
-                    :src="child.image?.sourceUrl"
+                    :src="child.image.sourceUrl"
                     class="w-[30px] h-[30px] rounded-full object-cover border border-transparent"
                   />
+                  <div
+                    v-else
+                    class="w-[30px] h-[30px] rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center"
+                  >
+                    <UIcon name="i-iconamoon-category-fill" size="16" class="text-gray-400" />
+                  </div>
                   <div class="px-2">{{ child.name }}</div>
                 </div>
               </div>

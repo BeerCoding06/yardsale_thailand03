@@ -39,7 +39,28 @@ onMounted(async () => {
 
     // แสดง categories ทั้งหมดที่ดึงมา (ไม่ต้อง filter เพราะ API ดึงมาแล้ว)
     if (response?.productCategories?.nodes && Array.isArray(response.productCategories.nodes)) {
-      categoriesData.value = response.productCategories.nodes;
+      const nodes = response.productCategories.nodes;
+      console.log("[app] Raw nodes:", nodes);
+      console.log("[app] Nodes length:", nodes.length);
+      
+      // Ensure all categories have required fields
+      categoriesData.value = nodes.map((cat, index) => {
+        const category = {
+          id: cat.id || cat.databaseId || index,
+          databaseId: cat.databaseId || cat.id || index,
+          name: cat.name || 'Unnamed Category',
+          slug: cat.slug || '',
+          description: cat.description || '',
+          image: cat.image || null,
+          parent: cat.parent || null,
+          count: cat.count || 0,
+          children: cat.children || { nodes: [] },
+          products: cat.products || { nodes: [] }
+        };
+        console.log(`[app] Category ${index}:`, category);
+        return category;
+      });
+      
       console.log("[app] Loaded categories:", categoriesData.value.length);
       
       // Debug: log first category structure
