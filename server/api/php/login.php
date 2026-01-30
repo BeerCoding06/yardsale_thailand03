@@ -31,7 +31,13 @@ if (!is_array($body)) {
 $username = isset($body['username']) ? trim($body['username']) : null;
 $password = isset($body['password']) ? $body['password'] : null;
 
+// Remove spaces from password (Application Passwords may have spaces)
+if ($password) {
+    $password = str_replace(' ', '', $password);
+}
+
 error_log('[login] Attempting login for username: ' . ($username ?? 'null'));
+error_log('[login] Password length: ' . strlen($password ?? ''));
 
 if (!$username || !$password) {
     error_log('[login] Error: username or password is missing');
