@@ -52,14 +52,39 @@ export default defineEventHandler(async (event) => {
     return data;
   } catch (error: any) {
     console.error("[login] Error:", error.message || error);
+    console.error("[login] Error stack:", error.stack);
+    console.error("[login] Full error object:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    
+    // If error has data property, log it
+    if (error.data) {
+      console.error("[login] Error data:", error.data);
+    }
     
     if (error.statusCode) {
       throw error;
     }
     
+    // Extract more detailed error message
+    let errorMessage = error.message || "Failed to process login request";
+    if (error.data) {
+      try {
+        if (typeof error.data === 'string') {
+          const errorData = JSON.parse(error.data);
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } else if (error.data.error) {
+          errorMessage = error.data.error;
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    
     throw createError({
       statusCode: 500,
-      message: error.message || "Failed to process login request",
+      message: errorMessage,
+      data: error.data || error
     });
   }
 });

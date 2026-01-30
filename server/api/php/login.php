@@ -9,10 +9,27 @@
  * Authenticates directly against WordPress database using MySQL connection
  */
 
-require_once __DIR__ . '/config.php';
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 0); // Don't display errors, but log them
+ini_set('log_errors', 1);
 
-// Set CORS headers
-setCorsHeaders();
+// Wrap everything in try-catch to catch any fatal errors
+try {
+    require_once __DIR__ . '/config.php';
+    
+    // Set CORS headers
+    setCorsHeaders();
+} catch (Exception $e) {
+    error_log('[login] Fatal error loading config: ' . $e->getMessage());
+    header('Content-Type: application/json');
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Failed to load configuration: ' . $e->getMessage()
+    ]);
+    exit;
+}
 
 /**
  * Simple PHPass implementation for WordPress password verification
@@ -156,6 +173,12 @@ function verify_wordpress_password($password, $hash) {
     return false;
 }
 
+// Check if PDO extension is available
+if (!extension_loaded('pdo') || !extension_loaded('pdo_mysql')) {
+    error_log('[login] PDO or PDO_MySQL extension not loaded');
+    sendErrorResponse('PDO MySQL extension not available', 500);
+}
+
 // Get database connection info from environment
 $dbHost = getenv('DB_HOST') ?: '157.85.98.150:3306';
 $dbName = getenv('DB_NAME') ?: 'nuxtcommerce_db';
@@ -171,11 +194,17 @@ $dbPort = isset($hostParts[1]) ? $hostParts[1] : '3306';
 $tablePrefix = getenv('WP_TABLE_PREFIX') ?: 'wp_';
 
 error_log('[login] Connecting to database: ' . $dbHostOnly . ':' . $dbPort . '/' . $dbName);
+error_log('[login] PHP version: ' . PHP_VERSION);
+error_log('[login] PDO available: ' . (extension_loaded('pdo') ? 'yes' : 'no'));
+error_log('[login] PDO_MySQL available: ' . (extension_loaded('pdo_mysql') ? 'yes' : 'no'));
 
 // Connect to WordPress database
 try {
+    $dsn = "mysql:host={$dbHostOnly};port={$dbPort};dbname={$dbName};charset=utf8mb4";
+    error_log('[login] DSN: ' . $dsn);
+    
     $pdo = new PDO(
-        "mysql:host={$dbHostOnly};port={$dbPort};dbname={$dbName};charset=utf8mb4",
+        $dsn,
         $dbUser,
         $dbPassword,
         [
@@ -188,8 +217,9 @@ try {
     error_log('[login] Database connection successful');
 } catch (PDOException $e) {
     error_log('[login] Database connection failed: ' . $e->getMessage());
-    error_log('[login] Connection details: host=' . $dbHostOnly . ', port=' . $dbPort . ', db=' . $dbName);
-    sendErrorResponse('Database connection failed: ' . $e->getMessage(), 500);
+    error_log('[login] PDO Error Code: ' . $e->getCode());
+    error_log('[login] Connection details: host=' . $dbHostOnly . ', port=' . $dbPort . ', db=' . $dbName . ', user=' . $dbUser);
+    sendErrorResponse('Database connection failed: ' . $e->getMessage() . ' (Code: ' . $e->getCode() . ')', 500);
 }
 
 // Get request body (supports both web server and CLI)
@@ -286,11 +316,54 @@ try {
 } catch (PDOException $e) {
     error_log('[login] Database query failed: ' . $e->getMessage());
     error_log('[login] Query: ' . $query);
-    sendErrorResponse('Database query failed: ' . $e->getMessage(), 500);
+    error_log('[login] PDO Error Code: ' . $e->getCode());
+    error_log('[login] Stack trace: ' . $e->getTraceAsString());
+    
+    // Try to send error response, but if that fails, output directly
+    try {
+        sendErrorResponse('Database query failed: ' . $e->getMessage(), 500);
+    } catch (Exception $sendError) {
+        header('Content-Type: application/json');
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Database query failed: ' . $e->getMessage(),
+            'details' => $e->getTraceAsString()
+        ]);
+        exit;
+    }
 } catch (Exception $e) {
     error_log('[login] Unexpected error: ' . $e->getMessage());
+    error_log('[login] Error type: ' . get_class($e));
     error_log('[login] Stack trace: ' . $e->getTraceAsString());
-    sendErrorResponse('Unexpected error: ' . $e->getMessage(), 500);
+    
+    // Try to send error response, but if that fails, output directly
+    try {
+        sendErrorResponse('Unexpected error: ' . $e->getMessage(), 500);
+    } catch (Exception $sendError) {
+        header('Content-Type: application/json');
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Unexpected error: ' . $e->getMessage(),
+            'details' => $e->getTraceAsString()
+        ]);
+        exit;
+    }
+} catch (Error $e) {
+    // Catch PHP 7+ fatal errors
+    error_log('[login] Fatal error: ' . $e->getMessage());
+    error_log('[login] Error type: ' . get_class($e));
+    error_log('[login] Stack trace: ' . $e->getTraceAsString());
+    
+    header('Content-Type: application/json');
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Fatal error: ' . $e->getMessage(),
+        'details' => $e->getTraceAsString()
+    ]);
+    exit;
 }
 
 exit;
