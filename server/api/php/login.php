@@ -124,23 +124,45 @@ try {
     
     // Verify password
     $hash = $user['user_pass'];
-    error_log('[login] Hash format: ' . substr($hash, 0, 10));
+    $hashLength = strlen($hash);
+    $hashPrefix = substr($hash, 0, 10);
+    error_log('[login] Hash length: ' . $hashLength);
+    error_log('[login] Hash prefix: ' . $hashPrefix);
+    error_log('[login] Hash (first 50 chars): ' . substr($hash, 0, 50));
     
     // Normalize WordPress bcrypt hash ($wp$2y$12$ -> $2y$12$)
     $normalizedHash = $hash;
     if (substr($hash, 0, 4) === '$wp$') {
         $parts = explode('$', $hash);
+        error_log('[login] Hash parts count: ' . count($parts));
         if (count($parts) >= 5 && $parts[1] === 'wp' && $parts[2] === '2y') {
             $normalizedHash = '$' . $parts[2] . '$' . $parts[3] . '$' . $parts[4];
             error_log('[login] Normalized WordPress hash');
+            error_log('[login] Original hash: ' . substr($hash, 0, 30) . '...');
+            error_log('[login] Normalized hash: ' . substr($normalizedHash, 0, 30) . '...');
+            error_log('[login] Normalized hash length: ' . strlen($normalizedHash));
+        } else {
+            error_log('[login] Hash parts do not match expected format');
         }
+    } else {
+        error_log('[login] Hash does not have $wp$ prefix, using as-is');
     }
     
     // Verify password
+    error_log('[login] Attempting password_verify with normalized hash...');
     $passwordValid = password_verify($password, $normalizedHash);
+    error_log('[login] password_verify result: ' . ($passwordValid ? 'TRUE' : 'FALSE'));
+    
+    // If normalized hash failed, try original hash
+    if (!$passwordValid && $normalizedHash !== $hash) {
+        error_log('[login] Trying password_verify with original hash...');
+        $passwordValid = password_verify($password, $hash);
+        error_log('[login] password_verify with original hash result: ' . ($passwordValid ? 'TRUE' : 'FALSE'));
+    }
     
     if (!$passwordValid) {
         error_log('[login] Password verification failed');
+        error_log('[login] Password provided: ' . substr($password, 0, 3) . '*** (length: ' . strlen($password) . ')');
         http_response_code(401);
         echo json_encode([
             'success' => false,
