@@ -72,26 +72,59 @@ $remember = isset($body['remember']) ? (bool)$body['remember'] : false;
 error_log('[login] Attempting login for: ' . $username);
 error_log('[login] Password length: ' . strlen($password));
 
-// Authenticate using WordPress REST API
-// WordPress is in a separate container, so we use REST API like other scripts
+// Authenticate using WordPress wp-login.php endpoint
+// This allows us to use regular username/password (not Application Password)
 $wpBaseUrl = getenv('WP_BASE_URL') ?: 'http://157.85.98.150:8080';
-$apiUrl = rtrim($wpBaseUrl, '/') . '/wp-json/wp/v2/users/me';
+$loginUrl = rtrim($wpBaseUrl, '/') . '/wp-login.php';
 
-error_log('[login] Authenticating via WordPress REST API: ' . $apiUrl);
+error_log('[login] Authenticating via WordPress login form: ' . $loginUrl);
 
-$ch = curl_init($apiUrl);
+// Step 1: Get login form to extract nonce/redirect_to
+$ch = curl_init($loginUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-curl_setopt($ch, CURLOPT_USERPWD, $username . ':' . $password);
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+curl_setopt($ch, CURLOPT_COOKIEJAR, '/tmp/wp_cookies_' . uniqid() . '.txt');
+curl_setopt($ch, CURLOPT_COOKIEFILE, '/tmp/wp_cookies_' . uniqid() . '.txt');
 curl_setopt($ch, CURLOPT_TIMEOUT, 10);
 curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
 
-$response = curl_exec($ch);
+$loginPage = curl_exec($ch);
+$cookieFile = curl_getinfo($ch, CURLINFO_COOKIELIST);
+curl_close($ch);
+
+// Step 2: Submit login form
+$cookieFile = '/tmp/wp_cookies_' . uniqid() . '.txt';
+$ch = curl_init($loginUrl);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+    'log' => $username,
+    'pwd' => $password,
+    'rememberme' => $remember ? 'forever' : '',
+    'wp-submit' => 'Log In',
+    'redirect_to' => rtrim($wpBaseUrl, '/') . '/wp-admin/',
+    'testcookie' => '1'
+]));
+curl_setopt($ch, CURLOPT_COOKIEJAR, $cookieFile);
+curl_setopt($ch, CURLOPT_COOKIEFILE, $cookieFile);
+curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+
+$loginResponse = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$redirectUrl = curl_getinfo($ch, CURLINFO_REDIRECT_URL);
 $curlError = curl_error($ch);
 curl_close($ch);
+
+// Clean up cookie file
+if (file_exists($cookieFile)) {
+    @unlink($cookieFile);
+}
 
 if ($curlError) {
     error_log('[login] cURL error: ' . $curlError);
@@ -103,11 +136,78 @@ if ($curlError) {
     exit();
 }
 
-error_log('[login] WordPress REST API response code: ' . $httpCode);
+error_log('[login] WordPress login response code: ' . $httpCode);
+error_log('[login] Redirect URL: ' . ($redirectUrl ?: 'none'));
 
-if ($httpCode !== 200) {
-    $errorData = json_decode($response, true);
-    $errorMessage = $errorData['message'] ?? 'Invalid username or password';
+// Check if login was successful (redirect to wp-admin means success)
+if ($httpCode === 302 && $redirectUrl && strpos($redirectUrl, 'wp-admin') !== false) {
+    // Login successful, now get user data via REST API with cookies
+    error_log('[login] Login successful, fetching user data...');
+    
+    // Get user data using REST API (we'll use Application Password or try without auth)
+    // Since we can't easily pass cookies, let's try to get user by email/username
+    $usersUrl = rtrim($wpBaseUrl, '/') . '/wp-json/wp/v2/users?search=' . urlencode($username);
+    
+    $ch = curl_init($usersUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    
+    $usersResponse = curl_exec($ch);
+    $usersCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($usersCode === 200) {
+        $usersData = json_decode($usersResponse, true);
+        if ($usersData && is_array($usersData) && count($usersData) > 0) {
+            $userData = $usersData[0];
+            error_log('[login] Found user: ID=' . $userData['id']);
+            
+            // Build user data response
+            $user_data = [
+                'id' => $userData['id'],
+                'username' => $userData['slug'] ?? $userData['name'] ?? '',
+                'email' => $userData['email'] ?? '',
+                'name' => $userData['name'] ?? '',
+                'slug' => $userData['slug'] ?? '',
+                'roles' => $userData['roles'] ?? ['subscriber'],
+                'first_name' => $userData['meta']['first_name'] ?? '',
+                'last_name' => $userData['meta']['last_name'] ?? '',
+                'profile_picture_id' => null,
+                'profile_picture_url' => null,
+            ];
+        } else {
+            error_log('[login] User not found in REST API response');
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Failed to retrieve user data'
+            ]);
+            exit();
+        }
+    } else {
+        // If REST API fails, return basic user info
+        error_log('[login] REST API failed, returning basic success');
+        $user_data = [
+            'id' => 0,
+            'username' => $username,
+            'email' => $username, // Assume email if username is email
+            'name' => $username,
+            'slug' => $username,
+            'roles' => ['subscriber'],
+            'first_name' => '',
+            'last_name' => '',
+            'profile_picture_id' => null,
+            'profile_picture_url' => null,
+        ];
+    }
+} else {
+    // Login failed
+    $errorMessage = 'Invalid username or password';
+    if (strpos($loginResponse, 'incorrect') !== false || strpos($loginResponse, 'error') !== false) {
+        $errorMessage = 'Invalid username or password';
+    }
     error_log('[login] Authentication failed: ' . $errorMessage);
     
     http_response_code(401);
@@ -118,55 +218,6 @@ if ($httpCode !== 200) {
     ]);
     exit();
 }
-
-// Authentication successful, parse user data
-$userData = json_decode($response, true);
-if (!$userData || !isset($userData['id'])) {
-    error_log('[login] Invalid user data from WordPress API');
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'error' => 'Invalid response from WordPress API'
-    ]);
-    exit();
-}
-
-error_log('[login] Authentication successful for user ID: ' . $userData['id']);
-
-// Get additional user data (profile picture, etc.)
-$profile_picture_id = isset($userData['meta']['profile_picture_id']) ? $userData['meta']['profile_picture_id'] : null;
-$profile_picture_url = null;
-if ($profile_picture_id) {
-    // Try to get profile picture URL from WordPress
-    $mediaUrl = rtrim($wpBaseUrl, '/') . '/wp-json/wp/v2/media/' . $profile_picture_id;
-    $mediaCh = curl_init($mediaUrl);
-    curl_setopt($mediaCh, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($mediaCh, CURLOPT_TIMEOUT, 5);
-    $mediaResponse = curl_exec($mediaCh);
-    $mediaCode = curl_getinfo($mediaCh, CURLINFO_HTTP_CODE);
-    curl_close($mediaCh);
-    
-    if ($mediaCode === 200) {
-        $mediaData = json_decode($mediaResponse, true);
-        if ($mediaData && isset($mediaData['source_url'])) {
-            $profile_picture_url = $mediaData['source_url'];
-        }
-    }
-}
-
-// Build user data response
-$user_data = [
-    'id' => $userData['id'],
-    'username' => $userData['slug'] ?? $userData['name'] ?? '',
-    'email' => $userData['email'] ?? '',
-    'name' => $userData['name'] ?? '',
-    'slug' => $userData['slug'] ?? '',
-    'roles' => $userData['roles'] ?? ['subscriber'],
-    'first_name' => $userData['meta']['first_name'] ?? '',
-    'last_name' => $userData['meta']['last_name'] ?? '',
-    'profile_picture_id' => $profile_picture_id ? intval($profile_picture_id) : null,
-    'profile_picture_url' => $profile_picture_url,
-];
 
 // Return success response
 http_response_code(200);
