@@ -1,12 +1,16 @@
 <?php
 /**
- * User Login - WordPress Authentication
+ * User Login - WordPress REST API Authentication
  * 
  * Endpoint: POST /server/api/php/login.php
  * Body: { username: string, password: string, remember?: boolean }
  * 
- * Supports both username and email login
- * Uses WordPress core functions for authentication (wp_authenticate)
+ * Uses WordPress REST API with JWT Authentication plugin
+ * This is the best approach because:
+ * - WordPress handles password verification automatically
+ * - No need to share filesystem between containers
+ * - No need to access database directly
+ * - Supports all WordPress hash formats
  */
 
 // Set CORS headers
@@ -29,74 +33,8 @@ if ($method !== 'POST') {
     exit();
 }
 
-// Load WordPress core
-// WordPress is in wp_app container, try multiple paths
-$possible_paths = [
-    '/var/www/html/wp-load.php',  // Docker WordPress path
-    '/app/wordpress/wp-load.php',  // Alternative Docker path
-    dirname(__DIR__, 4) . '/wordpress/wp-load.php',  // From server/api/php/ up 4 levels
-    __DIR__ . '/../../../wordpress/wp-load.php',  // Local development
-];
-
-$wp_load_path = null;
-foreach ($possible_paths as $path) {
-    if (file_exists($path)) {
-        $wp_load_path = $path;
-        error_log('[login] Found WordPress at: ' . $path);
-        break;
-    }
-}
-
-if (!$wp_load_path) {
-    error_log('[login] WordPress not found. Tried paths: ' . implode(', ', $possible_paths));
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'error' => 'WordPress not found. Please ensure WordPress is installed and accessible.'
-    ]);
-    exit();
-}
-
-// Load WordPress core
-error_log('[login] Loading WordPress from: ' . $wp_load_path);
-require_once($wp_load_path);
-
-// Verify WordPress loaded correctly
-if (!defined('ABSPATH')) {
-    error_log('[login] ERROR: ABSPATH not defined after loading WordPress');
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'error' => 'WordPress failed to load correctly'
-    ]);
-    exit();
-}
-
-error_log('[login] WordPress loaded successfully. ABSPATH: ' . ABSPATH);
-
-// Load pluggable functions (required for wp_authenticate, sanitize_text_field, etc.)
-if (defined('ABSPATH') && defined('WPINC')) {
-    $pluggable_path = ABSPATH . WPINC . '/pluggable.php';
-    if (file_exists($pluggable_path)) {
-        require_once $pluggable_path;
-        error_log('[login] Pluggable functions loaded');
-    } else {
-        error_log('[login] WARNING: pluggable.php not found at: ' . $pluggable_path);
-    }
-}
-
-// Verify WordPress functions are available
-if (!function_exists('wp_authenticate')) {
-    error_log('[login] ERROR: wp_authenticate() function not available');
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'error' => 'WordPress authentication functions not available'
-    ]);
-    exit();
-}
-
-error_log('[login] WordPress functions verified');
+// Load config
+require_once __DIR__ . '/config.php';
 
 // Get request body (CLI + Web safe)
 $input = getenv('REQUEST_BODY') ?: file_get_contents('php://input');
@@ -126,57 +64,100 @@ if (!isset($body['username']) || !isset($body['password'])) {
 
 $username = trim($body['username']);
 $password = $body['password'];
-$remember = isset($body['remember']) ? (bool)$body['remember'] : false;
 
 error_log('[login] Attempting login for: ' . $username);
 
-// Authenticate user using WordPress core function
-// This handles all WordPress hash formats automatically
-error_log('[login] Calling wp_authenticate()...');
-$user_obj = wp_authenticate($username, $password);
+// WordPress REST API endpoint for JWT Authentication
+// WordPress container name: wp_app (or use WP_BASE_URL)
+$wpBaseUrl = getenv('WP_BASE_URL') ?: 'http://wp_app:80';
+$apiUrl = rtrim($wpBaseUrl, '/') . '/wp-json/jwt-auth/v1/token';
 
-if (is_wp_error($user_obj)) {
-    $error_code = $user_obj->get_error_code();
-    $error_message = $user_obj->get_error_message();
-    error_log('[login] Authentication failed');
-    error_log('[login] Error code: ' . $error_code);
-    error_log('[login] Error message: ' . $error_message);
+error_log('[login] Authenticating via WordPress REST API: ' . $apiUrl);
+
+// Call WordPress REST API
+$ch = curl_init($apiUrl);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+    'username' => $username,
+    'password' => $password
+]));
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Content-Type: application/json',
+    'Accept: application/json'
+]);
+curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+
+$response = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$curlError = curl_error($ch);
+curl_close($ch);
+
+if ($curlError) {
+    error_log('[login] cURL error: ' . $curlError);
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Failed to connect to WordPress: ' . $curlError
+    ]);
+    exit();
+}
+
+error_log('[login] WordPress REST API response code: ' . $httpCode);
+
+// Parse response
+$responseData = json_decode($response, true);
+
+if ($httpCode !== 200) {
+    $errorMessage = $responseData['message'] ?? $responseData['code'] ?? 'Invalid username or password';
+    error_log('[login] Authentication failed: ' . $errorMessage);
     
     http_response_code(401);
     echo json_encode([
         'success' => false,
         'error' => 'Invalid username or password',
-        'message' => $error_message,
-        'code' => $error_code
+        'message' => $errorMessage
     ]);
     exit();
 }
 
-error_log('[login] Authentication successful for user ID: ' . $user_obj->ID);
-
-// Get user meta data
-$profile_picture_id = get_user_meta($user_obj->ID, 'profile_picture_id', true);
-$profile_picture_url = '';
-if ($profile_picture_id) {
-    $profile_picture_url = wp_get_attachment_image_url($profile_picture_id, 'thumbnail');
-    if (!$profile_picture_url) {
-        $profile_picture_url = wp_get_attachment_image_url($profile_picture_id, 'full');
-    }
+// Authentication successful
+if (!isset($responseData['user']) || !isset($responseData['token'])) {
+    error_log('[login] Invalid response from WordPress API');
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Invalid response from WordPress API'
+    ]);
+    exit();
 }
+
+$wpUser = $responseData['user'];
+$jwtToken = $responseData['token'];
+
+error_log('[login] Authentication successful for user ID: ' . $wpUser['id']);
 
 // Build user data response
 $user_data = [
-    'id' => $user_obj->ID,
-    'username' => $user_obj->user_login,
-    'email' => $user_obj->user_email,
-    'name' => $user_obj->display_name,
-    'slug' => $user_obj->user_nicename,
-    'roles' => $user_obj->roles,
-    'first_name' => get_user_meta($user_obj->ID, 'first_name', true) ?: '',
-    'last_name' => get_user_meta($user_obj->ID, 'last_name', true) ?: '',
-    'profile_picture_id' => $profile_picture_id ? intval($profile_picture_id) : null,
-    'profile_picture_url' => $profile_picture_url ?: null,
+    'id' => $wpUser['id'],
+    'username' => $wpUser['username'] ?? $wpUser['slug'] ?? '',
+    'email' => $wpUser['email'] ?? '',
+    'name' => $wpUser['name'] ?? $wpUser['display_name'] ?? '',
+    'slug' => $wpUser['slug'] ?? '',
+    'roles' => $wpUser['roles'] ?? ['subscriber'],
+    'first_name' => $wpUser['first_name'] ?? '',
+    'last_name' => $wpUser['last_name'] ?? '',
+    'profile_picture_id' => null,
+    'profile_picture_url' => null,
 ];
+
+// Include JWT token if needed
+if (isset($jwtToken)) {
+    $user_data['token'] = $jwtToken;
+}
 
 // Return success response
 http_response_code(200);
