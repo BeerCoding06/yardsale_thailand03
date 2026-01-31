@@ -54,7 +54,7 @@ RUN sh -c 'NUXT_TELEMETRY_DISABLED=1 pnpm build || (echo "=== Build failed ===" 
 # Stage 3: Production - Nuxt with PHP CLI
 FROM node:20-alpine AS runner
 
-# Install Node.js and PHP CLI
+# Install Node.js and PHP CLI with PDO extensions
 RUN apk add --no-cache \
     nodejs \
     npm \
@@ -62,7 +62,9 @@ RUN apk add --no-cache \
     php \
     php-cli \
     php-curl \
-    php-json
+    php-json \
+    php-pdo \
+    php-pdo_mysql
 
 WORKDIR /app
 
