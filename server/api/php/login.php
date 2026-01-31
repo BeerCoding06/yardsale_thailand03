@@ -116,11 +116,37 @@ if (!$wpUser) {
     error_log('[login] JWT Authentication not available, using database authentication...');
     
     // Database connection
-    $dbHost = getenv('DB_HOST') ?: 'wp_db';
+    // IMPORTANT: Use container name wp_db, NOT IP address
+    // IMPORTANT: Use wpuser/wppass, NOT root (root is blocked from external network)
+    
+    // Force container name, ignore DB_HOST if it's an IP address
+    $dbHostEnv = getenv('DB_HOST');
+    if (empty($dbHostEnv) || filter_var($dbHostEnv, FILTER_VALIDATE_IP)) {
+        // If DB_HOST is empty or is an IP address, use container name
+        $dbHost = 'wp_db'; // Container name for Docker network
+    } else {
+        $dbHost = $dbHostEnv;
+    }
+    
     $dbPort = getenv('DB_PORT') ?: '3306';
-    $dbName = getenv('WP_DB_NAME') ?: getenv('DB_DATABASE') ?: 'wordpress';
-    $dbUser = getenv('WP_DB_USER') ?: getenv('DB_USER') ?: 'wpuser';
-    $dbPassword = getenv('WP_DB_PASSWORD') ?: getenv('DB_PASSWORD') ?: 'wppass';
+    $dbName = getenv('WP_DB_NAME') ?: 'wordpress';
+    
+    // Force wpuser, ignore DB_USER if it's root
+    $dbUserEnv = getenv('WP_DB_USER');
+    if (empty($dbUserEnv) || $dbUserEnv === 'root') {
+        $dbUser = 'wpuser'; // Use wpuser, NOT root
+    } else {
+        $dbUser = $dbUserEnv;
+    }
+    
+    // Force wppass, ignore DB_PASSWORD
+    $dbPasswordEnv = getenv('WP_DB_PASSWORD');
+    if (empty($dbPasswordEnv)) {
+        $dbPassword = 'wppass'; // Use wppass
+    } else {
+        $dbPassword = $dbPasswordEnv;
+    }
+    
     $tablePrefix = getenv('WP_TABLE_PREFIX') ?: 'wp_';
     
     $hostParts = explode(':', $dbHost);
@@ -128,6 +154,16 @@ if (!$wpUser) {
     if (count($hostParts) > 1) {
         $dbPort = $hostParts[1];
     }
+    
+    error_log('[login] Database config:');
+    error_log('[login]   - DB_HOST env: ' . ($dbHostEnv ?? 'not set'));
+    error_log('[login]   - Final host: ' . $dbHostOnly);
+    error_log('[login]   - Port: ' . $dbPort);
+    error_log('[login]   - Database: ' . $dbName);
+    error_log('[login]   - WP_DB_USER env: ' . ($dbUserEnv ?? 'not set'));
+    error_log('[login]   - Final user: ' . $dbUser);
+    error_log('[login]   - WP_DB_PASSWORD env: ' . ($dbPasswordEnv ? '***set***' : 'not set'));
+    error_log('[login]   - Table prefix: ' . $tablePrefix);
     
     try {
         $pdo = new PDO(
