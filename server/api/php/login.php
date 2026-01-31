@@ -57,20 +57,52 @@ if (!$wp_load_path) {
 }
 
 // Load WordPress core
+error_log('[login] Loading WordPress from: ' . $wp_load_path);
 require_once($wp_load_path);
+
+// Verify WordPress loaded correctly
+if (!defined('ABSPATH')) {
+    error_log('[login] ERROR: ABSPATH not defined after loading WordPress');
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => 'WordPress failed to load correctly'
+    ]);
+    exit();
+}
+
+error_log('[login] WordPress loaded successfully. ABSPATH: ' . ABSPATH);
 
 // Load pluggable functions (required for sanitize_text_field, wp_authenticate, etc.)
 // This ensures functions are available even in CLI mode
-// ABSPATH is defined by wp-load.php
-if (defined('ABSPATH')) {
+$pluggable_path = ABSPATH . 'wp-includes/pluggable.php';
+if (file_exists($pluggable_path)) {
     /** @var string ABSPATH */
-    require_once ABSPATH . 'wp-includes/pluggable.php';
+    require_once $pluggable_path;
+    error_log('[login] Pluggable functions loaded');
+} else {
+    error_log('[login] WARNING: pluggable.php not found at: ' . $pluggable_path);
 }
+
+// Verify WordPress functions are available
+if (!function_exists('wp_authenticate')) {
+    error_log('[login] ERROR: wp_authenticate() function not available');
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error' => 'WordPress authentication functions not available'
+    ]);
+    exit();
+}
+
+error_log('[login] WordPress functions verified');
 
 // Get request body (CLI + Web safe)
 // CLI: read from REQUEST_BODY environment variable (set by php-executor.ts)
 // Web: read from php://input
 $input = getenv('REQUEST_BODY') ?: file_get_contents('php://input');
+error_log('[login] Request body length: ' . strlen($input));
+error_log('[login] Request body (first 100 chars): ' . substr($input, 0, 100));
 
 // Parse JSON input
 $body = json_decode($input, true);
@@ -100,18 +132,28 @@ $password = $body['password'];
 $remember = isset($body['remember']) ? (bool)$body['remember'] : false;
 
 error_log('[login] Attempting login for: ' . $username);
+error_log('[login] Password length: ' . strlen($password));
+error_log('[login] Remember: ' . ($remember ? 'true' : 'false'));
 
 // Authenticate user using WordPress core function
+error_log('[login] Calling wp_authenticate()...');
 /** @var WP_User|WP_Error $user */
 $user = wp_authenticate($username, $password);
 
 if (is_wp_error($user)) {
-    error_log('[login] Authentication failed: ' . $user->get_error_message());
+    $error_code = $user->get_error_code();
+    $error_message = $user->get_error_message();
+    error_log('[login] Authentication failed');
+    error_log('[login] Error code: ' . $error_code);
+    error_log('[login] Error message: ' . $error_message);
+    error_log('[login] Error data: ' . json_encode($user->get_error_data()));
+    
     http_response_code(401);
     echo json_encode([
         'success' => false,
         'error' => 'Invalid username or password',
-        'message' => $user->get_error_message()
+        'message' => $error_message,
+        'code' => $error_code
     ]);
     exit();
 }
