@@ -67,15 +67,15 @@ $password = $body['password'];
 
 error_log('[login] Attempting login for: ' . $username);
 
-// WordPress REST API endpoint for JWT Authentication
-// WordPress container name: wp_app (or use WP_BASE_URL)
+// WordPress REST API endpoint
+// Try JWT Authentication first, then fallback to other methods
 $wpBaseUrl = getenv('WP_BASE_URL') ?: 'http://wp_app:80';
-$apiUrl = rtrim($wpBaseUrl, '/') . '/wp-json/jwt-auth/v1/token';
 
-error_log('[login] Authenticating via WordPress REST API: ' . $apiUrl);
+// Method 1: Try JWT Authentication plugin
+$jwtUrl = rtrim($wpBaseUrl, '/') . '/wp-json/jwt-auth/v1/token';
+error_log('[login] Trying JWT Authentication: ' . $jwtUrl);
 
-// Call WordPress REST API
-$ch = curl_init($apiUrl);
+$ch = curl_init($jwtUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
@@ -96,22 +96,178 @@ $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $curlError = curl_error($ch);
 curl_close($ch);
 
-if ($curlError) {
-    error_log('[login] cURL error: ' . $curlError);
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'error' => 'Failed to connect to WordPress: ' . $curlError
-    ]);
-    exit();
+$wpUser = null;
+$jwtToken = null;
+
+// If JWT endpoint works (200), use it
+if ($httpCode === 200 && !$curlError) {
+    $responseData = json_decode($response, true);
+    if (isset($responseData['user']) && isset($responseData['token'])) {
+        $wpUser = $responseData['user'];
+        $jwtToken = $responseData['token'];
+        error_log('[login] JWT Authentication successful');
+    }
 }
 
-error_log('[login] WordPress REST API response code: ' . $httpCode);
+// Method 2: If JWT failed, use database authentication with wp_check_password
+// This requires loading WordPress core, but it's the most reliable method
+if (!$wpUser) {
+    error_log('[login] JWT Authentication not available, using database authentication...');
+    
+    // Database connection
+    $dbHost = getenv('DB_HOST') ?: 'wp_db';
+    $dbPort = getenv('DB_PORT') ?: '3306';
+    $dbName = getenv('WP_DB_NAME') ?: getenv('DB_DATABASE') ?: 'wordpress';
+    $dbUser = getenv('WP_DB_USER') ?: getenv('DB_USER') ?: 'wpuser';
+    $dbPassword = getenv('WP_DB_PASSWORD') ?: getenv('DB_PASSWORD') ?: 'wppass';
+    $tablePrefix = getenv('WP_TABLE_PREFIX') ?: 'wp_';
+    
+    $hostParts = explode(':', $dbHost);
+    $dbHostOnly = $hostParts[0];
+    if (count($hostParts) > 1) {
+        $dbPort = $hostParts[1];
+    }
+    
+    try {
+        $pdo = new PDO(
+            "mysql:host={$dbHostOnly};port={$dbPort};dbname={$dbName};charset=utf8mb4",
+            $dbUser,
+            $dbPassword,
+            [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_TIMEOUT => 10
+            ]
+        );
+        error_log('[login] Database connection successful');
+        
+        // Query user
+        $isEmail = filter_var($username, FILTER_VALIDATE_EMAIL);
+        $query = "SELECT ID, user_login, user_email, user_pass, display_name, user_nicename 
+                  FROM {$tablePrefix}users 
+                  WHERE " . ($isEmail ? "user_email = :identifier" : "user_login = :identifier") . "
+                  LIMIT 1";
+        
+        $stmt = $pdo->prepare($query);
+        $stmt->execute([':identifier' => $username]);
+        $user = $stmt->fetch();
+        
+        if (!$user) {
+            error_log('[login] User not found: ' . $username);
+            http_response_code(401);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Invalid username or password'
+            ]);
+            exit();
+        }
+        
+        error_log('[login] User found: ID=' . $user['ID']);
+        
+        // Use WordPress wp_check_password function
+        // We need to load WordPress core to use this function
+        $wpLoadPath = '/var/www/html/wp-load.php';
+        if (file_exists($wpLoadPath)) {
+            require_once $wpLoadPath;
+            if (defined('ABSPATH') && defined('WPINC')) {
+                require_once ABSPATH . WPINC . '/pluggable.php';
+            }
+            
+            // Use wp_check_password which handles all WordPress hash formats
+            if (function_exists('wp_check_password')) {
+                $passwordValid = wp_check_password($password, $user['user_pass']);
+                error_log('[login] wp_check_password result: ' . ($passwordValid ? 'TRUE' : 'FALSE'));
+                
+                if (!$passwordValid) {
+                    error_log('[login] Password verification failed');
+                    http_response_code(401);
+                    echo json_encode([
+                        'success' => false,
+                        'error' => 'Invalid username or password'
+                    ]);
+                    exit();
+                }
+                
+                // Get user roles
+                $rolesQuery = "SELECT meta_value FROM {$tablePrefix}usermeta 
+                               WHERE user_id = :user_id AND meta_key = '{$tablePrefix}capabilities' 
+                               LIMIT 1";
+                $rolesStmt = $pdo->prepare($rolesQuery);
+                $rolesStmt->execute([':user_id' => $user['ID']]);
+                $rolesRow = $rolesStmt->fetch();
+                
+                $roles = ['subscriber'];
+                if ($rolesRow && $rolesRow['meta_value']) {
+                    $capabilities = unserialize($rolesRow['meta_value']);
+                    if (is_array($capabilities)) {
+                        $roles = array_keys($capabilities);
+                    }
+                }
+                
+                // Get user meta
+                $first_name = '';
+                $last_name = '';
+                $profile_picture_id = null;
+                
+                $metaQuery = "SELECT meta_key, meta_value FROM {$tablePrefix}usermeta 
+                              WHERE user_id = :user_id AND meta_key IN ('first_name', 'last_name', 'profile_picture_id')";
+                $metaStmt = $pdo->prepare($metaQuery);
+                $metaStmt->execute([':user_id' => $user['ID']]);
+                $metaRows = $metaStmt->fetchAll();
+                
+                foreach ($metaRows as $metaRow) {
+                    if ($metaRow['meta_key'] === 'first_name') {
+                        $first_name = $metaRow['meta_value'];
+                    } elseif ($metaRow['meta_key'] === 'last_name') {
+                        $last_name = $metaRow['meta_value'];
+                    } elseif ($metaRow['meta_key'] === 'profile_picture_id') {
+                        $profile_picture_id = intval($metaRow['meta_value']);
+                    }
+                }
+                
+                // Build user data
+                $wpUser = [
+                    'id' => $user['ID'],
+                    'username' => $user['user_login'],
+                    'email' => $user['user_email'],
+                    'name' => $user['display_name'] ?: $user['user_login'],
+                    'slug' => $user['user_nicename'],
+                    'roles' => $roles,
+                    'first_name' => $first_name,
+                    'last_name' => $last_name,
+                ];
+                
+                error_log('[login] Database authentication successful');
+            } else {
+                error_log('[login] wp_check_password function not available');
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'WordPress password verification function not available'
+                ]);
+                exit();
+            }
+        } else {
+            error_log('[login] WordPress core not found at: ' . $wpLoadPath);
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'error' => 'WordPress core not found'
+            ]);
+            exit();
+        }
+    } catch (PDOException $e) {
+        error_log('[login] Database connection failed: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Database connection failed: ' . $e->getMessage()
+        ]);
+        exit();
+    }
+}
 
-// Parse response
-$responseData = json_decode($response, true);
-
-if ($httpCode !== 200) {
+if (!$wpUser) {
     $errorMessage = $responseData['message'] ?? $responseData['code'] ?? 'Invalid username or password';
     error_log('[login] Authentication failed: ' . $errorMessage);
     
@@ -123,20 +279,6 @@ if ($httpCode !== 200) {
     ]);
     exit();
 }
-
-// Authentication successful
-if (!isset($responseData['user']) || !isset($responseData['token'])) {
-    error_log('[login] Invalid response from WordPress API');
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'error' => 'Invalid response from WordPress API'
-    ]);
-    exit();
-}
-
-$wpUser = $responseData['user'];
-$jwtToken = $responseData['token'];
 
 error_log('[login] Authentication successful for user ID: ' . $wpUser['id']);
 
@@ -150,11 +292,11 @@ $user_data = [
     'roles' => $wpUser['roles'] ?? ['subscriber'],
     'first_name' => $wpUser['first_name'] ?? '',
     'last_name' => $wpUser['last_name'] ?? '',
-    'profile_picture_id' => null,
-    'profile_picture_url' => null,
+    'profile_picture_id' => $wpUser['profile_picture_id'] ?? null,
+    'profile_picture_url' => $wpUser['profile_picture_url'] ?? null,
 ];
 
-// Include JWT token if needed
+// Include JWT token if available
 if (isset($jwtToken)) {
     $user_data['token'] = $jwtToken;
 }
