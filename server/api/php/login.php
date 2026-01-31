@@ -64,12 +64,16 @@ $password = $body['password'];
 error_log('[login] Attempting login for: ' . $username);
 
 // Database connection
-// Try WordPress database first (from wp_db container), then fallback to configured DB
+// WordPress database is in wp_db container with these credentials:
+// MYSQL_DATABASE=wordpress, MYSQL_USER=wpuser, MYSQL_PASSWORD=wppass, MYSQL_ROOT_PASSWORD=rootpass
 $dbHost = getenv('DB_HOST') ?: '157.85.98.150:3306';
-$dbName = getenv('WP_DB_NAME') ?: getenv('DB_NAME') ?: 'wordpress'; // WordPress uses 'wordpress' database
-$dbUser = getenv('WP_DB_USER') ?: getenv('DB_USER') ?: 'wpuser'; // WordPress uses 'wpuser'
-$dbPassword = getenv('WP_DB_PASSWORD') ?: getenv('DB_PASSWORD') ?: 'wppass'; // WordPress uses 'wppass'
+// Try WordPress database name first
+$dbName = getenv('WP_DB_NAME') ?: 'wordpress';
 $tablePrefix = getenv('WP_TABLE_PREFIX') ?: 'wp_';
+
+// Try wpuser first, then root with rootpass
+$dbUser = getenv('WP_DB_USER') ?: 'wpuser';
+$dbPassword = getenv('WP_DB_PASSWORD') ?: 'wppass';
 
 error_log('[login] Database config: host=' . $dbHost . ', db=' . $dbName . ', user=' . $dbUser);
 
@@ -77,6 +81,8 @@ $hostParts = explode(':', $dbHost);
 $dbHostOnly = $hostParts[0];
 $dbPort = isset($hostParts[1]) ? $hostParts[1] : '3306';
 
+// Try wpuser first, then root with rootpass
+$pdo = null;
 try {
     $pdo = new PDO(
         "mysql:host={$dbHostOnly};port={$dbPort};dbname={$dbName};charset=utf8mb4",
@@ -88,15 +94,40 @@ try {
             PDO::ATTR_TIMEOUT => 10
         ]
     );
-    error_log('[login] Database connection successful');
+    error_log('[login] Database connection successful with wpuser');
 } catch (PDOException $e) {
-    error_log('[login] Database connection failed: ' . $e->getMessage());
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'error' => 'Database connection failed'
-    ]);
-    exit();
+    error_log('[login] Database connection failed with wpuser: ' . $e->getMessage());
+    
+    // Try fallback with root credentials
+    error_log('[login] Trying fallback with root credentials...');
+    try {
+        $pdo = new PDO(
+            "mysql:host={$dbHostOnly};port={$dbPort};dbname={$dbName};charset=utf8mb4",
+            'root',
+            getenv('WP_DB_ROOT_PASSWORD') ?: 'rootpass',
+            [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_TIMEOUT => 10
+            ]
+        );
+        error_log('[login] Database connection successful with root credentials');
+    } catch (PDOException $e2) {
+        error_log('[login] Fallback connection also failed: ' . $e2->getMessage());
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => 'Database connection failed',
+            'debug' => [
+                'primary_error' => $e->getMessage(),
+                'fallback_error' => $e2->getMessage(),
+                'host' => $dbHostOnly,
+                'port' => $dbPort,
+                'database' => $dbName
+            ]
+        ]);
+        exit();
+    }
 }
 
 // Determine if input is email or username
