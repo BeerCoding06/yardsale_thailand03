@@ -64,18 +64,22 @@ $password = $body['password'];
 error_log('[login] Attempting login for: ' . $username);
 
 // Database connection
-// Database credentials:
+// Database credentials (from user provided info):
 // Username: root
 // Password: KtmdoLt9b$n!
 // IP: 157.85.98.150
+// Database: wordpress (WordPress database in wp_db container, NOT nuxtcommerce_db)
 $dbHost = getenv('DB_HOST') ?: '157.85.98.150:3306';
-// Try WordPress database name first, then fallback to configured DB
-$dbName = getenv('WP_DB_NAME') ?: getenv('DB_NAME') ?: 'wordpress';
+// WordPress uses 'wordpress' database - use WP_DB_NAME if set, otherwise use 'wordpress' directly
+// Do NOT fallback to DB_NAME because it's set to 'nuxtcommerce_db' in docker-compose.yml
+$dbName = getenv('WP_DB_NAME') ?: 'wordpress';
 $tablePrefix = getenv('WP_TABLE_PREFIX') ?: 'wp_';
 
-// Use root credentials (from user provided info)
+// Use root credentials with the password provided by user
+// Do NOT use DB_PASSWORD from environment because it's set to wrong password in docker-compose.yml
 $dbUser = getenv('DB_USER') ?: 'root';
-$dbPassword = getenv('DB_PASSWORD') ?: 'KtmdoLt9b$n!';
+// Use WP_DB_PASSWORD if set, otherwise use the correct password: KtmdoLt9b$n!
+$dbPassword = getenv('WP_DB_PASSWORD') ?: 'KtmdoLt9b$n!';
 
 error_log('[login] Database config: host=' . $dbHost . ', db=' . $dbName . ', user=' . $dbUser);
 
