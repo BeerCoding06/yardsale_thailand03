@@ -130,19 +130,27 @@ try {
     error_log('[login] Hash prefix: ' . $hashPrefix);
     error_log('[login] Hash (first 50 chars): ' . substr($hash, 0, 50));
     
-    // Normalize WordPress bcrypt hash ($wp$2y$12$ -> $2y$12$)
+    // Normalize WordPress bcrypt hash ($wp$2y$10$ -> $2y$10$)
+    // Example: $wp$2y$10$E1x/FVwd/z8QjTy/1URAquU/T3tzxuH8cyu6mfYklHKoaiys3q9j6
+    // Should become: $2y$10$E1x/FVwd/z8QjTy/1URAquU/T3tzxuH8cyu6mfYklHKoaiys3q9j6
     $normalizedHash = $hash;
     if (substr($hash, 0, 4) === '$wp$') {
         $parts = explode('$', $hash);
+        error_log('[login] Hash parts: ' . json_encode($parts));
         error_log('[login] Hash parts count: ' . count($parts));
+        
+        // Check if it's WordPress bcrypt format: $wp$2y$10$...
         if (count($parts) >= 5 && $parts[1] === 'wp' && $parts[2] === '2y') {
+            // Reconstruct as standard bcrypt: $2y$10$salt+hash
             $normalizedHash = '$' . $parts[2] . '$' . $parts[3] . '$' . $parts[4];
             error_log('[login] Normalized WordPress hash');
-            error_log('[login] Original hash: ' . substr($hash, 0, 30) . '...');
-            error_log('[login] Normalized hash: ' . substr($normalizedHash, 0, 30) . '...');
+            error_log('[login] Original hash: ' . $hash);
+            error_log('[login] Normalized hash: ' . $normalizedHash);
+            error_log('[login] Original hash length: ' . strlen($hash));
             error_log('[login] Normalized hash length: ' . strlen($normalizedHash));
         } else {
             error_log('[login] Hash parts do not match expected format');
+            error_log('[login] parts[1]=' . ($parts[1] ?? 'N/A') . ', parts[2]=' . ($parts[2] ?? 'N/A'));
         }
     } else {
         error_log('[login] Hash does not have $wp$ prefix, using as-is');
