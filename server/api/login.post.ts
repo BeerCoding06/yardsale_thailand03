@@ -30,6 +30,7 @@ export default defineEventHandler(async (event) => {
     console.log("[login] Response success:", data?.success);
     console.log("[login] Response has user:", !!data?.user);
     console.log("[login] Response error:", data?.error);
+    console.log("[login] Response debug:", data?.debug);
 
     // Ensure response structure is correct
     if (!data || typeof data !== 'object') {

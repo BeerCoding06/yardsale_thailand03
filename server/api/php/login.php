@@ -64,11 +64,14 @@ $password = $body['password'];
 error_log('[login] Attempting login for: ' . $username);
 
 // Database connection
+// Try WordPress database first (from wp_db container), then fallback to configured DB
 $dbHost = getenv('DB_HOST') ?: '157.85.98.150:3306';
-$dbName = getenv('DB_NAME') ?: 'nuxtcommerce_db';
-$dbUser = getenv('DB_USER') ?: 'root';
-$dbPassword = getenv('DB_PASSWORD') ?: 'RootBeer06032534';
+$dbName = getenv('WP_DB_NAME') ?: getenv('DB_NAME') ?: 'wordpress'; // WordPress uses 'wordpress' database
+$dbUser = getenv('WP_DB_USER') ?: getenv('DB_USER') ?: 'wpuser'; // WordPress uses 'wpuser'
+$dbPassword = getenv('WP_DB_PASSWORD') ?: getenv('DB_PASSWORD') ?: 'wppass'; // WordPress uses 'wppass'
 $tablePrefix = getenv('WP_TABLE_PREFIX') ?: 'wp_';
+
+error_log('[login] Database config: host=' . $dbHost . ', db=' . $dbName . ', user=' . $dbUser);
 
 $hostParts = explode(':', $dbHost);
 $dbHostOnly = $hostParts[0];
@@ -158,6 +161,7 @@ try {
     
     // Verify password
     error_log('[login] Attempting password_verify with normalized hash...');
+    error_log('[login] Normalized hash for verification: ' . $normalizedHash);
     $passwordValid = password_verify($password, $normalizedHash);
     error_log('[login] password_verify result: ' . ($passwordValid ? 'TRUE' : 'FALSE'));
     
@@ -168,17 +172,49 @@ try {
         error_log('[login] password_verify with original hash result: ' . ($passwordValid ? 'TRUE' : 'FALSE'));
     }
     
+    // Additional check: verify the hash format is correct
+    if (!$passwordValid) {
+        // Check if normalized hash is valid bcrypt format
+        $isValidBcrypt = preg_match('/^\$2[ayb]\$\d{2}\$[./0-9A-Za-z]{53}$/', $normalizedHash);
+        error_log('[login] Normalized hash is valid bcrypt format: ' . ($isValidBcrypt ? 'TRUE' : 'FALSE'));
+        
+        // Try to create a test hash with the same password to verify password_verify works
+        $testHash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+        $testVerify = password_verify($password, $testHash);
+        error_log('[login] Test password_verify with new hash: ' . ($testVerify ? 'TRUE' : 'FALSE'));
+        
+        if (!$testVerify) {
+            error_log('[login] WARNING: password_verify() may not be working correctly!');
+        }
+    }
+    
     if (!$passwordValid) {
         error_log('[login] Password verification failed');
         error_log('[login] Password provided: ' . substr($password, 0, 3) . '*** (length: ' . strlen($password) . ')');
+        error_log('[login] Original hash: ' . $hash);
+        error_log('[login] Normalized hash: ' . $normalizedHash);
         
         // Include debug info in response for troubleshooting
+        $hashParts = explode('$', $hash);
+        $isValidBcrypt = preg_match('/^\$2[ayb]\$\d{2}\$[./0-9A-Za-z]{53}$/', $normalizedHash);
+        
+        // Test if password_verify works at all
+        $testHash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+        $testVerify = password_verify($password, $testHash);
+        
         $debugInfo = [
             'hash_length' => $hashLength,
             'hash_prefix' => $hashPrefix,
+            'hash_full' => $hash, // Include full hash for debugging
             'normalized_hash_length' => strlen($normalizedHash),
             'normalized_hash_prefix' => substr($normalizedHash, 0, 10),
+            'normalized_hash_full' => $normalizedHash, // Include full normalized hash
             'password_length' => strlen($password),
+            'hash_parts' => $hashParts,
+            'hash_parts_count' => count($hashParts),
+            'is_valid_bcrypt_format' => $isValidBcrypt,
+            'password_verify_test' => $testVerify, // Test if password_verify works
+            'test_hash_prefix' => substr($testHash, 0, 10),
         ];
         
         http_response_code(401);
