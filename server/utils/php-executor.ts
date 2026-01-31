@@ -79,6 +79,8 @@ export async function executePhpScript(options: PhpExecutorOptions): Promise<any
     
     phpProcess.stderr.on('data', (data) => {
       stderr += data.toString();
+      // Log stderr in real-time for debugging
+      console.log('[php-executor] stderr:', data.toString());
     });
     
     phpProcess.on('close', (code) => {
@@ -109,12 +111,18 @@ export async function executePhpScript(options: PhpExecutorOptions): Promise<any
         return;
       }
       
+      // Log stderr if there's any (for debugging)
+      if (stderr) {
+        console.log('[php-executor] PHP stderr output:', stderr);
+      }
+      
       try {
         // Try to parse JSON response
         const jsonData = JSON.parse(stdout);
         resolve(jsonData);
       } catch (error) {
         console.error('[php-executor] Failed to parse JSON response:', stdout.substring(0, 500));
+        console.error('[php-executor] stderr was:', stderr);
         reject(new Error(`Failed to parse PHP response as JSON: ${stdout.substring(0, 200)}`));
       }
     });

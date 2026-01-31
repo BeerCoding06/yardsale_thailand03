@@ -43,9 +43,15 @@ export const useAuth = () => {
       
       const errorMsg = response?.error || response?.message || "Login failed";
       console.warn("[useAuth] Login failed:", errorMsg);
+      if (response?.debug) {
+        console.warn("[useAuth] Debug info:", response.debug);
+      }
       return { success: false, error: errorMsg };
     } catch (error: any) {
       console.error("[useAuth] Login error:", error);
+      if (error?.data?.debug) {
+        console.error("[useAuth] Debug info:", error.data.debug);
+      }
       console.error("[useAuth] Error details:", {
         message: error?.message,
         statusCode: error?.statusCode,

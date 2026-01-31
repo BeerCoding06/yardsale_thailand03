@@ -171,10 +171,21 @@ try {
     if (!$passwordValid) {
         error_log('[login] Password verification failed');
         error_log('[login] Password provided: ' . substr($password, 0, 3) . '*** (length: ' . strlen($password) . ')');
+        
+        // Include debug info in response for troubleshooting
+        $debugInfo = [
+            'hash_length' => $hashLength,
+            'hash_prefix' => $hashPrefix,
+            'normalized_hash_length' => strlen($normalizedHash),
+            'normalized_hash_prefix' => substr($normalizedHash, 0, 10),
+            'password_length' => strlen($password),
+        ];
+        
         http_response_code(401);
         echo json_encode([
             'success' => false,
-            'error' => 'Invalid username or password'
+            'error' => 'Invalid username or password',
+            'debug' => $debugInfo
         ]);
         exit();
     }

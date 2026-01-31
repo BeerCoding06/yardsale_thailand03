@@ -45,7 +45,10 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 401,
         message: data.error || "Login failed",
-        data: { error: data.error }
+        data: { 
+          error: data.error,
+          debug: data.debug || null // Include debug info if available
+        }
       });
     }
 
