@@ -40,40 +40,59 @@ class SimplePasswordHash {
     private $iteration_count_log2 = 8;
     
     public function CheckPassword($password, $stored_hash) {
+        error_log('[SimplePasswordHash] CheckPassword called');
+        error_log('[SimplePasswordHash] Stored hash length: ' . strlen($stored_hash));
+        error_log('[SimplePasswordHash] Stored hash prefix: ' . substr($stored_hash, 0, 10));
+        
         // WordPress Portable Hash must be 34 characters
         if (strlen($stored_hash) < 34) {
+            error_log('[SimplePasswordHash] Hash too short: ' . strlen($stored_hash));
             return false;
         }
         
         // Check hash format ($P$ or $H$)
         $hashPrefix = substr($stored_hash, 0, 3);
         if ($hashPrefix != '$P$' && $hashPrefix != '$H$') {
+            error_log('[SimplePasswordHash] Invalid hash prefix: ' . $hashPrefix);
             return false;
         }
         
         // Get iteration count from hash
         $count_log2 = strpos($this->itoa64, $stored_hash[3]);
         if ($count_log2 === false || $count_log2 < 7 || $count_log2 > 30) {
+            error_log('[SimplePasswordHash] Invalid iteration count: ' . ($count_log2 === false ? 'false' : $count_log2));
             return false;
         }
         
         $count = 1 << $count_log2;
+        error_log('[SimplePasswordHash] Iteration count: ' . $count . ' (log2: ' . $count_log2 . ')');
         
         // Extract salt (8 characters after the iteration count)
         $salt = substr($stored_hash, 4, 8);
         if (strlen($salt) != 8) {
+            error_log('[SimplePasswordHash] Invalid salt length: ' . strlen($salt));
             return false;
         }
+        error_log('[SimplePasswordHash] Salt: ' . $salt);
         
         // Hash password with salt
         $hash = md5($salt . $password);
+        error_log('[SimplePasswordHash] Initial hash: ' . $hash);
+        
         for ($i = 0; $i < $count; $i++) {
             $hash = md5($hash . $password);
         }
+        error_log('[SimplePasswordHash] Final hash after iterations: ' . $hash);
         
         // Build expected hash
         $output = substr($stored_hash, 0, 12);
-        $output .= $this->encode64($hash, 16);
+        $encoded = $this->encode64($hash, 16);
+        error_log('[SimplePasswordHash] Encoded hash: ' . $encoded);
+        $output .= $encoded;
+        
+        error_log('[SimplePasswordHash] Expected hash: ' . $output);
+        error_log('[SimplePasswordHash] Stored hash: ' . $stored_hash);
+        error_log('[SimplePasswordHash] Match: ' . ($output === $stored_hash ? 'true' : 'false'));
         
         // Compare
         return ($output === $stored_hash);
@@ -82,6 +101,13 @@ class SimplePasswordHash {
     private function encode64($input, $count) {
         $output = '';
         $i = 0;
+        
+        // Ensure input is long enough
+        if (strlen($input) < $count) {
+            error_log('[SimplePasswordHash] encode64: Input too short. Length: ' . strlen($input) . ', Required: ' . $count);
+            $input = str_pad($input, $count, "\0");
+        }
+        
         do {
             $value = ord($input[$i++]);
             $output .= $this->itoa64[$value & 0x3f];
@@ -154,8 +180,31 @@ function is_serialized($data) {
  * Supports both modern PHP password hashes and WordPress Portable Hashes
  */
 function verify_wordpress_password($password, $hash) {
+    // WordPress sometimes uses $wp$ prefix for bcrypt hashes
+    // Format: $wp$2y$12$salt+hash
+    // Need to convert to: $2y$12$salt+hash
+    $normalizedHash = $hash;
+    if (substr($hash, 0, 4) === '$wp$') {
+        // Split by $ to get parts: ['', 'wp', '2y', '12', 'salt+hash']
+        $parts = explode('$', $hash);
+        if (count($parts) >= 5 && $parts[1] === 'wp' && $parts[2] === '2y') {
+            // Reconstruct as standard bcrypt: $2y$12$salt+hash
+            $normalizedHash = '$' . $parts[2] . '$' . $parts[3] . '$' . $parts[4];
+            error_log('[login] Detected WordPress bcrypt hash with $wp$ prefix');
+            error_log('[login] Original: ' . substr($hash, 0, 30) . '...');
+            error_log('[login] Normalized: ' . substr($normalizedHash, 0, 30) . '...');
+        }
+    }
+    
     // Try PHP's password_verify first (for bcrypt, argon2, modern hashes)
-    if (password_verify($password, $hash)) {
+    if (password_verify($password, $normalizedHash)) {
+        error_log('[login] password_verify succeeded with normalized hash');
+        return true;
+    }
+    
+    // Also try with original hash (in case it's already in correct format)
+    if ($normalizedHash !== $hash && password_verify($password, $hash)) {
+        error_log('[login] password_verify succeeded with original hash');
         return true;
     }
     
@@ -163,13 +212,18 @@ function verify_wordpress_password($password, $hash) {
     if (substr($hash, 0, 3) === '$P$' || substr($hash, 0, 3) === '$H$') {
         try {
             $hasher = new SimplePasswordHash();
-            return $hasher->CheckPassword($password, $hash);
+            $result = $hasher->CheckPassword($password, $hash);
+            if ($result) {
+                error_log('[login] WordPress Portable Hash verification succeeded');
+            }
+            return $result;
         } catch (Exception $e) {
             error_log('[login] PHPass error: ' . $e->getMessage());
             return false;
         }
     }
     
+    error_log('[login] All password verification methods failed');
     return false;
 }
 
@@ -267,13 +321,24 @@ try {
     
     // Verify password
     $hash = $user['user_pass'];
-    error_log('[login] Password hash type: ' . substr($hash, 0, 10));
+    $hashLength = strlen($hash);
+    $hashPrefix = substr($hash, 0, 10);
+    error_log('[login] Password hash length: ' . $hashLength);
+    error_log('[login] Password hash prefix: ' . $hashPrefix);
+    error_log('[login] Password hash (first 50 chars): ' . substr($hash, 0, 50));
     
     // Verify password using our custom function (supports both modern and WordPress hashes)
+    error_log('[login] Attempting password verification...');
+    error_log('[login] Password provided length: ' . strlen($password));
+    
+    // Use verify_wordpress_password function which handles all hash formats
     $passwordValid = verify_wordpress_password($password, $hash);
+    error_log('[login] Final password verification result: ' . ($passwordValid ? 'true' : 'false'));
     
     if (!$passwordValid) {
         error_log('[login] Password verification failed for user: ' . $user['user_login']);
+        error_log('[login] Hash format: ' . $hashPrefix);
+        error_log('[login] Hash length: ' . $hashLength);
         sendErrorResponse('Invalid username or password', 401);
     }
     
