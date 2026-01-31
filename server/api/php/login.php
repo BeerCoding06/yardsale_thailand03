@@ -69,10 +69,11 @@ error_log('[login] Attempting login for: ' . $username);
 
 // WordPress REST API endpoint
 // Try JWT Authentication first, then fallback to other methods
-$wpBaseUrl = getenv('WP_BASE_URL') ?: 'http://wp_app:80';
+$wpBaseUrl = getenv('WP_BASE_URL') ?: 'http://157.85.98.150:8080';
 
 // Method 1: Try JWT Authentication plugin
-$jwtUrl = rtrim($wpBaseUrl, '/') . '/wp-json/jwt-auth/v1/token';
+// WordPress is accessible via /wordpress path
+$jwtUrl = rtrim($wpBaseUrl, '/') . '/wordpress/wp-json/jwt-auth/v1/token';
 error_log('[login] Trying JWT Authentication: ' . $jwtUrl);
 
 $ch = curl_init($jwtUrl);
