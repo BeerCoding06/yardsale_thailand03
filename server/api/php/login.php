@@ -64,28 +64,28 @@ $password = $body['password'];
 error_log('[login] Attempting login for: ' . $username);
 
 // Database connection
-// Database credentials (from user provided info):
-// Username: root
-// Password: KtmdoLt9b$n!
-// IP: 157.85.98.150
-// Database: wordpress (WordPress database in wp_db container, NOT nuxtcommerce_db)
-$dbHost = getenv('DB_HOST') ?: '157.85.98.150:3306';
-// WordPress uses 'wordpress' database - use WP_DB_NAME if set, otherwise use 'wordpress' directly
-// Do NOT fallback to DB_NAME because it's set to 'nuxtcommerce_db' in docker-compose.yml
-$dbName = getenv('WP_DB_NAME') ?: 'wordpress';
+// In Docker, connect to database container by name, not IP
+// WordPress database container: wp_db
+// Database: wordpress
+// User: wpuser (NOT root - root is blocked from external network)
+// Password: wppass
+$dbHost = getenv('DB_HOST') ?: 'wp_db'; // Use container name, not IP
+$dbPort = getenv('DB_PORT') ?: '3306';
+$dbName = getenv('WP_DB_NAME') ?: getenv('DB_DATABASE') ?: 'wordpress';
 $tablePrefix = getenv('WP_TABLE_PREFIX') ?: 'wp_';
 
-// Use root credentials with the password provided by user
-// Do NOT use DB_PASSWORD from environment because it's set to wrong password in docker-compose.yml
-$dbUser = getenv('DB_USER') ?: 'root';
-// Use WP_DB_PASSWORD if set, otherwise use the correct password: KtmdoLt9b$n!
-$dbPassword = getenv('WP_DB_PASSWORD') ?: 'KtmdoLt9b$n!';
+// Use wpuser (NOT root - root is blocked from external network)
+$dbUser = getenv('WP_DB_USER') ?: getenv('DB_USER') ?: 'wpuser';
+$dbPassword = getenv('WP_DB_PASSWORD') ?: getenv('DB_PASSWORD') ?: 'wppass';
 
-error_log('[login] Database config: host=' . $dbHost . ', db=' . $dbName . ', user=' . $dbUser);
+error_log('[login] Database config: host=' . $dbHost . ', port=' . $dbPort . ', db=' . $dbName . ', user=' . $dbUser);
 
+// If DB_HOST contains port (e.g., "wp_db:3306"), extract it
 $hostParts = explode(':', $dbHost);
 $dbHostOnly = $hostParts[0];
-$dbPort = isset($hostParts[1]) ? $hostParts[1] : '3306';
+if (count($hostParts) > 1) {
+    $dbPort = $hostParts[1];
+}
 
 // Connect to database
 try {
