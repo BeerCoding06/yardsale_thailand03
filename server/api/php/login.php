@@ -45,6 +45,7 @@ $body = json_decode($input, true);
 
 if (json_last_error() !== JSON_ERROR_NONE) {
     error_log('[login] JSON decode error: ' . json_last_error_msg());
+    error_log('[login] Raw input: ' . substr($input, 0, 500));
     http_response_code(400);
     echo json_encode([
         'success' => false,
@@ -53,7 +54,15 @@ if (json_last_error() !== JSON_ERROR_NONE) {
     exit();
 }
 
+// Log parsed body (hide password for security)
+$logBody = $body;
+if (isset($logBody['password'])) {
+    $logBody['password'] = '***hidden***';
+}
+error_log('[login] Parsed request body: ' . json_encode($logBody));
+
 if (!isset($body['username']) || !isset($body['password'])) {
+    error_log('[login] Missing required fields. Body keys: ' . implode(', ', array_keys($body)));
     http_response_code(400);
     echo json_encode([
         'success' => false,
@@ -65,15 +74,15 @@ if (!isset($body['username']) || !isset($body['password'])) {
 $username = trim($body['username']);
 $password = $body['password'];
 
-error_log('[login] Attempting login for: ' . $username);
+error_log('[login] Attempting login for username: ' . $username);
 
 // WordPress REST API endpoint
 // Try JWT Authentication first, then fallback to other methods
 $wpBaseUrl = getenv('WP_BASE_URL') ?: 'http://157.85.98.150:8080';
 
 // Method 1: Try JWT Authentication plugin
-// WordPress is accessible via /wordpress path
-$jwtUrl = rtrim($wpBaseUrl, '/') . '/wordpress/wp-json/jwt-auth/v1/token';
+// JWT endpoint is at /wp-json/jwt-auth/v1/token (not /wordpress/wp-json/...)
+$jwtUrl = rtrim($wpBaseUrl, '/') . '/wp-json/jwt-auth/v1/token';
 error_log('[login] Trying JWT Authentication: ' . $jwtUrl);
 
 $ch = curl_init($jwtUrl);
@@ -103,10 +112,44 @@ $jwtToken = null;
 // If JWT endpoint works (200), use it
 if ($httpCode === 200 && !$curlError) {
     $responseData = json_decode($response, true);
-    if (isset($responseData['user']) && isset($responseData['token'])) {
-        $wpUser = $responseData['user'];
+    error_log('[login] JWT response data: ' . json_encode($responseData));
+    
+    if (isset($responseData['token'])) {
         $jwtToken = $responseData['token'];
-        error_log('[login] JWT Authentication successful');
+        
+        // JWT response format:
+        // {
+        //   "token": "...",
+        //   "user_email": "...",
+        //   "user_nicename": "...",
+        //   "user_display_name": "..."
+        // }
+        // We need to decode JWT token to get user ID from payload
+        // JWT format: header.payload.signature
+        $tokenParts = explode('.', $jwtToken);
+        $userId = null;
+        
+        if (count($tokenParts) >= 2) {
+            // Decode payload (base64url)
+            $payload = json_decode(base64_decode(strtr($tokenParts[1], '-_', '+/')), true);
+            if (isset($payload['data']['user']['id'])) {
+                $userId = $payload['data']['user']['id'];
+            }
+        }
+        
+        // Build user data from JWT response
+        $wpUser = [
+            'id' => $userId ?: null,
+            'username' => $responseData['user_nicename'] ?? $username,
+            'email' => $responseData['user_email'] ?? $username,
+            'name' => $responseData['user_display_name'] ?? $responseData['user_nicename'] ?? $username,
+            'slug' => $responseData['user_nicename'] ?? '',
+            'roles' => ['subscriber'], // Default role, JWT doesn't return roles
+        ];
+        
+        error_log('[login] JWT Authentication successful. User ID: ' . ($userId ?: 'N/A'));
+    } else {
+        error_log('[login] JWT response missing token field');
     }
 }
 
