@@ -43,6 +43,7 @@ const showPrev = ref(false);
 const showNext = ref(true);
 const isDragging = ref(false);
 const dragThreshold = 10;
+const isReloading = ref(false);
 let startX, scrollLeft;
 
 const colors = [
@@ -121,6 +122,24 @@ const updateButtonVisibility = () => {
   showNext.value = scrollLeft < scrollWidth - clientWidth - 16;
 };
 
+const reloadCategories = async () => {
+  if (isReloading.value) return;
+  
+  isReloading.value = true;
+  try {
+    // Reload the page to refresh categories
+    await navigateTo(route.fullPath, { replace: true });
+    // Force refresh by reloading the page
+    if (import.meta.client) {
+      window.location.reload();
+    }
+  } catch (error) {
+    console.error('[CarouselCategories] Reload error:', error);
+  } finally {
+    isReloading.value = false;
+  }
+};
+
 onMounted(() => {
   cardsSlider.value.addEventListener("mousedown", initializeDrag);
   updateButtonVisibility();
@@ -189,22 +208,21 @@ onBeforeUnmount(() => {
           class="cards-slider flex-col !pr-0"
           @scroll="updateButtonVisibility"
         >
-          <!-- Debug info -->
+          <!-- Reload button when no categories -->
           <div
             v-if="!categoriesList || categoriesList.length === 0"
-            class="p-4 text-sm text-gray-500 dark:text-gray-400 border border-yellow-500 rounded-lg bg-yellow-50 dark:bg-yellow-900/20"
+            class="p-4 flex flex-col items-center justify-center gap-3"
           >
-            <p class="font-semibold text-yellow-700 dark:text-yellow-400">⚠️ ไม่พบข้อมูลหมวดหมู่</p>
-            <p class="text-xs mt-1">
-              Categories count: {{ categoriesList?.length || 0 }}
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              {{ $t("filter.no_categories") || "ไม่พบข้อมูลหมวดหมู่" }}
             </p>
-            <p class="text-xs mt-1">Props categories: {{ props.categories?.length || 0 }}</p>
-            <p class="text-xs mt-1">กรุณาตรวจสอบ:</p>
-            <ul class="text-xs mt-1 list-disc list-inside">
-              <li>Console log สำหรับรายละเอียด</li>
-              <li>WooCommerce API มี product categories หรือไม่</li>
-              <li>API endpoint ทำงานถูกต้องหรือไม่</li>
-            </ul>
+            <button
+              @click="reloadCategories"
+              class="px-4 py-2 bg-[#509e9e] hover:bg-[#509e9e]/90 dark:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-800 text-white rounded-full transition flex items-center gap-2"
+            >
+              <UIcon name="i-heroicons-arrow-path" size="20" :class="{ 'animate-spin': isReloading }" />
+              <span>{{ $t("common.reload") || "โหลดใหม่" }}</span>
+            </button>
           </div>
 
           <div
