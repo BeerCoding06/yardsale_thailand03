@@ -134,14 +134,60 @@ if ($sellerId) {
             $order['seller_total'] = $sellerTotal;
             $order['seller_line_items'] = $sellerLineItems;
             
-            // Add payment status information
-            $order['is_paid'] = isset($order['date_paid']) && !empty($order['date_paid']);
-            $order['payment_status'] = $order['is_paid'] ? 'paid' : 'pending';
+            // Extract and format payment status information from WooCommerce order
+            // WooCommerce orders have these payment-related fields:
+            // - date_paid: Date when order was paid (null if not paid)
+            // - payment_method: Payment method ID (e.g., 'bacs', 'cod', 'stripe')
+            // - payment_method_title: Display name of payment method
+            // - transaction_id: Transaction ID from payment gateway
+            // - status: Order status (pending, processing, completed, etc.)
+            // - total: Total order amount
+            // - currency: Order currency
+            
+            $order['is_paid'] = isset($order['date_paid']) && !empty($order['date_paid']) && $order['date_paid'] !== '0000-00-00 00:00:00';
+            
+            // Determine payment status based on WooCommerce order data
+            if ($order['is_paid']) {
+                $order['payment_status'] = 'paid';
+            } elseif (isset($order['status'])) {
+                // Map WooCommerce order status to payment status
+                switch ($order['status']) {
+                    case 'completed':
+                        $order['payment_status'] = 'paid'; // Completed orders are usually paid
+                        break;
+                    case 'processing':
+                        $order['payment_status'] = 'processing'; // Processing payment
+                        break;
+                    case 'on-hold':
+                        $order['payment_status'] = 'on_hold'; // Payment on hold
+                        break;
+                    case 'failed':
+                        $order['payment_status'] = 'failed'; // Payment failed
+                        break;
+                    case 'refunded':
+                        $order['payment_status'] = 'refunded'; // Payment refunded
+                        break;
+                    case 'cancelled':
+                        $order['payment_status'] = 'cancelled'; // Order cancelled
+                        break;
+                    default:
+                        $order['payment_status'] = 'pending'; // Default to pending
+                }
+            } else {
+                $order['payment_status'] = 'pending';
+            }
+            
+            // Preserve all payment-related fields from WooCommerce
             $order['date_paid'] = $order['date_paid'] ?? null;
+            $order['payment_method'] = $order['payment_method'] ?? null;
             $order['payment_method_title'] = $order['payment_method_title'] ?? $order['payment_method'] ?? null;
+            $order['transaction_id'] = $order['transaction_id'] ?? null;
+            $order['order_status'] = $order['status'] ?? null;
+            $order['total'] = isset($order['total']) ? (float)$order['total'] : 0;
+            $order['currency'] = $order['currency'] ?? 'THB';
             
             $filteredOrders[] = $order;
-            error_log("[getOrders] Added order #{$order['id']} for seller {$sellerId}, seller_total: {$sellerTotal}, payment_status: {$order['payment_status']}");
+            error_log("[getOrders] Added order #{$order['id']} for seller {$sellerId}, seller_total: {$sellerTotal}, payment_status: {$order['payment_status']}, is_paid: " . ($order['is_paid'] ? 'true' : 'false'));
         }
     }
     
