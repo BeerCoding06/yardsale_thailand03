@@ -20,6 +20,13 @@ add_action('rest_api_init', function () {
         'callback' => 'yardsale_get_my_orders',
         'permission_callback' => 'yardsale_jwt_auth_check',
     ));
+    
+    // Register seller orders endpoint
+    register_rest_route('yardsale/v1', '/seller-orders', array(
+        'methods' => 'GET',
+        'callback' => 'yardsale_get_seller_orders',
+        'permission_callback' => 'yardsale_jwt_auth_check',
+    ));
 });
 
 /**

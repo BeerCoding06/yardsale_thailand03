@@ -12,7 +12,6 @@ const isClient = ref(false);
 const isLoading = ref(true);
 const orders = ref([]);
 const error = ref(null);
-const debugInfo = ref(null);
 
 // Format order date
 const formatDate = (dateString) => {
@@ -169,43 +168,31 @@ const fetchOrders = async () => {
     isLoading.value = true;
     error.value = null;
 
-    const sellerId = user.value.id || user.value.ID;
-    console.log("[seller-orders] Fetching orders for seller ID:", sellerId);
+    // Get JWT token from user object (stored during login)
+    const jwtToken = user.value?.token;
     
-    const ordersData = await $fetch(`/api/seller-orders?seller_id=${sellerId}`);
+    if (!jwtToken) {
+      error.value = t('auth.login_required') + ' (JWT token missing. Please login again.)';
+      isLoading.value = false;
+      return;
+    }
+
+    // Get WordPress base URL from runtime config
+    const config = useRuntimeConfig();
+    const wpBaseUrl = config.public.wpBaseUrl || 'http://157.85.98.150:8080';
     
-    console.log("[seller-orders] API Response:", ordersData);
-    console.log("[seller-orders] Debug info:", ordersData?.debug);
-    console.log("[seller-orders] Orders count:", ordersData?.count);
-    console.log("[seller-orders] Orders array:", ordersData?.orders);
+    // Call WordPress custom endpoint directly with JWT token
+    const ordersData = await $fetch(`${wpBaseUrl}/wp-json/yardsale/v1/seller-orders`, {
+      headers: {
+        'Authorization': `Bearer ${jwtToken}`
+      }
+    });
     
     if (ordersData && ordersData.success !== false) {
       orders.value = Array.isArray(ordersData.orders) ? ordersData.orders : [];
-      debugInfo.value = ordersData.debug || null;
-      
-      console.log("[seller-orders] Loaded orders:", orders.value.length);
-      console.log("[seller-orders] Debug info:", debugInfo.value);
-      
-      // Log detailed order information
-      if (orders.value.length > 0) {
-        console.log("[seller-orders] First order sample:", {
-          id: orders.value[0].id,
-          number: orders.value[0].number,
-          status: orders.value[0].status,
-          payment_status: orders.value[0].payment_status,
-          is_paid: orders.value[0].is_paid,
-          seller_total: orders.value[0].seller_total,
-          line_items_count: orders.value[0].line_items?.length || 0,
-          seller_line_items_count: orders.value[0].seller_line_items?.length || 0,
-        });
-      } else {
-        console.warn("[seller-orders] No orders found. Debug info:", debugInfo.value);
-      }
     } else {
-      console.error("[seller-orders] API returned error:", ordersData);
       error.value = ordersData?.error || ordersData?.message || t('seller_orders.error_loading');
       orders.value = [];
-      debugInfo.value = ordersData?.debug || null;
     }
   } catch (err) {
     console.error("[seller-orders] Error fetching orders:", err);
@@ -291,33 +278,6 @@ onMounted(async () => {
               <p class="text-neutral-500 dark:text-neutral-400 mb-4">
                 {{ $t('seller_orders.no_customers') }}
               </p>
-              <!-- Debug Information -->
-              <div
-                v-if="debugInfo"
-                class="mt-6 p-4 bg-neutral-100 dark:bg-neutral-900 rounded-lg text-left text-sm"
-              >
-                <p class="font-semibold mb-2 text-black dark:text-white">Debug Information:</p>
-                <ul class="space-y-1 text-neutral-600 dark:text-neutral-400">
-                  <li><strong>Seller ID:</strong> {{ debugInfo.seller_id }}</li>
-                  <li><strong>Total Orders from WooCommerce:</strong> {{ debugInfo.total_orders_from_wc }}</li>
-                  <li><strong>Product IDs Found:</strong> {{ debugInfo.product_ids_found }}</li>
-                  <li><strong>Unique Product IDs:</strong> {{ debugInfo.unique_product_ids }}</li>
-                  <li><strong>Product Authors Found:</strong> {{ debugInfo.product_authors_found }}</li>
-                  <li><strong>Filtered Orders:</strong> {{ debugInfo.filtered_orders_count }}</li>
-                  <li v-if="debugInfo.sample_product_ids?.length">
-                    <strong>Sample Product IDs:</strong> {{ debugInfo.sample_product_ids.join(', ') }}
-                  </li>
-                  <li v-if="debugInfo.sample_product_authors && Object.keys(debugInfo.sample_product_authors).length">
-                    <strong>Sample Product Authors:</strong>
-                    <ul class="ml-4 mt-1">
-                      <li v-for="(author, productId) in debugInfo.sample_product_authors" :key="productId">
-                        Product {{ productId }}: Author {{ author }}
-                        <span v-if="author == debugInfo.seller_id" class="text-green-600 dark:text-green-400 font-semibold">✓ Match!</span>
-                      </li>
-                    </ul>
-                  </li>
-                </ul>
-              </div>
             </div>
           </template>
 
