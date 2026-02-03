@@ -74,44 +74,38 @@ const fetchProductImageFromWP = async (productId: number) => {
 };
 
 // Get product image URL (prioritize WordPress REST API, fallback to WooCommerce data)
-// Use computed to make it reactive to productImages changes
-const getProductImage = computed(() => {
-  // Access productImages to make this computed reactive
-  productImages.value;
-  
-  return (product: any) => {
-    if (!product) return null;
+const getProductImage = (product: any) => {
+  if (!product) return null;
 
-    // First, try to get from WordPress REST API cache
-    if (product.id && productImages.value.has(product.id)) {
-      return productImages.value.get(product.id);
+  // First, try to get from WordPress REST API cache
+  if (product.id && productImages.value.has(product.id)) {
+    return productImages.value.get(product.id);
+  }
+
+  // If product has id, fetch from WordPress REST API
+  if (product.id) {
+    fetchProductImageFromWP(product.id).then(() => {
+      // Force reactivity update by creating a new Map
+      productImages.value = new Map(productImages.value);
+    });
+  }
+
+  // Fallback to WooCommerce image data
+  if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+    return product.images[0].src || product.images[0].sourceUrl;
+  }
+
+  if (product.image) {
+    if (typeof product.image === 'string') {
+      return product.image;
     }
-
-    // If product has id, fetch from WordPress REST API
-    if (product.id) {
-      fetchProductImageFromWP(product.id).then(() => {
-        // Force reactivity update by creating a new Map
-        productImages.value = new Map(productImages.value);
-      });
+    if (product.image.sourceUrl) {
+      return product.image.sourceUrl;
     }
+  }
 
-    // Fallback to WooCommerce image data
-    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-      return product.images[0].src || product.images[0].sourceUrl;
-    }
-
-    if (product.image) {
-      if (typeof product.image === 'string') {
-        return product.image;
-      }
-      if (product.image.sourceUrl) {
-        return product.image.sourceUrl;
-      }
-    }
-
-    return null;
-  };
-});
+  return null;
+};
 
 // Fetch user's products
 const fetchProducts = async () => {
@@ -137,7 +131,13 @@ const fetchProducts = async () => {
       // Fetch product images from WordPress REST API for all products
       const imagePromises = products.value
         .filter(p => p.id)
-        .map(product => fetchProductImageFromWP(product.id).catch(err => {
+        .map(product => fetchProductImageFromWP(product.id).then(imageUrl => {
+          if (imageUrl) {
+            // Force reactivity update
+            productImages.value = new Map(productImages.value);
+          }
+          return imageUrl;
+        }).catch(err => {
           console.error(`[my-products] Failed to fetch image for product ${product.id}:`, err);
           return null;
         }));
@@ -392,8 +392,8 @@ watch(isAuthenticated, (newVal: boolean) => {
                 class="relative aspect-square bg-neutral-100 dark:bg-neutral-900"
               >
                 <NuxtImg
-                  v-if="getProductImage.value(product)"
-                  :src="getProductImage.value(product)"
+                  v-if="getProductImage(product)"
+                  :src="getProductImage(product)"
                   :alt="product.name"
                   class="w-full h-full object-cover"
                   loading="lazy"
