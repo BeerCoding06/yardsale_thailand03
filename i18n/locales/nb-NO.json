@@ -59,7 +59,11 @@
       "order_number": "Ordrenummer",
       "date": "Dato",
       "payment_method": "Betalingsmetode"
-    }
+    },
+    "items_summary": "Varesammendrag",
+    "item": "vare",
+    "items": "varer",
+    "items_summary_text": "{quantity} {items} • Totalt {total}฿"
   },
   "product": {
     "originally": "Opprinnelig",

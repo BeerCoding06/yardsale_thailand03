@@ -71,6 +71,10 @@
       "button": "เข้าสู่ระบบ"
     },
     "loading_data": "กำลังโหลดข้อมูล...",
+    "items_summary": "สรุปรายการสินค้า",
+    "item": "รายการ",
+    "items": "รายการ",
+    "items_summary_text": "{quantity} {items} • รวม {total}฿",
     "error": {
       "login_required": "กรุณาเข้าสู่ระบบก่อนสั่งซื้อ",
       "empty_cart": "ตะกร้าสินค้าว่างเปล่า",

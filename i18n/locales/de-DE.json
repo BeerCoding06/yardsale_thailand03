@@ -59,7 +59,11 @@
       "order_number": "Bestellnummer",
       "date": "Datum",
       "payment_method": "Zahlungsmethode"
-    }
+    },
+    "items_summary": "Artikeln Zusammenfassung",
+    "item": "Artikel",
+    "items": "Artikel",
+    "items_summary_text": "{quantity} {items} • Gesamt {total}฿"
   },
   "product": {
     "originally": "Ursprünglich",

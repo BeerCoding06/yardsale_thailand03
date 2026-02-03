@@ -71,6 +71,10 @@
       "button": "Log in"
     },
     "loading_data": "Loading data...",
+    "items_summary": "Items Summary",
+    "item": "item",
+    "items": "items",
+    "items_summary_text": "{quantity} {items} • Total {total}฿",
     "error": {
       "login_required": "Please login before checkout",
       "empty_cart": "Cart is empty",

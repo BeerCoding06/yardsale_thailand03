@@ -189,9 +189,9 @@ watch(() => cart.value?.length, (newLength) => {
         <!-- Cart Items Summary -->
         <div class="w-full mb-4 max-h-48 overflow-y-auto">
           <div class="text-sm font-semibold mb-3 text-black dark:text-white flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-2">
-            <span>{{ $t('checkout.items_summary') || 'สรุปรายการสินค้า' }}</span>
+            <span>{{ $t('checkout.items_summary') }}</span>
             <span class="text-xs font-normal text-neutral-600 dark:text-neutral-400">
-              {{ totalQuantity }} {{ totalQuantity > 1 ? ($t('checkout.items_plural') || 'รายการ') : ($t('checkout.items') || 'รายการ') }} • รวม {{ cartTotal }}฿
+              {{ $t('checkout.items_summary_text', { quantity: totalQuantity, items: totalQuantity > 1 ? $t('checkout.items') : $t('checkout.item'), total: cartTotal }) }}
             </span>
           </div>
           <div class="space-y-2">

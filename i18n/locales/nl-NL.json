@@ -59,7 +59,11 @@
       "order_number": "Bestelnummer",
       "date": "Datum",
       "payment_method": "Betaalmethode"
-    }
+    },
+    "items_summary": "Artikelen Samenvatting",
+    "item": "artikel",
+    "items": "artikelen",
+    "items_summary_text": "{quantity} {items} • Totaal {total}฿"
   },
   "product": {
     "originally": "Oorspronkelijk",
