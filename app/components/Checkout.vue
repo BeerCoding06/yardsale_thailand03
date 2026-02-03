@@ -31,8 +31,11 @@ const totalQuantity = computed(() =>
 
 const cartTotal = computed(() => {
   if (!cart.value || cart.value.length === 0) {
+    console.log('[Checkout] Cart is empty, returning 0.00');
     return '0.00';
   }
+  
+  console.log('[Checkout] Calculating cart total from', cart.value.length, 'items');
   
   const total = cart.value.reduce((accumulator, item) => {
     const node =
@@ -45,10 +48,16 @@ const cartTotal = computed(() => {
     const salePrice = parseFloat(node.salePrice) || 0;
     const priceToUse =
       salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
-    return accumulator + priceToUse * (item.quantity || 1);
+    const itemTotal = priceToUse * (item.quantity || 1);
+    
+    console.log('[Checkout] Item:', node.name || 'Unknown', 'Price:', priceToUse, 'Qty:', item.quantity, 'Total:', itemTotal);
+    
+    return accumulator + itemTotal;
   }, 0);
 
-  return total.toFixed(2);
+  const result = total.toFixed(2);
+  console.log('[Checkout] Cart total calculated:', result);
+  return result;
 });
 
 const isCartEmpty = computed(() => !cart.value || cart.value.length === 0);
@@ -134,8 +143,11 @@ const isCartEmpty = computed(() => !cart.value || cart.value.length === 0);
 
         <!-- Cart Items Summary -->
         <div class="w-full mb-4 max-h-48 overflow-y-auto">
-          <div class="text-sm font-semibold mb-2 text-black dark:text-white">
-            {{ $t('checkout.items_summary') || 'รายการสินค้า' }} ({{ totalQuantity }})
+          <div class="text-sm font-semibold mb-3 text-black dark:text-white flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-2">
+            <span>{{ $t('checkout.items_summary') || 'สรุปรายการสินค้า' }}</span>
+            <span class="text-xs font-normal text-neutral-600 dark:text-neutral-400">
+              {{ totalQuantity }} {{ totalQuantity > 1 ? ($t('checkout.items_plural') || 'รายการ') : ($t('checkout.items') || 'รายการ') }} • รวม {{ cartTotal }}฿
+            </span>
           </div>
           <div class="space-y-2">
             <div
@@ -255,12 +267,17 @@ const isCartEmpty = computed(() => !cart.value || cart.value.length === 0);
         <div
           class="text-sm font-semibold p-4 text-neutral-600 dark:text-neutral-400"
         >
-          {{
-            $t("checkout.pay.description", {
-              total: cartTotal,
-              items: totalQuantity,
-            })
-          }}
+          <template v-if="$t('checkout.pay.description')">
+            {{
+              $t("checkout.pay.description", {
+                total: cartTotal,
+                items: totalQuantity,
+              })
+            }}
+          </template>
+          <template v-else>
+            รวมทั้งสิ้น <span class="font-bold text-black dark:text-white">{{ cartTotal }}฿</span> ({{ totalQuantity }} รายการ)
+          </template>
         </div>
         <button
           type="submit"
@@ -269,11 +286,16 @@ const isCartEmpty = computed(() => !cart.value || cart.value.length === 0);
         >
           <Transition name="slide-up">
             <div v-if="checkoutStatus === 'order'" class="absolute">
-              {{
-                $t("checkout.pay.btn", {
-                  total: cartTotal,
-                })
-              }}
+              <template v-if="$t('checkout.pay.btn')">
+                {{
+                  $t("checkout.pay.btn", {
+                    total: cartTotal,
+                  })
+                }}
+              </template>
+              <template v-else>
+                ชำระเงิน {{ cartTotal }}฿
+              </template>
             </div>
             <div
               v-else-if="checkoutStatus === 'processing'"
