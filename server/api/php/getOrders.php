@@ -71,32 +71,85 @@ if ($sellerId) {
         }
     }
     
-    // Fetch products from WordPress REST API to get authors
+    // Fetch products from WooCommerce API to get authors (post_author field)
+    // WooCommerce products have post_author field that contains the seller/user ID
     $productAuthors = [];
     if (!empty($productIds)) {
         $productIds = array_unique($productIds);
-        $baseUrl = rtrim(WC_BASE_URL, '/');
         
         error_log("[getOrders] Fetching product authors for " . count($productIds) . " unique product IDs for seller {$sellerId}");
+        error_log("[getOrders] Product IDs: " . implode(', ', array_slice($productIds, 0, 10)) . (count($productIds) > 10 ? '...' : ''));
         
-        // Fetch products in batches
+        // Fetch products from WooCommerce API in batches
         $batches = array_chunk($productIds, 20);
         foreach ($batches as $batch) {
             $includeParam = implode(',', $batch);
-            $wpUrl = $baseUrl . '/wp-json/wp/v2/product?include=' . urlencode($includeParam) . '&per_page=20';
+            $wcUrl = buildWcApiUrl('wc/v3/products', [
+                'include' => $includeParam,
+                'per_page' => 20
+            ], true); // Use Basic Auth
             
-            error_log("[getOrders] Fetching product batch from WordPress API: " . $wpUrl);
+            error_log("[getOrders] Fetching product batch from WooCommerce API (products: {$includeParam})");
             
-            $wpResult = fetchWordPressApi($wpUrl, 'GET');
-            if ($wpResult['success'] && is_array($wpResult['data'])) {
-                foreach ($wpResult['data'] as $product) {
-                    if (!empty($product['author'])) {
-                        $productAuthors[$product['id']] = $product['author'];
-                        error_log("[getOrders] Product ID {$product['id']} has author: {$product['author']} (looking for seller {$sellerId})");
+            $wcResult = fetchWooCommerceApi($wcUrl, 'GET', null, true); // Use Basic Auth
+            if ($wcResult['success'] && is_array($wcResult['data'])) {
+                foreach ($wcResult['data'] as $product) {
+                    $productId = $product['id'] ?? null;
+                    // WooCommerce API returns post_author or we can get it from meta
+                    $author = null;
+                    
+                    // Try different fields where author might be stored
+                    if (!empty($product['post_author'])) {
+                        $author = (int)$product['post_author'];
+                    } elseif (!empty($product['author'])) {
+                        $author = (int)$product['author'];
+                    } elseif (!empty($product['meta_data']) && is_array($product['meta_data'])) {
+                        // Try to find author in meta_data
+                        foreach ($product['meta_data'] as $meta) {
+                            if (isset($meta['key']) && ($meta['key'] === '_product_author' || $meta['key'] === 'author')) {
+                                $author = (int)$meta['value'];
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if ($productId && $author) {
+                        $productAuthors[$productId] = $author;
+                        error_log("[getOrders] Product ID {$productId} has author: {$author} (looking for seller {$sellerId})");
+                    } else {
+                        error_log("[getOrders] Product ID {$productId} has no author field found. Available fields: " . implode(', ', array_keys($product)));
                     }
                 }
             } else {
-                error_log("[getOrders] Failed to fetch products from WordPress API: " . ($wpResult['error'] ?? 'Unknown error') . " (HTTP: " . ($wpResult['http_code'] ?? 'N/A') . ")");
+                error_log("[getOrders] Failed to fetch products from WooCommerce API: " . ($wcResult['error'] ?? 'Unknown error') . " (HTTP: " . ($wcResult['http_code'] ?? 'N/A') . ")");
+                if (!empty($wcResult['raw_response'])) {
+                    error_log("[getOrders] WooCommerce API raw response: " . substr($wcResult['raw_response'], 0, 500));
+                }
+            }
+        }
+        
+        // Fallback: Try WordPress REST API if WooCommerce API didn't return authors
+        if (empty($productAuthors)) {
+            error_log("[getOrders] No authors found from WooCommerce API, trying WordPress REST API as fallback");
+            $baseUrl = rtrim(WC_BASE_URL, '/');
+            $batches = array_chunk($productIds, 20);
+            foreach ($batches as $batch) {
+                $includeParam = implode(',', $batch);
+                $wpUrl = $baseUrl . '/wp-json/wp/v2/product?include=' . urlencode($includeParam) . '&per_page=20';
+                
+                error_log("[getOrders] Fetching product batch from WordPress API: " . $wpUrl);
+                
+                $wpResult = fetchWordPressApi($wpUrl, 'GET');
+                if ($wpResult['success'] && is_array($wpResult['data'])) {
+                    foreach ($wpResult['data'] as $product) {
+                        if (!empty($product['author']) && !empty($product['id'])) {
+                            $productAuthors[$product['id']] = $product['author'];
+                            error_log("[getOrders] Product ID {$product['id']} has author: {$product['author']} (from WordPress API)");
+                        }
+                    }
+                } else {
+                    error_log("[getOrders] Failed to fetch products from WordPress API: " . ($wpResult['error'] ?? 'Unknown error') . " (HTTP: " . ($wpResult['http_code'] ?? 'N/A') . ")");
+                }
             }
         }
     } else {
