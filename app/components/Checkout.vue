@@ -12,6 +12,20 @@ const { cart } = useCart();
 const { isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
 
+// Ensure cart is reactive - create computed that tracks cart.value
+const reactiveCart = computed(() => {
+  const cartValue = cart.value || [];
+  console.log('[Checkout] reactiveCart computed, cart length:', cartValue.length);
+  console.log('[Checkout] reactiveCart items:', cartValue.map(item => ({
+    name: item.product?.node?.name || item.variation?.node?.name || 'Unknown',
+    quantity: item.quantity,
+    hasProduct: !!item.product?.node,
+    hasVariation: !!item.variation?.node
+  })));
+  // Return array to ensure reactivity
+  return Array.isArray(cartValue) ? cartValue : [];
+});
+
 // Client-side only state
 const isClient = ref(false);
 
@@ -25,19 +39,21 @@ onMounted(async () => {
   }
 });
 
-const totalQuantity = computed(() =>
-  (cart.value || []).reduce((s, i) => s + (i.quantity || 0), 0)
-);
+const totalQuantity = computed(() => {
+  const qty = reactiveCart.value.reduce((s, i) => s + (i.quantity || 0), 0);
+  console.log('[Checkout] totalQuantity computed:', qty, 'from', reactiveCart.value.length, 'items');
+  return qty;
+});
 
 const cartTotal = computed(() => {
-  if (!cart.value || cart.value.length === 0) {
+  if (!reactiveCart.value || reactiveCart.value.length === 0) {
     console.log('[Checkout] Cart is empty, returning 0.00');
     return '0.00';
   }
   
-  console.log('[Checkout] Calculating cart total from', cart.value.length, 'items');
+  console.log('[Checkout] Calculating cart total from', reactiveCart.value.length, 'items');
   
-  const total = cart.value.reduce((accumulator, item) => {
+  const total = reactiveCart.value.reduce((accumulator, item) => {
     const node =
       item.variation && item.variation.node
         ? item.variation.node
@@ -60,7 +76,22 @@ const cartTotal = computed(() => {
   return result;
 });
 
-const isCartEmpty = computed(() => !cart.value || cart.value.length === 0);
+const isCartEmpty = computed(() => !reactiveCart.value || reactiveCart.value.length === 0);
+
+// Watch cart changes to ensure reactivity
+watch(() => cart.value, (newCart, oldCart) => {
+  console.log('[Checkout] Cart changed!');
+  console.log('[Checkout] Old cart length:', oldCart?.length || 0);
+  console.log('[Checkout] New cart length:', newCart?.length || 0);
+  console.log('[Checkout] New cart total:', cartTotal.value);
+  console.log('[Checkout] New total quantity:', totalQuantity.value);
+}, { deep: true, immediate: true });
+
+// Force reactivity by watching cart length
+watch(() => cart.value?.length, (newLength) => {
+  console.log('[Checkout] Cart length changed to:', newLength);
+  console.log('[Checkout] Cart total should be:', cartTotal.value);
+});
 </script>
 
 <template>
@@ -151,7 +182,7 @@ const isCartEmpty = computed(() => !cart.value || cart.value.length === 0);
           </div>
           <div class="space-y-2">
             <div
-              v-for="item in cart.value"
+              v-for="item in reactiveCart"
               :key="item.key"
               class="flex items-center gap-2 p-2 bg-white/50 dark:bg-black/20 rounded-lg"
             >
@@ -265,6 +296,7 @@ const isCartEmpty = computed(() => !cart.value || cart.value.length === 0);
           </div>
         </div>
         <div
+          :key="`checkout-summary-${cartTotal}-${totalQuantity}`"
           class="text-sm font-semibold p-4 text-neutral-600 dark:text-neutral-400"
         >
           <template v-if="$t('checkout.pay.description')">
@@ -294,7 +326,7 @@ const isCartEmpty = computed(() => !cart.value || cart.value.length === 0);
                 }}
               </template>
               <template v-else>
-                ชำระเงิน {{ cartTotal }}฿
+                ชำระเงิน <span class="font-bold">{{ cartTotal }}฿</span>
               </template>
             </div>
             <div
