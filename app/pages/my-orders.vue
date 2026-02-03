@@ -285,19 +285,21 @@ const fetchOrders = async () => {
     isLoading.value = true;
     error.value = null;
 
-    // Use customer_id or email to fetch orders
-    const customerId = user.value.id || user.value.ID;
-    const customerEmail = user.value.email || user.value.user_email;
-
-    const queryParams = new URLSearchParams();
-    if (customerId) {
-      queryParams.append("customer_id", String(customerId));
-    }
-    if (customerEmail) {
-      queryParams.append("customer_email", customerEmail);
+    // Get JWT token from user object (stored during login)
+    const jwtToken = user.value.token;
+    
+    if (!jwtToken) {
+      error.value = t('order.login_required') + ' (JWT token missing)';
+      isLoading.value = false;
+      return;
     }
 
-    const ordersData = await $fetch(`/api/my-orders?${queryParams.toString()}`);
+    // Use JWT authentication endpoint
+    const ordersData = await $fetch('/api/my-orders-jwt', {
+      headers: {
+        'Authorization': `Bearer ${jwtToken}`
+      }
+    });
 
     orders.value = Array.isArray(ordersData.orders) ? ordersData.orders : [];
     console.log("[my-orders] Loaded orders:", orders.value.length);

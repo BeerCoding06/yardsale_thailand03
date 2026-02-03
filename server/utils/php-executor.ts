@@ -9,6 +9,7 @@ interface PhpExecutorOptions {
   queryParams?: Record<string, string | number | boolean>;
   method?: 'GET' | 'POST';
   body?: any;
+  headers?: Record<string, string>;
 }
 
 /**
@@ -16,7 +17,7 @@ interface PhpExecutorOptions {
  * Uses PHP CLI to execute scripts directly (no HTTP server needed)
  */
 export async function executePhpScript(options: PhpExecutorOptions): Promise<any> {
-  const { script, queryParams = {}, method = 'GET', body } = options;
+  const { script, queryParams = {}, method = 'GET', body, headers = {} } = options;
   
   // Build PHP script path
   const scriptPath = join(process.cwd(), 'server', 'api', 'php', script);
@@ -44,6 +45,18 @@ export async function executePhpScript(options: PhpExecutorOptions): Promise<any
       REQUEST_BODY: JSON.stringify(body) // Send body via environment variable for CLI
     } : {}),
   };
+  
+  // Add HTTP headers to environment (for Authorization header, etc.)
+  // PHP's getallheaders() expects headers in HTTP_* format
+  Object.entries(headers).forEach(([key, value]) => {
+    const headerKey = 'HTTP_' + key.toUpperCase().replace(/-/g, '_');
+    env[headerKey] = value;
+  });
+  
+  // Also set Authorization directly for easier access
+  if (headers['Authorization'] || headers['authorization']) {
+    env['HTTP_AUTHORIZATION'] = headers['Authorization'] || headers['authorization'];
+  }
   
   // Log environment setup
   console.log(`[php-executor] PHP script path: ${scriptPath}`);
