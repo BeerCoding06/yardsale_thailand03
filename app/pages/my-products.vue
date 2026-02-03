@@ -64,6 +64,9 @@ const fetchProductImageFromWP = async (productId: number) => {
 
     if (imageUrl) {
       productImages.value.set(productId, imageUrl);
+      // Force reactivity update by creating a new Map instance
+      const newMap = new Map(productImages.value);
+      productImages.value = newMap;
       return imageUrl;
     }
   } catch (error) {
@@ -73,26 +76,15 @@ const fetchProductImageFromWP = async (productId: number) => {
   return null;
 };
 
-// Get product image URL (prioritize WordPress REST API, fallback to WooCommerce data)
+// Get product image URL (prioritize WooCommerce data, then WordPress REST API)
 const getProductImage = (product: any) => {
   if (!product) return null;
 
-  // First, try to get from WordPress REST API cache
-  if (product.id && productImages.value.has(product.id)) {
-    return productImages.value.get(product.id);
-  }
-
-  // If product has id, fetch from WordPress REST API
-  if (product.id) {
-    fetchProductImageFromWP(product.id).then(() => {
-      // Force reactivity update by creating a new Map
-      productImages.value = new Map(productImages.value);
-    });
-  }
-
-  // Fallback to WooCommerce image data
+  // First, try WooCommerce image data (immediate)
   if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-    return product.images[0].src || product.images[0].sourceUrl;
+    const img = product.images[0];
+    if (img.src) return img.src;
+    if (img.sourceUrl) return img.sourceUrl;
   }
 
   if (product.image) {
@@ -102,6 +94,18 @@ const getProductImage = (product: any) => {
     if (product.image.sourceUrl) {
       return product.image.sourceUrl;
     }
+  }
+
+  // Then try WordPress REST API cache
+  if (product.id && productImages.value.has(product.id)) {
+    return productImages.value.get(product.id);
+  }
+
+  // If no image found and has product id, try to fetch from WordPress REST API (async)
+  if (product.id && !productImages.value.has(product.id)) {
+    fetchProductImageFromWP(product.id).catch(() => {
+      // Silently fail
+    });
   }
 
   return null;
@@ -128,21 +132,15 @@ const fetchProducts = async () => {
     if (response.success && response.products) {
       products.value = response.products;
       
-      // Fetch product images from WordPress REST API for all products
-      const imagePromises = products.value
-        .filter(p => p.id)
-        .map(product => fetchProductImageFromWP(product.id).then(imageUrl => {
-          if (imageUrl) {
-            // Force reactivity update
-            productImages.value = new Map(productImages.value);
-          }
-          return imageUrl;
-        }).catch(err => {
-          console.error(`[my-products] Failed to fetch image for product ${product.id}:`, err);
-          return null;
-        }));
-      
-      await Promise.all(imagePromises);
+      // Fetch product images from WordPress REST API for products without images (in background)
+      // Don't wait - show WooCommerce images immediately
+      products.value
+        .filter(p => p.id && (!p.images || p.images.length === 0) && !p.image)
+        .forEach(product => {
+          fetchProductImageFromWP(product.id).catch(() => {
+            // Silently fail
+          });
+        });
     } else {
       error.value = t('my_products.no_products_found');
     }
