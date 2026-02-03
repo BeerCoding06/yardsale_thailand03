@@ -64,6 +64,37 @@ const getStatusColor = (status) => {
   );
 };
 
+// Get payment status text
+const getPaymentStatusText = (paymentStatus) => {
+  const statusMap = {
+    paid: t('order.paid') || 'ชำระเงินแล้ว',
+    pending: t('order.pending') || 'รอการชำระเงิน',
+    processing: t('order.processing_status') || 'กำลังดำเนินการ',
+    on_hold: t('order.on_hold') || 'รอการตรวจสอบ',
+    failed: t('order.failed') || 'ชำระเงินล้มเหลว',
+    refunded: t('order.refunded') || 'คืนเงินแล้ว',
+    cancelled: t('order.cancelled') || 'ยกเลิก',
+  };
+  return statusMap[paymentStatus] || paymentStatus;
+};
+
+// Get payment status color
+const getPaymentStatusColor = (paymentStatus) => {
+  const colorMap = {
+    paid: "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200",
+    pending: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200",
+    processing: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200",
+    on_hold: "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200",
+    failed: "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200",
+    refunded: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200",
+    cancelled: "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200",
+  };
+  return (
+    colorMap[paymentStatus] ||
+    "bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
+  );
+};
+
 // Get payment progress steps
 const getPaymentSteps = (order) => {
   const steps = [
@@ -309,7 +340,7 @@ onMounted(async () => {
                   class="flex flex-col md:flex-row md:items-start md:justify-between gap-4"
                 >
                   <div class="flex-1">
-                    <div class="flex items-center gap-4 mb-3">
+                    <div class="flex items-center gap-4 mb-3 flex-wrap">
                       <h3
                         class="text-lg font-semibold text-black dark:text-white"
                       >
@@ -322,6 +353,23 @@ onMounted(async () => {
                         ]"
                       >
                         {{ getStatusText(order.status) }}
+                      </span>
+                      <!-- Payment Status Badge -->
+                      <span
+                        v-if="order.payment_status"
+                        :class="[
+                          'px-3 py-1 rounded-full text-xs font-semibold',
+                          getPaymentStatusColor(order.payment_status),
+                        ]"
+                      >
+                        {{ getPaymentStatusText(order.payment_status) }}
+                      </span>
+                      <!-- Paid Badge -->
+                      <span
+                        v-if="order.is_paid"
+                        class="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200"
+                      >
+                        {{ $t('order.paid') || 'ชำระเงินแล้ว' }}
                       </span>
                     </div>
 
@@ -366,6 +414,31 @@ onMounted(async () => {
                         <p class="text-neutral-700 dark:text-neutral-300" v-if="order.transaction_id">
                           <span class="font-semibold">{{ $t('order.transaction_id') || 'Transaction ID' }}:</span>
                           <span class="ml-2 font-mono text-xs">{{ order.transaction_id }}</span>
+                        </p>
+                        <!-- Payment Status -->
+                        <p class="text-neutral-700 dark:text-neutral-300">
+                          <span class="font-semibold">{{ $t('order.payment_status') || 'สถานะการชำระเงิน' }}:</span>
+                          <span class="ml-2">
+                            <span
+                              :class="[
+                                'px-2 py-1 rounded text-xs font-semibold',
+                                getPaymentStatusColor(order.payment_status || 'pending'),
+                              ]"
+                            >
+                              {{ getPaymentStatusText(order.payment_status || 'pending') }}
+                            </span>
+                            <span
+                              v-if="order.is_paid"
+                              class="ml-2 text-xs text-green-600 dark:text-green-400"
+                            >
+                              ✓ {{ $t('order.paid') || 'ชำระเงินแล้ว' }}
+                            </span>
+                          </span>
+                        </p>
+                        <!-- Date Paid -->
+                        <p class="text-neutral-700 dark:text-neutral-300" v-if="order.date_paid">
+                          <span class="font-semibold">{{ $t('order.date_paid') || 'วันที่ชำระเงิน' }}:</span>
+                          <span class="ml-2">{{ formatDate(order.date_paid) }}</span>
                         </p>
                       </div>
                     </div>

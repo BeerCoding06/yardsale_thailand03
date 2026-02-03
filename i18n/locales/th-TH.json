@@ -190,6 +190,8 @@
     "payment_status": "สถานะการชำระเงิน",
     "payment_status_customer": "สถานะการชำระเงินของลูกค้า",
     "payment_method": "วิธีการชำระเงิน",
+    "paid": "ชำระเงินแล้ว",
+    "date_paid": "วันที่ชำระเงิน",
     "transaction_id": "Transaction ID",
     "current_step": "ขั้นตอนปัจจุบัน",
     "shipping_status": "สถานะการขนส่ง",
