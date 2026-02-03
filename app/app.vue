@@ -87,6 +87,15 @@ onMounted(async () => {
     } else {
       categoriesData.value = [];
       console.warn("[app] No categories in response");
+      
+      // Log error if present
+      if (response?.error) {
+        console.error("[app] Categories API error:", response.error);
+        if (response?.debug) {
+          console.error("[app] Debug info:", response.debug);
+        }
+      }
+      
       console.warn("[app] Response structure:", {
         hasProductCategories: !!response?.productCategories,
         hasNodes: !!response?.productCategories?.nodes,

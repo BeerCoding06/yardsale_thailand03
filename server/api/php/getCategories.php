@@ -39,7 +39,13 @@ $url = buildWcApiUrl('wc/v3/products/categories', $queryParams, true); // Use Ba
 // Log the URL
 $logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
 error_log('[getCategories] Fetching from WooCommerce API: ' . $logUrl);
-error_log('[getCategories] WP_BASIC_AUTH configured: ' . (!empty(WP_BASIC_AUTH) ? 'Yes' : 'No'));
+error_log('[getCategories] WP_BASIC_AUTH configured: ' . (!empty(WP_BASIC_AUTH) ? 'Yes (length: ' . strlen(WP_BASIC_AUTH) . ')' : 'No - This may cause authentication failure'));
+
+// Check if WP_BASIC_AUTH is configured
+if (empty(WP_BASIC_AUTH)) {
+    error_log('[getCategories] WARNING: WP_BASIC_AUTH is not configured. WooCommerce API may fail.');
+    error_log('[getCategories] Please set WP_BASIC_AUTH environment variable (format: username:password)');
+}
 
 // Fetch from WooCommerce API (with Basic Auth)
 $result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
@@ -53,17 +59,27 @@ if (!$result['success']) {
     error_log('[getCategories] API URL: ' . $logUrl);
     error_log('[getCategories] Raw response (first 500 chars): ' . substr($rawResponse, 0, 500));
     
+    // Provide more helpful error message
+    $userFriendlyError = $errorMsg;
+    if ($httpCode === 401 || $httpCode === 403) {
+        $userFriendlyError = 'Authentication failed. Please check WP_BASIC_AUTH configuration.';
+    } elseif ($httpCode === 0 || empty($httpCode)) {
+        $userFriendlyError = 'Connection failed. Please check network connection and WC_BASE_URL.';
+    }
+    
     // Return error response
     sendJsonResponse([
         'productCategories' => [
             'nodes' => []
         ],
-        'error' => $errorMsg,
+        'error' => $userFriendlyError,
         'debug' => [
             'http_code' => $httpCode,
             'url' => $logUrl,
             'raw_response' => substr($rawResponse, 0, 500),
-            'wp_basic_auth_configured' => !empty(WP_BASIC_AUTH)
+            'wp_basic_auth_configured' => !empty(WP_BASIC_AUTH),
+            'wp_base_url' => WC_BASE_URL,
+            'original_error' => $errorMsg
         ]
     ]);
 }

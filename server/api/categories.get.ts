@@ -29,13 +29,29 @@ export default cachedEventHandler(
       console.log('[categories] Has nodes?', !!data?.productCategories?.nodes);
       console.log('[categories] Nodes length:', data?.productCategories?.nodes?.length || 0);
       
+      // Check if there's an error in the response
+      if (data?.error) {
+        console.error('[categories] API returned error:', data.error);
+        console.error('[categories] Debug info:', data.debug);
+        // Still return the structure but with empty nodes
+        return {
+          productCategories: {
+            nodes: []
+          },
+          error: data.error,
+          debug: data.debug
+        };
+      }
+      
       // Ensure response structure is correct
       if (!data || !data.productCategories || !Array.isArray(data.productCategories.nodes)) {
         console.warn('[categories] Invalid response structure, returning empty array');
         return {
           productCategories: {
             nodes: []
-          }
+          },
+          error: 'Invalid response structure',
+          debug: data?.debug || {}
         };
       }
       
@@ -45,6 +61,11 @@ export default cachedEventHandler(
       return {
         productCategories: {
           nodes: []
+        },
+        error: error.message || 'Failed to fetch categories',
+        debug: {
+          error_type: error.name || 'Unknown',
+          error_message: error.message || String(error)
         }
       };
     }
