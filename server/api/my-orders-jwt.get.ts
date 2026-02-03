@@ -28,6 +28,8 @@ export default defineEventHandler(async (event) => {
     if (query.page) queryParams.page = Number(query.page);
     
     console.log('[my-orders-jwt] Executing PHP script: getMyOrders.php');
+    console.log('[my-orders-jwt] JWT Token (first 20 chars):', token.substring(0, 20) + '...');
+    console.log('[my-orders-jwt] Query params:', queryParams);
     
     // Execute PHP script with JWT token in environment
     // The PHP script will read the Authorization header from the request
@@ -38,6 +40,12 @@ export default defineEventHandler(async (event) => {
       headers: {
         'Authorization': `Bearer ${token}`
       }
+    });
+    
+    console.log('[my-orders-jwt] PHP script response:', {
+      success: data?.success,
+      ordersCount: data?.orders?.length || 0,
+      count: data?.count
     });
     
     return data;

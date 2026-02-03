@@ -286,20 +286,27 @@ const fetchOrders = async () => {
     error.value = null;
 
     // Get JWT token from user object (stored during login)
-    const jwtToken = user.value.token;
+    const jwtToken = user.value?.token;
+    
+    console.log("[my-orders] User:", user.value);
+    console.log("[my-orders] JWT Token:", jwtToken ? `${jwtToken.substring(0, 20)}...` : 'missing');
     
     if (!jwtToken) {
-      error.value = t('order.login_required') + ' (JWT token missing)';
+      console.error("[my-orders] JWT token missing. User object:", user.value);
+      error.value = t('order.login_required') + ' (JWT token missing. Please login again.)';
       isLoading.value = false;
       return;
     }
 
     // Use JWT authentication endpoint
+    console.log("[my-orders] Calling /api/my-orders-jwt with JWT token");
     const ordersData = await $fetch('/api/my-orders-jwt', {
       headers: {
         'Authorization': `Bearer ${jwtToken}`
       }
     });
+    
+    console.log("[my-orders] Orders API response:", ordersData);
 
     orders.value = Array.isArray(ordersData.orders) ? ordersData.orders : [];
     console.log("[my-orders] Loaded orders:", orders.value.length);

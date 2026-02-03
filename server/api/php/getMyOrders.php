@@ -55,6 +55,7 @@ if (empty($jwtToken)) {
 }
 
 error_log('[getMyOrders] JWT token received (length: ' . strlen($jwtToken) . ')');
+error_log('[getMyOrders] JWT token (first 50 chars): ' . substr($jwtToken, 0, 50) . '...');
 
 // Get query parameters
 $status = isset($_GET['status']) ? $_GET['status'] : null;
