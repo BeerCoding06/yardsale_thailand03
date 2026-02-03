@@ -26,67 +26,18 @@ const isRestoring = ref(false);
 const { push } = useNotivue();
 const { t } = useI18n();
 
-// Reactive map to store product images by product_id
-const productImages = ref(new Map<number, string>());
-
-// Fetch product image from WordPress REST API /wp/v2/product/{id}
-const fetchProductImageFromWP = async (productId: number) => {
-  if (!productId || productImages.value.has(productId)) {
-    return productImages.value.get(productId) || null;
-  }
-
-  try {
-    // Use WordPress REST API endpoint
-    const wpProduct = await $fetch(`/wordpress/wp-json/wp/v2/product/${productId}`, {
-      query: {
-        _embed: true, // Include embedded media
-      },
-    }) as any;
-
-    // Try to get image from featured_media or _embedded
-    let imageUrl = null;
-
-    // Check _embedded['wp:featuredmedia']
-    if (wpProduct?._embedded?.['wp:featuredmedia']?.[0]?.source_url) {
-      imageUrl = wpProduct._embedded['wp:featuredmedia'][0].source_url;
-    } else if (wpProduct?._embedded?.['wp:featuredmedia']?.[0]?.media_details?.sizes?.full?.source_url) {
-      imageUrl = wpProduct._embedded['wp:featuredmedia'][0].media_details.sizes.full.source_url;
-    } else if (wpProduct?.featured_media) {
-      // If featured_media ID exists, fetch media details
-      try {
-        const mediaId = wpProduct.featured_media;
-        const media = await $fetch(`/wordpress/wp-json/wp/v2/media/${mediaId}`) as any;
-        imageUrl = media?.source_url || media?.media_details?.sizes?.full?.source_url;
-      } catch (e) {
-        console.error(`[my-products] Error fetching media ${wpProduct.featured_media}:`, e);
-      }
-    }
-
-    if (imageUrl) {
-      productImages.value.set(productId, imageUrl);
-      // Force reactivity update by creating a new Map instance
-      const newMap = new Map(productImages.value);
-      productImages.value = newMap;
-      return imageUrl;
-    }
-  } catch (error) {
-    console.error(`[my-products] Error fetching product image from WP API for product_id ${productId}:`, error);
-  }
-
-  return null;
-};
-
-// Get product image URL (prioritize WooCommerce data, then WordPress REST API)
+// Get product image URL from WooCommerce data
 const getProductImage = (product: any) => {
   if (!product) return null;
 
-  // First, try WooCommerce image data (immediate)
+  // Try WooCommerce images array
   if (product.images && Array.isArray(product.images) && product.images.length > 0) {
     const img = product.images[0];
     if (img.src) return img.src;
     if (img.sourceUrl) return img.sourceUrl;
   }
 
+  // Try product.image object
   if (product.image) {
     if (typeof product.image === 'string') {
       return product.image;
@@ -94,18 +45,6 @@ const getProductImage = (product: any) => {
     if (product.image.sourceUrl) {
       return product.image.sourceUrl;
     }
-  }
-
-  // Then try WordPress REST API cache
-  if (product.id && productImages.value.has(product.id)) {
-    return productImages.value.get(product.id);
-  }
-
-  // If no image found and has product id, try to fetch from WordPress REST API (async)
-  if (product.id && !productImages.value.has(product.id)) {
-    fetchProductImageFromWP(product.id).catch(() => {
-      // Silently fail
-    });
   }
 
   return null;
@@ -131,16 +70,6 @@ const fetchProducts = async () => {
 
     if (response.success && response.products) {
       products.value = response.products;
-      
-      // Fetch product images from WordPress REST API for products without images (in background)
-      // Don't wait - show WooCommerce images immediately
-      products.value
-        .filter(p => p.id && (!p.images || p.images.length === 0) && !p.image)
-        .forEach(product => {
-          fetchProductImageFromWP(product.id).catch(() => {
-            // Silently fail
-          });
-        });
     } else {
       error.value = t('my_products.no_products_found');
     }
