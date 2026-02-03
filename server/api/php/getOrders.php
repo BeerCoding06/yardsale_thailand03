@@ -197,10 +197,29 @@ if ($sellerId) {
     $orders = $filteredOrders;
 }
 
-// Return response
-sendJsonResponse([
+// Return response with debug info
+$response = [
     'orders' => $orders,
-    'count' => count($orders)
-]);
+    'count' => count($orders),
+    'success' => true
+];
+
+// Add debug information to response (only if seller_id is provided)
+if ($sellerId) {
+    $response['debug'] = [
+        'seller_id' => $sellerId,
+        'total_orders_from_wc' => isset($result['data']) ? count($result['data']) : 0,
+        'product_ids_found' => isset($productIds) ? count($productIds) : 0,
+        'unique_product_ids' => isset($productIds) ? count(array_unique($productIds)) : 0,
+        'product_authors_found' => isset($productAuthors) ? count($productAuthors) : 0,
+        'filtered_orders_count' => count($orders),
+        'sample_product_ids' => isset($productIds) && !empty($productIds) ? array_slice(array_unique($productIds), 0, 10) : [],
+        'sample_product_authors' => isset($productAuthors) && !empty($productAuthors) ? array_slice($productAuthors, 0, 10, true) : [],
+    ];
+    
+    error_log("[getOrders] Debug info: " . json_encode($response['debug']));
+}
+
+sendJsonResponse($response);
 
 ?>
