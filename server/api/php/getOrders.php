@@ -37,13 +37,12 @@ if ($status) {
     $params['status'] = $status;
 }
 
-// Build API URL - WooCommerce REST API uses consumer_key/consumer_secret in query params
-$url = buildWcApiUrl('wc/v3/orders', $params, false); // Use consumer_key/consumer_secret in query params
+// Build API URL
+$url = buildWcApiUrl('wc/v3/orders', $params, true); // Use Basic Auth
 
 // Fetch from WooCommerce API
 error_log("[getOrders] Fetching orders from WooCommerce API with params: " . json_encode($params));
-error_log("[getOrders] WooCommerce API URL: " . preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url));
-$result = fetchWooCommerceApi($url, 'GET', null, false); // Use consumer_key/consumer_secret (not Basic Auth)
+$result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
 
 if (!$result['success']) {
     error_log("[getOrders] WooCommerce API error: " . ($result['error'] ?? 'Unknown error') . " (HTTP: " . ($result['http_code'] ?? 'N/A') . ")");
@@ -88,12 +87,11 @@ if ($sellerId) {
             $wcUrl = buildWcApiUrl('wc/v3/products', [
                 'include' => $includeParam,
                 'per_page' => 20
-            ], false); // Use consumer_key/consumer_secret in query params
+            ], true); // Use Basic Auth
             
             error_log("[getOrders] Fetching product batch from WooCommerce API (products: {$includeParam})");
-            error_log("[getOrders] WooCommerce API URL: " . preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $wcUrl));
             
-            $wcResult = fetchWooCommerceApi($wcUrl, 'GET', null, false); // Use consumer_key/consumer_secret (not Basic Auth)
+            $wcResult = fetchWooCommerceApi($wcUrl, 'GET', null, true); // Use Basic Auth
             if ($wcResult['success'] && is_array($wcResult['data'])) {
                 error_log("[getOrders] WooCommerce API returned " . count($wcResult['data']) . " products");
                 foreach ($wcResult['data'] as $product) {

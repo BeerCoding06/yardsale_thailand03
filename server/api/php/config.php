@@ -204,37 +204,24 @@ function fetchWooCommerceApi($url, $method = 'GET', $data = null, $useBasicAuth 
     
     $headers = ['Content-Type: application/json'];
     
-    // WooCommerce REST API supports two authentication methods:
-    // 1. consumer_key/consumer_secret in query params (default, recommended)
-    // 2. Basic Auth with consumer_key:consumer_secret (alternative)
-    
-    // Add Basic Auth using CURLOPT_USERPWD (only if useBasicAuth is true)
-    if ($useBasicAuth) {
-        // For WooCommerce API, Basic Auth should use consumer_key:consumer_secret
-        if (!empty(WC_CONSUMER_KEY) && !empty(WC_CONSUMER_SECRET)) {
-            $basicAuthCreds = WC_CONSUMER_KEY . ':' . WC_CONSUMER_SECRET;
-            curl_setopt($ch, CURLOPT_USERPWD, $basicAuthCreds);
-            error_log('[fetchWooCommerceApi] Using Basic Auth with WooCommerce credentials');
-        } elseif (!empty(WP_BASIC_AUTH)) {
-            // Fallback to WP_BASIC_AUTH if WooCommerce credentials not available
-            if (strpos(WP_BASIC_AUTH, ':') !== false) {
-                curl_setopt($ch, CURLOPT_USERPWD, WP_BASIC_AUTH);
+    // Add Basic Auth using CURLOPT_USERPWD (more reliable than Authorization header)
+    if ($useBasicAuth && !empty(WP_BASIC_AUTH)) {
+        // If it contains ':' it's username:password format
+        if (strpos(WP_BASIC_AUTH, ':') !== false) {
+            curl_setopt($ch, CURLOPT_USERPWD, WP_BASIC_AUTH);
+        } else {
+            // Otherwise assume it's base64 encoded, decode it first
+            $decoded = base64_decode(WP_BASIC_AUTH);
+            if ($decoded !== false && strpos($decoded, ':') !== false) {
+                curl_setopt($ch, CURLOPT_USERPWD, $decoded);
             } else {
-                $decoded = base64_decode(WP_BASIC_AUTH);
-                if ($decoded !== false && strpos($decoded, ':') !== false) {
-                    curl_setopt($ch, CURLOPT_USERPWD, $decoded);
-                } else {
-                    $basicAuth = getWpBasicAuth();
-                    if ($basicAuth) {
-                        $headers[] = 'Authorization: Basic ' . $basicAuth;
-                    }
+                // Fallback: use Authorization header
+                $basicAuth = getWpBasicAuth();
+                if ($basicAuth) {
+                    $headers[] = 'Authorization: Basic ' . $basicAuth;
                 }
             }
         }
-    } else {
-        // When not using Basic Auth, consumer_key/consumer_secret should be in URL query params
-        // (handled by buildWcApiUrl function)
-        error_log('[fetchWooCommerceApi] Using consumer_key/consumer_secret in query params');
     }
     
     // Log the full URL for debugging (hide secret)
