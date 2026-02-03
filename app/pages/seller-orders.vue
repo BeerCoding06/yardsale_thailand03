@@ -325,34 +325,49 @@ onMounted(async () => {
                       </span>
                     </div>
 
-                    <div class="space-y-2 text-sm mb-4">
-                      <p class="text-neutral-600 dark:text-neutral-400">
-                        <span class="font-semibold">{{ $t('seller_orders.order_date') }}</span>
-                        {{ formatDate(order.date_created) }}
+                    <!-- Customer Information Card -->
+                    <div class="mb-4 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800">
+                      <p class="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3">
+                        {{ $t('seller_orders.customer_info') || 'ข้อมูลผู้ซื้อ' }}
                       </p>
-                      <p class="text-neutral-600 dark:text-neutral-400">
-                        <span class="font-semibold">{{ $t('seller_orders.customer') }}:</span>
-                        {{ order.billing?.first_name }}
-                        {{ order.billing?.last_name }}
-                        <span
-                          v-if="order.billing?.email"
-                          class="text-neutral-500 dark:text-neutral-600"
-                        >
-                          ({{ order.billing.email }})
-                        </span>
-                      </p>
-                      <p class="text-neutral-600 dark:text-neutral-400">
-                        <span class="font-semibold">{{ $t('seller_orders.phone') }}</span>
-                        {{ order.billing?.phone || $t('my_products.na') }}
-                      </p>
-                      <p class="text-neutral-600 dark:text-neutral-400">
-                        <span class="font-semibold">{{ $t('order.payment_method') }}:</span>
-                        {{
-                          order.payment_method_title ||
-                          order.payment_method ||
-                          $t('my_products.na')
-                        }}
-                      </p>
+                      <div class="space-y-2 text-sm">
+                        <p class="text-neutral-700 dark:text-neutral-300">
+                          <span class="font-semibold">{{ $t('seller_orders.customer') }}:</span>
+                          <span class="ml-2">
+                            {{ order.billing?.first_name || '' }}
+                            {{ order.billing?.last_name || '' }}
+                            <span v-if="!order.billing?.first_name && !order.billing?.last_name" class="text-neutral-500">
+                              {{ $t('my_products.na') }}
+                            </span>
+                          </span>
+                        </p>
+                        <p class="text-neutral-700 dark:text-neutral-300" v-if="order.billing?.email">
+                          <span class="font-semibold">{{ $t('seller_orders.email') || 'อีเมล' }}:</span>
+                          <span class="ml-2">{{ order.billing.email }}</span>
+                        </p>
+                        <p class="text-neutral-700 dark:text-neutral-300" v-if="order.billing?.phone">
+                          <span class="font-semibold">{{ $t('seller_orders.phone') }}:</span>
+                          <span class="ml-2">{{ order.billing.phone }}</span>
+                        </p>
+                        <p class="text-neutral-700 dark:text-neutral-300">
+                          <span class="font-semibold">{{ $t('seller_orders.order_date') }}:</span>
+                          <span class="ml-2">{{ formatDate(order.date_created) }}</span>
+                        </p>
+                        <p class="text-neutral-700 dark:text-neutral-300">
+                          <span class="font-semibold">{{ $t('order.payment_method') }}:</span>
+                          <span class="ml-2">
+                            {{
+                              order.payment_method_title ||
+                              order.payment_method ||
+                              $t('my_products.na')
+                            }}
+                          </span>
+                        </p>
+                        <p class="text-neutral-700 dark:text-neutral-300" v-if="order.transaction_id">
+                          <span class="font-semibold">{{ $t('order.transaction_id') || 'Transaction ID' }}:</span>
+                          <span class="ml-2 font-mono text-xs">{{ order.transaction_id }}</span>
+                        </p>
+                      </div>
                     </div>
 
                     <!-- Payment Status - Progress Bar Steps -->
@@ -502,24 +517,52 @@ onMounted(async () => {
                       class="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-800"
                     >
                       <p
-                        class="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-2"
+                        class="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-3"
                       >
-                        {{ $t('seller_orders.your_products_in_order') }}:
+                        {{ $t('seller_orders.your_products_in_order') || 'สินค้าของคุณที่ถูกซื้อ' }}:
                       </p>
-                      <div class="space-y-2">
+                      <div class="space-y-3">
                         <div
                           v-for="item in (order.seller_line_items || order.line_items)"
                           :key="item.id"
-                          class="flex justify-between items-center text-sm"
+                          class="flex items-center gap-3 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-800"
                         >
-                          <span class="text-neutral-600 dark:text-neutral-400">
-                            {{ item.name }} x{{ item.quantity }}
-                          </span>
-                          <span
-                            class="font-semibold text-black dark:text-white"
-                          >
-                            ฿{{ parseFloat(item.total || 0).toFixed(2) }}
-                          </span>
+                          <!-- Product Image -->
+                          <div class="flex-shrink-0">
+                            <NuxtImg
+                              v-if="item.image?.src || item.image"
+                              :src="item.image?.src || item.image"
+                              :alt="item.name"
+                              class="w-16 h-16 rounded-lg object-cover border border-neutral-200 dark:border-neutral-700"
+                            />
+                            <div
+                              v-else
+                              class="w-16 h-16 rounded-lg bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center"
+                            >
+                              <UIcon name="i-iconamoon-category-fill" size="24" class="text-neutral-400" />
+                            </div>
+                          </div>
+                          <!-- Product Info -->
+                          <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold text-black dark:text-white truncate">
+                              {{ item.name }}
+                            </p>
+                            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                              {{ $t('order.quantity') || 'จำนวน' }}: {{ item.quantity }}
+                            </p>
+                            <p class="text-xs text-neutral-500 dark:text-neutral-400">
+                              {{ $t('order.unit_price') || 'ราคาต่อชิ้น' }}: ฿{{ parseFloat((item.total || 0) / (item.quantity || 1)).toFixed(2) }}
+                            </p>
+                          </div>
+                          <!-- Product Total -->
+                          <div class="flex-shrink-0 text-right">
+                            <p class="text-sm font-bold text-alizarin-crimson-600 dark:text-alizarin-crimson-500">
+                              ฿{{ parseFloat(item.total || 0).toFixed(2) }}
+                            </p>
+                            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                              {{ $t('order.total') || 'รวม' }}
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
