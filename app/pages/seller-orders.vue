@@ -447,7 +447,7 @@ onMounted(async () => {
 
                     <!-- Seller's Products in Order -->
                     <div
-                      v-if="order.line_items && order.line_items.length > 0"
+                      v-if="(order.seller_line_items && order.seller_line_items.length > 0) || (order.line_items && order.line_items.length > 0)"
                       class="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-800"
                     >
                       <p
@@ -457,7 +457,7 @@ onMounted(async () => {
                       </p>
                       <div class="space-y-2">
                         <div
-                          v-for="item in order.line_items"
+                          v-for="item in (order.seller_line_items || order.line_items)"
                           :key="item.id"
                           class="flex justify-between items-center text-sm"
                         >

@@ -90,21 +90,41 @@ if ($sellerId) {
         }
     }
     
-    // Filter orders by seller_id
+    // Filter orders by seller_id and calculate seller_total
     $filteredOrders = [];
     foreach ($orders as $order) {
+        $sellerTotal = 0;
+        $sellerLineItems = [];
+        $hasSellerProduct = false;
+        
         if (!empty($order['line_items']) && is_array($order['line_items'])) {
             foreach ($order['line_items'] as $item) {
                 if (!empty($item['product_id'])) {
                     $productId = $item['product_id'];
                     if (isset($productAuthors[$productId]) && (int)$productAuthors[$productId] === $sellerId) {
-                        $filteredOrders[] = $order;
-                        break; // Found a product from this seller, include this order
+                        $hasSellerProduct = true;
+                        // Calculate total for this seller's product
+                        $itemTotal = isset($item['total']) ? (float)$item['total'] : 0;
+                        $sellerTotal += $itemTotal;
+                        $sellerLineItems[] = $item;
+                        error_log("[getOrders] Found seller product - Order #{$order['id']}, Product ID: {$productId}, Item Total: {$itemTotal}");
                     }
                 }
             }
         }
+        
+        // Only include orders that have products from this seller
+        if ($hasSellerProduct) {
+            // Add seller_total and seller_line_items to order
+            $order['seller_total'] = $sellerTotal;
+            $order['seller_line_items'] = $sellerLineItems;
+            $filteredOrders[] = $order;
+            error_log("[getOrders] Added order #{$order['id']} for seller {$sellerId}, seller_total: {$sellerTotal}");
+        }
     }
+    
+    error_log("[getOrders] Filtered orders count: " . count($filteredOrders) . " for seller {$sellerId}");
+    error_log("[getOrders] Product authors found: " . count($productAuthors));
     
     $orders = $filteredOrders;
 }
