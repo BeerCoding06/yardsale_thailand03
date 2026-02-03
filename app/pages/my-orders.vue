@@ -34,6 +34,31 @@ const formatDate = (dateString) => {
 
 const { t } = useI18n();
 
+// Get item image URL (handles both string and object formats)
+const getItemImage = (item) => {
+  if (!item) return null;
+  
+  // If image is a string URL
+  if (typeof item.image === 'string' && item.image.trim() !== '') {
+    return item.image;
+  }
+  
+  // If image is an object with sourceUrl
+  if (item.image && typeof item.image === 'object' && item.image.sourceUrl) {
+    return item.image.sourceUrl;
+  }
+  
+  // If image is in meta_data (WooCommerce format)
+  if (item.meta_data && Array.isArray(item.meta_data)) {
+    const imageMeta = item.meta_data.find(meta => meta.key === '_product_image' || meta.key === 'image');
+    if (imageMeta && imageMeta.value) {
+      return typeof imageMeta.value === 'string' ? imageMeta.value : imageMeta.value.sourceUrl;
+    }
+  }
+  
+  return null;
+};
+
 // Computed for cancel button text
 const getCancelButtonText = (orderId) => {
   return cancellingOrderId.value === orderId
@@ -713,11 +738,12 @@ const canCancelOrder = (order) => {
                       :key="index"
                       class="flex items-center gap-3 text-sm"
                     >
-                      <img
-                        v-if="item.image"
-                        :src="item.image"
-                        :alt="item.name"
+                      <NuxtImg
+                        v-if="getItemImage(item)"
+                        :src="getItemImage(item)"
+                        :alt="item.name || 'Product'"
                         class="w-12 h-12 object-cover rounded-lg border-2 border-neutral-200 dark:border-neutral-700"
+                        loading="lazy"
                       />
                       <div
                         v-else

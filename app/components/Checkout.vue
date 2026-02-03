@@ -45,6 +45,15 @@ const totalQuantity = computed(() => {
   return qty;
 });
 
+// Parse price string (handles HTML strings like "฿500.00" or "<span>500</span>")
+const parsePrice = (priceString) => {
+  if (!priceString) return 0;
+  // Remove HTML tags and non-numeric characters except decimal point
+  const cleaned = String(priceString).replace(/<[^>]*>/g, '').replace(/[^0-9.]/g, '');
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
 const cartTotal = computed(() => {
   if (!reactiveCart.value || reactiveCart.value.length === 0) {
     console.log('[Checkout] Cart is empty, returning 0.00');
@@ -60,13 +69,18 @@ const cartTotal = computed(() => {
         : item.product && item.product.node
         ? item.product.node
         : {};
-    const regularPrice = parseFloat(node.regularPrice) || 0;
-    const salePrice = parseFloat(node.salePrice) || 0;
+    
+    // Parse prices using parsePrice function (handles HTML strings)
+    const regularPrice = parsePrice(node.regularPrice);
+    const salePrice = parsePrice(node.salePrice);
     const priceToUse =
       salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
     const itemTotal = priceToUse * (item.quantity || 1);
     
-    console.log('[Checkout] Item:', node.name || 'Unknown', 'Price:', priceToUse, 'Qty:', item.quantity, 'Total:', itemTotal);
+    console.log('[Checkout] Item:', node.name || 'Unknown');
+    console.log('[Checkout]   - regularPrice raw:', node.regularPrice, 'parsed:', regularPrice);
+    console.log('[Checkout]   - salePrice raw:', node.salePrice, 'parsed:', salePrice);
+    console.log('[Checkout]   - priceToUse:', priceToUse, 'Qty:', item.quantity, 'Total:', itemTotal);
     
     return accumulator + itemTotal;
   }, 0);
@@ -202,8 +216,8 @@ watch(() => cart.value?.length, (newLength) => {
                 {{
                   (() => {
                     const node = item.variation?.node || item.product?.node || {};
-                    const regularPrice = parseFloat(node.regularPrice) || 0;
-                    const salePrice = parseFloat(node.salePrice) || 0;
+                    const regularPrice = parsePrice(node.regularPrice);
+                    const salePrice = parsePrice(node.salePrice);
                     const price = salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
                     return (price * (item.quantity || 1)).toFixed(2);
                   })()
