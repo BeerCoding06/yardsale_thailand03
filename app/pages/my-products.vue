@@ -322,7 +322,7 @@ watch(isAuthenticated, (newVal: boolean) => {
                   v-if="getProductImage(product)"
                   :src="getProductImage(product)"
                   :alt="product.name"
-                  class="w-full h-full object-cover"
+                  class="w-full h-[300px] object-cover"
                   loading="lazy"
                 />
                 <div

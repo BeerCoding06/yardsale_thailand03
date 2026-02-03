@@ -37,75 +37,96 @@ const { t } = useI18n();
 // Reactive map to store product images by product_id
 const productImages = ref(new Map());
 
-// Fetch product image by product_id
-const fetchProductImage = async (productId) => {
+// Fetch product image from WordPress REST API /wp/v2/product/{id}
+const fetchProductImageFromWP = async (productId) => {
   if (!productId || productImages.value.has(productId)) {
     return productImages.value.get(productId) || null;
   }
 
   try {
-    const productData = await $fetch('/api/product', {
-      query: { id: productId },
+    // Use WordPress REST API endpoint
+    const wpProduct = await $fetch(`/wordpress/wp-json/wp/v2/product/${productId}`, {
+      query: {
+        _embed: true, // Include embedded media
+      },
     });
     
-    const imageUrl = productData?.product?.image?.sourceUrl || 
-                     (productData?.product?.galleryImages?.nodes?.[0]?.sourceUrl);
-    
+    // Try to get image from featured_media or _embedded
+    let imageUrl = null;
+
+    // Check _embedded['wp:featuredmedia']
+    if (wpProduct?._embedded?.['wp:featuredmedia']?.[0]?.source_url) {
+      imageUrl = wpProduct._embedded['wp:featuredmedia'][0].source_url;
+    } else if (wpProduct?._embedded?.['wp:featuredmedia']?.[0]?.media_details?.sizes?.full?.source_url) {
+      imageUrl = wpProduct._embedded['wp:featuredmedia'][0].media_details.sizes.full.source_url;
+    } else if (wpProduct?.featured_media) {
+      // If featured_media ID exists, fetch media details
+      try {
+        const mediaId = wpProduct.featured_media;
+        const media = await $fetch(`/wordpress/wp-json/wp/v2/media/${mediaId}`);
+        imageUrl = media?.source_url || media?.media_details?.sizes?.full?.source_url;
+      } catch (e) {
+        console.error(`[my-orders] Error fetching media ${wpProduct.featured_media}:`, e);
+      }
+    }
+
     if (imageUrl) {
       productImages.value.set(productId, imageUrl);
+      // Force reactivity update by creating a new Map instance
+      const newMap = new Map(productImages.value);
+      productImages.value = newMap;
       return imageUrl;
     }
   } catch (error) {
-    console.error(`[my-orders] Error fetching product image for product_id ${productId}:`, error);
+    console.error(`[my-orders] Error fetching product image from WP API for product_id ${productId}:`, error);
   }
 
   return null;
 };
 
-// Get item image URL (handles both string and object formats)
-// Use computed to make it reactive to productImages changes
-const getItemImage = computed(() => {
-  // Access productImages to make this computed reactive
-  productImages.value;
+// Get item image URL (prioritize WooCommerce data, then WordPress REST API)
+const getItemImage = (item) => {
+  if (!item) return null;
   
-  return (item) => {
-    if (!item) return null;
-    
-    // If image is a string URL
-    if (typeof item.image === 'string' && item.image.trim() !== '') {
-      return item.image;
+  // First, try WooCommerce image data (immediate)
+  if (item.images && Array.isArray(item.images) && item.images.length > 0) {
+    const img = item.images[0];
+    if (img.src) return img.src;
+    if (img.sourceUrl) return img.sourceUrl;
+  }
+
+  // If image is a string URL
+  if (typeof item.image === 'string' && item.image.trim() !== '') {
+    return item.image;
+  }
+  
+  // If image is an object with sourceUrl
+  if (item.image && typeof item.image === 'object' && item.image.sourceUrl) {
+    return item.image.sourceUrl;
+  }
+  
+  // If image is in meta_data (WooCommerce format)
+  if (item.meta_data && Array.isArray(item.meta_data)) {
+    const imageMeta = item.meta_data.find(meta => meta.key === '_product_image' || meta.key === 'image');
+    if (imageMeta && imageMeta.value) {
+      return typeof imageMeta.value === 'string' ? imageMeta.value : imageMeta.value.sourceUrl;
     }
-    
-    // If image is an object with sourceUrl
-    if (item.image && typeof item.image === 'object' && item.image.sourceUrl) {
-      return item.image.sourceUrl;
-    }
-    
-    // If image is in meta_data (WooCommerce format)
-    if (item.meta_data && Array.isArray(item.meta_data)) {
-      const imageMeta = item.meta_data.find(meta => meta.key === '_product_image' || meta.key === 'image');
-      if (imageMeta && imageMeta.value) {
-        return typeof imageMeta.value === 'string' ? imageMeta.value : imageMeta.value.sourceUrl;
-      }
-    }
-    
-    // Try to get image from product_id (reactive - will update when image is loaded)
-    if (item.product_id) {
-      // Access productImages.value to make it reactive
-      const cachedImage = productImages.value.get(item.product_id);
-      if (cachedImage) {
-        return cachedImage;
-      }
-      // Fetch image asynchronously (will update when loaded)
-      fetchProductImage(item.product_id).then(() => {
-        // Force reactivity update by creating a new Map
-        productImages.value = new Map(productImages.value);
-      });
-    }
-    
-    return null;
-  };
-});
+  }
+  
+  // Then try WordPress REST API cache
+  if (item.product_id && productImages.value.has(item.product_id)) {
+    return productImages.value.get(item.product_id);
+  }
+
+  // If no image found and has product id, try to fetch from WordPress REST API (async)
+  if (item.product_id && !productImages.value.has(item.product_id)) {
+    fetchProductImageFromWP(item.product_id).catch(() => {
+      // Silently fail
+    });
+  }
+  
+  return null;
+};
 
 // Computed for cancel button text
 const getCancelButtonText = (orderId) => {
@@ -281,23 +302,24 @@ const fetchOrders = async () => {
     orders.value = Array.isArray(ordersData.orders) ? ordersData.orders : [];
     console.log("[my-orders] Loaded orders:", orders.value.length);
 
-    // Fetch product images for all line items
+    // Fetch product images from WordPress REST API for line items without images (in background)
     const productIds = new Set();
     orders.value.forEach(order => {
       if (order.line_items && Array.isArray(order.line_items)) {
         order.line_items.forEach(item => {
-          if (item.product_id) {
+          if (item.product_id && (!item.images || item.images.length === 0) && !item.image) {
             productIds.add(item.product_id);
           }
         });
       }
     });
 
-    // Fetch images for all unique product IDs
-    const imagePromises = Array.from(productIds).map(productId => 
-      fetchProductImage(productId)
-    );
-    await Promise.allSettled(imagePromises);
+    // Fetch images from WordPress REST API (in background, don't wait)
+    Array.from(productIds).forEach(productId => {
+      fetchProductImageFromWP(productId).catch(() => {
+        // Silently fail
+      });
+    });
   } catch (err) {
     console.error("[my-orders] Error fetching orders:", err);
     error.value = err?.message || t('order.error_loading');
@@ -805,8 +827,8 @@ const canCancelOrder = (order) => {
                       class="flex items-center gap-3 text-sm"
                     >
                       <NuxtImg
-                        v-if="getItemImage.value(item)"
-                        :src="getItemImage.value(item)"
+                        v-if="getItemImage(item)"
+                        :src="getItemImage(item)"
                         :alt="item.name || 'Product'"
                         class="w-12 h-12 object-cover rounded-lg border-2 border-neutral-200 dark:border-neutral-700"
                         loading="lazy"
