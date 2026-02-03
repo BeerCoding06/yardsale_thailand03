@@ -41,9 +41,11 @@ if ($status) {
 $url = buildWcApiUrl('wc/v3/orders', $params, true); // Use Basic Auth
 
 // Fetch from WooCommerce API
+error_log("[getOrders] Fetching orders from WooCommerce API with params: " . json_encode($params));
 $result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
 
 if (!$result['success']) {
+    error_log("[getOrders] WooCommerce API error: " . ($result['error'] ?? 'Unknown error') . " (HTTP: " . ($result['http_code'] ?? 'N/A') . ")");
     sendErrorResponse($result['error'] ?? 'Failed to fetch orders', $result['http_code'] ?: 500);
 }
 
@@ -52,6 +54,8 @@ $orders = $result['data'] ?? [];
 if (!is_array($orders)) {
     $orders = [];
 }
+
+error_log("[getOrders] Fetched " . count($orders) . " orders from WooCommerce API");
 
 // Filter by seller_id if provided
 if ($sellerId) {
@@ -73,22 +77,33 @@ if ($sellerId) {
         $productIds = array_unique($productIds);
         $baseUrl = rtrim(WC_BASE_URL, '/');
         
+        error_log("[getOrders] Fetching product authors for " . count($productIds) . " unique product IDs for seller {$sellerId}");
+        
         // Fetch products in batches
         $batches = array_chunk($productIds, 20);
         foreach ($batches as $batch) {
             $includeParam = implode(',', $batch);
             $wpUrl = $baseUrl . '/wp-json/wp/v2/product?include=' . urlencode($includeParam) . '&per_page=20';
             
+            error_log("[getOrders] Fetching product batch from WordPress API: " . $wpUrl);
+            
             $wpResult = fetchWordPressApi($wpUrl, 'GET');
             if ($wpResult['success'] && is_array($wpResult['data'])) {
                 foreach ($wpResult['data'] as $product) {
                     if (!empty($product['author'])) {
                         $productAuthors[$product['id']] = $product['author'];
+                        error_log("[getOrders] Product ID {$product['id']} has author: {$product['author']} (looking for seller {$sellerId})");
                     }
                 }
+            } else {
+                error_log("[getOrders] Failed to fetch products from WordPress API: " . ($wpResult['error'] ?? 'Unknown error') . " (HTTP: " . ($wpResult['http_code'] ?? 'N/A') . ")");
             }
         }
+    } else {
+        error_log("[getOrders] No product IDs found in orders");
     }
+    
+    error_log("[getOrders] Found " . count($productAuthors) . " product authors");
     
     // Filter orders by seller_id and calculate seller_total
     $filteredOrders = [];
@@ -118,8 +133,15 @@ if ($sellerId) {
             // Add seller_total and seller_line_items to order
             $order['seller_total'] = $sellerTotal;
             $order['seller_line_items'] = $sellerLineItems;
+            
+            // Add payment status information
+            $order['is_paid'] = isset($order['date_paid']) && !empty($order['date_paid']);
+            $order['payment_status'] = $order['is_paid'] ? 'paid' : 'pending';
+            $order['date_paid'] = $order['date_paid'] ?? null;
+            $order['payment_method_title'] = $order['payment_method_title'] ?? $order['payment_method'] ?? null;
+            
             $filteredOrders[] = $order;
-            error_log("[getOrders] Added order #{$order['id']} for seller {$sellerId}, seller_total: {$sellerTotal}");
+            error_log("[getOrders] Added order #{$order['id']} for seller {$sellerId}, seller_total: {$sellerTotal}, payment_status: {$order['payment_status']}");
         }
     }
     
