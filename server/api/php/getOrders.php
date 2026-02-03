@@ -93,21 +93,34 @@ if ($sellerId) {
             
             $wcResult = fetchWooCommerceApi($wcUrl, 'GET', null, true); // Use Basic Auth
             if ($wcResult['success'] && is_array($wcResult['data'])) {
+                error_log("[getOrders] WooCommerce API returned " . count($wcResult['data']) . " products");
                 foreach ($wcResult['data'] as $product) {
                     $productId = $product['id'] ?? null;
+                    if (!$productId) {
+                        error_log("[getOrders] Product missing ID field. Available keys: " . implode(', ', array_keys($product)));
+                        continue;
+                    }
+                    
+                    // Log all available fields for debugging
+                    error_log("[getOrders] Product ID {$productId} - Available fields: " . implode(', ', array_keys($product)));
+                    
                     // WooCommerce API returns post_author or we can get it from meta
                     $author = null;
                     
                     // Try different fields where author might be stored
                     if (!empty($product['post_author'])) {
                         $author = (int)$product['post_author'];
+                        error_log("[getOrders] Found author from post_author field: {$author}");
                     } elseif (!empty($product['author'])) {
                         $author = (int)$product['author'];
+                        error_log("[getOrders] Found author from author field: {$author}");
                     } elseif (!empty($product['meta_data']) && is_array($product['meta_data'])) {
+                        error_log("[getOrders] Checking meta_data for product {$productId} (count: " . count($product['meta_data']) . ")");
                         // Try to find author in meta_data
                         foreach ($product['meta_data'] as $meta) {
                             if (isset($meta['key']) && ($meta['key'] === '_product_author' || $meta['key'] === 'author')) {
                                 $author = (int)$meta['value'];
+                                error_log("[getOrders] Found author from meta_data[{$meta['key']}]: {$author}");
                                 break;
                             }
                         }
@@ -117,7 +130,40 @@ if ($sellerId) {
                         $productAuthors[$productId] = $author;
                         error_log("[getOrders] Product ID {$productId} has author: {$author} (looking for seller {$sellerId})");
                     } else {
-                        error_log("[getOrders] Product ID {$productId} has no author field found. Available fields: " . implode(', ', array_keys($product)));
+                        error_log("[getOrders] Product ID {$productId} has no author field found. Trying database query...");
+                        
+                        // Fallback: Query database directly to get post_author
+                        try {
+                            $dbHost = getenv('DB_HOST') ?: 'wp_db';
+                            $dbPort = getenv('DB_PORT') ?: '3306';
+                            $dbName = getenv('DB_DATABASE') ?: 'wordpress';
+                            $dbUser = getenv('DB_USER') ?: 'wpuser';
+                            $dbPass = getenv('DB_PASSWORD') ?: 'wppass';
+                            
+                            $dsn = "mysql:host={$dbHost};port={$dbPort};dbname={$dbName};charset=utf8mb4";
+                            $pdo = new PDO($dsn, $dbUser, $dbPass, [
+                                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+                            ]);
+                            
+                            // Get table prefix
+                            $tablePrefix = getenv('WP_TABLE_PREFIX') ?: 'wp_';
+                            
+                            // Query post_author from wp_posts table
+                            $stmt = $pdo->prepare("SELECT post_author FROM {$tablePrefix}posts WHERE ID = ? AND post_type = 'product'");
+                            $stmt->execute([$productId]);
+                            $post = $stmt->fetch();
+                            
+                            if ($post && !empty($post['post_author'])) {
+                                $author = (int)$post['post_author'];
+                                $productAuthors[$productId] = $author;
+                                error_log("[getOrders] Product ID {$productId} has author from database: {$author}");
+                            } else {
+                                error_log("[getOrders] Product ID {$productId} not found in database or has no post_author");
+                            }
+                        } catch (Exception $e) {
+                            error_log("[getOrders] Database query failed for product {$productId}: " . $e->getMessage());
+                        }
                     }
                 }
             } else {
@@ -128,9 +174,48 @@ if ($sellerId) {
             }
         }
         
-        // Fallback: Try WordPress REST API if WooCommerce API didn't return authors
+        // Fallback: Query database directly for products that don't have authors yet
+        $missingProductIds = array_diff($productIds, array_keys($productAuthors));
+        if (!empty($missingProductIds)) {
+            error_log("[getOrders] Querying database for " . count($missingProductIds) . " products without authors");
+            try {
+                $dbHost = getenv('DB_HOST') ?: 'wp_db';
+                $dbPort = getenv('DB_PORT') ?: '3306';
+                $dbName = getenv('DB_DATABASE') ?: 'wordpress';
+                $dbUser = getenv('DB_USER') ?: 'wpuser';
+                $dbPass = getenv('DB_PASSWORD') ?: 'wppass';
+                
+                $dsn = "mysql:host={$dbHost};port={$dbPort};dbname={$dbName};charset=utf8mb4";
+                $pdo = new PDO($dsn, $dbUser, $dbPass, [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+                ]);
+                
+                // Get table prefix
+                $tablePrefix = getenv('WP_TABLE_PREFIX') ?: 'wp_';
+                
+                // Query all products at once using IN clause
+                $placeholders = implode(',', array_fill(0, count($missingProductIds), '?'));
+                $stmt = $pdo->prepare("SELECT ID, post_author FROM {$tablePrefix}posts WHERE ID IN ({$placeholders}) AND post_type = 'product'");
+                $stmt->execute($missingProductIds);
+                $posts = $stmt->fetchAll();
+                
+                foreach ($posts as $post) {
+                    if (!empty($post['post_author']) && !empty($post['ID'])) {
+                        $productAuthors[$post['ID']] = (int)$post['post_author'];
+                        error_log("[getOrders] Product ID {$post['ID']} has author from database: {$post['post_author']}");
+                    }
+                }
+                
+                error_log("[getOrders] Database query found " . count($posts) . " products with authors");
+            } catch (Exception $e) {
+                error_log("[getOrders] Database query failed: " . $e->getMessage());
+            }
+        }
+        
+        // Final fallback: Try WordPress REST API if still no authors
         if (empty($productAuthors)) {
-            error_log("[getOrders] No authors found from WooCommerce API, trying WordPress REST API as fallback");
+            error_log("[getOrders] No authors found from WooCommerce API or database, trying WordPress REST API as final fallback");
             $baseUrl = rtrim(WC_BASE_URL, '/');
             $batches = array_chunk($productIds, 20);
             foreach ($batches as $batch) {
