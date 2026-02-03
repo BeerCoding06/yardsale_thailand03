@@ -34,30 +34,78 @@ const formatDate = (dateString) => {
 
 const { t } = useI18n();
 
-// Get item image URL (handles both string and object formats)
-const getItemImage = (item) => {
-  if (!item) return null;
-  
-  // If image is a string URL
-  if (typeof item.image === 'string' && item.image.trim() !== '') {
-    return item.image;
+// Reactive map to store product images by product_id
+const productImages = ref(new Map());
+
+// Fetch product image by product_id
+const fetchProductImage = async (productId) => {
+  if (!productId || productImages.value.has(productId)) {
+    return productImages.value.get(productId) || null;
   }
-  
-  // If image is an object with sourceUrl
-  if (item.image && typeof item.image === 'object' && item.image.sourceUrl) {
-    return item.image.sourceUrl;
-  }
-  
-  // If image is in meta_data (WooCommerce format)
-  if (item.meta_data && Array.isArray(item.meta_data)) {
-    const imageMeta = item.meta_data.find(meta => meta.key === '_product_image' || meta.key === 'image');
-    if (imageMeta && imageMeta.value) {
-      return typeof imageMeta.value === 'string' ? imageMeta.value : imageMeta.value.sourceUrl;
+
+  try {
+    const productData = await $fetch('/api/product', {
+      query: { id: productId },
+    });
+    
+    const imageUrl = productData?.product?.image?.sourceUrl || 
+                     (productData?.product?.galleryImages?.nodes?.[0]?.sourceUrl);
+    
+    if (imageUrl) {
+      productImages.value.set(productId, imageUrl);
+      return imageUrl;
     }
+  } catch (error) {
+    console.error(`[my-orders] Error fetching product image for product_id ${productId}:`, error);
   }
-  
+
   return null;
 };
+
+// Get item image URL (handles both string and object formats)
+// Use computed to make it reactive to productImages changes
+const getItemImage = computed(() => {
+  // Access productImages to make this computed reactive
+  productImages.value;
+  
+  return (item) => {
+    if (!item) return null;
+    
+    // If image is a string URL
+    if (typeof item.image === 'string' && item.image.trim() !== '') {
+      return item.image;
+    }
+    
+    // If image is an object with sourceUrl
+    if (item.image && typeof item.image === 'object' && item.image.sourceUrl) {
+      return item.image.sourceUrl;
+    }
+    
+    // If image is in meta_data (WooCommerce format)
+    if (item.meta_data && Array.isArray(item.meta_data)) {
+      const imageMeta = item.meta_data.find(meta => meta.key === '_product_image' || meta.key === 'image');
+      if (imageMeta && imageMeta.value) {
+        return typeof imageMeta.value === 'string' ? imageMeta.value : imageMeta.value.sourceUrl;
+      }
+    }
+    
+    // Try to get image from product_id (reactive - will update when image is loaded)
+    if (item.product_id) {
+      // Access productImages.value to make it reactive
+      const cachedImage = productImages.value.get(item.product_id);
+      if (cachedImage) {
+        return cachedImage;
+      }
+      // Fetch image asynchronously (will update when loaded)
+      fetchProductImage(item.product_id).then(() => {
+        // Force reactivity update by creating a new Map
+        productImages.value = new Map(productImages.value);
+      });
+    }
+    
+    return null;
+  };
+});
 
 // Computed for cancel button text
 const getCancelButtonText = (orderId) => {
@@ -232,6 +280,24 @@ const fetchOrders = async () => {
 
     orders.value = Array.isArray(ordersData.orders) ? ordersData.orders : [];
     console.log("[my-orders] Loaded orders:", orders.value.length);
+
+    // Fetch product images for all line items
+    const productIds = new Set();
+    orders.value.forEach(order => {
+      if (order.line_items && Array.isArray(order.line_items)) {
+        order.line_items.forEach(item => {
+          if (item.product_id) {
+            productIds.add(item.product_id);
+          }
+        });
+      }
+    });
+
+    // Fetch images for all unique product IDs
+    const imagePromises = Array.from(productIds).map(productId => 
+      fetchProductImage(productId)
+    );
+    await Promise.allSettled(imagePromises);
   } catch (err) {
     console.error("[my-orders] Error fetching orders:", err);
     error.value = err?.message || t('order.error_loading');
@@ -739,8 +805,8 @@ const canCancelOrder = (order) => {
                       class="flex items-center gap-3 text-sm"
                     >
                       <NuxtImg
-                        v-if="getItemImage(item)"
-                        :src="getItemImage(item)"
+                        v-if="getItemImage.value(item)"
+                        :src="getItemImage.value(item)"
                         :alt="item.name || 'Product'"
                         class="w-12 h-12 object-cover rounded-lg border-2 border-neutral-200 dark:border-neutral-700"
                         loading="lazy"
