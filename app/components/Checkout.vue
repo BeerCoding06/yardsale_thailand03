@@ -26,10 +26,14 @@ onMounted(async () => {
 });
 
 const totalQuantity = computed(() =>
-  cart.value.reduce((s, i) => s + (i.quantity || 0), 0)
+  (cart.value || []).reduce((s, i) => s + (i.quantity || 0), 0)
 );
 
 const cartTotal = computed(() => {
+  if (!cart.value || cart.value.length === 0) {
+    return '0.00';
+  }
+  
   const total = cart.value.reduce((accumulator, item) => {
     const node =
       item.variation && item.variation.node
@@ -46,6 +50,8 @@ const cartTotal = computed(() => {
 
   return total.toFixed(2);
 });
+
+const isCartEmpty = computed(() => !cart.value || cart.value.length === 0);
 </script>
 
 <template>
@@ -90,7 +96,29 @@ const cartTotal = computed(() => {
         </div>
       </template>
 
-      <!-- Show checkout form if authenticated -->
+      <!-- Show empty cart message if cart is empty -->
+      <template v-else-if="isCartEmpty">
+        <div class="flex flex-col items-center justify-center p-6 text-center">
+          <UIcon
+            name="i-iconamoon-shopping-cart-1"
+            class="w-12 h-12 mb-4 text-neutral-400 dark:text-neutral-600"
+          />
+          <p class="text-lg font-semibold text-black dark:text-white mb-2">
+            {{ $t('checkout.empty_cart.title') || 'ตะกร้าสินค้าว่างเปล่า' }}
+          </p>
+          <p class="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
+            {{ $t('checkout.empty_cart.message') || 'กรุณาเพิ่มสินค้าในตะกร้าก่อนทำการสั่งซื้อ' }}
+          </p>
+          <NuxtLink
+            to="/"
+            class="px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg"
+          >
+            {{ $t('checkout.empty_cart.button') || 'เลือกสินค้า' }}
+          </NuxtLink>
+        </div>
+      </template>
+
+      <!-- Show checkout form if authenticated and cart has items -->
       <form
         v-else
         @submit.prevent="handleCheckout"
@@ -102,6 +130,44 @@ const cartTotal = computed(() => {
           class="w-full mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl"
         >
           <p class="text-red-600 dark:text-red-400 text-sm">{{ error }}</p>
+        </div>
+
+        <!-- Cart Items Summary -->
+        <div class="w-full mb-4 max-h-48 overflow-y-auto">
+          <div class="text-sm font-semibold mb-2 text-black dark:text-white">
+            {{ $t('checkout.items_summary') || 'รายการสินค้า' }} ({{ totalQuantity }})
+          </div>
+          <div class="space-y-2">
+            <div
+              v-for="item in cart.value"
+              :key="item.key"
+              class="flex items-center gap-2 p-2 bg-white/50 dark:bg-black/20 rounded-lg"
+            >
+              <NuxtImg
+                :src="(item.variation?.node?.image?.sourceUrl || item.product?.node?.image?.sourceUrl) || ''"
+                class="w-12 h-12 object-cover rounded-lg"
+              />
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-medium text-black dark:text-white truncate">
+                  {{ item.product?.node?.name || item.variation?.node?.name || 'Product' }}
+                </p>
+                <p class="text-xs text-neutral-600 dark:text-neutral-400">
+                  {{ $t('checkout.quantity') || 'จำนวน' }}: {{ item.quantity }}
+                </p>
+              </div>
+              <div class="text-xs font-semibold text-black dark:text-white">
+                {{
+                  (() => {
+                    const node = item.variation?.node || item.product?.node || {};
+                    const regularPrice = parseFloat(node.regularPrice) || 0;
+                    const salePrice = parseFloat(node.salePrice) || 0;
+                    const price = salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
+                    return (price * (item.quantity || 1)).toFixed(2);
+                  })()
+                }}฿
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Input form fields with data from profile -->
@@ -198,7 +264,7 @@ const cartTotal = computed(() => {
         </div>
         <button
           type="submit"
-          :disabled="checkoutStatus !== 'order' && checkoutStatus !== 'success'"
+          :disabled="checkoutStatus !== 'order' || isCartEmpty"
           class="pay-button-bezel w-full h-12 rounded-xl relative font-semibold text-white text-lg flex justify-center items-center bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Transition name="slide-up">
