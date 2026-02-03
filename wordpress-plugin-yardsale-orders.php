@@ -320,3 +320,148 @@ function yardsale_get_my_orders($request) {
         'success' => true,
     );
 }
+
+/**
+ * Get seller orders for the authenticated user
+ * Returns orders that contain products owned by the authenticated user (seller)
+ */
+function yardsale_get_seller_orders($request) {
+    // Get current user (set by permission_callback)
+    $user_id = get_current_user_id();
+    
+    if (!$user_id) {
+        return new WP_Error(
+            'not_authenticated',
+            'User not authenticated',
+            array('status' => 401)
+        );
+    }
+    
+    // Check if WooCommerce is installed
+    if (!class_exists('WooCommerce')) {
+        return new WP_Error(
+            'woocommerce_not_installed',
+            'WooCommerce is not installed',
+            array('status' => 500)
+        );
+    }
+    
+    // Get query parameters
+    $per_page = $request->get_param('per_page') ?: 100;
+    $page = $request->get_param('page') ?: 1;
+    $status = $request->get_param('status');
+    
+    // Get all orders (we'll filter by seller products)
+    $all_orders = wc_get_orders(array(
+        'limit' => $per_page * 2, // Get more orders to filter
+        'paged' => $page,
+        'status' => $status ? explode(',', $status) : 'any',
+        'orderby' => 'date',
+        'order' => 'DESC',
+    ));
+    
+    if (empty($all_orders)) {
+        return array(
+            'orders' => array(),
+            'count' => 0,
+            'success' => true,
+        );
+    }
+    
+    // Filter orders that contain products owned by this seller
+    $seller_orders = array();
+    
+    foreach ($all_orders as $order) {
+        $seller_total = 0;
+        $seller_line_items = array();
+        $has_seller_product = false;
+        
+        // Check each line item
+        foreach ($order->get_items() as $item) {
+            $product_id = $item->get_product_id();
+            
+            if (!$product_id) {
+                continue;
+            }
+            
+            // Get product author (seller) using get_post_field
+            $product_author_id = get_post_field('post_author', $product_id);
+            
+            // Check if this product belongs to the seller
+            if ((int)$product_author_id === (int)$user_id) {
+                $has_seller_product = true;
+                $item_total = (float)$item->get_total();
+                $seller_total += $item_total;
+                
+                // Get product image
+                $product = $item->get_product();
+                $image_id = $product ? $product->get_image_id() : 0;
+                $image_url = $image_id ? wp_get_attachment_image_url($image_id, 'thumbnail') : null;
+                
+                $seller_line_items[] = array(
+                    'id' => $item->get_id(),
+                    'product_id' => $product_id,
+                    'name' => $item->get_name(),
+                    'quantity' => $item->get_quantity(),
+                    'total' => $item->get_total(),
+                    'image' => $image_url ? array('src' => $image_url) : null,
+                );
+            }
+        }
+        
+        // Only include orders that have products from this seller
+        if ($has_seller_product) {
+            // Determine payment status
+            $is_paid = $order->get_date_paid() !== null;
+            $payment_status = 'pending';
+            
+            if ($is_paid) {
+                $payment_status = 'paid';
+            } elseif ($order->get_status() === 'completed') {
+                $payment_status = 'paid';
+            } elseif ($order->get_status() === 'processing') {
+                $payment_status = 'processing';
+            } elseif ($order->get_status() === 'on-hold') {
+                $payment_status = 'on_hold';
+            } elseif ($order->get_status() === 'failed') {
+                $payment_status = 'failed';
+            } elseif ($order->get_status() === 'refunded') {
+                $payment_status = 'refunded';
+            } elseif ($order->get_status() === 'cancelled') {
+                $payment_status = 'cancelled';
+            }
+            
+            $seller_orders[] = array(
+                'id' => $order->get_id(),
+                'number' => $order->get_order_number(),
+                'status' => $order->get_status(),
+                'date_created' => $order->get_date_created() ? $order->get_date_created()->date('Y-m-d H:i:s') : null,
+                'date_paid' => $order->get_date_paid() ? $order->get_date_paid()->date('Y-m-d H:i:s') : null,
+                'total' => $order->get_total(),
+                'currency' => $order->get_currency(),
+                'payment_method' => $order->get_payment_method(),
+                'payment_method_title' => $order->get_payment_method_title(),
+                'transaction_id' => $order->get_transaction_id(),
+                'is_paid' => $is_paid,
+                'payment_status' => $payment_status,
+                'seller_total' => $seller_total,
+                'seller_line_items' => $seller_line_items,
+                'billing' => array(
+                    'first_name' => $order->get_billing_first_name(),
+                    'last_name' => $order->get_billing_last_name(),
+                    'email' => $order->get_billing_email(),
+                    'phone' => $order->get_billing_phone(),
+                ),
+            );
+        }
+    }
+    
+    // Limit results
+    $seller_orders = array_slice($seller_orders, 0, $per_page);
+    
+    return array(
+        'orders' => $seller_orders,
+        'count' => count($seller_orders),
+        'success' => true,
+    );
+}
