@@ -1,5 +1,6 @@
 // server/api/get-order.get.ts
-// Fetch single order via PHP API endpoint
+// Fetch order(s) via PHP API endpoint
+// Supports both single order (order_id) and customer orders (customer)
 
 import { executePhpScript } from '../utils/php-executor';
 
@@ -8,20 +9,23 @@ export default defineEventHandler(async (event) => {
     const query = getQuery(event);
     
     const orderId = query.order_id;
-    const customerId = query.customer_id;
+    const customerId = query.customer;
     
-    if (!orderId) {
+    if (!orderId && !customerId) {
       throw createError({
         statusCode: 400,
-        message: "order_id is required",
+        message: "order_id or customer parameter is required",
       });
     }
     
     // Build query params for PHP script
-    const queryParams: Record<string, string | number> = {
-      order_id: Number(orderId),
-    };
-    if (customerId) queryParams.customer_id = Number(customerId);
+    const queryParams: Record<string, string | number> = {};
+    if (orderId) {
+      queryParams.order_id = Number(orderId);
+    }
+    if (customerId) {
+      queryParams.customer = Number(customerId);
+    }
     
     console.log('[get-order] Executing PHP script: getOrder.php', queryParams);
     
