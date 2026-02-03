@@ -74,35 +74,44 @@ const fetchProductImageFromWP = async (productId: number) => {
 };
 
 // Get product image URL (prioritize WordPress REST API, fallback to WooCommerce data)
-const getProductImage = (product: any) => {
-  if (!product) return null;
+// Use computed to make it reactive to productImages changes
+const getProductImage = computed(() => {
+  // Access productImages to make this computed reactive
+  productImages.value;
+  
+  return (product: any) => {
+    if (!product) return null;
 
-  // First, try to get from WordPress REST API cache
-  if (product.id && productImages.value.has(product.id)) {
-    return productImages.value.get(product.id);
-  }
-
-  // If product has id, fetch from WordPress REST API
-  if (product.id) {
-    fetchProductImageFromWP(product.id);
-  }
-
-  // Fallback to WooCommerce image data
-  if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-    return product.images[0].src || product.images[0].sourceUrl;
-  }
-
-  if (product.image) {
-    if (typeof product.image === 'string') {
-      return product.image;
+    // First, try to get from WordPress REST API cache
+    if (product.id && productImages.value.has(product.id)) {
+      return productImages.value.get(product.id);
     }
-    if (product.image.sourceUrl) {
-      return product.image.sourceUrl;
-    }
-  }
 
-  return null;
-};
+    // If product has id, fetch from WordPress REST API
+    if (product.id) {
+      fetchProductImageFromWP(product.id).then(() => {
+        // Force reactivity update by creating a new Map
+        productImages.value = new Map(productImages.value);
+      });
+    }
+
+    // Fallback to WooCommerce image data
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      return product.images[0].src || product.images[0].sourceUrl;
+    }
+
+    if (product.image) {
+      if (typeof product.image === 'string') {
+        return product.image;
+      }
+      if (product.image.sourceUrl) {
+        return product.image.sourceUrl;
+      }
+    }
+
+    return null;
+  };
+});
 
 // Fetch user's products
 const fetchProducts = async () => {
@@ -383,8 +392,8 @@ watch(isAuthenticated, (newVal: boolean) => {
                 class="relative aspect-square bg-neutral-100 dark:bg-neutral-900"
               >
                 <NuxtImg
-                  v-if="getProductImage(product)"
-                  :src="getProductImage(product)"
+                  v-if="getProductImage.value(product)"
+                  :src="getProductImage.value(product)"
                   :alt="product.name"
                   class="w-full h-full object-cover"
                   loading="lazy"
