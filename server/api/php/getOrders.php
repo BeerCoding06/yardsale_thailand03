@@ -177,39 +177,66 @@ if ($sellerId) {
         // Fallback: Query database directly for products that don't have authors yet
         $missingProductIds = array_diff($productIds, array_keys($productAuthors));
         if (!empty($missingProductIds)) {
-            error_log("[getOrders] Querying database for " . count($missingProductIds) . " products without authors");
+            error_log("[getOrders] Querying database for " . count($missingProductIds) . " products without authors: " . implode(', ', $missingProductIds));
             try {
-                $dbHost = getenv('DB_HOST') ?: 'wp_db';
+                // Use same database config as login.php
+                $dbHostEnv = getenv('DB_HOST');
+                $dbHost = $dbHostEnv ?: 'wp_db';
                 $dbPort = getenv('DB_PORT') ?: '3306';
-                $dbName = getenv('DB_DATABASE') ?: 'wordpress';
-                $dbUser = getenv('DB_USER') ?: 'wpuser';
-                $dbPass = getenv('DB_PASSWORD') ?: 'wppass';
+                $dbName = getenv('DB_DATABASE') ?: getenv('MYSQL_DATABASE') ?: 'wordpress';
+                $dbUserEnv = getenv('DB_USER');
+                $dbUser = $dbUserEnv ?: getenv('MYSQL_USER') ?: 'wpuser';
+                $dbPasswordEnv = getenv('DB_PASSWORD');
+                $dbPassword = $dbPasswordEnv ?: getenv('MYSQL_PASSWORD') ?: 'wppass';
                 
-                $dsn = "mysql:host={$dbHost};port={$dbPort};dbname={$dbName};charset=utf8mb4";
-                $pdo = new PDO($dsn, $dbUser, $dbPass, [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-                ]);
-                
-                // Get table prefix
-                $tablePrefix = getenv('WP_TABLE_PREFIX') ?: 'wp_';
-                
-                // Query all products at once using IN clause
-                $placeholders = implode(',', array_fill(0, count($missingProductIds), '?'));
-                $stmt = $pdo->prepare("SELECT ID, post_author FROM {$tablePrefix}posts WHERE ID IN ({$placeholders}) AND post_type = 'product'");
-                $stmt->execute($missingProductIds);
-                $posts = $stmt->fetchAll();
-                
-                foreach ($posts as $post) {
-                    if (!empty($post['post_author']) && !empty($post['ID'])) {
-                        $productAuthors[$post['ID']] = (int)$post['post_author'];
-                        error_log("[getOrders] Product ID {$post['ID']} has author from database: {$post['post_author']}");
+                // Extract host only (remove port if present)
+                $dbHostOnly = $dbHost;
+                if (strpos($dbHost, ':') !== false) {
+                    $parts = explode(':', $dbHost);
+                    $dbHostOnly = $parts[0];
+                    if (count($parts) > 1 && empty($dbPort)) {
+                        $dbPort = $parts[1];
                     }
                 }
                 
-                error_log("[getOrders] Database query found " . count($posts) . " products with authors");
+                error_log("[getOrders] Database config - Host: {$dbHostOnly}, Port: {$dbPort}, DB: {$dbName}, User: {$dbUser}");
+                
+                $dsn = "mysql:host={$dbHostOnly};port={$dbPort};dbname={$dbName};charset=utf8mb4";
+                $pdo = new PDO($dsn, $dbUser, $dbPassword, [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_TIMEOUT => 10
+                ]);
+                
+                error_log("[getOrders] Database connection successful");
+                
+                // Get table prefix
+                $tablePrefix = getenv('WP_TABLE_PREFIX') ?: 'wp_';
+                error_log("[getOrders] Using table prefix: {$tablePrefix}");
+                
+                // Query all products at once using IN clause
+                $placeholders = implode(',', array_fill(0, count($missingProductIds), '?'));
+                $query = "SELECT ID, post_author, post_type FROM {$tablePrefix}posts WHERE ID IN ({$placeholders})";
+                error_log("[getOrders] Executing query: SELECT ID, post_author, post_type FROM {$tablePrefix}posts WHERE ID IN (" . implode(',', $missingProductIds) . ")");
+                
+                $stmt = $pdo->prepare($query);
+                $stmt->execute($missingProductIds);
+                $posts = $stmt->fetchAll();
+                
+                error_log("[getOrders] Database returned " . count($posts) . " rows");
+                
+                foreach ($posts as $post) {
+                    error_log("[getOrders] Database row - ID: {$post['ID']}, post_type: {$post['post_type']}, post_author: {$post['post_author']}");
+                    if (!empty($post['post_author']) && !empty($post['ID'])) {
+                        $productAuthors[$post['ID']] = (int)$post['post_author'];
+                        error_log("[getOrders] ✓ Product ID {$post['ID']} has author from database: {$post['post_author']}");
+                    }
+                }
+                
+                error_log("[getOrders] Database query found " . count($posts) . " products, added " . count(array_intersect_key($productAuthors, array_flip($missingProductIds))) . " authors");
             } catch (Exception $e) {
                 error_log("[getOrders] Database query failed: " . $e->getMessage());
+                error_log("[getOrders] Database error trace: " . $e->getTraceAsString());
             }
         }
         
