@@ -52,6 +52,18 @@ const cartTotal = computed(() => {
 });
 
 const isCartEmpty = computed(() => !cart.value || cart.value.length === 0);
+
+// Watch cart changes for debugging
+watch(() => cart.value, (newCart) => {
+  console.log('[Checkout] Cart changed:', newCart?.length || 0, 'items');
+  console.log('[Checkout] Cart total:', cartTotal.value);
+  console.log('[Checkout] Total quantity:', totalQuantity.value);
+}, { deep: true });
+
+// Watch cartTotal and totalQuantity for debugging
+watch([cartTotal, totalQuantity], ([newTotal, newQty]) => {
+  console.log('[Checkout] Total updated:', newTotal, 'Quantity:', newQty);
+});
 </script>
 
 <template>
@@ -133,39 +145,70 @@ const isCartEmpty = computed(() => !cart.value || cart.value.length === 0);
         </div>
 
         <!-- Cart Items Summary -->
-        <div class="w-full mb-4 max-h-48 overflow-y-auto">
-          <div class="text-sm font-semibold mb-2 text-black dark:text-white">
-            {{ $t('checkout.items_summary') || 'รายการสินค้า' }} ({{ totalQuantity }})
+        <div class="w-full mb-4">
+          <div class="text-sm font-semibold mb-3 text-black dark:text-white flex items-center justify-between">
+            <span>{{ $t('checkout.items_summary') || 'รายการสินค้า' }}</span>
+            <span class="text-xs font-normal text-neutral-600 dark:text-neutral-400">
+              {{ totalQuantity }} {{ $t('checkout.items') || 'รายการ' }}
+            </span>
           </div>
-          <div class="space-y-2">
+          <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
             <div
               v-for="item in cart.value"
               :key="item.key"
-              class="flex items-center gap-2 p-2 bg-white/50 dark:bg-black/20 rounded-lg"
+              class="flex items-start gap-3 p-3 bg-white/50 dark:bg-black/20 rounded-lg border border-black/5 dark:border-white/5"
             >
               <NuxtImg
                 :src="(item.variation?.node?.image?.sourceUrl || item.product?.node?.image?.sourceUrl) || ''"
-                class="w-12 h-12 object-cover rounded-lg"
+                class="w-16 h-16 object-cover rounded-lg flex-shrink-0"
               />
               <div class="flex-1 min-w-0">
-                <p class="text-xs font-medium text-black dark:text-white truncate">
+                <p class="text-sm font-semibold text-black dark:text-white mb-1 line-clamp-2">
                   {{ item.product?.node?.name || item.variation?.node?.name || 'Product' }}
                 </p>
-                <p class="text-xs text-neutral-600 dark:text-neutral-400">
-                  {{ $t('checkout.quantity') || 'จำนวน' }}: {{ item.quantity }}
-                </p>
+                <div class="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400 mb-1">
+                  <span>{{ $t('checkout.quantity') || 'จำนวน' }}: {{ item.quantity }}</span>
+                  <span>•</span>
+                  <span>
+                    {{
+                      (() => {
+                        const node = item.variation?.node || item.product?.node || {};
+                        const regularPrice = parseFloat(node.regularPrice) || 0;
+                        const salePrice = parseFloat(node.salePrice) || 0;
+                        const price = salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
+                        return price.toFixed(2);
+                      })()
+                    }}฿/{{ $t('checkout.unit') || 'ชิ้น' }}
+                  </span>
+                </div>
+                <div class="flex items-center justify-between mt-1">
+                  <span class="text-xs text-neutral-500 dark:text-neutral-500">
+                    {{ $t('checkout.item_total') || 'รวม' }}:
+                  </span>
+                  <span class="text-sm font-bold text-black dark:text-white">
+                    {{
+                      (() => {
+                        const node = item.variation?.node || item.product?.node || {};
+                        const regularPrice = parseFloat(node.regularPrice) || 0;
+                        const salePrice = parseFloat(node.salePrice) || 0;
+                        const price = salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
+                        return (price * (item.quantity || 1)).toFixed(2);
+                      })()
+                    }}฿
+                  </span>
+                </div>
               </div>
-              <div class="text-xs font-semibold text-black dark:text-white">
-                {{
-                  (() => {
-                    const node = item.variation?.node || item.product?.node || {};
-                    const regularPrice = parseFloat(node.regularPrice) || 0;
-                    const salePrice = parseFloat(node.salePrice) || 0;
-                    const price = salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
-                    return (price * (item.quantity || 1)).toFixed(2);
-                  })()
-                }}฿
-              </div>
+            </div>
+          </div>
+          <!-- Subtotal calculation -->
+          <div class="mt-3 pt-3 border-t border-black/10 dark:border-white/10">
+            <div class="flex justify-between items-center text-sm">
+              <span class="text-neutral-600 dark:text-neutral-400">
+                {{ $t('checkout.subtotal_items') || 'ยอดรวมสินค้า' }} ({{ totalQuantity }} {{ $t('checkout.items') || 'รายการ' }}):
+              </span>
+              <span class="font-semibold text-black dark:text-white">
+                {{ cartTotal }}฿
+              </span>
             </div>
           </div>
         </div>
@@ -252,19 +295,43 @@ const isCartEmpty = computed(() => !cart.value || cart.value.length === 0);
             />
           </div>
         </div>
-        <div
-          class="text-sm font-semibold p-4 text-neutral-600 dark:text-neutral-400"
-        >
-          {{
-            $t("checkout.pay.description", {
-              total: cartTotal,
-              items: totalQuantity,
-            })
-          }}
+
+        <!-- Order Summary -->
+        <div class="w-full mb-4 p-4 bg-white/50 dark:bg-black/20 rounded-xl border border-black/10 dark:border-white/10">
+          <div class="text-sm font-semibold mb-3 text-black dark:text-white">
+            {{ $t('checkout.order_summary') || 'สรุปคำสั่งซื้อ' }}
+          </div>
+          
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between text-neutral-600 dark:text-neutral-400">
+              <span>{{ $t('checkout.subtotal') || 'ยอดรวมสินค้า' }}</span>
+              <span>{{ cartTotal }}฿</span>
+            </div>
+            <div class="flex justify-between text-neutral-600 dark:text-neutral-400">
+              <span>{{ $t('checkout.items_count') || 'จำนวนสินค้า' }}</span>
+              <span>{{ totalQuantity }} {{ $t('checkout.items') || 'รายการ' }}</span>
+            </div>
+            <div class="border-t border-black/10 dark:border-white/10 pt-2 mt-2">
+              <div class="flex justify-between text-base font-bold text-black dark:text-white">
+                <span>{{ $t('checkout.total') || 'รวมทั้งสิ้น' }}</span>
+                <span>{{ cartTotal }}฿</span>
+              </div>
+            </div>
+          </div>
         </div>
+
         <button
           type="submit"
           :disabled="checkoutStatus !== 'order' || isCartEmpty"
+          @click="() => {
+            console.log('[Checkout] Button clicked');
+            console.log('[Checkout] Cart:', cart.value);
+            console.log('[Checkout] Cart total:', cartTotal);
+            console.log('[Checkout] Total quantity:', totalQuantity);
+            console.log('[Checkout] Checkout status:', checkoutStatus);
+            console.log('[Checkout] Is cart empty:', isCartEmpty);
+            console.log('[Checkout] Is authenticated:', isAuthenticated);
+          }"
           class="pay-button-bezel w-full h-12 rounded-xl relative font-semibold text-white text-lg flex justify-center items-center bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Transition name="slide-up">
@@ -272,7 +339,7 @@ const isCartEmpty = computed(() => !cart.value || cart.value.length === 0);
               {{
                 $t("checkout.pay.btn", {
                   total: cartTotal,
-                })
+                }) || `ชำระเงิน ${cartTotal}฿`
               }}
             </div>
             <div
