@@ -66,13 +66,13 @@ const getStatusColor = (status) => {
 // Get payment status text
 const getPaymentStatusText = (paymentStatus) => {
   const statusMap = {
-    paid: t('order.paid') || 'ชำระเงินแล้ว',
-    pending: t('order.pending') || 'รอการชำระเงิน',
-    processing: t('order.processing_status') || 'กำลังดำเนินการ',
-    on_hold: t('order.on_hold') || 'รอการตรวจสอบ',
-    failed: t('order.failed') || 'ชำระเงินล้มเหลว',
-    refunded: t('order.refunded') || 'คืนเงินแล้ว',
-    cancelled: t('order.cancelled') || 'ยกเลิก',
+    paid: t('order.paid'),
+    pending: t('order.pending'),
+    processing: t('order.processing_status'),
+    on_hold: t('order.on_hold'),
+    failed: t('order.failed'),
+    refunded: t('order.refunded'),
+    cancelled: t('order.cancelled'),
   };
   return statusMap[paymentStatus] || paymentStatus;
 };
@@ -306,14 +306,6 @@ onMounted(async () => {
                       >
                         {{ $t('order.order_id') }}{{ order.number || order.id }}
                       </h3>
-                      <span
-                        :class="[
-                          'px-3 py-1 rounded-full text-xs font-semibold',
-                          getStatusColor(order.status),
-                        ]"
-                      >
-                        {{ getStatusText(order.status) }}
-                      </span>
                       <!-- Payment Status Badge -->
                       <span
                         v-if="order.payment_status"
@@ -329,14 +321,14 @@ onMounted(async () => {
                         v-if="order.is_paid"
                         class="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200"
                       >
-                        {{ $t('order.paid') || 'ชำระเงินแล้ว' }}
+                        {{ $t('order.paid') }}
                       </span>
                     </div>
 
                     <!-- Customer Information Card -->
                     <div class="mb-4 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800">
                       <p class="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3">
-                        {{ $t('seller_orders.customer_info') || 'ข้อมูลผู้ซื้อ' }}
+                        {{ $t('seller_orders.customer_info') }}
                       </p>
                       <div class="space-y-2 text-sm">
                         <p class="text-neutral-700 dark:text-neutral-300">
@@ -350,7 +342,7 @@ onMounted(async () => {
                           </span>
                         </p>
                         <p class="text-neutral-700 dark:text-neutral-300" v-if="order.billing?.email">
-                          <span class="font-semibold">{{ $t('seller_orders.email') || 'อีเมล' }}:</span>
+                          <span class="font-semibold">{{ $t('seller_orders.email') }}:</span>
                           <span class="ml-2">{{ order.billing.email }}</span>
                         </p>
                         <p class="text-neutral-700 dark:text-neutral-300" v-if="order.billing?.phone">
@@ -377,7 +369,7 @@ onMounted(async () => {
                         </p>
                         <!-- Payment Status -->
                         <p class="text-neutral-700 dark:text-neutral-300">
-                          <span class="font-semibold">{{ $t('order.payment_status') || 'สถานะการชำระเงิน' }}:</span>
+                          <span class="font-semibold">{{ $t('order.payment_status') }}:</span>
                           <span class="ml-2">
                             <span
                               :class="[
@@ -391,13 +383,13 @@ onMounted(async () => {
                               v-if="order.is_paid"
                               class="ml-2 text-xs text-green-600 dark:text-green-400"
                             >
-                              ✓ {{ $t('order.paid') || 'ชำระเงินแล้ว' }}
+                              ✓ {{ $t('order.paid') }}
                             </span>
                           </span>
                         </p>
                         <!-- Date Paid -->
                         <p class="text-neutral-700 dark:text-neutral-300" v-if="order.date_paid">
-                          <span class="font-semibold">{{ $t('order.date_paid') || 'วันที่ชำระเงิน' }}:</span>
+                          <span class="font-semibold">{{ $t('order.date_paid') }}:</span>
                           <span class="ml-2">{{ formatDate(order.date_paid) }}</span>
                         </p>
                       </div>
@@ -552,7 +544,7 @@ onMounted(async () => {
                       <p
                         class="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-3"
                       >
-                        {{ $t('seller_orders.your_products_in_order') || 'สินค้าของคุณที่ถูกซื้อ' }}:
+                        {{ $t('seller_orders.your_products_in_order') }}:
                       </p>
                       <div class="space-y-3">
                         <div
@@ -581,10 +573,10 @@ onMounted(async () => {
                               {{ item.name }}
                             </p>
                             <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                              {{ $t('order.quantity') || 'จำนวน' }}: {{ item.quantity }}
+                              {{ $t('order.quantity') }}: {{ item.quantity }}
                             </p>
                             <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                              {{ $t('order.unit_price') || 'ราคาต่อชิ้น' }}: ฿{{ parseFloat((item.total || 0) / (item.quantity || 1)).toFixed(2) }}
+                              {{ $t('order.unit_price') }}: ฿{{ parseFloat((item.total || 0) / (item.quantity || 1)).toFixed(2) }}
                             </p>
                           </div>
                           <!-- Product Total -->
@@ -593,7 +585,7 @@ onMounted(async () => {
                               ฿{{ parseFloat(item.total || 0).toFixed(2) }}
                             </p>
                             <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                              {{ $t('order.total') || 'รวม' }}
+                              {{ $t('order.total') }}
                             </p>
                           </div>
                         </div>
@@ -624,7 +616,7 @@ onMounted(async () => {
           </div>
         </div>
       </template>
-      
+
     </ClientOnly>
   </div>
 </template>

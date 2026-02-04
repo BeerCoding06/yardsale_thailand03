@@ -85,5 +85,22 @@
   "favorites": {
     "nothing_to_show_yet": "Ingenting å vise... ennå!",
     "wishlist_lives_here": "Ønskelister du lager vil vises her. Dette er noen av dine favoritt-ting..."
+  },
+  "seller_orders": {
+    "title": "Betalingsstatus Kunde",
+    "back_to_home": "Tilbake til Hjem",
+    "no_orders": "Ingen bestillinger ennå",
+    "no_customers": "Ingen kunder har bestilt produktene dine ennå",
+    "loading_orders": "Laster bestillinger...",
+    "retry": "Prøv igjen",
+    "error_loading": "En feil oppstod ved lasting av bestillinger",
+    "order_date": "Bestillingsdato",
+    "customer": "Kunde",
+    "customer_info": "Kundeinformasjon",
+    "email": "E-post",
+    "phone": "Telefon",
+    "seller_total": "Mitt Totale",
+    "amount_to_pay": "Beløp å betale",
+    "your_products_in_order": "Dine produkter i denne bestillingen"
   }
 }
