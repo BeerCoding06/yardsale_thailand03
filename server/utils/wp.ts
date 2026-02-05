@@ -51,18 +51,34 @@ export function getWpBasicAuth(): string | null {
 }
 
 /**
- * Get WooCommerce Consumer Key from environment variables
+ * Get WooCommerce Consumer Key from runtime config or environment variables
  * @returns Consumer Key or null
  */
 export function getWpConsumerKey(): string | null {
+  try {
+    const config = useRuntimeConfig();
+    if (config.wpConsumerKey) {
+      return config.wpConsumerKey;
+    }
+  } catch (e) {
+    // Runtime config not available, fallback to process.env
+  }
   return process.env.WP_CONSUMER_KEY || null;
 }
 
 /**
- * Get WooCommerce Consumer Secret from environment variables
+ * Get WooCommerce Consumer Secret from runtime config or environment variables
  * @returns Consumer Secret or null
  */
 export function getWpConsumerSecret(): string | null {
+  try {
+    const config = useRuntimeConfig();
+    if (config.wpConsumerSecret) {
+      return config.wpConsumerSecret;
+    }
+  } catch (e) {
+    // Runtime config not available, fallback to process.env
+  }
   return process.env.WP_CONSUMER_SECRET || null;
 }
 

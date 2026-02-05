@@ -28,6 +28,20 @@ export default defineEventHandler(async (event: any) => {
       ...(search ? { search: search } : {})
     };
     
+    // Check if consumer key/secret are available
+    const consumerKey = wpUtils.getWpConsumerKey();
+    const consumerSecret = wpUtils.getWpConsumerSecret();
+    
+    if (!consumerKey || !consumerSecret) {
+      console.error('[wp-categories] WooCommerce credentials not configured');
+      console.error('[wp-categories] WP_CONSUMER_KEY:', consumerKey ? 'Set' : 'Missing');
+      console.error('[wp-categories] WP_CONSUMER_SECRET:', consumerSecret ? 'Set' : 'Missing');
+      throw createError({
+        statusCode: 500,
+        message: 'WooCommerce API credentials not configured. Please set WP_CONSUMER_KEY and WP_CONSUMER_SECRET in environment variables.',
+      });
+    }
+    
     // Use WooCommerce API endpoint with consumer key/secret in query params
     const apiUrl = wpUtils.buildWcApiUrl('wc/v3/products/categories', params);
     
@@ -37,8 +51,11 @@ export default defineEventHandler(async (event: any) => {
       'Accept': 'application/json',
     };
     
-    console.log('[wp-categories] Fetching from WooCommerce API:', apiUrl);
+    // Log URL without exposing secrets
+    const logUrl = apiUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***');
+    console.log('[wp-categories] Fetching from WooCommerce API:', logUrl);
     console.log('[wp-categories] Params:', JSON.stringify(params, null, 2));
+    console.log('[wp-categories] Consumer Key configured:', consumerKey ? 'Yes' : 'No');
     
     const response = await fetch(apiUrl, {
       method: 'GET',
