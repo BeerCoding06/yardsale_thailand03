@@ -1,5 +1,5 @@
 // server/api/wp-tags.get.ts
-// Fetch product tags from WordPress REST API
+// Fetch product tags from WooCommerce REST API
 
 import * as wpUtils from '../utils/wp';
 
@@ -7,32 +7,35 @@ export default defineEventHandler(async (event: any) => {
   try {
     const query = getQuery(event);
     
-    // WordPress REST API endpoint for product tags
-    // Use WordPress REST API: /wp-json/wp/v2/product_tag
+    // Use WooCommerce REST API endpoint for product tags
+    // WooCommerce API: /wp-json/wc/v3/products/tags
     const perPage = query.per_page ? parseInt(query.per_page as string) : 100;
     const page = query.page ? parseInt(query.page as string) : 1;
-    const hideEmpty = query.hide_empty !== 'false';
     const search = query.search as string | undefined;
     const orderby = (query.orderby as string) || 'name';
-    const order = (query.order as string) || 'ASC';
+    const order = (query.order as string) || 'asc';
     
-    // Build query parameters
+    // Build query parameters for WooCommerce API
+    // WooCommerce API supports: per_page, page, orderby (id, name, slug, count), order (asc/desc), search
     const params: Record<string, string | number> = {
       per_page: perPage,
       page: page,
-      orderby: orderby,
-      order: order,
-      ...(hideEmpty ? { hide_empty: '1' } : {}),
+      orderby: orderby === 'name' ? 'name' : 'id',
+      order: order.toLowerCase() === 'desc' ? 'desc' : 'asc',
       ...(search ? { search: search } : {})
     };
     
-    // Use WordPress REST API endpoint
-    const apiUrl = wpUtils.buildWpApiUrl('wp/v2/product_tag', params);
+    // Use WooCommerce API endpoint with consumer key/secret in query params
+    const apiUrl = wpUtils.buildWcApiUrl('wc/v3/products/tags', params);
     
-    // Use utility function for headers
-    const headers = wpUtils.getWpApiHeaders(true, false);
+    // WooCommerce API uses consumer_key/consumer_secret in query params, not Basic Auth
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
     
-    console.log('[wp-tags] Fetching from WordPress API:', apiUrl);
+    console.log('[wp-tags] Fetching from WooCommerce API:', apiUrl);
+    console.log('[wp-tags] Params:', JSON.stringify(params, null, 2));
     
     const response = await fetch(apiUrl, {
       method: 'GET',
@@ -42,20 +45,29 @@ export default defineEventHandler(async (event: any) => {
     
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      console.error('[wp-tags] WordPress API error:', response.status, errorText);
-      throw createError({
-        statusCode: response.status,
-        message: `WordPress API error: ${errorText || response.statusText}`,
-      });
+      console.error('[wp-tags] WooCommerce API error:', response.status, errorText);
+      console.error('[wp-tags] Request URL:', apiUrl);
+      
+      // Return empty array instead of throwing error to keep the app working
+      console.warn('[wp-tags] Returning empty array due to API error');
+      return [];
     }
     
     const data = await response.json();
     
-    // Get pagination info from headers
-    const total = response.headers.get('X-WP-Total') ? parseInt(response.headers.get('X-WP-Total')!) : 0;
-    const totalPages = response.headers.get('X-WP-TotalPages') ? parseInt(response.headers.get('X-WP-TotalPages')!) : 0;
+    // Format tags for compatibility with FormCreateProducts
+    // WooCommerce API returns array of tag objects with: id, name, slug, description, count
+    const tags = Array.isArray(data) ? data.map((tag: any) => ({
+      id: tag.id,
+      name: tag.name,
+      slug: tag.slug,
+      description: tag.description || '',
+      count: tag.count || 0,
+    })) : [];
     
-    return Array.isArray(data) ? data : [];
+    console.log('[wp-tags] Successfully fetched', tags.length, 'tags');
+    
+    return tags;
   } catch (error: any) {
     console.error('[wp-tags] Error:', error);
     // Return empty array instead of throwing error to keep the app working

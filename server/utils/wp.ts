@@ -143,7 +143,13 @@ export function getWpApiHeaders(useBasicAuth: boolean = true, useWooCommerceAuth
   if (useBasicAuth) {
     const basicAuth = getWpBasicAuth();
     if (basicAuth) {
-      headers['Authorization'] = `Basic ${basicAuth}`;
+      // Ensure Basic Auth is base64 encoded
+      let authString = basicAuth;
+      // If it contains ':' it's username:password format, encode it
+      if (authString.includes(':')) {
+        authString = Buffer.from(authString).toString('base64');
+      }
+      headers['Authorization'] = `Basic ${authString}`;
     }
   }
   
