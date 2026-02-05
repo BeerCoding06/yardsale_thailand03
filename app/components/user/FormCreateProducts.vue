@@ -279,8 +279,30 @@ onMounted(async () => {
     try {
       const categoriesData = await $fetch("/api/wp-categories");
       console.log("[Form] Received categories:", categoriesData);
-      categories.value = Array.isArray(categoriesData) ? categoriesData : [];
+      
+      // Handle different response structures
+      if (Array.isArray(categoriesData)) {
+        // Direct array response
+        categories.value = categoriesData;
+      } else if (categoriesData?.categories && Array.isArray(categoriesData.categories)) {
+        // Response with categories property
+        categories.value = categoriesData.categories;
+      } else if (categoriesData?.productCategories?.nodes && Array.isArray(categoriesData.productCategories.nodes)) {
+        // Response with productCategories.nodes structure
+        categories.value = categoriesData.productCategories.nodes;
+      } else {
+        categories.value = [];
+      }
+      
       console.log("[Form] Loaded categories:", categories.value.length);
+      
+      if (categories.value.length === 0) {
+        console.warn("[Form] No categories found in response:", categoriesData);
+        message.value = {
+          type: "error",
+          text: t('create_product.no_categories_found'),
+        };
+      }
     } catch (error) {
       console.error("[Form] Error loading categories:", error);
       categories.value = [];
@@ -322,12 +344,7 @@ onMounted(async () => {
       brands.value = [];
     }
 
-    if (categories.value.length === 0) {
-      message.value = {
-        type: "error",
-        text: t('create_product.no_categories_found'),
-      };
-    }
+    // Error message already set in try-catch block above if categories are empty
 
     // Wait for Select2 to load, then initialize
     await waitForSelect2();

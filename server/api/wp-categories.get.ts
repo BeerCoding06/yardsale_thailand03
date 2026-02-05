@@ -57,13 +57,11 @@ export default defineEventHandler(async (event: any) => {
     const total = response.headers.get('X-WP-Total') ? parseInt(response.headers.get('X-WP-Total')!) : 0;
     const totalPages = response.headers.get('X-WP-TotalPages') ? parseInt(response.headers.get('X-WP-TotalPages')!) : 0;
     
-    return {
-      categories: Array.isArray(data) ? data : [],
-      total,
-      totalPages,
-      page,
-      perPage,
-    };
+    // Return array directly for compatibility with FormCreateProducts
+    const categories = Array.isArray(data) ? data : [];
+    
+    // Return both formats for compatibility
+    return categories;
   } catch (error: any) {
     console.error('[wp-categories] Error:', error);
     throw createError({
