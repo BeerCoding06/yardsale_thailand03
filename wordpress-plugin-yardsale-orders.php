@@ -27,6 +27,13 @@ add_action('rest_api_init', function () {
         'callback' => 'yardsale_get_seller_orders',
         'permission_callback' => 'yardsale_jwt_auth_check',
     ));
+    
+    // Register seller products endpoint
+    register_rest_route('yardsale/v1', '/my-products', array(
+        'methods' => 'GET',
+        'callback' => 'yardsale_get_my_products',
+        'permission_callback' => 'yardsale_jwt_auth_check',
+    ));
 });
 
 /**
@@ -462,6 +469,117 @@ function yardsale_get_seller_orders($request) {
     return array(
         'orders' => $seller_orders,
         'count' => count($seller_orders),
+        'success' => true,
+    );
+}
+
+/**
+ * Get products for the authenticated user (seller)
+ * Returns products owned by the authenticated user
+ */
+function yardsale_get_my_products($request) {
+    // Get current user (set by permission_callback)
+    $user_id = get_current_user_id();
+    
+    if (!$user_id) {
+        return new WP_Error(
+            'not_authenticated',
+            'User not authenticated',
+            array('status' => 401)
+        );
+    }
+    
+    // Get query parameters
+    $per_page = $request->get_param('per_page') ?: 100;
+    $page = $request->get_param('page') ?: 1;
+    $status = $request->get_param('status'); // 'any', 'publish', 'draft', 'pending'
+    
+    // Use WooCommerce internal functions to get products by author
+    if (!function_exists('wc_get_products')) {
+        return new WP_Error(
+            'woocommerce_not_installed',
+            'WooCommerce is not installed',
+            array('status' => 500)
+        );
+    }
+    
+    // Build query args
+    $args = array(
+        'author' => $user_id,
+        'limit' => $per_page,
+        'page' => $page,
+        'orderby' => 'date',
+        'order' => 'DESC',
+    );
+    
+    if ($status && $status !== 'any') {
+        $args['status'] = $status;
+    } else {
+        // Get all statuses
+        $args['status'] = array('publish', 'pending', 'draft', 'private');
+    }
+    
+    // Get products
+    $wc_products = wc_get_products($args);
+    
+    if (empty($wc_products)) {
+        return array(
+            'products' => array(),
+            'count' => 0,
+            'success' => true,
+        );
+    }
+    
+    // Format products for response
+    $formatted_products = array();
+    
+    foreach ($wc_products as $product) {
+        // Get product image
+        $image_id = $product->get_image_id();
+        $image_url = $image_id ? wp_get_attachment_image_url($image_id, 'full') : null;
+        
+        $images = array();
+        if ($image_url) {
+            $images[] = array(
+                'src' => $image_url,
+                'sourceUrl' => $image_url,
+            );
+        }
+        
+        // Get gallery images
+        $gallery_ids = $product->get_gallery_image_ids();
+        foreach ($gallery_ids as $gallery_id) {
+            $gallery_url = wp_get_attachment_image_url($gallery_id, 'full');
+            if ($gallery_url) {
+                $images[] = array(
+                    'src' => $gallery_url,
+                    'sourceUrl' => $gallery_url,
+                );
+            }
+        }
+        
+        $formatted_products[] = array(
+            'id' => $product->get_id(),
+            'name' => $product->get_name(),
+            'slug' => $product->get_slug(),
+            'status' => $product->get_status(),
+            'sku' => $product->get_sku(),
+            'price' => $product->get_price(),
+            'regular_price' => $product->get_regular_price(),
+            'sale_price' => $product->get_sale_price(),
+            'manage_stock' => $product->get_manage_stock(),
+            'stock_quantity' => $product->get_stock_quantity(),
+            'stock_status' => $product->get_stock_status(),
+            'date_created' => $product->get_date_created() ? $product->get_date_created()->date('Y-m-d H:i:s') : null,
+            'date_modified' => $product->get_date_modified() ? $product->get_date_modified()->date('Y-m-d H:i:s') : null,
+            'images' => $images,
+            'image' => $image_url ? array('src' => $image_url, 'sourceUrl' => $image_url) : null,
+        );
+    }
+    
+    return array(
+        'products' => $formatted_products,
+        'count' => count($formatted_products),
         'success' => true,
     );
 }

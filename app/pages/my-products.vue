@@ -62,11 +62,29 @@ const fetchProducts = async () => {
     isLoading.value = true;
     error.value = null;
 
+    // Get JWT token from user object (stored during login)
+    const jwtToken = user.value?.token;
+    
+    if (!jwtToken) {
+      error.value = t('auth.login_required') + ' (JWT token missing. Please login again.)';
+      isLoading.value = false;
+      return;
+    }
+
+    // Get WordPress base URL from runtime config
+    const config = useRuntimeConfig();
+    const wpBaseUrl = config.public.wpBaseUrl || 'http://157.85.98.150:8080';
+    
+    // Call WordPress custom endpoint directly with JWT token
     const response = await $fetch<{
       success: boolean;
       count: number;
       products: any[];
-    }>(`/api/my-products?user_id=${user.value.id}`);
+    }>(`${wpBaseUrl}/wp-json/yardsale/v1/my-products`, {
+      headers: {
+        'Authorization': `Bearer ${jwtToken}`
+      }
+    });
 
     if (response.success && response.products) {
       products.value = response.products;
