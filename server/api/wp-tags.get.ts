@@ -25,27 +25,33 @@ export default defineEventHandler(async (event: any) => {
       ...(search ? { search: search } : {})
     };
     
-    // Check if consumer key/secret are available
-    const consumerKey = wpUtils.getWpConsumerKey();
-    const consumerSecret = wpUtils.getWpConsumerSecret();
+    // Use Basic Auth for WooCommerce API (same as PHP script)
+    const basicAuth = wpUtils.getWpBasicAuth();
     
-    if (!consumerKey || !consumerSecret) {
-      console.warn('[wp-tags] WooCommerce credentials not configured, returning empty array');
+    if (!basicAuth) {
+      console.warn('[wp-tags] WordPress Basic Auth not configured, returning empty array');
       return [];
     }
     
-    // Use WooCommerce API endpoint with consumer key/secret in query params
-    const apiUrl = wpUtils.buildWcApiUrl('wc/v3/products/tags', params);
+    // Build WooCommerce API URL (without consumer_key/consumer_secret in query params)
+    const baseUrl = wpUtils.getWpBaseUrl();
+    const queryString = new URLSearchParams(params as Record<string, string>).toString();
+    const apiUrl = `${baseUrl}/wp-json/wc/v3/products/tags${queryString ? `?${queryString}` : ''}`;
     
-    // WooCommerce API uses consumer_key/consumer_secret in query params, not Basic Auth
+    // Use Basic Auth header (same as PHP script)
+    let authString = basicAuth;
+    // If it contains ':' it's username:password format, encode it
+    if (authString.includes(':')) {
+      authString = Buffer.from(authString).toString('base64');
+    }
+    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'Authorization': `Basic ${authString}`,
     };
     
-    // Log URL without exposing secrets
-    const logUrl = apiUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***');
-    console.log('[wp-tags] Fetching from WooCommerce API:', logUrl);
+    console.log('[wp-tags] Fetching from WooCommerce API:', apiUrl);
     console.log('[wp-tags] Params:', JSON.stringify(params, null, 2));
     
     const response = await fetch(apiUrl, {

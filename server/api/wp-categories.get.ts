@@ -28,34 +28,39 @@ export default defineEventHandler(async (event: any) => {
       ...(search ? { search: search } : {})
     };
     
-    // Check if consumer key/secret are available
-    const consumerKey = wpUtils.getWpConsumerKey();
-    const consumerSecret = wpUtils.getWpConsumerSecret();
+    // Use Basic Auth for WooCommerce API (same as PHP script)
+    // PHP script uses Basic Auth, so we'll use it too for consistency
+    const basicAuth = wpUtils.getWpBasicAuth();
     
-    if (!consumerKey || !consumerSecret) {
-      console.error('[wp-categories] WooCommerce credentials not configured');
-      console.error('[wp-categories] WP_CONSUMER_KEY:', consumerKey ? 'Set' : 'Missing');
-      console.error('[wp-categories] WP_CONSUMER_SECRET:', consumerSecret ? 'Set' : 'Missing');
+    if (!basicAuth) {
+      console.error('[wp-categories] WordPress Basic Auth not configured');
       throw createError({
         statusCode: 500,
-        message: 'WooCommerce API credentials not configured. Please set WP_CONSUMER_KEY and WP_CONSUMER_SECRET in environment variables.',
+        message: 'WordPress Basic Auth not configured. Please set WP_BASIC_AUTH in environment variables.',
       });
     }
     
-    // Use WooCommerce API endpoint with consumer key/secret in query params
-    const apiUrl = wpUtils.buildWcApiUrl('wc/v3/products/categories', params);
+    // Build WooCommerce API URL (without consumer_key/consumer_secret in query params)
+    const baseUrl = wpUtils.getWpBaseUrl();
+    const queryString = new URLSearchParams(params as Record<string, string>).toString();
+    const apiUrl = `${baseUrl}/wp-json/wc/v3/products/categories${queryString ? `?${queryString}` : ''}`;
     
-    // WooCommerce API uses consumer_key/consumer_secret in query params, not Basic Auth
+    // Use Basic Auth header (same as PHP script)
+    let authString = basicAuth;
+    // If it contains ':' it's username:password format, encode it
+    if (authString.includes(':')) {
+      authString = Buffer.from(authString).toString('base64');
+    }
+    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'Authorization': `Basic ${authString}`,
     };
     
-    // Log URL without exposing secrets
-    const logUrl = apiUrl.replace(/consumer_secret=[^&]+/, 'consumer_secret=***');
-    console.log('[wp-categories] Fetching from WooCommerce API:', logUrl);
+    console.log('[wp-categories] Fetching from WooCommerce API:', apiUrl);
     console.log('[wp-categories] Params:', JSON.stringify(params, null, 2));
-    console.log('[wp-categories] Consumer Key configured:', consumerKey ? 'Yes' : 'No');
+    console.log('[wp-categories] Using Basic Auth:', basicAuth ? 'Yes' : 'No');
     
     const response = await fetch(apiUrl, {
       method: 'GET',
