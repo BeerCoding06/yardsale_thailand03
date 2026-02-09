@@ -100,7 +100,50 @@ if (!$result['success']) {
     sendErrorResponse($errorMessage, $result['http_code'] ?: 500);
 }
 
-error_log('[createProduct] Successfully created product ID: ' . ($result['data']['id'] ?? 'N/A'));
+$productId = $result['data']['id'] ?? null;
+error_log('[createProduct] Successfully created product ID: ' . $productId);
+
+// Update post_author if provided (WooCommerce API doesn't support post_author in request)
+// We need to update it directly via WordPress REST API
+if (!empty($productData['post_author']) && $productId) {
+    $authorId = (int)$productData['post_author'];
+    error_log('[createProduct] Updating post_author to: ' . $authorId . ' for product ID: ' . $productId);
+    
+    // Use WordPress REST API to update the post author
+    $updateUrl = buildWpApiUrl('wp/v2/product/' . $productId);
+    $updateData = array(
+        'author' => $authorId
+    );
+    
+    // Get Basic Auth for WordPress REST API
+    $basicAuth = getWpBasicAuth();
+    if ($basicAuth) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $updateUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($updateData));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Content-Type: application/json',
+            'Authorization: Basic ' . $basicAuth
+        ));
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        
+        $updateResponse = curl_exec($ch);
+        $updateHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($updateHttpCode === 200 || $updateHttpCode === 201) {
+            error_log('[createProduct] Successfully updated post_author to: ' . $authorId);
+        } else {
+            error_log('[createProduct] Warning: Failed to update post_author. HTTP Code: ' . $updateHttpCode);
+            error_log('[createProduct] Update response: ' . substr($updateResponse, 0, 500));
+        }
+    } else {
+        error_log('[createProduct] Warning: WP_BASIC_AUTH not configured, cannot update post_author');
+    }
+}
 
 // Return response
 sendJsonResponse([

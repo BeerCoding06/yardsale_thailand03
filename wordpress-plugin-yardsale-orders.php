@@ -481,7 +481,10 @@ function yardsale_get_my_products($request) {
     // Get current user (set by permission_callback)
     $user_id = get_current_user_id();
     
+    error_log('[yardsale_get_my_products] User ID: ' . $user_id);
+    
     if (!$user_id) {
+        error_log('[yardsale_get_my_products] Error: User not authenticated');
         return new WP_Error(
             'not_authenticated',
             'User not authenticated',
@@ -496,6 +499,7 @@ function yardsale_get_my_products($request) {
     
     // Use WooCommerce internal functions to get products by author
     if (!function_exists('wc_get_products')) {
+        error_log('[yardsale_get_my_products] Error: WooCommerce not installed');
         return new WP_Error(
             'woocommerce_not_installed',
             'WooCommerce is not installed',
@@ -519,8 +523,12 @@ function yardsale_get_my_products($request) {
         $args['status'] = array('publish', 'pending', 'draft', 'private');
     }
     
+    error_log('[yardsale_get_my_products] Query args: ' . print_r($args, true));
+    
     // Get products
     $wc_products = wc_get_products($args);
+    
+    error_log('[yardsale_get_my_products] Found ' . count($wc_products) . ' products for user ID: ' . $user_id);
     
     if (empty($wc_products)) {
         return array(
