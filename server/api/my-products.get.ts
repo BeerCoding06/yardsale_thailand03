@@ -54,9 +54,29 @@ export default defineEventHandler(async (event) => {
     }
 
     const data = await response.json();
-    console.log('[my-products] WordPress API response:', data);
+    console.log('[my-products] WordPress API response:', {
+      success: data?.success,
+      count: data?.count,
+      productsCount: data?.products?.length || 0,
+      hasProducts: !!data?.products,
+    });
     
-    return data;
+    // Ensure response format is consistent
+    if (data && data.success !== false) {
+      return {
+        success: true,
+        count: data.count || (data.products ? data.products.length : 0),
+        products: Array.isArray(data.products) ? data.products : [],
+      };
+    } else {
+      // Return error response
+      return {
+        success: false,
+        count: 0,
+        products: [],
+        error: data?.message || data?.error || 'Failed to fetch products',
+      };
+    }
   } catch (error: any) {
     console.error('[my-products] Error:', error.message || error);
     throw createError({

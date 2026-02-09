@@ -71,25 +71,35 @@ const fetchProducts = async () => {
       return;
     }
 
-    // Get WordPress base URL from runtime config
-    const config = useRuntimeConfig();
-    const wpBaseUrl = config.public.wpBaseUrl || 'http://157.85.98.150:8080';
-    
-    // Call WordPress custom endpoint directly with JWT token
+    // Call Nuxt API route which will proxy to WordPress endpoint
+    console.log("[my-products] Calling /api/my-products with JWT token");
     const response = await $fetch<{
       success: boolean;
       count: number;
       products: any[];
-    }>(`${wpBaseUrl}/wp-json/yardsale/v1/my-products`, {
+    }>('/api/my-products', {
       headers: {
         'Authorization': `Bearer ${jwtToken}`
       }
     });
 
-    if (response.success && response.products) {
-      products.value = response.products;
+    console.log("[my-products] API response:", response);
+
+    if (response && response.success !== false) {
+      // Handle both response formats
+      if (Array.isArray(response)) {
+        // Direct array response
+        products.value = response;
+      } else if (response.products && Array.isArray(response.products)) {
+        // Object with products property
+        products.value = response.products;
+      } else {
+        products.value = [];
+        error.value = t('my_products.no_products_found');
+      }
     } else {
-      error.value = t('my_products.no_products_found');
+      products.value = [];
+      error.value = response?.error || response?.message || t('my_products.no_products_found');
     }
   } catch (err) {
     console.error("[my-products] Error fetching products:", err);
