@@ -33,24 +33,47 @@ export default defineEventHandler(async (event) => {
     const fileBlob = new Blob([uint8Array], { type: file.type });
     const fileObj = new File([fileBlob], file.name, { type: file.type });
     wpFormData.append("file", fileObj);
+    
+    // Add title (optional but recommended)
+    // Extract filename without extension for title
+    const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+    wpFormData.append("title", fileNameWithoutExt);
+    
+    // Add alt text (optional)
+    wpFormData.append("alt_text", fileNameWithoutExt);
 
     // Use Basic Auth for WordPress REST API
-    const headers = wpUtils.getWpApiHeaders(true, false);
-
-    if (!headers['Authorization']) {
+    // IMPORTANT: Don't set Content-Type header when sending FormData
+    // Browser will automatically set it with the correct boundary
+    const basicAuth = wpUtils.getWpBasicAuth();
+    
+    if (!basicAuth) {
       throw createError({
         statusCode: 500,
         message: "WP_BASIC_AUTH is not configured",
       });
     }
+    
+    // Encode Basic Auth
+    let authString = basicAuth;
+    if (authString.includes(':')) {
+      authString = Buffer.from(authString).toString('base64');
+    }
+    
+    // Only set Authorization header, let browser set Content-Type for FormData
+    const headers: Record<string, string> = {
+      'Authorization': `Basic ${authString}`,
+    };
 
     console.log("[upload-image] Uploading to WordPress:", mediaUrl);
     console.log("[upload-image] File:", file.name, file.type, file.size);
+    console.log("[upload-image] File size:", file.size, "bytes");
 
     const response = await fetch(mediaUrl, {
       method: "POST",
       headers,
       body: wpFormData,
+      signal: AbortSignal.timeout(60000), // 60 seconds timeout for file upload
     });
 
     if (!response.ok) {
@@ -61,14 +84,23 @@ export default defineEventHandler(async (event) => {
         const errorJson = JSON.parse(errorText);
         if (errorJson.message) {
           errorMessage = errorJson.message;
+        } else if (errorJson.code) {
+          errorMessage = `${errorJson.code}: ${errorJson.message || errorJson.data?.message || errorText}`;
         }
       } catch (e) {
         if (errorText) {
-          errorMessage = `${errorMessage}: ${errorText.substring(0, 200)}`;
+          errorMessage = `${errorMessage}: ${errorText.substring(0, 500)}`;
         }
       }
 
-      console.error("[upload-image] Error:", errorMessage);
+      console.error("[upload-image] WordPress API error:", response.status, errorMessage);
+      console.error("[upload-image] Response headers:", Object.fromEntries(response.headers.entries()));
+      console.error("[upload-image] Request URL:", mediaUrl);
+      console.error("[upload-image] File details:", {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+      });
 
       throw createError({
         statusCode: response.status,

@@ -99,7 +99,7 @@ export default defineEventHandler(async (event: any) => {
     
     // Format categories for compatibility with FormCreateProducts
     // WooCommerce API returns array of category objects with: id, name, slug, description, count, image, parent
-    const categories = Array.isArray(data) ? data.map((cat: any) => ({
+    const allCategories = Array.isArray(data) ? data.map((cat: any) => ({
       id: cat.id,
       name: cat.name,
       slug: cat.slug,
@@ -109,7 +109,27 @@ export default defineEventHandler(async (event: any) => {
       image: cat.image ? { src: cat.image.src || cat.image } : null,
     })) : [];
     
-    console.log('[wp-categories] Successfully fetched', categories.length, 'categories');
+    // Filter out "Uncategorized" or "No Category" categories
+    const categories = allCategories.filter((cat: any) => {
+      const name = (cat.name || '').trim().toLowerCase();
+      const slug = (cat.slug || '').trim().toLowerCase();
+      
+      // Exclude categories with these names/slugs
+      const excludedNames = [
+        'uncategorized',
+        'uncategorised',
+        'no category',
+        'no-category',
+        'no_category',
+        'unclassified',
+        'อื่นๆ',
+        'อื่นๆ',
+      ];
+      
+      return !excludedNames.includes(name) && !excludedNames.includes(slug);
+    });
+    
+    console.log('[wp-categories] Successfully fetched', allCategories.length, 'categories, filtered to', categories.length, 'categories (excluded uncategorized)');
     
     return categories;
   } catch (error: any) {
