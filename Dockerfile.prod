@@ -10,25 +10,13 @@ RUN apk add --no-cache \
     g++
 
 # Copy package files
-# Note: pnpm-lock.yaml may contain references to packages that no longer exist in npm registry
-# We'll copy it but allow pnpm to resolve dependencies if needed
+# Note: We don't copy pnpm-lock.yaml to avoid issues with packages removed from npm registry
+# pnpm will create a new lockfile during installation
 COPY package.json ./
-COPY pnpm-lock.yaml* ./
 
 # Install dependencies (corepack will use version from packageManager field)
-# Use --no-frozen-lockfile to allow pnpm to resolve dependencies if lockfile is outdated
-# This helps when packages are removed from npm registry or lockfile is outdated
-# If lockfile exists but has issues, pnpm will resolve dependencies automatically
-RUN if [ -f pnpm-lock.yaml ]; then \
-      echo "Lockfile exists, trying to install with --no-frozen-lockfile..." && \
-      corepack pnpm install --no-frozen-lockfile || \
-      (echo "Install with lockfile failed, removing lockfile and retrying..." && \
-       rm -f pnpm-lock.yaml && \
-       corepack pnpm install); \
-    else \
-      echo "No lockfile found, installing fresh..." && \
-      corepack pnpm install; \
-    fi
+# pnpm will resolve all dependencies and create a new lockfile
+RUN corepack pnpm install
 
 # Stage 2: Build
 FROM node:20-alpine AS builder
