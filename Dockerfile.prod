@@ -9,14 +9,16 @@ RUN apk add --no-cache \
     make \
     g++
 
-# Copy package files
+# Copy package files and .npmrc configuration
 # Note: We don't copy pnpm-lock.yaml to avoid issues with packages removed from npm registry
 # pnpm will create a new lockfile during installation
 COPY package.json ./
+COPY .npmrc* ./
 
 # Install dependencies (corepack will use version from packageManager field)
 # pnpm will resolve all dependencies and create a new lockfile
-RUN corepack pnpm install
+# Use --shamefully-hoist to work around peer dependency issues
+RUN corepack pnpm install --shamefully-hoist
 
 # Stage 2: Build
 FROM node:20-alpine AS builder
