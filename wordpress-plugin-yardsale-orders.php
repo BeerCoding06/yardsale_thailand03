@@ -507,9 +507,8 @@ function yardsale_get_my_products($request) {
         );
     }
     
-    // Build query args
+    // Try using wc_get_products with author filter first
     $args = array(
-        'author' => $user_id,
         'limit' => $per_page,
         'page' => $page,
         'orderby' => 'date',
@@ -523,12 +522,59 @@ function yardsale_get_my_products($request) {
         $args['status'] = array('publish', 'pending', 'draft', 'private');
     }
     
+    // Try with author parameter (may not work in all WooCommerce versions)
+    $args['author'] = $user_id;
+    
     error_log('[yardsale_get_my_products] Query args: ' . print_r($args, true));
     
     // Get products
     $wc_products = wc_get_products($args);
     
-    error_log('[yardsale_get_my_products] Found ' . count($wc_products) . ' products for user ID: ' . $user_id);
+    error_log('[yardsale_get_my_products] Found ' . count($wc_products) . ' products using wc_get_products for user ID: ' . $user_id);
+    
+    // If no products found, try querying database directly
+    if (empty($wc_products)) {
+        error_log('[yardsale_get_my_products] No products found with wc_get_products, trying database query');
+        
+        global $wpdb;
+        
+        // Build status query
+        $status_query = '';
+        if ($status && $status !== 'any') {
+            $status_query = $wpdb->prepare(" AND p.post_status = %s", $status);
+        } else {
+            $status_query = " AND p.post_status IN ('publish', 'pending', 'draft', 'private')";
+        }
+        
+        // Query products directly from database
+        $query = $wpdb->prepare("
+            SELECT p.ID 
+            FROM {$wpdb->posts} p
+            WHERE p.post_type = 'product'
+            AND p.post_author = %d
+            {$status_query}
+            ORDER BY p.post_date DESC
+            LIMIT %d OFFSET %d
+        ", $user_id, $per_page, ($page - 1) * $per_page);
+        
+        error_log('[yardsale_get_my_products] Database query: ' . $query);
+        
+        $product_ids = $wpdb->get_col($query);
+        
+        error_log('[yardsale_get_my_products] Found ' . count($product_ids) . ' product IDs from database');
+        
+        if (!empty($product_ids)) {
+            // Get products using product IDs
+            $wc_products = array();
+            foreach ($product_ids as $product_id) {
+                $product = wc_get_product($product_id);
+                if ($product) {
+                    $wc_products[] = $product;
+                }
+            }
+            error_log('[yardsale_get_my_products] Loaded ' . count($wc_products) . ' products from database');
+        }
+    }
     
     if (empty($wc_products)) {
         return array(

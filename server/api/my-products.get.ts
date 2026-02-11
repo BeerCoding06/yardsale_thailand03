@@ -59,7 +59,19 @@ export default defineEventHandler(async (event) => {
       count: data?.count,
       productsCount: data?.products?.length || 0,
       hasProducts: !!data?.products,
+      fullResponse: JSON.stringify(data).substring(0, 500), // First 500 chars for debugging
     });
+    
+    // Log full response for debugging
+    if (data?.products && Array.isArray(data.products) && data.products.length > 0) {
+      console.log('[my-products] Sample product:', {
+        id: data.products[0].id,
+        name: data.products[0].name,
+        status: data.products[0].status,
+      });
+    } else {
+      console.log('[my-products] No products found in response');
+    }
     
     // Ensure response format is consistent
     if (data && data.success !== false) {
