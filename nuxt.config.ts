@@ -6,7 +6,7 @@ const isStaticGeneration = process.env.NUXT_GENERATE === 'true' || process.argv.
 const isDockerBuild = process.env.DOCKER_BUILD === 'true';
 
 export default defineNuxtConfig({
-  devtools: { enabled: false },
+  devtools: { enabled: true },
 
   modules: [
     "@vueuse/nuxt",
@@ -62,7 +62,7 @@ export default defineNuxtConfig({
   ],
 
   runtimeConfig: {
-    baseUrl: process.env.BASE_URL || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000" : "http://localhost/yardsale_thailand"),
+    baseUrl: process.env.BASE_URL || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000" : "http://www.yardsaleth.com"),
     // WordPress base URL - can be set via .env file
     wpBaseUrl: process.env.WP_BASE_URL || 'http://157.85.98.150:8080',
     wpBasicAuth: process.env.WP_BASIC_AUTH || '',

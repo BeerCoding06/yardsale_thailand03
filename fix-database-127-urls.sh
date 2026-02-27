@@ -3,8 +3,8 @@
 # Script to fix 127.0.0.1 URLs in WordPress database
 # Usage: ./fix-database-127-urls.sh
 
-PRODUCTION_HOME="http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me"
-PRODUCTION_SITEURL="http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/wordpress"
+PRODUCTION_HOME="http://www.yardsaleth.com"
+PRODUCTION_SITEURL="http://www.yardsaleth.com/wordpress"
 DB_HOST="157.85.98.150"
 DB_USER="root"
 DB_NAME="nuxtcommerce_db"

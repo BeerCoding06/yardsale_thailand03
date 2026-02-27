@@ -2,8 +2,8 @@
 -- Fix 127.0.0.1 URLs in WordPress Database
 -- ============================================
 -- Production URLs
--- WP_HOME: http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me
--- WP_SITEURL: http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/wordpress
+-- WP_HOME: http://www.yardsaleth.com
+-- WP_SITEURL: http://www.yardsaleth.com/wordpress
 -- ============================================
 
 USE nuxtcommerce_db;
@@ -16,75 +16,75 @@ WHERE option_name IN ('home', 'siteurl');
 
 -- 2. แก้ไข siteurl และ home ใน wp_options
 UPDATE wp_options 
-SET option_value = 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/wordpress' 
+SET option_value = 'http://www.yardsaleth.com/wordpress' 
 WHERE option_name = 'siteurl';
 
 UPDATE wp_options 
-SET option_value = 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me' 
+SET option_value = 'http://www.yardsaleth.com' 
 WHERE option_name = 'home';
 
 -- 3. แทนที่ URLs ทั้งหมดที่มี 127.0.0.1 ใน wp_options
 UPDATE wp_options 
-SET option_value = REPLACE(option_value, 'http://127.0.0.1/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET option_value = REPLACE(option_value, 'http://127.0.0.1/', 'http://www.yardsaleth.com/') 
 WHERE option_value LIKE '%127.0.0.1%';
 
 UPDATE wp_options 
-SET option_value = REPLACE(option_value, 'http://127.0.0.1:8000/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET option_value = REPLACE(option_value, 'http://127.0.0.1:8000/', 'http://www.yardsaleth.com/') 
 WHERE option_value LIKE '%127.0.0.1:8000%';
 
 UPDATE wp_options 
-SET option_value = REPLACE(option_value, 'http://localhost/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET option_value = REPLACE(option_value, 'http://localhost/', 'http://www.yardsaleth.com/') 
 WHERE option_value LIKE '%localhost%';
 
 -- 4. แก้ไข URLs ใน wp_posts (post_content และ guid)
 UPDATE wp_posts 
-SET post_content = REPLACE(post_content, 'http://127.0.0.1/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET post_content = REPLACE(post_content, 'http://127.0.0.1/', 'http://www.yardsaleth.com/') 
 WHERE post_content LIKE '%127.0.0.1%';
 
 UPDATE wp_posts 
-SET post_content = REPLACE(post_content, 'http://127.0.0.1:8000/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET post_content = REPLACE(post_content, 'http://127.0.0.1:8000/', 'http://www.yardsaleth.com/') 
 WHERE post_content LIKE '%127.0.0.1:8000%';
 
 UPDATE wp_posts 
-SET post_content = REPLACE(post_content, 'http://localhost/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET post_content = REPLACE(post_content, 'http://localhost/', 'http://www.yardsaleth.com/') 
 WHERE post_content LIKE '%localhost%';
 
 UPDATE wp_posts 
-SET guid = REPLACE(guid, 'http://127.0.0.1/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET guid = REPLACE(guid, 'http://127.0.0.1/', 'http://www.yardsaleth.com/') 
 WHERE guid LIKE '%127.0.0.1%';
 
 UPDATE wp_posts 
-SET guid = REPLACE(guid, 'http://127.0.0.1:8000/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET guid = REPLACE(guid, 'http://127.0.0.1:8000/', 'http://www.yardsaleth.com/') 
 WHERE guid LIKE '%127.0.0.1:8000%';
 
 UPDATE wp_posts 
-SET guid = REPLACE(guid, 'http://localhost/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET guid = REPLACE(guid, 'http://localhost/', 'http://www.yardsaleth.com/') 
 WHERE guid LIKE '%localhost%';
 
 -- 5. แก้ไข URLs ใน wp_postmeta
 UPDATE wp_postmeta 
-SET meta_value = REPLACE(meta_value, 'http://127.0.0.1/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET meta_value = REPLACE(meta_value, 'http://127.0.0.1/', 'http://www.yardsaleth.com/') 
 WHERE meta_value LIKE '%127.0.0.1%';
 
 UPDATE wp_postmeta 
-SET meta_value = REPLACE(meta_value, 'http://127.0.0.1:8000/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET meta_value = REPLACE(meta_value, 'http://127.0.0.1:8000/', 'http://www.yardsaleth.com/') 
 WHERE meta_value LIKE '%127.0.0.1:8000%';
 
 UPDATE wp_postmeta 
-SET meta_value = REPLACE(meta_value, 'http://localhost/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET meta_value = REPLACE(meta_value, 'http://localhost/', 'http://www.yardsaleth.com/') 
 WHERE meta_value LIKE '%localhost%';
 
 -- 6. แก้ไข URLs ใน wp_usermeta
 UPDATE wp_usermeta 
-SET meta_value = REPLACE(meta_value, 'http://127.0.0.1/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET meta_value = REPLACE(meta_value, 'http://127.0.0.1/', 'http://www.yardsaleth.com/') 
 WHERE meta_value LIKE '%127.0.0.1%';
 
 UPDATE wp_usermeta 
-SET meta_value = REPLACE(meta_value, 'http://127.0.0.1:8000/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET meta_value = REPLACE(meta_value, 'http://127.0.0.1:8000/', 'http://www.yardsaleth.com/') 
 WHERE meta_value LIKE '%127.0.0.1:8000%';
 
 UPDATE wp_usermeta 
-SET meta_value = REPLACE(meta_value, 'http://localhost/', 'http://yardsalethailand-nuxt-8p0ykj-f4d600-157-85-98-150.traefik.me/') 
+SET meta_value = REPLACE(meta_value, 'http://localhost/', 'http://www.yardsaleth.com/') 
 WHERE meta_value LIKE '%localhost%';
 
 -- 7. ตรวจสอบผลลัพธ์
