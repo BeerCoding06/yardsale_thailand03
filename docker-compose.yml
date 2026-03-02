@@ -1,24 +1,33 @@
+# Docker Compose for Dokploy (https://dokploy.com)
+# ผูกโดเมน www.yardsaleth.com ใน Dokploy หรือใช้ labels ด้านล่าง
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile.prod
+    # ไม่ต้อง expose port ถ้าใช้แค่ Traefik (Dokploy route ผ่าน domain)
     ports:
       - "3000:3000"
 
+    networks:
+      - dokploy-network
+
     labels:
-      # Traefik Configuration
+      # ให้ Traefik ของ Dokploy ใช้ network นี้
+      - "traefik.docker.network=dokploy-network"
       - "traefik.enable=true"
-      # Main app: www.yardsaleth.com -> Nuxt on port 3000
-      - "traefik.http.routers.app.rule=Host(`www.yardsaleth.com`)"
-      - "traefik.http.routers.app.entrypoints=web"
-      - "traefik.http.routers.app.service=app"
-      - "traefik.http.services.app.loadbalancer.server.port=3000"
-      # Redirect yardsaleth.com -> www.yardsaleth.com (avoids 404 when opening without www)
-      - "traefik.http.routers.app-redirect.rule=Host(`yardsaleth.com`)"
-      - "traefik.http.routers.app-redirect.entrypoints=web"
-      - "traefik.http.routers.app-redirect.service=app"
-      - "traefik.http.routers.app-redirect.middlewares=redirect-to-www"
+      # หลัก: https://www.yardsaleth.com -> Nuxt port 3000, HTTPS + Let's Encrypt
+      - "traefik.http.routers.yardsaleth-app.rule=Host(`www.yardsaleth.com`)"
+      - "traefik.http.routers.yardsaleth-app.entrypoints=websecure"
+      - "traefik.http.routers.yardsaleth-app.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.yardsaleth-app.service=yardsaleth-app"
+      - "traefik.http.services.yardsaleth-app.loadbalancer.server.port=3000"
+      # redirect yardsaleth.com -> https://www.yardsaleth.com
+      - "traefik.http.routers.yardsaleth-redirect.rule=Host(`yardsaleth.com`)"
+      - "traefik.http.routers.yardsaleth-redirect.entrypoints=websecure"
+      - "traefik.http.routers.yardsaleth-redirect.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.yardsaleth-redirect.service=yardsaleth-app"
+      - "traefik.http.routers.yardsaleth-redirect.middlewares=redirect-to-www"
       - "traefik.http.middlewares.redirect-to-www.redirectregex.permanent=true"
       - "traefik.http.middlewares.redirect-to-www.redirectregex.regex=^https?://yardsaleth.com/(.*)"
       - "traefik.http.middlewares.redirect-to-www.redirectregex.replacement=https://www.yardsaleth.com/$${1}"
@@ -55,3 +64,7 @@ services:
     volumes:
       # Mount project root
       - .:/app
+
+networks:
+  dokploy-network:
+    external: true
