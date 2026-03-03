@@ -2,10 +2,12 @@
 // Fetch categories via PHP API endpoint
 
 import { executePhpScript } from '../utils/php-executor';
+import { rewriteWpUrlsInObject } from '../utils/rewrite-wp-urls';
 
 export default cachedEventHandler(
   async (event) => {
     try {
+      const config = useRuntimeConfig();
       const query = getQuery(event);
       
       // Build query params for PHP script
@@ -55,7 +57,10 @@ export default cachedEventHandler(
         };
       }
       
-      return data;
+      // Rewrite WP image URLs to /wordpress proxy (fix mixed content + broken images)
+      const wpBase = config.wpBaseUrl || 'http://157.85.98.150:8080';
+      const siteBase = config.baseUrl || 'https://www.yardsaleth.com';
+      return rewriteWpUrlsInObject(data, wpBase, siteBase);
     } catch (error: any) {
       console.error('[categories] Error:', error.message || error);
       return {

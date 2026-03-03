@@ -33,15 +33,17 @@ export default defineEventHandler(async (event) => {
         : undefined,
     });
     
-    // Get response body
-    const body = await response.text();
+    // Get response body (use arrayBuffer for images/binary)
+    const contentType = response.headers.get('content-type') || '';
+    const isBinary = /^image\//.test(contentType) || contentType.includes('octet-stream');
+    const body = isBinary ? await response.arrayBuffer() : await response.text();
     
     // Set response headers
     response.headers.forEach((value, key) => {
       setHeader(event, key, value);
     });
     
-    // Return response
+    // Return response (binary for images so they display correctly)
     return body;
   } catch (error: any) {
     console.error('[wordpress-proxy] Error:', error);

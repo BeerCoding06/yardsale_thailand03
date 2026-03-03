@@ -1,9 +1,12 @@
 // server/api/products.get.ts
 // Fetch products via PHP API endpoint
 
+import { rewriteWpUrlsInObject } from '../utils/rewrite-wp-urls';
+
 export default cachedEventHandler(
   async (event) => {
     try {
+      const config = useRuntimeConfig();
       const query = getQuery(event);
       
       // Parse pagination from cursor
@@ -48,7 +51,10 @@ export default cachedEventHandler(
         method: 'GET',
       });
       
-      return data;
+      // Rewrite WP image URLs to /wordpress proxy (fix mixed content + broken images)
+      const wpBase = config.wpBaseUrl || 'http://157.85.98.150:8080';
+      const siteBase = config.baseUrl || 'https://www.yardsaleth.com';
+      return rewriteWpUrlsInObject(data, wpBase, siteBase);
     } catch (error: any) {
       console.error('[products] Error:', error);
       return {

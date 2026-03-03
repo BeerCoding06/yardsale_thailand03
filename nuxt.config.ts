@@ -74,9 +74,8 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-    // Disable prerender during Docker build to avoid errors
-    // All routes use SSR or client-side rendering
-    "/": { ssr: true, prerender: false },
+    // หน้าแรก: prerender ด้วยเมื่อ build Docker เพื่อให้โฮสต์หา index ได้ (ลดโอกาส 404)
+    "/": { ssr: true, prerender: isDockerBuild },
     "/categories": { ssr: true, prerender: false },
     "/favorites": { ssr: true, prerender: false },
     // Dynamic routes - use SSR instead of prerender to avoid payload file issues
@@ -95,8 +94,9 @@ export default defineNuxtConfig({
 
   nitro: {
     prerender: { 
-      routes: [], // Disable prerender during Docker build
-      crawlLinks: false, // Disable crawlLinks during Docker build to avoid errors
+      // เมื่อ build Docker ให้ prerender หน้าแรกเพื่อ fallback
+      routes: isDockerBuild ? ['/'] : [],
+      crawlLinks: false,
     },
   },
   

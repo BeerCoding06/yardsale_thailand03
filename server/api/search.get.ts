@@ -2,10 +2,12 @@
 // Search products via PHP API endpoint
 
 import { executePhpScript } from '../utils/php-executor';
+import { rewriteWpUrlsInObject } from '../utils/rewrite-wp-urls';
 
 export default cachedEventHandler(
   async (event) => {
     try {
+      const config = useRuntimeConfig();
       const query = getQuery(event);
       
       const search = (query.search as string) || '';
@@ -30,7 +32,9 @@ export default cachedEventHandler(
         method: 'GET',
       });
       
-      return data;
+      const wpBase = config.wpBaseUrl || 'http://157.85.98.150:8080';
+      const siteBase = config.baseUrl || 'https://www.yardsaleth.com';
+      return rewriteWpUrlsInObject(data, wpBase, siteBase);
     } catch (error: any) {
       console.error('[search] Error:', error.message || error);
       return { products: { nodes: [] } };
