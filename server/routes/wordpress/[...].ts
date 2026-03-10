@@ -34,16 +34,19 @@ export default defineEventHandler(async (event) => {
     });
     
     // Get response body (use arrayBuffer for images/binary)
+    // fetch() in Node decompresses automatically, so body is already decoded
     const contentType = response.headers.get('content-type') || '';
     const isBinary = /^image\//.test(contentType) || contentType.includes('octet-stream');
     const body = isBinary ? await response.arrayBuffer() : await response.text();
     
-    // Set response headers
+    // Copy response headers but REMOVE content-encoding (and content-length).
+    // We send the decoded body, so browser must not try to decompress again → fixes ERR_CONTENT_DECODING_FAILED
+    const skipHeaders = ['content-encoding', 'content-length', 'transfer-encoding'];
     response.headers.forEach((value, key) => {
+      if (skipHeaders.includes(key.toLowerCase())) return;
       setHeader(event, key, value);
     });
     
-    // Return response (binary for images so they display correctly)
     return body;
   } catch (error: any) {
     console.error('[wordpress-proxy] Error:', error);
