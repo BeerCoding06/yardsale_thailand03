@@ -33,22 +33,15 @@ $queryParams = [
 // WooCommerce API v3 may not support hide_empty parameter, so we'll skip it
 // Categories will be filtered client-side if needed
 
-// Use WooCommerce API v3 for categories
-$url = buildWcApiUrl('wc/v3/products/categories', $queryParams, true); // Use Basic Auth
+// Use WooCommerce API v3 for categories (consumer_key + consumer_secret ใน query)
+$url = buildWcApiUrl('wc/v3/products/categories', $queryParams, false);
 
-// Log the URL
+// Log the URL (ซ่อน secret)
 $logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
 error_log('[getCategories] Fetching from WooCommerce API: ' . $logUrl);
-error_log('[getCategories] WP_BASIC_AUTH configured: ' . (!empty(WP_BASIC_AUTH) ? 'Yes (length: ' . strlen(WP_BASIC_AUTH) . ')' : 'No - This may cause authentication failure'));
 
-// Check if WP_BASIC_AUTH is configured
-if (empty(WP_BASIC_AUTH)) {
-    error_log('[getCategories] WARNING: WP_BASIC_AUTH is not configured. WooCommerce API may fail.');
-    error_log('[getCategories] Please set WP_BASIC_AUTH environment variable (format: username:password)');
-}
-
-// Fetch from WooCommerce API (with Basic Auth)
-$result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
+// Fetch from WooCommerce API (ใช้ consumer key/secret)
+$result = fetchWooCommerceApi($url, 'GET', null, false);
 
 if (!$result['success']) {
     $errorMsg = $result['error'] ?? 'Failed to fetch categories';
