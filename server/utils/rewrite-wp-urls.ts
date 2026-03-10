@@ -1,7 +1,6 @@
 /**
- * Rewrite WordPress media URLs to go through our domain (/wordpress proxy).
- * Fixes broken images: WP returns http://157.85.98.150:8080/... which causes
- * mixed content (HTTPS page loading HTTP) and may be blocked by browser.
+ * Rewrite WordPress media URLs to the public CMS URL (e.g. https://cms.yardsaleth.com).
+ * Result: https://cms.yardsaleth.com/wp-content/uploads/... (โหลดตรงจาก CMS ไม่ผ่าน proxy)
  */
 
 export function rewriteWpUrlsInObject(
@@ -9,7 +8,7 @@ export function rewriteWpUrlsInObject(
   wpBase: string,
   siteBase: string
 ): unknown {
-  const proxyBase = siteBase.replace(/\/$/, '') + '/wordpress';
+  const proxyBase = siteBase.replace(/\/$/, '');
   const wpBaseNorm = wpBase.replace(/\/$/, '');
 
   function rewrite(value: unknown): unknown {
