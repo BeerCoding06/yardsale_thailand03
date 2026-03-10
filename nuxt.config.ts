@@ -66,6 +66,7 @@ export default defineNuxtConfig({
     // WordPress/CMS - can be set via .env file
     wpBaseUrl: process.env.WP_BASE_URL || 'https://cms.yardsaleth.com',
     wpProxyPublicUrl: process.env.WP_PROXY_PUBLIC_URL || 'https://cms.yardsaleth.com',
+    wpMediaUrl: process.env.WP_MEDIA_URL || process.env.WP_PROXY_PUBLIC_URL || 'https://cms.yardsaleth.com',
     wpBasicAuth: process.env.WP_BASIC_AUTH || '',
     wpConsumerKey: process.env.WP_CONSUMER_KEY || '',
     wpConsumerSecret: process.env.WP_CONSUMER_SECRET || '',

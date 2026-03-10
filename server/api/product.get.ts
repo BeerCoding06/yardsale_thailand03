@@ -41,9 +41,9 @@ export default cachedEventHandler(
         return { product: null };
       }
       
-      // Rewrite WP image URLs to /wordpress proxy (fix mixed content + broken images)
+      // Rewrite WP image URLs to public CMS/media URL (fix mixed content + broken images)
       const wpBase = config.wpBaseUrl || 'http://157.85.98.150:8080';
-      const siteBase = config.baseUrl || 'https://www.yardsaleth.com';
+      const siteBase = config.wpMediaUrl || config.wpProxyPublicUrl || config.baseUrl || 'https://cms.yardsaleth.com';
       return rewriteWpUrlsInObject(data, wpBase, siteBase);
     } catch (error: any) {
       console.error('[product] Error executing PHP script:', error.message || error);

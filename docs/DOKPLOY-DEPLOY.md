@@ -71,3 +71,32 @@
 ### เครือข่าย
 
 ถ้า Dokploy รันบน **คนละเครื่อง** กับ 157.85.98.150 ต้องให้เครื่อง Dokploy **ออกเน็ตไปที่ IP นั้นได้** (เปิด firewall / security group สำหรับพอร์ต 8080 และ 3306 จาก IP ของ Dokploy ไปที่ 157.85.98.150)
+
+---
+
+## 6. Environment สำหรับ Dockploy (copy-paste ได้)
+
+ใส่ใน **Environment** ของ deployment ใน Dockploy:
+
+```env
+# WordPress Configuration
+WP_BASE_URL=https://cms.yardsaleth.com
+WP_URL=https://cms.yardsaleth.com
+WP_BASIC_AUTH=paradon_pokpingmaung:W36JN6v85sOY5isnYh86hLLK
+WP_CONSUMER_KEY=ck_393e8b45cdee374a8c809fda940251ed7633da5d
+WP_CONSUMER_SECRET=cs_ba77dd35988ca0fab0f1652410e9001c12f60245
+WP_PROXY_PUBLIC_URL=https://cms.yardsaleth.com
+WP_MEDIA_URL=https://cms.yardsaleth.com
+
+# Nuxt Frontend URL
+BASE_URL=https://www.yardsaleth.com
+
+# Database
+DB_HOST=157.85.98.150:3306
+DB_NAME=nuxtcommerce_db
+DB_USER=root
+DB_PASSWORD=
+```
+
+- **WP_MEDIA_URL** ใช้เป็น base URL สำหรับรูปจาก WordPress (ถ้าไม่ตั้ง จะใช้ `WP_PROXY_PUBLIC_URL`)
+- อย่า commit ค่า **WP_BASIC_AUTH** / **WP_CONSUMER_*** ลง git; ใส่เฉพาะใน Environment ของ Dockploy

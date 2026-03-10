@@ -33,7 +33,7 @@ export default cachedEventHandler(
       });
       
       const wpBase = config.wpBaseUrl || 'http://157.85.98.150:8080';
-      const siteBase = config.baseUrl || 'https://www.yardsaleth.com';
+      const siteBase = config.wpMediaUrl || config.wpProxyPublicUrl || config.baseUrl || 'https://cms.yardsaleth.com';
       return rewriteWpUrlsInObject(data, wpBase, siteBase);
     } catch (error: any) {
       console.error('[search] Error:', error.message || error);
