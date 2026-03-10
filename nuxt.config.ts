@@ -63,8 +63,9 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     baseUrl: process.env.BASE_URL || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000" : "http://www.yardsaleth.com"),
-    // WordPress base URL - can be set via .env file
-    wpBaseUrl: process.env.WP_BASE_URL || 'http://157.85.98.150:8080',
+    // WordPress/CMS - can be set via .env file
+    wpBaseUrl: process.env.WP_BASE_URL || 'https://cms.yardsaleth.com',
+    wpProxyPublicUrl: process.env.WP_PROXY_PUBLIC_URL || 'https://cms.yardsaleth.com',
     wpBasicAuth: process.env.WP_BASIC_AUTH || '',
     wpConsumerKey: process.env.WP_CONSUMER_KEY || '',
     wpConsumerSecret: process.env.WP_CONSUMER_SECRET || '',

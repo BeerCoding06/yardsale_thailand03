@@ -3,7 +3,7 @@
 
 export default defineEventHandler(async (event) => {
   // Get WordPress base URL
-  const wpBaseUrl = process.env.WP_BASE_URL || 'http://157.85.98.150:8080';
+  const wpBaseUrl = process.env.WP_BASE_URL || 'https://cms.yardsaleth.com';
   
   // Fix path handling - remove /wordpress prefix
   let path = event.path.replace(/^\/wordpress/, '') || '/';
