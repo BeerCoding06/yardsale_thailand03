@@ -83,6 +83,7 @@ function getRequestBody() {
 }
 
 // WooCommerce API credentials
+// ต้องเป็น URL ของ WordPress จริง (เช่น https://cms.yardsaleth.com) ไม่ใช่ proxy ฝั่ง Nuxt (เช่น .../wordpress)
 define('WC_BASE_URL', getenv('WP_BASE_URL') ?: 'https://cms.yardsaleth.com');
 define('WC_CONSUMER_KEY', getenv('WP_CONSUMER_KEY') ?: 'ck_c079fe80d163d7fd5d1f0bccfe2d198ece614ca4');
 define('WC_CONSUMER_SECRET', getenv('WP_CONSUMER_SECRET') ?: 'cs_787ef53ac512d8cb7a80aec2bffd73476a317afe');

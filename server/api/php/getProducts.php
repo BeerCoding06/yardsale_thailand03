@@ -47,9 +47,9 @@ if ($category) {
         // WooCommerce API search parameter may not work well, so fetch all and filter
         $categoriesUrl = buildWcApiUrl('wc/v3/products/categories', [
             'per_page' => 100
-        ], true); // Use Basic Auth
+        ], false); // consumer_key/secret
         
-        $categoriesResult = fetchWooCommerceApi($categoriesUrl, 'GET', null, true);
+        $categoriesResult = fetchWooCommerceApi($categoriesUrl, 'GET', null, false);
         
         if ($categoriesResult['success'] && is_array($categoriesResult['data'])) {
             $searchCategory = strtolower(trim($category));
@@ -117,20 +117,17 @@ if ($categoryId) {
     }
 }
 
-// Build WooCommerce API URL (use Basic Auth instead of query params)
-// Postman shows that Basic Auth works, so we'll use that
-$url = buildWcApiUrl('wc/v3/products', $params, true); // true = use Basic Auth
+// Build WooCommerce API URL (consumer_key + consumer_secret ใน query)
+$url = buildWcApiUrl('wc/v3/products', $params, false);
 
 // Ensure URL doesn't have trailing slash (WooCommerce API is sensitive to this)
 $url = rtrim($url, '/');
 
-// Log the URL (without secret for security)
 $logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
 error_log('[getProducts] Fetching from WooCommerce API: ' . $logUrl);
-error_log('[getProducts] Using Basic Auth: ' . (!empty(WP_BASIC_AUTH) ? 'Yes' : 'No'));
 
-// Fetch from WooCommerce API (use Basic Auth like Postman)
-$result = fetchWooCommerceApi($url, 'GET', null, true); // true = use Basic Auth
+// Fetch from WooCommerce API (consumer key/secret)
+$result = fetchWooCommerceApi($url, 'GET', null, false);
 
 if (!$result['success']) {
     $errorMsg = 'Failed to fetch products';
