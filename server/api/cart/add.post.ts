@@ -18,12 +18,19 @@ export default defineEventHandler(async (event) => {
     
     console.log('[cart/add] Executing PHP script: addToCart.php', { productId });
     
-    // Execute PHP script directly using PHP CLI
+    const config = useRuntimeConfig();
+    const phpEnv: Record<string, string> = {};
+    if (config.wpBaseUrl) phpEnv.WP_BASE_URL = config.wpBaseUrl;
+    if (config.wpBasicAuth) phpEnv.WP_BASIC_AUTH = config.wpBasicAuth;
+    if (config.wpConsumerKey) phpEnv.WP_CONSUMER_KEY = config.wpConsumerKey;
+    if (config.wpConsumerSecret) phpEnv.WP_CONSUMER_SECRET = config.wpConsumerSecret;
+    
     const data = await executePhpScript({
       script: 'addToCart.php',
       queryParams: {},
       method: 'POST',
       body: { productId },
+      env: phpEnv,
     });
     
     return data;

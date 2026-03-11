@@ -44,12 +44,12 @@ if (!$productId) {
     sendErrorResponse('productId is required', 400);
 }
 
-// Fetch product from WooCommerce API
-$url = buildWcApiUrl("wc/v3/products/$productId", [], true); // Use Basic Auth
+// Fetch product from WooCommerce API (ใช้ consumer_key/consumer_secret เหมือน getProduct เพื่อไม่เจอ 401)
+$url = buildWcApiUrl("wc/v3/products/$productId", [], false);
 $logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
 error_log('[addToCart] Fetching product: ' . $logUrl);
 
-$result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
+$result = fetchWooCommerceApi($url, 'GET', null, false);
 
 if (!$result['success']) {
     $errorMsg = 'Product not found';
