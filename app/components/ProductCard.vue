@@ -8,15 +8,21 @@ defineProps({
     required: true,
   },
 });
+
+// ลิงก์ไปหน้ารายละเอียด product ถ้ามี id ส่ง ?id= เพื่อให้ API ดึงด้วย ID (แม่นยำกว่า slug/sku)
+function productLink(product) {
+  const path = `/product/${product.slug}-${product.sku?.split?.('-')[0] || ''}`;
+  const id = product.databaseId ?? product.id;
+  const query = id ? { id: String(id) } : {};
+  return localePath(path) + (Object.keys(query).length ? '?' + new URLSearchParams(query).toString() : '');
+}
 </script>
 
 <template>
   <div v-for="product in products" :key="product.id || product.sku">
     <article>
       <NuxtLink
-        :to="
-          localePath(`/product/${product.slug}-${product.sku?.split?.('-')[0]}`)
-        "
+        :to="productLink(product)"
         class="group select-none"
       >
         <div class="cursor-pointer transition ease-[ease] duration-300">

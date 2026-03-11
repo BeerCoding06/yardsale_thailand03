@@ -47,17 +47,28 @@ const checkingBuyer = ref(false);
 async function fetchProduct() {
   const s = slug.value;
   const k = sku.value;
-  if (!s && !k) {
-    productResult.value = {};
-    isLoading.value = false;
-    return;
+  const queryId = route.query.id;
+  const hasId = queryId && /^\d+$/.test(String(queryId));
+  if (!hasId && !s && !k) {
+    const rawId = idParam.value;
+    if (!rawId || (!/^\d+$/.test(String(rawId)) && !s && !k)) {
+      productResult.value = {};
+      isLoading.value = false;
+      return;
+    }
   }
   isLoading.value = true;
   try {
-    const query = { slug: s || undefined, sku: k || undefined };
-    const rawId = idParam.value;
-    if (rawId && /^\d+$/.test(String(rawId))) query.id = Number(rawId);
-    else if (!s && k && /^\d+$/.test(k)) query.id = Number(k);
+    const query = {};
+    if (hasId) {
+      query.id = Number(queryId);
+    } else {
+      if (s) query.slug = s;
+      if (k) query.sku = k;
+      const rawId = idParam.value;
+      if (rawId && /^\d+$/.test(String(rawId))) query.id = Number(rawId);
+      else if (!s && k && /^\d+$/.test(k)) query.id = Number(k);
+    }
     const data = await $fetch('/api/product', { query });
     productResult.value = data?.product || {};
     hasBuyer.value = false;
@@ -86,8 +97,8 @@ onMounted(() => {
   fetchProduct();
 });
 
-// Refetch เมื่อเปลี่ยน product (เปลี่ยน URL)
-watch([slug, sku], () => {
+// Refetch เมื่อเปลี่ยน product (เปลี่ยน URL หรือ query.id)
+watch([slug, sku, () => route.query.id], () => {
   fetchProduct();
 });
 
