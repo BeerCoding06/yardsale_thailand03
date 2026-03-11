@@ -15,10 +15,8 @@ RUN apk add --no-cache \
 COPY package.json ./
 COPY .npmrc* ./
 
-# Install dependencies (corepack will use version from packageManager field)
-# pnpm will resolve all dependencies and create a new lockfile
-# Use --shamefully-hoist to work around peer dependency issues
-RUN corepack pnpm install --shamefully-hoist
+# Install dependencies (ไม่รัน postinstall ที่นี่ เพราะยังไม่มี nuxt.config / app/)
+RUN corepack pnpm install --shamefully-hoist --ignore-scripts
 
 # Stage 2: Build
 FROM node:20-alpine AS builder
@@ -48,13 +46,13 @@ ENV DB_USER=${DB_USER}
 ENV BASE_URL=${BASE_URL}
 # Note: DB_PASSWORD should be set via docker-compose.yml or runtime environment, not in Dockerfile
 
-# Prepare build environment (generate types)
+# Prepare build environment (generate types; may fail if app not fully copied yet)
 RUN pnpm prepare || true
 
-# Build the application
-# Disable telemetry - Database connection is not needed during build
-# Build will work even without database connection due to error handling
-RUN sh -c 'NUXT_TELEMETRY_DISABLED=1 pnpm build || (echo "=== Build failed ===" && exit 1)'
+# Build the application (เพิ่ม memory สำหรับ build; ไม่ซ่อน error จริง)
+ENV NUXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+RUN pnpm build
 
 # Stage 3: Production - Nuxt with PHP CLI
 FROM node:20-alpine AS runner
