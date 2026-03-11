@@ -17,10 +17,26 @@ const setThumbsSwiper = (swiper) => {
 const modules = [Navigation, Pagination, Thumbs];
 
 const route = useRoute();
-const id = computed(() => route.params.id);
-const parts = id.value.split("-");
-const sku = parts.pop();
-const slug = parts.join("-");
+
+// Parse slug + sku จาก [id] (รูปแบบ slug-sku เช่น my-product-12345)
+const idParam = computed(() => {
+  const p = route.params.id;
+  return Array.isArray(p) ? p[0] : (p ?? '');
+});
+const slug = computed(() => {
+  const id = idParam.value;
+  if (!id || typeof id !== 'string') return '';
+  const parts = id.split('-');
+  if (parts.length < 2) return id; // มีแค่ตัวเดียว ส่งเป็น slug หรือ id
+  const skuPart = parts.pop();
+  return parts.join('-');
+});
+const sku = computed(() => {
+  const id = idParam.value;
+  if (!id || typeof id !== 'string') return '';
+  const parts = id.split('-');
+  return parts.length >= 2 ? parts.pop() : '';
+});
 
 const productResult = ref({});
 const selectedVariation = ref(null);
@@ -28,23 +44,31 @@ const isLoading = ref(true);
 const hasBuyer = ref(false);
 const checkingBuyer = ref(false);
 
-onMounted(async () => {
+async function fetchProduct() {
+  const s = slug.value;
+  const k = sku.value;
+  if (!s && !k) {
+    productResult.value = {};
+    isLoading.value = false;
+    return;
+  }
+  isLoading.value = true;
   try {
-    const data = await $fetch("/api/product", {
-      query: { slug, sku },
-    });
-    productResult.value = data.product || {};
-    
-    // Check if product has been purchased
+    const query = { slug: s || undefined, sku: k || undefined };
+    const rawId = idParam.value;
+    if (rawId && /^\d+$/.test(String(rawId))) query.id = Number(rawId);
+    else if (!s && k && /^\d+$/.test(k)) query.id = Number(k);
+    const data = await $fetch('/api/product', { query });
+    productResult.value = data?.product || {};
+    hasBuyer.value = false;
     if (productResult.value.databaseId) {
       checkingBuyer.value = true;
       try {
-        const buyerData = await $fetch("/api/check-product-has-orders", {
+        const buyerData = await $fetch('/api/check-product-has-orders', {
           query: { product_id: productResult.value.databaseId },
         });
-        hasBuyer.value = buyerData.has_orders || false;
-      } catch (error) {
-        console.error('[product] Error checking buyer:', error);
+        hasBuyer.value = buyerData?.has_orders ?? false;
+      } catch {
         hasBuyer.value = false;
       } finally {
         checkingBuyer.value = false;
@@ -56,6 +80,15 @@ onMounted(async () => {
   } finally {
     isLoading.value = false;
   }
+}
+
+onMounted(() => {
+  fetchProduct();
+});
+
+// Refetch เมื่อเปลี่ยน product (เปลี่ยน URL)
+watch([slug, sku], () => {
+  fetchProduct();
 });
 
 const product = computed(() => productResult.value);
