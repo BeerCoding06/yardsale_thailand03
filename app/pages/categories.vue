@@ -6,6 +6,8 @@ const localePath = useLocalePath();
 
 const categoriesData = ref([]);
 const canonical = url.origin + url.pathname;
+const config = useRuntimeConfig();
+const ogImageLogo = `${config.public?.baseUrl || url.origin}/logo.svg`;
 
 useSeoMeta({
   title: "Categories",
@@ -17,8 +19,8 @@ useSeoMeta({
   keywords: `categories, ${name}`,
   twitterTitle: "Categories",
   twitterDescription: `Browse product categories on ${name}.`,
-  ogImage: "https://commerce.nuxt.dev/social-card.jpg",
-  twitterImage: "https://commerce.nuxt.dev/social-card.jpg",
+  ogImage: ogImageLogo,
+  twitterImage: ogImageLogo,
 });
 
 onMounted(async () => {

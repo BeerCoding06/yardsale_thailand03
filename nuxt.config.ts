@@ -72,6 +72,7 @@ export default defineNuxtConfig({
     wpConsumerSecret: process.env.WP_CONSUMER_SECRET || '',
     public: {
       version: pkg.version,
+      baseUrl: process.env.BASE_URL || 'https://www.yardsaleth.com',
     },
   },
 

@@ -18,12 +18,16 @@ export default defineEventHandler(async (event) => {
     console.log("[login] Executing PHP script: login.php");
     console.log("[login] Username:", username);
 
-    // Execute PHP script directly using PHP CLI
+    const config = useRuntimeConfig();
+    const phpEnv: Record<string, string> = {};
+    if (config.wpBaseUrl) phpEnv.WP_BASE_URL = config.wpBaseUrl;
+
     const data = await executePhpScript({
       script: 'login.php',
       queryParams: {},
       method: 'POST',
       body: { username, password },
+      env: phpEnv,
     });
 
     console.log("[login] PHP script response:", JSON.stringify(data).substring(0, 500));

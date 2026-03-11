@@ -33,11 +33,14 @@ if ($method !== 'POST') {
     exit();
 }
 
-// Load config
+// Load config (เพื่อใช้ getRequestBody() และ WP_BASE_URL)
 require_once __DIR__ . '/config.php';
 
-// Get request body (CLI + Web safe)
-$input = getenv('REQUEST_BODY') ?: file_get_contents('php://input');
+// Get request body (CLI: REQUEST_BODY env จาก Node / Web: php://input)
+$input = getRequestBody();
+if (empty($input) && getenv('REQUEST_BODY')) {
+    $input = getenv('REQUEST_BODY');
+}
 error_log('[login] Request body length: ' . strlen($input));
 
 // Parse JSON input
@@ -76,13 +79,13 @@ $password = $body['password'];
 
 error_log('[login] Attempting login for username: ' . $username);
 
-// WordPress REST API endpoint
-// Try JWT Authentication first, then fallback to other methods
-$wpBaseUrl = getenv('WP_BASE_URL') ?: 'http://157.85.98.150:8080';
+// WordPress REST API endpoint (ใช้ WP_BASE_URL จาก env ที่ Nuxt ส่งมา)
+$wpBaseUrl = getenv('WP_BASE_URL') ?: (defined('WC_BASE_URL') ? WC_BASE_URL : 'https://cms.yardsaleth.com');
+$wpBaseUrl = rtrim($wpBaseUrl, '/');
 
 // Method 1: Try JWT Authentication plugin
-// JWT endpoint is at /wp-json/jwt-auth/v1/token (not /wordpress/wp-json/...)
-$jwtUrl = rtrim($wpBaseUrl, '/') . '/wp-json/jwt-auth/v1/token';
+// JWT endpoint: /wp-json/jwt-auth/v1/token หรือ /wp-json/simple-jwt-login/v1/auth
+$jwtUrl = $wpBaseUrl . '/wp-json/jwt-auth/v1/token';
 error_log('[login] Trying JWT Authentication: ' . $jwtUrl);
 
 $ch = curl_init($jwtUrl);
@@ -106,51 +109,48 @@ $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $curlError = curl_error($ch);
 curl_close($ch);
 
+$responseData = is_string($response) ? json_decode($response, true) : null;
+if (!is_array($responseData)) {
+    $responseData = [];
+}
+
 $wpUser = null;
 $jwtToken = null;
 
 // If JWT endpoint works (200), use it
-if ($httpCode === 200 && !$curlError) {
-    $responseData = json_decode($response, true);
-    error_log('[login] JWT response data: ' . json_encode($responseData));
-    
-    if (isset($responseData['token'])) {
-        $jwtToken = $responseData['token'];
-        
-        // JWT response format:
-        // {
-        //   "token": "...",
-        //   "user_email": "...",
-        //   "user_nicename": "...",
-        //   "user_display_name": "..."
-        // }
-        // We need to decode JWT token to get user ID from payload
-        // JWT format: header.payload.signature
-        $tokenParts = explode('.', $jwtToken);
-        $userId = null;
-        
-        if (count($tokenParts) >= 2) {
-            // Decode payload (base64url)
-            $payload = json_decode(base64_decode(strtr($tokenParts[1], '-_', '+/')), true);
+if ($httpCode === 200 && !$curlError && isset($responseData['token'])) {
+    $jwtToken = $responseData['token'];
+    error_log('[login] JWT response has token');
+
+    // Decode JWT payload for user ID (รองรับหลายรูปแบบ plugin)
+    $tokenParts = explode('.', $jwtToken);
+    $userId = null;
+    if (count($tokenParts) >= 2) {
+        $payload = json_decode(base64_decode(strtr($tokenParts[1], '-_', '+/')), true);
+        if (is_array($payload)) {
             if (isset($payload['data']['user']['id'])) {
                 $userId = $payload['data']['user']['id'];
+            } elseif (isset($payload['user']['id'])) {
+                $userId = $payload['user']['id'];
+            } elseif (isset($payload['user_id'])) {
+                $userId = $payload['user_id'];
+            } elseif (isset($payload['id'])) {
+                $userId = $payload['id'];
             }
         }
-        
-        // Build user data from JWT response
-        $wpUser = [
-            'id' => $userId ?: null,
-            'username' => $responseData['user_nicename'] ?? $username,
-            'email' => $responseData['user_email'] ?? $username,
-            'name' => $responseData['user_display_name'] ?? $responseData['user_nicename'] ?? $username,
-            'slug' => $responseData['user_nicename'] ?? '',
-            'roles' => ['subscriber'], // Default role, JWT doesn't return roles
-        ];
-        
-        error_log('[login] JWT Authentication successful. User ID: ' . ($userId ?: 'N/A'));
-    } else {
-        error_log('[login] JWT response missing token field');
     }
+
+    $wpUser = [
+        'id' => $userId,
+        'username' => $responseData['user_nicename'] ?? $responseData['username'] ?? $username,
+        'email' => $responseData['user_email'] ?? $username,
+        'name' => $responseData['user_display_name'] ?? $responseData['user_nicename'] ?? $username,
+        'slug' => $responseData['user_nicename'] ?? '',
+        'roles' => ['subscriber'],
+    ];
+    error_log('[login] JWT Authentication successful. User ID: ' . ($userId ?: 'N/A'));
+} elseif ($httpCode !== 200 && !empty($responseData)) {
+    error_log('[login] JWT returned ' . $httpCode . ': ' . json_encode($responseData));
 }
 
 // Method 2: If JWT failed, use database authentication with wp_check_password
@@ -348,9 +348,12 @@ if (!$wpUser) {
 }
 
 if (!$wpUser) {
-    $errorMessage = $responseData['message'] ?? $responseData['code'] ?? 'Invalid username or password';
+    $errorMessage = 'Invalid username or password';
+    if (is_array($responseData)) {
+        $errorMessage = $responseData['message'] ?? $responseData['msg'] ?? $responseData['code'] ?? $errorMessage;
+    }
     error_log('[login] Authentication failed: ' . $errorMessage);
-    
+
     http_response_code(401);
     echo json_encode([
         'success' => false,
@@ -362,9 +365,11 @@ if (!$wpUser) {
 
 error_log('[login] Authentication successful for user ID: ' . $wpUser['id']);
 
-// Build user data response
+// Build user data response (ส่งทั้ง id และ ID เพื่อให้ frontend ใช้ได้)
+$uid = $wpUser['id'] ?? null;
 $user_data = [
-    'id' => $wpUser['id'],
+    'id' => $uid,
+    'ID' => $uid,
     'username' => $wpUser['username'] ?? $wpUser['slug'] ?? '',
     'email' => $wpUser['email'] ?? '',
     'name' => $wpUser['name'] ?? $wpUser['display_name'] ?? '',
@@ -376,7 +381,7 @@ $user_data = [
     'profile_picture_url' => $wpUser['profile_picture_url'] ?? null,
 ];
 
-// Include JWT token if available
+// Include JWT token if available (ใช้เรียก orders, my-products ฯลฯ)
 if (isset($jwtToken)) {
     $user_data['token'] = $jwtToken;
 }

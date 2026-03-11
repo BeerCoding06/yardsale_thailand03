@@ -2,6 +2,8 @@
 <script setup lang="ts">
 const { site } = useAppConfig();
 const { name, description } = site;
+const config = useRuntimeConfig();
+const ogImageLogo = `${config.public?.baseUrl || 'https://www.yardsaleth.com'}/logo.svg`;
 
 useHead({
   htmlAttrs: { lang: "en" },
@@ -13,11 +15,11 @@ useSeoMeta({
   ogType: "website",
   ogSiteName: name,
   ogLocale: "en_US",
-  ogImage: "https://commerce.nuxt.dev/social-card.jpg",
+  ogImage: ogImageLogo,
   twitterCard: "summary_large_image",
   twitterSite: "@zhatlen",
   twitterCreator: "@zhatlen",
-  twitterImage: "https://commerce.nuxt.dev/social-card.jpg",
+  twitterImage: ogImageLogo,
   keywords: `${name}, ecommerce, nuxt, woocommerce`,
   viewport:
     "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover",

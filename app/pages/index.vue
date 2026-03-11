@@ -36,6 +36,8 @@ useHead(() => {
   }
 
   const canonicalUrl = canonical.value;
+  const config = useRuntimeConfig();
+  const ogImageLogo = `${config.public?.baseUrl || url.origin}/logo.svg`;
 
   return {
     title,
@@ -47,8 +49,8 @@ useHead(() => {
     keywords: Array.from(keywords).join(", "),
     twitterTitle: title,
     twitterDescription: description,
-    ogImage: "https://commerce.nuxt.dev/social-card.jpg",
-    twitterImage: "https://commerce.nuxt.dev/social-card.jpg",
+    ogImage: ogImageLogo,
+    twitterImage: ogImageLogo,
   };
 });
 

@@ -7,6 +7,8 @@ const url = useRequestURL();
 const localePath = useLocalePath();
 
 const canonical = url.origin + url.pathname;
+const config = useRuntimeConfig();
+const ogImageLogo = `${config.public?.baseUrl || url.origin}/logo.svg`;
 
 useSeoMeta({
   title: "Favorites",
@@ -18,8 +20,8 @@ useSeoMeta({
   keywords: `favorites, wishlist, ${siteName}`,
   twitterTitle: "Favorites",
   twitterDescription: `Your favorite products saved on ${siteName}.`,
-  ogImage: "https://commerce.nuxt.dev/social-card.jpg",
-  twitterImage: "https://commerce.nuxt.dev/social-card.jpg",
+  ogImage: ogImageLogo,
+  twitterImage: ogImageLogo,
   robots: "noindex, nofollow",
 });
 </script>
