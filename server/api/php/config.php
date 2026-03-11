@@ -40,13 +40,12 @@ if (php_sapi_name() === 'cli') {
 function getRequestBody() {
     // If running via CLI, try to read from stdin or environment variable
     if (php_sapi_name() === 'cli') {
-        // First try environment variable (set by php-executor.ts)
-        if (!empty($_SERVER['REQUEST_BODY'])) {
-            $body = $_SERVER['REQUEST_BODY'];
-            error_log('[getRequestBody] Read from REQUEST_BODY env var, length: ' . strlen($body));
+        // First try REQUEST_BODY from env (set by php-executor.ts) - $_SERVER may not have it on all PHP/OS
+        $body = (!empty($_SERVER['REQUEST_BODY'])) ? $_SERVER['REQUEST_BODY'] : (getenv('REQUEST_BODY') ?: '');
+        if ($body !== '') {
+            error_log('[getRequestBody] Read from REQUEST_BODY, length: ' . strlen($body));
             return $body;
         }
-        
         // Fallback: try to read from stdin
         $input = '';
         $handle = @fopen('php://stdin', 'r');

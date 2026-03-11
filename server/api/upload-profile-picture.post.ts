@@ -6,7 +6,7 @@ import * as wpUtils from '../utils/wp';
 export default defineEventHandler(async (event) => {
   try {
     const formData = await readFormData(event);
-    const file = formData.get("file") as File;
+    const file = (formData.get("file") ?? formData.get("profile_picture")) as File | null;
     const userId = formData.get("user_id") as string | null;
 
     if (!file) {
@@ -93,6 +93,9 @@ export default defineEventHandler(async (event) => {
     });
 
     return {
+      success: true,
+      attachment_id: mediaData.id,
+      image_url: mediaData.source_url,
       id: mediaData.id,
       src: mediaData.source_url,
       url: mediaData.source_url,

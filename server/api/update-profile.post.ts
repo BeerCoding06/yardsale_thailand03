@@ -87,6 +87,7 @@ export default defineEventHandler(async (event) => {
     console.log("[update-profile] Successfully updated profile");
 
     return {
+      success: true,
       user: safeData
     };
   } catch (error: any) {
