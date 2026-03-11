@@ -36,17 +36,18 @@ if ($id) {
 }
 
 // Try to find product by slug using WooCommerce API (เมื่อไม่มี id หรือยังไม่เจอ)
+// ใช้ consumer_key/consumer_secret เหมือน getProducts เพื่อไม่เจอ 401
 if (!$productId && $slug) {
     $url = buildWcApiUrl('wc/v3/products', [
         'slug' => $slug,
         'per_page' => 1,
         'status' => 'publish'
-    ], true); // Use Basic Auth
+    ], false);
     
     $logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
     error_log('[getProduct] Searching by slug: ' . $logUrl);
     
-    $result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
+    $result = fetchWooCommerceApi($url, 'GET', null, false);
     
     if ($result['success'] && !empty($result['data']) && is_array($result['data']) && count($result['data']) > 0) {
         $product = $result['data'][0];
@@ -63,9 +64,9 @@ if (!$productId && $sku) {
         'sku' => $sku,
         'per_page' => 1,
         'status' => 'publish'
-    ], true); // Use Basic Auth
+    ], false);
     
-    $result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
+    $result = fetchWooCommerceApi($url, 'GET', null, false);
     
     if ($result['success'] && !empty($result['data']) && is_array($result['data']) && count($result['data']) > 0) {
         $productId = $result['data'][0]['id'];
@@ -74,11 +75,11 @@ if (!$productId && $sku) {
 
 // Fetch full product data from WooCommerce API
 if ($productId && !$product) {
-    $url = buildWcApiUrl("wc/v3/products/$productId", [], true); // Use Basic Auth
+    $url = buildWcApiUrl("wc/v3/products/$productId", [], false);
     $logUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url);
     error_log('[getProduct] Fetching product by ID: ' . $logUrl);
     
-    $result = fetchWooCommerceApi($url, 'GET', null, true); // Use Basic Auth
+    $result = fetchWooCommerceApi($url, 'GET', null, false);
     
     if (!$result['success']) {
         $errorMsg = 'Product not found';
@@ -178,9 +179,9 @@ if ($productId && !empty($product['type']) && $product['type'] === 'variable') {
     $varUrl = buildWcApiUrl("wc/v3/products/$productId/variations", [
         'per_page' => 100,
         'status' => 'publish'
-    ], true); // Use Basic Auth
+    ], false);
     
-    $varResult = fetchWooCommerceApi($varUrl, 'GET', null, true); // Use Basic Auth
+    $varResult = fetchWooCommerceApi($varUrl, 'GET', null, false);
     
     if ($varResult['success'] && !empty($varResult['data']) && is_array($varResult['data'])) {
         foreach ($varResult['data'] as $variation) {
@@ -250,9 +251,9 @@ if (!empty($product['categories']) && is_array($product['categories']) && count(
         'per_page' => 10,
         'exclude' => $productId,
         'status' => 'publish'
-    ], true); // Use Basic Auth
+    ], false);
     
-    $relatedResult = fetchWooCommerceApi($relatedUrl, 'GET', null, true); // Use Basic Auth
+    $relatedResult = fetchWooCommerceApi($relatedUrl, 'GET', null, false);
     
     if ($relatedResult['success'] && !empty($relatedResult['data']) && is_array($relatedResult['data'])) {
         foreach ($relatedResult['data'] as $relatedProd) {

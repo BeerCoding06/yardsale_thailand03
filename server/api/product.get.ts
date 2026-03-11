@@ -116,17 +116,17 @@ async function fetchProductByIdFallback(
   const base = (config.wpBaseUrl || wpBaseDefault).replace(/\/$/, '');
   let url = `${base}/wp-json/wc/v3/products/${productId}`;
   const headers: Record<string, string> = { Accept: 'application/json' };
-  const auth = config.wpBasicAuth;
-  if (auth) {
-    const buf = (globalThis as any).Buffer;
-    const encoded = buf ? buf.from(auth, 'utf8').toString('base64') : (typeof btoa !== 'undefined' ? btoa(auth) : '');
-    if (encoded) headers.Authorization = `Basic ${encoded}`;
-  } else if (config.wpConsumerKey && config.wpConsumerSecret) {
+  // ใช้ consumer_key/consumer_secret ก่อน (ตรงกับ getProducts ที่ไม่เจอ 401)
+  if (config.wpConsumerKey && config.wpConsumerSecret) {
     const q = new URLSearchParams({
       consumer_key: config.wpConsumerKey,
       consumer_secret: config.wpConsumerSecret,
     });
     url += (url.includes('?') ? '&' : '?') + q.toString();
+  } else if (config.wpBasicAuth) {
+    const buf = (globalThis as any).Buffer;
+    const encoded = buf ? buf.from(config.wpBasicAuth, 'utf8').toString('base64') : (typeof btoa !== 'undefined' ? btoa(config.wpBasicAuth) : '');
+    if (encoded) headers.Authorization = `Basic ${encoded}`;
   }
   try {
     const wc = await $fetch<any>(url, { headers });
