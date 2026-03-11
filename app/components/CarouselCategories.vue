@@ -56,7 +56,7 @@ const colors = [
   "bg-[#d7edff]",
 ];
 
-const isCollapsed = ref(true); // เริ่มต้นเป็น true เพื่อแสดง sidebar
+const isCollapsed = ref(false); // เริ่มต้นเป็น false ให้ sidebar กางออก
 const setCategory = (category) => {
   if (!isDragging.value && (route.query.category || "") !== category) {
     router.push({
@@ -114,6 +114,7 @@ const handleDragging = (e) => {
 const endDrag = () => {
   document.removeEventListener("mousemove", handleDragging);
   document.removeEventListener("mouseup", endDrag);
+  isDragging.value = false; // reset เพื่อให้คลิก category ทำงานหลังปล่อยเมาส์
 };
 
 const updateButtonVisibility = () => {
@@ -141,8 +142,12 @@ const reloadCategories = async () => {
 };
 
 onMounted(() => {
-  cardsSlider.value.addEventListener("mousedown", initializeDrag);
-  updateButtonVisibility();
+  nextTick(() => {
+    if (cardsSlider.value) {
+      cardsSlider.value.addEventListener("mousedown", initializeDrag);
+      updateButtonVisibility();
+    }
+  });
 });
 
 onBeforeUnmount(() => {
