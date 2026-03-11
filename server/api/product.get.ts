@@ -1,32 +1,69 @@
 // server/api/product.get.ts
-// Fetch single product via PHP API endpoint
+// Fetch single product via PHP API endpoint, with Node fallback when id is provided
 
 import { executePhpScript } from '../utils/php-executor';
 import { rewriteWpUrlsInObject } from '../utils/rewrite-wp-urls';
 
+const wpBaseDefault = 'https://cms.yardsaleth.com';
+
+/** แปลง WooCommerce API response เป็นรูปแบบเดียวกับ getProduct.php (เมื่อใช้ fallback) */
+function formatWcProductToOurShape(wc: any, productId: number): any {
+  const images = (wc?.images && Array.isArray(wc.images)) ? wc.images : [];
+  const imageUrl = images[0]?.src ?? null;
+  const galleryImages = images.map((img: any) => ({ sourceUrl: img?.src })).filter((n: any) => n.sourceUrl);
+  const reg = wc?.regular_price ?? wc?.price ?? '';
+  const sale = wc?.sale_price ?? '';
+  const formatPrice = (val: string | number) => {
+    const n = typeof val === 'string' ? parseFloat(val) : val;
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return `<span class="woocommerce-Price-amount amount"><span class="woocommerce-Price-currencySymbol">฿</span>${Math.round(n).toLocaleString()}</span>`;
+  };
+  return {
+    product: {
+      databaseId: productId,
+      sku: wc?.sku ?? wc?.slug ?? `product-${productId}`,
+      slug: wc?.slug ?? '',
+      name: wc?.name ?? '',
+      description: wc?.description ?? '',
+      regularPrice: formatPrice(reg) ?? '',
+      salePrice: sale ? formatPrice(sale) : null,
+      stockQuantity: wc?.stock_quantity != null ? Number(wc.stock_quantity) : null,
+      stockStatus: (wc?.stock_status ?? 'instock').toString().toUpperCase().replace(/\s/g, '_'),
+      status: wc?.status ?? 'publish',
+      image: imageUrl ? { sourceUrl: imageUrl } : null,
+      galleryImages: { nodes: galleryImages },
+      allPaColor: { nodes: [] },
+      allPaStyle: { nodes: [] },
+      related: { nodes: [] },
+      variations: { nodes: [] },
+    },
+  };
+}
+
 export default cachedEventHandler(
   async (event) => {
+    const config = useRuntimeConfig();
+    const query = getQuery(event);
+    const slug = query.slug as string | undefined;
+    const sku = query.sku as string | undefined;
+    const idRaw = query.id;
+    const id = idRaw != null ? Number(idRaw) : undefined;
+    const hasId = id != null && !Number.isNaN(id);
+
+    if (!slug && !sku && !hasId) {
+      return { product: null };
+    }
+
+    const wpBase = config.wpBaseUrl || wpBaseDefault;
+    const siteBase = config.wpMediaUrl || config.wpProxyPublicUrl || config.baseUrl || wpBaseDefault;
+
+    // 1) ลอง PHP ก่อน
     try {
-      const config = useRuntimeConfig();
-      const query = getQuery(event);
-      
-      const slug = query.slug as string | undefined;
-      const sku = query.sku as string | undefined;
-      const id = query.id as string | undefined;
-      
-      if (!slug && !sku && !id) {
-        return { product: null };
-      }
-      
-      // Build query params for PHP script
       const queryParams: Record<string, string | number> = {};
       if (slug) queryParams.slug = slug;
       if (sku) queryParams.sku = sku;
-      if (id) queryParams.id = Number(id);
-      
-      console.log('[product] Executing PHP script: getProduct.php', queryParams);
-      
-      // ส่ง env จาก Nuxt ไปให้ PHP เพื่อให้ WooCommerce API ใช้ได้แน่นอน (โดยเฉพาะตอน deploy)
+      if (hasId) queryParams.id = id!;
+
       const phpEnv: Record<string, string> = {};
       if (config.wpBaseUrl) phpEnv.WP_BASE_URL = config.wpBaseUrl;
       if (config.wpBasicAuth) phpEnv.WP_BASIC_AUTH = config.wpBasicAuth;
@@ -39,35 +76,66 @@ export default cachedEventHandler(
         method: 'GET',
         env: phpEnv,
       });
-      
-      console.log('[product] PHP script response:', JSON.stringify(data).substring(0, 200));
-      
-      // PHP ส่ง error (เช่น 401, 404) จะได้ { success: false, error: "..." }
+
       if (data && (data.success === false || data.error)) {
         console.warn('[product] PHP/WooCommerce error:', data.error || data);
+        if (hasId) {
+          const fallback = await fetchProductByIdFallback(id!, config);
+          if (fallback) return rewriteWpUrlsInObject(fallback, wpBase, siteBase);
+        }
         return { product: null };
       }
-      if (!data || !data.product) {
-        console.warn('[product] No product data in response:', data);
-        return { product: null };
+      if (data?.product) {
+        return rewriteWpUrlsInObject(data, wpBase, siteBase);
       }
-      
-      // Rewrite WP image URLs to public CMS/media URL (fix mixed content + broken images)
-      const wpBase = config.wpBaseUrl || 'http://157.85.98.150:8080';
-      const siteBase = config.wpMediaUrl || config.wpProxyPublicUrl || config.baseUrl || 'https://cms.yardsaleth.com';
-      return rewriteWpUrlsInObject(data, wpBase, siteBase);
-    } catch (error: any) {
-      console.error('[product] Error executing PHP script:', error.message || error);
-      // Log full error for debugging
-      if (error.stack) {
-        console.error('[product] Error stack:', error.stack);
+    } catch (err: any) {
+      console.error('[product] PHP failed:', err?.message || err);
+      if (hasId) {
+        const fallback = await fetchProductByIdFallback(id!, config);
+        if (fallback) return rewriteWpUrlsInObject(fallback, wpBase, siteBase);
       }
       return { product: null };
     }
+
+    // 2) ถ้ามี id แต่ PHP ไม่คืน product ลองดึงจาก WooCommerce โดยตรง (fallback)
+    if (hasId) {
+      const fallback = await fetchProductByIdFallback(id!, config);
+      if (fallback) return rewriteWpUrlsInObject(fallback, wpBase, siteBase);
+    }
+
+    return { product: null };
   },
-  {
-    maxAge: 1,
-    swr: false,
-    getKey: event => event.req.url!,
-  }
+  { maxAge: 1, swr: false, getKey: (e) => e.req.url! }
 );
+
+/** Fallback: ดึง product by ID จาก WooCommerce โดยตรง (ไม่ผ่าน PHP) สำหรับเมื่อ PHP ล้มเหลวหรือไม่มี PHP */
+async function fetchProductByIdFallback(
+  productId: number,
+  config: ReturnType<typeof useRuntimeConfig>
+): Promise<{ product: any } | null> {
+  const base = (config.wpBaseUrl || wpBaseDefault).replace(/\/$/, '');
+  let url = `${base}/wp-json/wc/v3/products/${productId}`;
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  const auth = config.wpBasicAuth;
+  if (auth) {
+    const buf = (globalThis as any).Buffer;
+    const encoded = buf ? buf.from(auth, 'utf8').toString('base64') : (typeof btoa !== 'undefined' ? btoa(auth) : '');
+    if (encoded) headers.Authorization = `Basic ${encoded}`;
+  } else if (config.wpConsumerKey && config.wpConsumerSecret) {
+    const q = new URLSearchParams({
+      consumer_key: config.wpConsumerKey,
+      consumer_secret: config.wpConsumerSecret,
+    });
+    url += (url.includes('?') ? '&' : '?') + q.toString();
+  }
+  try {
+    const wc = await $fetch<any>(url, { headers });
+    if (wc && (wc.id === productId || wc.id === Number(productId))) {
+      console.log('[product] Fallback: got product by ID from WooCommerce', productId);
+      return formatWcProductToOurShape(wc, productId);
+    }
+  } catch (e: any) {
+    console.warn('[product] Fallback fetch failed:', e?.message || e);
+  }
+  return null;
+}

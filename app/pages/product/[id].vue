@@ -47,7 +47,8 @@ const checkingBuyer = ref(false);
 async function fetchProduct() {
   const s = slug.value;
   const k = sku.value;
-  const queryId = route.query.id;
+  const rawQueryId = route.query.id;
+  const queryId = Array.isArray(rawQueryId) ? rawQueryId[0] : rawQueryId;
   const hasId = queryId && /^\d+$/.test(String(queryId));
   if (!hasId && !s && !k) {
     const rawId = idParam.value;
