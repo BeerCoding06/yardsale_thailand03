@@ -10,6 +10,8 @@ interface PhpExecutorOptions {
   method?: 'GET' | 'POST';
   body?: any;
   headers?: Record<string, string>;
+  /** ส่ง env เพิ่มให้ process PHP (เช่น WP_BASE_URL, WP_BASIC_AUTH) จาก Nuxt runtime */
+  env?: Record<string, string>;
 }
 
 /**
@@ -17,7 +19,7 @@ interface PhpExecutorOptions {
  * Uses PHP CLI to execute scripts directly (no HTTP server needed)
  */
 export async function executePhpScript(options: PhpExecutorOptions): Promise<any> {
-  const { script, queryParams = {}, method = 'GET', body, headers = {} } = options;
+  const { script, queryParams = {}, method = 'GET', body, headers = {}, env: envOverrides = {} } = options;
   
   // Build PHP script path
   const scriptPath = join(process.cwd(), 'server', 'api', 'php', script);
@@ -30,9 +32,10 @@ export async function executePhpScript(options: PhpExecutorOptions): Promise<any
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
     .join('&');
   
-  // Set environment variables to simulate web server environment
+  // Set environment variables: process.env + Nuxt env overrides (WP_*) so PHP ได้ค่าแน่นอน
   const env = {
     ...process.env,
+    ...envOverrides,
     REQUEST_METHOD: method,
     QUERY_STRING: queryString,
     SERVER_NAME: 'localhost',

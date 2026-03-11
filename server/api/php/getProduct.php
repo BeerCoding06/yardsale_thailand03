@@ -29,8 +29,14 @@ if (!$slug && !$sku && !$id) {
 $productId = null;
 $product = null;
 
-// Try to find product by slug using WooCommerce API
-if ($slug) {
+// ถ้ามี id ให้ดึงด้วย ID ก่อน (แม่นยำที่สุด ไม่พึ่ง slug/sku)
+if ($id) {
+    $productId = (int) $id;
+    error_log('[getProduct] Using product ID: ' . $productId);
+}
+
+// Try to find product by slug using WooCommerce API (เมื่อไม่มี id หรือยังไม่เจอ)
+if (!$productId && $slug) {
     $url = buildWcApiUrl('wc/v3/products', [
         'slug' => $slug,
         'per_page' => 1,
@@ -64,11 +70,6 @@ if (!$productId && $sku) {
     if ($result['success'] && !empty($result['data']) && is_array($result['data']) && count($result['data']) > 0) {
         $productId = $result['data'][0]['id'];
     }
-}
-
-// Use ID directly
-if (!$productId && $id) {
-    $productId = $id;
 }
 
 // Fetch full product data from WooCommerce API

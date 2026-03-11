@@ -26,16 +26,27 @@ export default cachedEventHandler(
       
       console.log('[product] Executing PHP script: getProduct.php', queryParams);
       
-      // Execute PHP script directly using PHP CLI
+      // ส่ง env จาก Nuxt ไปให้ PHP เพื่อให้ WooCommerce API ใช้ได้แน่นอน (โดยเฉพาะตอน deploy)
+      const phpEnv: Record<string, string> = {};
+      if (config.wpBaseUrl) phpEnv.WP_BASE_URL = config.wpBaseUrl;
+      if (config.wpBasicAuth) phpEnv.WP_BASIC_AUTH = config.wpBasicAuth;
+      if (config.wpConsumerKey) phpEnv.WP_CONSUMER_KEY = config.wpConsumerKey;
+      if (config.wpConsumerSecret) phpEnv.WP_CONSUMER_SECRET = config.wpConsumerSecret;
+
       const data = await executePhpScript({
         script: 'getProduct.php',
         queryParams,
         method: 'GET',
+        env: phpEnv,
       });
       
       console.log('[product] PHP script response:', JSON.stringify(data).substring(0, 200));
       
-      // Check if product exists in response
+      // PHP ส่ง error (เช่น 401, 404) จะได้ { success: false, error: "..." }
+      if (data && (data.success === false || data.error)) {
+        console.warn('[product] PHP/WooCommerce error:', data.error || data);
+        return { product: null };
+      }
       if (!data || !data.product) {
         console.warn('[product] No product data in response:', data);
         return { product: null };
