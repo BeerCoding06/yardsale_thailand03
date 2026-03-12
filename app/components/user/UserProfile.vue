@@ -18,6 +18,7 @@ const profileForm = ref({
   last_name: "",
   display_name: "",
   email: "",
+  current_password: "", // WordPress ต้องการเพื่อยืนยันการแก้ไข
 });
 const profilePicture = ref(null);
 const profilePicturePreview = ref(null);
@@ -183,6 +184,10 @@ const uploadProfilePicture = async () => {
 
 // Update profile
 const updateProfile = async () => {
+  if (!profileForm.value.current_password?.trim()) {
+    message.value = { type: "error", text: t("profile.current_password_required") || "กรุณากรอกรหัสผ่านปัจจุบันเพื่อบันทึก" };
+    return;
+  }
   try {
     isLoading.value = true;
     message.value = null;
@@ -195,12 +200,13 @@ const updateProfile = async () => {
         first_name: profileForm.value.first_name,
         last_name: profileForm.value.last_name,
         display_name: profileForm.value.display_name,
-        email: profileForm.value.email,
+        current_password: profileForm.value.current_password || undefined,
       },
     });
 
     if (response.success) {
       message.value = { type: "success", text: t("profile.profile_updated") };
+      profileForm.value.current_password = "";
       isEditingProfile.value = false;
 
       // Update user in localStorage
@@ -402,6 +408,23 @@ const updateProfile = async () => {
                         type="email"
                         class="w-full px-4 py-2 rounded-xl border-2 bg-white/80 dark:bg-black/20 text-black dark:text-white border-neutral-200 dark:border-neutral-700 focus:border-black dark:focus:border-white focus:outline-none"
                         :placeholder="$t('profile.email')"
+                        disabled
+                      />
+                      <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        {{ $t("profile.email_change_note") || "การเปลี่ยนอีเมลต้องทำใน WordPress" }}
+                      </p>
+                    </div>
+                    <div class="md:col-span-2">
+                      <label
+                        class="block text-sm font-medium mb-2 text-black dark:text-white"
+                      >
+                        {{ $t("profile.current_password") || "รหัสผ่านปัจจุบัน (ต้องกรอกเพื่อบันทึก)" }}
+                      </label>
+                      <input
+                        v-model="profileForm.current_password"
+                        type="password"
+                        class="w-full px-4 py-2 rounded-xl border-2 bg-white/80 dark:bg-black/20 text-black dark:text-white border-neutral-200 dark:border-neutral-700 focus:border-black dark:focus:border-white focus:outline-none"
+                        :placeholder="$t('profile.current_password_placeholder') || 'กรอกรหัสผ่านเพื่อยืนยัน'"
                       />
                     </div>
                   </div>

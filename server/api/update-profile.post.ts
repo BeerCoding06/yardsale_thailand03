@@ -26,13 +26,14 @@ export default defineEventHandler(async (event) => {
     }
 
     // Format update data for WordPress REST API
-    // ไม่ส่ง email — WordPress คืน incorrect_password ถ้าส่ง email โดยไม่มีรหัสผ่านปัจจุบัน
+    // WordPress ต้องการรหัสผ่านปัจจุบัน (password) เพื่อยืนยันการแก้ไข — ส่งจาก current_password
     const updateData: any = {};
 
     if (body.first_name !== undefined) updateData.first_name = body.first_name;
     if (body.last_name !== undefined) updateData.last_name = body.last_name;
     if (body.display_name !== undefined) updateData.name = body.display_name;
     if (body.description !== undefined) updateData.description = body.description;
+    if (body.current_password) updateData.password = body.current_password;
 
     // Update meta fields (billing info) if provided
     if (body.billing) {
