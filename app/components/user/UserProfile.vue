@@ -1,7 +1,7 @@
 <!--app/components/user/UserProfile.vue-->
 <script setup>
 const auth = useAuth();
-const { user, isAuthenticated, logout, checkAuth } = auth;
+const { user, isAuthenticated, logout, checkAuth, fetchUser } = auth;
 const router = useRouter();
 const { t } = useI18n();
 
@@ -27,14 +27,15 @@ const isLoading = ref(false);
 const message = ref(null);
 const errors = ref({});
 
-// Redirect to login if not authenticated (client-side only)
-onMounted(() => {
+// Redirect to login if not authenticated; ถ้า login แล้ว ให้ดึงข้อมูล user จาก WordPress มาแสดง
+onMounted(async () => {
   isClient.value = true;
   if (!isAuthenticated.value) {
     router.push("/login");
-  } else {
-    loadProfileData();
+    return;
   }
+  await fetchUser();
+  loadProfileData();
 });
 
 // Load profile data

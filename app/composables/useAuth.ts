@@ -116,8 +116,27 @@ export const useAuth = () => {
     }
   };
 
-  // Don't check auth in composable to prevent hydration mismatch
-  // Auth will be checked in onMounted hooks or middleware
+  /** ดึงข้อมูล user ล่าสุดจาก WordPress (ใช้ในหน้า profile เพื่อให้ได้ first_name, last_name ฯลฯ) */
+  const fetchUser = async (userId?: number) => {
+    const id = userId ?? user.value?.id ?? user.value?.ID;
+    if (!id) return null;
+    try {
+      const data = await $fetch<{ success?: boolean; user?: any }>("/api/me", {
+        query: { user_id: id },
+      });
+      if (data?.user) {
+        const merged = { ...user.value, ...data.user };
+        user.value = merged;
+        if (import.meta.client) {
+          localStorage.setItem("user", JSON.stringify(merged));
+        }
+        return merged;
+      }
+    } catch (e) {
+      console.warn("[useAuth] fetchUser failed:", e);
+    }
+    return null;
+  };
 
   return {
     user: readonly(user),
@@ -125,5 +144,6 @@ export const useAuth = () => {
     login,
     logout,
     checkAuth,
+    fetchUser,
   };
 };

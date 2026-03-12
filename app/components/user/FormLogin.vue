@@ -70,14 +70,9 @@ const handleSubmit = async (e) => {
         type: "success",
         text: "เข้าสู่ระบบสำเร็จ!",
       };
-
-      // Wait for auth state to update and close any modals
       await nextTick();
-
-      // Redirect to profile page after 1 second
-      setTimeout(() => {
-        navigateTo("/profile");
-      }, 1000);
+      // ไปหน้า profile ทันที เพื่อดึงข้อมูล user แสดง
+      await navigateTo("/profile");
     } else {
       throw new Error(result.error || "Login failed");
     }
