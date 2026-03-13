@@ -1,97 +1,79 @@
 // server/api/wp-categories.get.ts
-// Fetch product categories from WooCommerce REST API (สำหรับ select ใน create product)
-// รองรับทั้ง Basic Auth และ consumer_key/consumer_secret
+// Fetch product categories สำหรับ select ใน create product
+// ลอง WooCommerce wc/v3 ก่อน; ถ้า 404 ใช้ WordPress taxonomy wp/v2/product_cat
 
 import * as wpUtils from '../utils/wp';
+
+const EXCLUDED = ['uncategorized', 'uncategorised', 'no category', 'no-category', 'no_category', 'unclassified', 'อื่นๆ'];
+
+function formatAndFilter(data: any[]): any[] {
+  const all = Array.isArray(data) ? data.map((cat: any) => ({
+    id: cat.id,
+    name: cat.name || cat.slug || '',
+    slug: cat.slug || '',
+    description: cat.description || '',
+    count: cat.count || 0,
+    parent: cat.parent || 0,
+    image: cat.image ? { src: cat.image?.src || cat.image } : null,
+  })) : [];
+  return all.filter((cat: any) => {
+    const name = (cat.name || '').trim().toLowerCase();
+    const slug = (cat.slug || '').trim().toLowerCase();
+    return name && !EXCLUDED.includes(name) && !EXCLUDED.includes(slug);
+  });
+}
 
 export default defineEventHandler(async (event: any) => {
   try {
     const query = getQuery(event);
-    
-    const perPage = query.per_page ? parseInt(query.per_page as string) : 100;
-    const page = query.page ? parseInt(query.page as string) : 1;
+    const perPage = Math.min(100, parseInt(query.per_page as string) || 100);
+    const page = parseInt(query.page as string) || 1;
     const parent = query.parent !== undefined ? parseInt(query.parent as string) : undefined;
-    const search = query.search as string | undefined;
-    const orderby = (query.orderby as string) || 'name';
-    const order = (query.order as string) || 'asc';
-    
     const params: Record<string, string | number> = {
       per_page: perPage,
-      page: page,
-      orderby: orderby === 'name' ? 'name' : 'id',
-      order: order.toLowerCase() === 'desc' ? 'desc' : 'asc',
-      ...(parent !== undefined ? { parent: parent } : {}),
-      ...(search ? { search: search } : {})
+      page,
+      orderby: 'name',
+      order: 'asc',
+      ...(parent !== undefined ? { parent } : {}),
     };
-    
-    // ลองใช้ WooCommerce URL ที่มี consumer_key/consumer_secret ก่อน (ไม่ต้องมี Basic Auth)
-    const apiUrl = wpUtils.buildWcApiUrl('wc/v3/products/categories', params);
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
+      Accept: 'application/json',
     };
-    
     const basicAuth = wpUtils.getWpBasicAuth();
     if (basicAuth) {
-      const authString = basicAuth.includes(':') ? Buffer.from(basicAuth).toString('base64') : basicAuth;
-      headers['Authorization'] = `Basic ${authString}`;
+      headers['Authorization'] = `Basic ${basicAuth.includes(':') ? Buffer.from(basicAuth).toString('base64') : basicAuth}`;
     }
-    
-    console.log('[wp-categories] Fetching from WooCommerce API');
-    
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers,
-      signal: AbortSignal.timeout(30000),
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      console.error('[wp-categories] WooCommerce API error:', response.status, errorText);
-      console.warn('[wp-categories] Returning empty array');
+
+    // 1) ลอง WooCommerce wc/v3/products/categories
+    const wcUrl = wpUtils.buildWcApiUrl('wc/v3/products/categories', params);
+    const wcRes = await fetch(wcUrl, { method: 'GET', headers, signal: AbortSignal.timeout(15000) });
+
+    if (wcRes.ok) {
+      const data = await wcRes.json();
+      const categories = formatAndFilter(data);
+      console.log('[wp-categories] WooCommerce API OK:', categories.length);
+      return categories;
+    }
+
+    // 2) 404 หรือ error → ใช้ WordPress taxonomy product_cat (WooCommerce เก็บหมวดหมู่ที่นี่)
+    console.warn('[wp-categories] WooCommerce API', wcRes.status, ', trying wp/v2/product_cat');
+    const wpParams: Record<string, string | number> = { per_page: 100, page: 1, _fields: 'id,name,slug,parent' };
+    const wpUrl = wpUtils.buildWpApiUrl('wp/v2/product_cat', wpParams);
+    const wpRes = await fetch(wpUrl, { method: 'GET', headers, signal: AbortSignal.timeout(15000) });
+
+    if (!wpRes.ok) {
+      console.warn('[wp-categories] product_cat also failed:', wpRes.status);
       return [];
     }
-    
-    const data = await response.json();
-    
-    // Format categories for compatibility with FormCreateProducts
-    // WooCommerce API returns array of category objects with: id, name, slug, description, count, image, parent
-    const allCategories = Array.isArray(data) ? data.map((cat: any) => ({
-      id: cat.id,
-      name: cat.name,
-      slug: cat.slug,
-      description: cat.description || '',
-      count: cat.count || 0,
-      parent: cat.parent || 0,
-      image: cat.image ? { src: cat.image.src || cat.image } : null,
-    })) : [];
-    
-    // Filter out "Uncategorized" or "No Category" categories
-    const categories = allCategories.filter((cat: any) => {
-      const name = (cat.name || '').trim().toLowerCase();
-      const slug = (cat.slug || '').trim().toLowerCase();
-      
-      // Exclude categories with these names/slugs
-      const excludedNames = [
-        'uncategorized',
-        'uncategorised',
-        'no category',
-        'no-category',
-        'no_category',
-        'unclassified',
-        'อื่นๆ',
-        'อื่นๆ',
-      ];
-      
-      return !excludedNames.includes(name) && !excludedNames.includes(slug);
-    });
-    
-    console.log('[wp-categories] Successfully fetched', allCategories.length, 'categories, filtered to', categories.length, 'categories (excluded uncategorized)');
-    
+
+    const wpData = await wpRes.json();
+    const categories = formatAndFilter(wpData);
+    console.log('[wp-categories] WordPress product_cat OK:', categories.length);
     return categories;
   } catch (error: any) {
-    console.error('[wp-categories] Error:', error);
+    console.error('[wp-categories] Error:', error?.message || error);
     return [];
   }
 });
