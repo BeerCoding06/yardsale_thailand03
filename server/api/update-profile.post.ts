@@ -1,5 +1,6 @@
 // server/api/update-profile.post.ts
 // Update user profile using WordPress REST API
+// ใช้ JWT ของ user (จาก login) เรียก WP — จะได้แก้ชื่อ/นามสกุลได้โดยไม่ต้องกรอกรหัสผ่าน
 
 import * as wpUtils from '../utils/wp';
 
@@ -8,6 +9,7 @@ export default defineEventHandler(async (event) => {
     const body = await readBody(event);
     
     const userId = body.user_id || body.id;
+    const token = body.token || getHeader(event, 'authorization')?.replace(/^Bearer\s+/i, '');
 
     if (!userId) {
       throw createError({
@@ -16,24 +18,29 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const headers = wpUtils.getWpApiHeaders(true, false); // Use Basic Auth for WP REST API
-    
-    if (!headers['Authorization']) {
-      throw createError({
-        statusCode: 500,
-        message: "WP_BASIC_AUTH is not configured",
-      });
+    // ใช้ JWT ของ user ถ้ามี — WordPress จะถือว่าเป็นผู้ใช้แก้ไขตัวเอง ไม่ต้องส่งรหัสผ่าน
+    let headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    } else {
+      const basicHeaders = wpUtils.getWpApiHeaders(true, false);
+      if (basicHeaders['Authorization']) {
+        headers['Authorization'] = basicHeaders['Authorization'];
+      } else {
+        throw createError({
+          statusCode: 500,
+          message: "ส่ง token (จาก login) หรือตั้ง WP_BASIC_AUTH",
+        });
+      }
     }
 
-    // Format update data for WordPress REST API
-    // WordPress ต้องการรหัสผ่านปัจจุบัน (password) เพื่อยืนยันการแก้ไข — ส่งจาก current_password
     const updateData: any = {};
-
     if (body.first_name !== undefined) updateData.first_name = body.first_name;
     if (body.last_name !== undefined) updateData.last_name = body.last_name;
     if (body.display_name !== undefined) updateData.name = body.display_name;
     if (body.description !== undefined) updateData.description = body.description;
-    if (body.current_password) updateData.password = body.current_password;
 
     // Update meta fields (billing info) if provided
     if (body.billing) {
