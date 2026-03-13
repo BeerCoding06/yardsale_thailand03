@@ -116,13 +116,12 @@ if ($parent === 0) {
     $allCategoriesParams = [
         'per_page' => 100
     ];
-    // Don't include hide_empty as WooCommerce API may not support it
-    
-    $allCategoriesUrl = buildWcApiUrl('wc/v3/products/categories', $allCategoriesParams, true); // Use Basic Auth
+    // Use same auth as initial request (consumer_key/consumer_secret) so we don't get 401
+    $allCategoriesUrl = buildWcApiUrl('wc/v3/products/categories', $allCategoriesParams, false);
     $allCategoriesLogUrl = preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $allCategoriesUrl);
     error_log('[getCategories] Pre-fetching all categories: ' . $allCategoriesLogUrl);
     
-    $allCategoriesResult = fetchWooCommerceApi($allCategoriesUrl, 'GET', null, true); // Use Basic Auth
+    $allCategoriesResult = fetchWooCommerceApi($allCategoriesUrl, 'GET', null, false);
     if ($allCategoriesResult['success'] && is_array($allCategoriesResult['data'])) {
         // Group children by parent ID (filter out parent categories)
         foreach ($allCategoriesResult['data'] as $child) {
@@ -171,10 +170,9 @@ foreach ($categories as $category) {
                 'parent' => $category['id'],
                 'per_page' => 100
             ];
-            // Don't include hide_empty as WooCommerce API may not support it
             
-            $childrenUrl = buildWcApiUrl('wc/v3/products/categories', $childrenParams, true); // Use Basic Auth
-            $childrenResult = fetchWooCommerceApi($childrenUrl, 'GET', null, true); // Use Basic Auth
+            $childrenUrl = buildWcApiUrl('wc/v3/products/categories', $childrenParams, false);
+            $childrenResult = fetchWooCommerceApi($childrenUrl, 'GET', null, false);
             
             $childrenData = $childrenResult['success'] ? ($childrenResult['data'] ?? []) : [];
             if (is_array($childrenData)) {
