@@ -11,14 +11,14 @@ export default defineEventHandler(async (event) => {
     const authHeader = getHeader(event, 'authorization') || getHeader(event, 'Authorization');
     const jwt = authHeader?.replace(/^Bearer\s+/i, '').trim() || body?.token || null;
 
-    // Prefer WordPress plugin endpoint (yardsale/v1/create-product) with JWT - runs as user, no REST API permission issue
+    // When JWT is present, use ONLY the WordPress plugin (no fallback to PHP - PHP uses WC REST API and returns 403)
     if (jwt) {
       const wpBaseUrl = wpUtils.getWpBaseUrl();
       const url = `${wpBaseUrl}/wp-json/yardsale/v1/create-product`;
       const payload = { ...body };
       delete payload.token;
 
-      console.log('[create-product] Calling WordPress plugin:', url);
+      console.log('[create-product] Calling WordPress plugin (JWT):', url);
 
       const res = await fetch(url, {
         method: 'POST',
@@ -37,11 +37,21 @@ export default defineEventHandler(async (event) => {
         return data;
       }
 
-      const errMsg = data?.message || data?.error?.message || data?.code || res.statusText;
-      console.warn('[create-product] Plugin failed:', res.status, errMsg, '- falling back to PHP');
+      const errMsg =
+        data?.message ||
+        data?.error?.message ||
+        (typeof data?.error === 'string' ? data.error : null) ||
+        data?.code ||
+        res.statusText ||
+        'WordPress plugin request failed';
+      console.error('[create-product] Plugin error:', res.status, errMsg);
+      throw createError({
+        statusCode: res.status >= 400 ? res.status : 502,
+        message: errMsg,
+      });
     }
 
-    // Fallback: PHP script (uses consumer key or Basic Auth)
+    // No JWT: use PHP script (consumer key or Basic Auth)
     console.log('[create-product] Executing PHP script: createProduct.php');
     const data = await executePhpScript({
       script: 'createProduct.php',

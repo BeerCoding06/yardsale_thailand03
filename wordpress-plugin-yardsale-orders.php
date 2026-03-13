@@ -661,7 +661,25 @@ function yardsale_get_my_products($request) {
 }
 
 /**
- * Create product via WooCommerce internal API (runs as JWT user - no REST API permission issue)
+ * Allow any logged-in user to create products (grant capabilities for this request only)
+ */
+function yardsale_allow_user_create_products($allcaps, $caps, $args, $user) {
+    if (!$user || !isset($args[0])) {
+        return $allcaps;
+    }
+    $cap = $args[0];
+    $product_caps = array(
+        'edit_products', 'publish_products', 'edit_published_products', 'create_products',
+        'edit_post', 'publish_posts', 'edit_published_posts',
+    );
+    if (in_array($cap, $product_caps, true)) {
+        $allcaps[$cap] = true;
+    }
+    return $allcaps;
+}
+
+/**
+ * Create product via WooCommerce internal API (runs as JWT user - every user can create)
  */
 function yardsale_create_product($request) {
     $user_id = get_current_user_id();
@@ -672,6 +690,9 @@ function yardsale_create_product($request) {
     if (!class_exists('WooCommerce') || !function_exists('wc_get_product_factory')) {
         return new WP_Error('woocommerce_not_installed', 'WooCommerce is not installed', array('status' => 500));
     }
+
+    // Let any authenticated user create products (add capability for this request only)
+    add_filter('user_has_cap', 'yardsale_allow_user_create_products', 10, 4);
 
     $params = $request->get_json_params();
     if (empty($params)) {
@@ -687,6 +708,7 @@ function yardsale_create_product($request) {
     $status = isset($params['status']) ? sanitize_text_field($params['status']) : 'pending';
 
     if (empty($name)) {
+        remove_filter('user_has_cap', 'yardsale_allow_user_create_products', 10);
         return new WP_Error('invalid_data', 'Product name is required', array('status' => 400));
     }
 
@@ -798,5 +820,7 @@ function yardsale_create_product($request) {
     } catch (Exception $e) {
         error_log('[yardsale_create_product] Error: ' . $e->getMessage());
         return new WP_Error('create_failed', $e->getMessage(), array('status' => 500));
+    } finally {
+        remove_filter('user_has_cap', 'yardsale_allow_user_create_products', 10);
     }
 }
