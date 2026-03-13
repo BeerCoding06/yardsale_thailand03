@@ -81,13 +81,20 @@ if (isset($productData['stock_quantity'])) {
     $wcProductData['stock_quantity'] = (int)$productData['stock_quantity'];
 }
 
-// Build API URL
-$url = buildWcApiUrl('wc/v3/products', [], true); // Use Basic Auth
+// Build API URL - use consumer_key/consumer_secret (same as categories) so the key must have Read/Write permission
+$url = buildWcApiUrl('wc/v3/products', [], false);
 
-error_log('[createProduct] Creating product via WooCommerce API: ' . $url);
+error_log('[createProduct] Creating product via WooCommerce API: ' . preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url));
 
-// Create product via WooCommerce API
-$result = fetchWooCommerceApi($url, 'POST', $wcProductData, true); // Use Basic Auth
+// Create product via WooCommerce API (try consumer key/secret first, then Basic Auth)
+$result = fetchWooCommerceApi($url, 'POST', $wcProductData, false);
+
+// If consumer key returns 401/403 (e.g. read-only key), retry with Basic Auth
+if (!$result['success'] && in_array($result['http_code'] ?? 0, [401, 403]) && !empty(WP_BASIC_AUTH)) {
+    error_log('[createProduct] Retrying with Basic Auth (consumer key may be read-only)');
+    $urlBasic = buildWcApiUrl('wc/v3/products', [], true);
+    $result = fetchWooCommerceApi($urlBasic, 'POST', $wcProductData, true);
+}
 
 if (!$result['success']) {
     $errorMessage = 'Failed to create product';
