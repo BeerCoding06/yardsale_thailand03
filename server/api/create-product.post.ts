@@ -1,39 +1,58 @@
 // server/api/create-product.post.ts
-// Create product via PHP API endpoint
+// Create product: prefer WordPress plugin endpoint (JWT) so it runs as the user; fallback to PHP script
 
+import * as wpUtils from '../utils/wp';
 import { executePhpScript } from '../utils/php-executor';
 
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event);
 
-    console.log("[create-product] Received payload:", {
-      name: body.name,
-      type: body.type,
-      regular_price: body.regular_price,
-      categories: body.categories,
-      imagesCount: body.images?.length || 0,
-      post_author: body.post_author,
-    });
+    const authHeader = getHeader(event, 'authorization') || getHeader(event, 'Authorization');
+    const jwt = authHeader?.replace(/^Bearer\s+/i, '').trim() || body?.token || null;
 
+    // Prefer WordPress plugin endpoint (yardsale/v1/create-product) with JWT - runs as user, no REST API permission issue
+    if (jwt) {
+      const wpBaseUrl = wpUtils.getWpBaseUrl();
+      const url = `${wpBaseUrl}/wp-json/yardsale/v1/create-product`;
+      const payload = { ...body };
+      delete payload.token;
+
+      console.log('[create-product] Calling WordPress plugin:', url);
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${jwt}`,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(60000),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data?.success !== false) {
+        console.log('[create-product] Plugin created product:', data?.product?.id);
+        return data;
+      }
+
+      const errMsg = data?.message || data?.error?.message || data?.code || res.statusText;
+      console.warn('[create-product] Plugin failed:', res.status, errMsg, '- falling back to PHP');
+    }
+
+    // Fallback: PHP script (uses consumer key or Basic Auth)
     console.log('[create-product] Executing PHP script: createProduct.php');
-    
-    // Execute PHP script directly using PHP CLI
     const data = await executePhpScript({
       script: 'createProduct.php',
       body: body,
       method: 'POST',
     });
-    
-    console.log("[create-product] Successfully created product:", {
-      id: data?.product?.id,
-      name: data?.product?.name,
-      status: data?.product?.status,
-    });
 
+    console.log('[create-product] Successfully created product:', data?.product?.id);
     return data;
   } catch (error: any) {
-    console.error("[create-product] Error:", error);
+    console.error('[create-product] Error:', error);
 
     if (error?.statusCode) {
       throw error;
@@ -41,7 +60,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: 500,
-      message: error?.message || "Failed to create product",
+      message: error?.message || 'Failed to create product',
     });
   }
 });

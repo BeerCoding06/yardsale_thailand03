@@ -34,6 +34,28 @@ add_action('rest_api_init', function () {
         'callback' => 'yardsale_get_my_products',
         'permission_callback' => 'yardsale_jwt_auth_check',
     ));
+    
+    // Create product (runs as JWT user inside WordPress - no REST API permission issue)
+    register_rest_route('yardsale/v1', '/create-product', array(
+        'methods' => 'POST',
+        'callback' => 'yardsale_create_product',
+        'permission_callback' => 'yardsale_jwt_auth_check',
+        'args' => array(
+            'name' => array('required' => true, 'type' => 'string'),
+            'regular_price' => array('required' => true, 'type' => 'string'),
+            'type' => array('default' => 'simple', 'type' => 'string'),
+            'status' => array('default' => 'pending', 'type' => 'string'),
+            'description' => array('type' => 'string'),
+            'short_description' => array('type' => 'string'),
+            'sku' => array('type' => 'string'),
+            'sale_price' => array('type' => 'string'),
+            'manage_stock' => array('type' => 'boolean'),
+            'stock_quantity' => array('type' => 'integer'),
+            'categories' => array('type' => 'array'),
+            'tags' => array('type' => 'array'),
+            'images' => array('type' => 'array'),
+        ),
+    ));
 });
 
 /**
@@ -636,4 +658,145 @@ function yardsale_get_my_products($request) {
         'count' => count($formatted_products),
         'success' => true,
     );
+}
+
+/**
+ * Create product via WooCommerce internal API (runs as JWT user - no REST API permission issue)
+ */
+function yardsale_create_product($request) {
+    $user_id = get_current_user_id();
+    if (!$user_id) {
+        return new WP_Error('not_authenticated', 'User not authenticated', array('status' => 401));
+    }
+
+    if (!class_exists('WooCommerce') || !function_exists('wc_get_product_factory')) {
+        return new WP_Error('woocommerce_not_installed', 'WooCommerce is not installed', array('status' => 500));
+    }
+
+    $params = $request->get_json_params();
+    if (empty($params)) {
+        $params = $request->get_body_params();
+    }
+    if (empty($params)) {
+        return new WP_Error('invalid_data', 'Invalid or empty request body', array('status' => 400));
+    }
+
+    $name = isset($params['name']) ? sanitize_text_field($params['name']) : '';
+    $regular_price = isset($params['regular_price']) ? $params['regular_price'] : '0';
+    $type = isset($params['type']) ? sanitize_text_field($params['type']) : 'simple';
+    $status = isset($params['status']) ? sanitize_text_field($params['status']) : 'pending';
+
+    if (empty($name)) {
+        return new WP_Error('invalid_data', 'Product name is required', array('status' => 400));
+    }
+
+    try {
+        $product = new WC_Product_Simple();
+        $product->set_name($name);
+        $product->set_regular_price($regular_price);
+        $product->set_status($status);
+        $product->set_catalog_visibility('visible');
+
+        if (!empty($params['sale_price'])) {
+            $product->set_sale_price($params['sale_price']);
+        }
+        if (isset($params['description'])) {
+            $product->set_description($params['description']);
+        }
+        if (isset($params['short_description'])) {
+            $product->set_short_description($params['short_description']);
+        }
+        if (!empty($params['sku'])) {
+            $product->set_sku(sanitize_text_field($params['sku']));
+        }
+        if (isset($params['manage_stock'])) {
+            $product->set_manage_stock((bool) $params['manage_stock']);
+        }
+        if (isset($params['stock_quantity'])) {
+            $product->set_stock_quantity((int) $params['stock_quantity']);
+        }
+
+        $product->save();
+        $product_id = $product->get_id();
+
+        // Set post_author to current user
+        wp_update_post(array(
+            'ID' => $product_id,
+            'post_author' => $user_id,
+        ));
+
+        // Categories
+        if (!empty($params['categories']) && is_array($params['categories'])) {
+            $term_ids = array();
+            foreach ($params['categories'] as $cat) {
+                $id = is_array($cat) ? (isset($cat['id']) ? $cat['id'] : (isset($cat['databaseId']) ? $cat['databaseId'] : null)) : $cat;
+                if ($id) {
+                    $term_ids[] = (int) $id;
+                }
+            }
+            if (!empty($term_ids)) {
+                wp_set_object_terms($product_id, $term_ids, 'product_cat');
+            }
+        }
+
+        // Tags
+        if (!empty($params['tags']) && is_array($params['tags'])) {
+            $tag_ids = array();
+            foreach ($params['tags'] as $tag) {
+                $id = is_array($tag) ? (isset($tag['id']) ? $tag['id'] : null) : $tag;
+                if ($id) {
+                    $tag_ids[] = (int) $id;
+                } else {
+                    $name = is_array($tag) ? (isset($tag['name']) ? $tag['name'] : '') : $tag;
+                    if ($name) {
+                        $t = get_term_by('name', $name, 'product_tag');
+                        if ($t) {
+                            $tag_ids[] = $t->term_id;
+                        }
+                    }
+                }
+            }
+            if (!empty($tag_ids)) {
+                wp_set_object_terms($product_id, $tag_ids, 'product_tag');
+            }
+        }
+
+        // Images (by URL - resolve to attachment ID if possible)
+        if (!empty($params['images']) && is_array($params['images'])) {
+            $gallery_ids = array();
+            foreach ($params['images'] as $idx => $img) {
+                $src = is_array($img) ? (isset($img['src']) ? $img['src'] : (isset($img['url']) ? $img['url'] : '')) : $img;
+                if (empty($src) || !is_string($src)) {
+                    continue;
+                }
+                $att_id = attachment_url_to_postid($src);
+                if ($att_id) {
+                    $gallery_ids[] = $att_id;
+                }
+            }
+            if (!empty($gallery_ids)) {
+                $product->set_image_id($gallery_ids[0]);
+                if (count($gallery_ids) > 1) {
+                    $product->set_gallery_image_ids(array_slice($gallery_ids, 1));
+                }
+                $product->save();
+            }
+        }
+
+        $product->save();
+
+        return array(
+            'success' => true,
+            'product' => array(
+                'id' => $product_id,
+                'name' => $product->get_name(),
+                'status' => $product->get_status(),
+                'price' => $product->get_price(),
+                'regular_price' => $product->get_regular_price(),
+            ),
+        );
+    } catch (Exception $e) {
+        error_log('[yardsale_create_product] Error: ' . $e->getMessage());
+        return new WP_Error('create_failed', $e->getMessage(), array('status' => 500));
+    }
 }

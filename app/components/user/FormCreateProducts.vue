@@ -991,11 +991,13 @@ const handleSubmit = async (e) => {
 
     console.log("[Form] Sending payload:", payload);
 
-    // Send to Nuxt API endpoint (which will call PHP API)
+    // Send to Nuxt API (forwards to WordPress plugin with JWT so product is created as logged-in user)
+    const token = user.value?.token;
     const response = await $fetch("/api/create-product", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: payload,
     });
