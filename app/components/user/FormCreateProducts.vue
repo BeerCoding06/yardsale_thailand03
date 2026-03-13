@@ -900,10 +900,12 @@ const handleSubmit = async (e) => {
             const formData = new FormData();
             formData.append("file", img.file);
 
-            // Upload to WordPress media library
+            // Upload to WordPress media library (send JWT so WP authorizes as logged-in user)
+            const token = user.value?.token;
             const uploadResult = await $fetch("/api/upload-image", {
               method: "POST",
               body: formData,
+              ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
             }).catch((uploadError) => {
               console.error("[Form] Failed to upload image:", uploadError);
               throw uploadError; // Re-throw to stop the process

@@ -1,5 +1,5 @@
 // server/api/upload-image.post.ts
-// Upload image to WordPress media library
+// Upload image to WordPress media library (supports JWT or WP Basic Auth)
 
 import * as wpUtils from '../utils/wp';
 
@@ -14,55 +14,48 @@ export default defineEventHandler(async (event) => {
         message: "No file provided",
       });
     }
-    
-    const cleanBase = wpUtils.getWpBaseUrl();
-    
+
+    // Prefer JWT from request (logged-in user) so WordPress authorizes as that user
+    const authHeader = getHeader(event, "authorization") || getHeader(event, "Authorization");
+    const jwt = authHeader?.replace(/^Bearer\s+/i, "").trim() || null;
+
+    const basicAuth = wpUtils.getWpBasicAuth();
+    let authHeaderValue: string;
+
+    if (jwt) {
+      authHeaderValue = `Bearer ${jwt}`;
+    } else if (basicAuth) {
+      let authString = basicAuth;
+      if (authString.includes(":")) {
+        authString = Buffer.from(authString).toString("base64");
+      }
+      authHeaderValue = `Basic ${authString}`;
+    } else {
+      throw createError({
+        statusCode: 401,
+        message: "Authentication required. Please log in to upload images, or configure WP_BASIC_AUTH on the server.",
+      });
+    }
+
     // WordPress Media Library endpoint
-    const mediaUrl = wpUtils.buildWpApiUrl('wp/v2/media');
+    const mediaUrl = wpUtils.buildWpApiUrl("wp/v2/media");
 
     // Convert File to Buffer
     const arrayBuffer = await file.arrayBuffer();
-    // Use Uint8Array instead of Buffer for better compatibility
     const uint8Array = new Uint8Array(arrayBuffer);
 
-    // Create FormData for WordPress
-    // Use FormData with proper file handling
     const wpFormData = new FormData();
-
-    // Create a Blob from the array buffer
     const fileBlob = new Blob([uint8Array], { type: file.type });
     const fileObj = new File([fileBlob], file.name, { type: file.type });
     wpFormData.append("file", fileObj);
-    
-    // Add title (optional but recommended)
-    // Extract filename without extension for title
+
     const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
     wpFormData.append("title", fileNameWithoutExt);
-    
-    // Add alt text (optional)
     wpFormData.append("alt_text", fileNameWithoutExt);
 
-    // Use Basic Auth for WordPress REST API
-    // IMPORTANT: Don't set Content-Type header when sending FormData
-    // Browser will automatically set it with the correct boundary
-    const basicAuth = wpUtils.getWpBasicAuth();
-    
-    if (!basicAuth) {
-      throw createError({
-        statusCode: 500,
-        message: "WP_BASIC_AUTH is not configured",
-      });
-    }
-    
-    // Encode Basic Auth
-    let authString = basicAuth;
-    if (authString.includes(':')) {
-      authString = Buffer.from(authString).toString('base64');
-    }
-    
-    // Only set Authorization header, let browser set Content-Type for FormData
+    // Do not set Content-Type so fetch sets it with the correct boundary for FormData
     const headers: Record<string, string> = {
-      'Authorization': `Basic ${authString}`,
+      Authorization: authHeaderValue,
     };
 
     console.log("[upload-image] Uploading to WordPress:", mediaUrl);
