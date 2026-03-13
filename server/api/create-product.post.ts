@@ -57,13 +57,21 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // No JWT: use PHP script (consumer key or Basic Auth)
+    // No JWT or plugin failed (e.g. WooCommerce not installed): use PHP script
     console.log('[create-product] Executing PHP script: createProduct.php');
     const data = await executePhpScript({
       script: 'createProduct.php',
       body: body,
       method: 'POST',
     });
+
+    if (data?.success === false && data?.error) {
+      console.error('[create-product] PHP returned error:', data.error);
+      throw createError({
+        statusCode: 403,
+        message: data.error,
+      });
+    }
 
     console.log('[create-product] Successfully created product:', data?.product?.id);
     return data;
