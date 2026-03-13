@@ -274,44 +274,38 @@ onMounted(async () => {
   isLoadingBrands.value = true;
 
   try {
-    // Fetch categories for form select
+    // Fetch categories for form select (wp-categories ใช้ WooCommerce API; fallback ไป /api/categories)
     console.log("[Form] Fetching categories from /api/wp-categories...");
     try {
-      const categoriesData = await $fetch("/api/wp-categories");
-      console.log("[Form] Received categories:", categoriesData);
-      
-      // Handle different response structures
-      if (Array.isArray(categoriesData)) {
-        // Direct array response
-        categories.value = categoriesData;
-      } else if (categoriesData?.categories && Array.isArray(categoriesData.categories)) {
-        // Response with categories property
-        categories.value = categoriesData.categories;
-      } else if (categoriesData?.productCategories?.nodes && Array.isArray(categoriesData.productCategories.nodes)) {
-        // Response with productCategories.nodes structure
-        categories.value = categoriesData.productCategories.nodes;
-      } else {
-        categories.value = [];
+      let categoriesData = await $fetch("/api/wp-categories").catch(() => null);
+      if (!categoriesData || (Array.isArray(categoriesData) && categoriesData.length === 0)) {
+        const fallback = await $fetch("/api/categories", { query: { parent: 0, hide_empty: false } }).catch(() => null);
+        if (fallback?.productCategories?.nodes) {
+          categoriesData = fallback.productCategories.nodes;
+        }
       }
       
-      console.log("[Form] Loaded categories:", categories.value.length);
+      let raw = [];
+      if (Array.isArray(categoriesData)) {
+        raw = categoriesData;
+      } else if (categoriesData?.categories && Array.isArray(categoriesData.categories)) {
+        raw = categoriesData.categories;
+      } else if (categoriesData?.productCategories?.nodes && Array.isArray(categoriesData.productCategories.nodes)) {
+        raw = categoriesData.productCategories.nodes;
+      }
+      categories.value = raw.map((cat) => ({
+        id: cat.id ?? cat.databaseId ?? cat.slug,
+        name: cat.name || cat.slug || '',
+        slug: cat.slug || '',
+      }));
       
+      console.log("[Form] Loaded categories:", categories.value.length);
       if (categories.value.length === 0) {
-        console.warn("[Form] No categories found in response:", categoriesData);
-        message.value = {
-          type: "error",
-          text: t('create_product.no_categories_found'),
-        };
+        console.warn("[Form] No categories found");
       }
     } catch (error) {
       console.error("[Form] Error loading categories:", error);
       categories.value = [];
-      message.value = {
-        type: "error",
-        text: `${t('create_product.cannot_load_categories')}: ${
-          error?.message || t('create_product.unknown_error')
-        }`,
-      };
     }
 
     // CarouselCategories ถูกย้ายไปที่ app.vue แล้ว เพื่อแสดงในทุกหน้า

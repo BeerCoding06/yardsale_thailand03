@@ -31,11 +31,13 @@ export default defineEventHandler(async (event: any) => {
     // Use WordPress REST API endpoint for custom taxonomy
     const apiUrl = wpUtils.buildWpApiUrl('wp/v2/product_brand', params);
     
-    // Use utility function for headers with Basic Auth
     const headers = wpUtils.getWpApiHeaders(true, false);
+    if (!headers['Authorization']) {
+      console.warn('[wp-brands] WP_BASIC_AUTH not set, returning empty array');
+      return [];
+    }
     
-    console.log('[wp-brands] Fetching from WordPress REST API:', apiUrl);
-    console.log('[wp-brands] Params:', JSON.stringify(params, null, 2));
+    console.log('[wp-brands] Fetching from WordPress REST API');
     
     const response = await fetch(apiUrl, {
       method: 'GET',
@@ -44,18 +46,7 @@ export default defineEventHandler(async (event: any) => {
     });
     
     if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      console.error('[wp-brands] WordPress REST API error:', response.status, errorText);
-      console.error('[wp-brands] Request URL:', apiUrl);
-      
-      // If 404 or custom taxonomy doesn't exist, return empty array
-      if (response.status === 404) {
-        console.warn('[wp-brands] Custom taxonomy "product_brand" not found. Returning empty array.');
-        return [];
-      }
-      
-      // Return empty array instead of throwing error to keep the app working
-      console.warn('[wp-brands] Returning empty array due to API error');
+      console.warn('[wp-brands] API error:', response.status, 'returning empty array');
       return [];
     }
     
