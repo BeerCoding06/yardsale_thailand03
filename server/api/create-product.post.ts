@@ -44,11 +44,17 @@ export default defineEventHandler(async (event) => {
         data?.code ||
         res.statusText ||
         'WordPress plugin request failed';
-      console.error('[create-product] Plugin error:', res.status, errMsg);
-      throw createError({
-        statusCode: res.status >= 400 ? res.status : 502,
-        message: errMsg,
-      });
+
+      // If plugin says WooCommerce not installed, fall back to PHP (REST API) so create still works
+      if (res.status === 500 && String(errMsg).toLowerCase().includes('woocommerce') && String(errMsg).toLowerCase().includes('not installed')) {
+        console.warn('[create-product] Plugin: WooCommerce not loaded, falling back to PHP script');
+      } else {
+        console.error('[create-product] Plugin error:', res.status, errMsg);
+        throw createError({
+          statusCode: res.status >= 400 ? res.status : 502,
+          message: errMsg,
+        });
+      }
     }
 
     // No JWT: use PHP script (consumer key or Basic Auth)
