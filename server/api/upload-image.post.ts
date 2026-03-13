@@ -59,15 +59,35 @@ export default defineEventHandler(async (event) => {
     };
 
     console.log("[upload-image] Uploading to WordPress:", mediaUrl);
+    console.log("[upload-image] Auth:", jwt ? "JWT" : "Basic Auth");
     console.log("[upload-image] File:", file.name, file.type, file.size);
-    console.log("[upload-image] File size:", file.size, "bytes");
 
-    const response = await fetch(mediaUrl, {
+    let response = await fetch(mediaUrl, {
       method: "POST",
       headers,
       body: wpFormData,
       signal: AbortSignal.timeout(60000), // 60 seconds timeout for file upload
     });
+
+    // Many WordPress setups don't accept JWT for wp/v2/media; retry with Basic Auth if we have it
+    if (!response.ok && response.status === 401 && jwt && basicAuth) {
+      console.log("[upload-image] 401 with JWT, retrying with Basic Auth");
+      const retryFormData = new FormData();
+      const retryFile = new File([fileBlob], file.name, { type: file.type });
+      retryFormData.append("file", retryFile);
+      retryFormData.append("title", fileNameWithoutExt);
+      retryFormData.append("alt_text", fileNameWithoutExt);
+      let authString = basicAuth;
+      if (authString.includes(":")) {
+        authString = Buffer.from(authString).toString("base64");
+      }
+      response = await fetch(mediaUrl, {
+        method: "POST",
+        headers: { Authorization: `Basic ${authString}` },
+        body: retryFormData,
+        signal: AbortSignal.timeout(60000),
+      });
+    }
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "");
@@ -86,14 +106,13 @@ export default defineEventHandler(async (event) => {
         }
       }
 
+      // Map common WordPress Thai auth message to clearer guidance
+      if (response.status === 401 && (errorMessage.includes("รหัสผ่าน") || errorMessage.includes("password") || errorMessage.includes("incorrect"))) {
+        errorMessage = "Upload not allowed: check WordPress user has permission to upload media and WP_BASIC_AUTH (application password) is correct.";
+      }
+
       console.error("[upload-image] WordPress API error:", response.status, errorMessage);
-      console.error("[upload-image] Response headers:", Object.fromEntries(response.headers.entries()));
       console.error("[upload-image] Request URL:", mediaUrl);
-      console.error("[upload-image] File details:", {
-        name: file.name,
-        type: file.type,
-        size: file.size,
-      });
 
       throw createError({
         statusCode: response.status,
