@@ -77,8 +77,8 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-    // หน้าแรก: ไม่ prerender ตอน Docker build (ไม่มี API/env) — ใช้ SSR แทน
-    "/": { ssr: true, prerender: false },
+    // หน้าแรก: client-only เพื่อหลีกเลี่ยง 500 ตอนยังไม่ login (ไม่รัน logic ฝั่ง server)
+    "/": { ssr: false, prerender: false },
     "/categories": { ssr: true, prerender: false },
     "/favorites": { ssr: true, prerender: false },
     // Dynamic routes - use SSR instead of prerender to avoid payload file issues
