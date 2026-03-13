@@ -16,8 +16,13 @@ export default defineEventHandler(async (event) => {
     }
 
     // Prefer JWT from request (logged-in user) so WordPress authorizes as that user
+    // Accept token from header or FormData (in case header is stripped when sending FormData)
     const authHeader = getHeader(event, "authorization") || getHeader(event, "Authorization");
-    const jwt = authHeader?.replace(/^Bearer\s+/i, "").trim() || null;
+    const tokenFromForm = formData.get("token");
+    const jwt =
+      (authHeader?.replace(/^Bearer\s+/i, "").trim() || null) ||
+      (typeof tokenFromForm === "string" ? tokenFromForm.trim() : null) ||
+      null;
 
     const basicAuth = wpUtils.getWpBasicAuth();
     let authHeaderValue: string;

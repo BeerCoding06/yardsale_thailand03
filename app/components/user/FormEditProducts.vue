@@ -1395,9 +1395,12 @@ const handleSubmit = async (e) => {
             // Create FormData for upload
             const formData = new FormData();
             formData.append("file", img.file);
-
-            // Upload to WordPress media library (send JWT so WP authorizes as logged-in user)
             const token = user.value?.token;
+            if (token) {
+              formData.append("token", token);
+            }
+
+            // Upload to WordPress media library (JWT in header + FormData so server always gets it)
             const uploadResult = await $fetch("/api/upload-image", {
               method: "POST",
               body: formData,
