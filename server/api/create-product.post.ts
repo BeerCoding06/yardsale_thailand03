@@ -73,7 +73,29 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    console.log('[create-product] Successfully created product:', data?.product?.id);
+    const productId = data?.product?.id ?? data?.product_id;
+    const jwtForAuthor = (getHeader(event, 'authorization') || getHeader(event, 'Authorization'))?.replace(/^Bearer\s+/i, '').trim() || body?.token || null;
+    if (productId && jwtForAuthor) {
+      try {
+        const wpBaseUrl = wpUtils.getWpBaseUrl();
+        const setAuthorRes = await fetch(`${wpBaseUrl}/wp-json/yardsale/v1/set-product-author`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwtForAuthor}` },
+          body: JSON.stringify({ product_id: productId }),
+          signal: AbortSignal.timeout(15000),
+        });
+        const setAuthorData = await setAuthorRes.json().catch(() => ({}));
+        if (setAuthorRes.ok && setAuthorData?.success) {
+          console.log('[create-product] Set post_author for product', productId);
+        } else {
+          console.warn('[create-product] set-product-author failed:', setAuthorRes.status, setAuthorData);
+        }
+      } catch (e) {
+        console.warn('[create-product] set-product-author request failed:', (e as Error)?.message);
+      }
+    }
+
+    console.log('[create-product] Successfully created product:', productId ?? data?.product?.id);
     return data;
   } catch (error: any) {
     console.error('[create-product] Error:', error);

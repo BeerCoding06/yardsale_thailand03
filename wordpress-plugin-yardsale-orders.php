@@ -94,6 +94,16 @@ add_action('rest_api_init', function () {
         'callback' => 'yardsale_update_product',
         'permission_callback' => 'yardsale_jwt_auth_check',
     ));
+
+    // Set product author (ใช้หลังสร้างสินค้าผ่าน WooCommerce API แล้ว ให้ตั้ง post_author = user จาก JWT)
+    register_rest_route('yardsale/v1', '/set-product-author', array(
+        'methods' => 'POST',
+        'callback' => 'yardsale_set_product_author',
+        'permission_callback' => 'yardsale_jwt_auth_check',
+        'args' => array(
+            'product_id' => array('required' => true, 'type' => 'integer'),
+        ),
+    ));
 });
 
 /**
@@ -907,6 +917,42 @@ function yardsale_create_product($request) {
     } finally {
         remove_filter('user_has_cap', 'yardsale_allow_user_create_products', 10);
     }
+}
+
+/**
+ * Set product post_author to the current user (จาก JWT).
+ * ใช้เมื่อสร้างสินค้าผ่าน WooCommerce API (เช่นจาก PHP) แล้วต้องตั้งเจ้าของ
+ */
+function yardsale_set_product_author($request) {
+    $user_id = get_current_user_id();
+    if (!$user_id) {
+        return new WP_Error('not_authenticated', 'User not authenticated', array('status' => 401));
+    }
+    $params = $request->get_json_params();
+    if (empty($params)) {
+        $params = $request->get_body_params();
+    }
+    $product_id = isset($params['product_id']) ? (int) $params['product_id'] : 0;
+    if (!$product_id) {
+        return new WP_Error('invalid_data', 'product_id is required', array('status' => 400));
+    }
+    $post = get_post($product_id);
+    if (!$post || $post->post_type !== 'product') {
+        return new WP_Error('not_found', 'Product not found', array('status' => 404));
+    }
+    global $wpdb;
+    $wpdb->update(
+        $wpdb->posts,
+        array('post_author' => (int) $user_id),
+        array('ID' => (int) $product_id),
+        array('%d'),
+        array('%d')
+    );
+    if ($wpdb->last_error) {
+        return new WP_Error('db_error', $wpdb->last_error, array('status' => 500));
+    }
+    error_log('[yardsale_set_product_author] Set post_author=' . $user_id . ' for product_id=' . $product_id);
+    return array('success' => true, 'product_id' => $product_id, 'post_author' => (int) $user_id);
 }
 
 /**
