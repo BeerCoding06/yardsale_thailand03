@@ -68,6 +68,11 @@ if (!empty($productData['short_description'])) {
     $wcProductData['short_description'] = $productData['short_description'];
 }
 
+// Add sale_price if provided (WooCommerce expects string)
+if (isset($productData['sale_price']) && $productData['sale_price'] !== '') {
+    $wcProductData['sale_price'] = (string) $productData['sale_price'];
+}
+
 // SKU: use provided or auto-generate (รหัสสินค้าต้องถูกสร้างขึ้น)
 if (!empty($productData['sku']) && trim($productData['sku']) !== '') {
     $wcProductData['sku'] = trim($productData['sku']);

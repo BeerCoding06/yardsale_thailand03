@@ -726,8 +726,8 @@ function yardsale_create_product($request) {
         $product->set_status($status);
         $product->set_catalog_visibility('visible');
 
-        if (!empty($params['sale_price'])) {
-            $product->set_sale_price($params['sale_price']);
+        if (isset($params['sale_price']) && $params['sale_price'] !== '') {
+            $product->set_sale_price((string) $params['sale_price']);
         }
         if (isset($params['description'])) {
             $product->set_description($params['description']);

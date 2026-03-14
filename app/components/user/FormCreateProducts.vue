@@ -3,6 +3,7 @@
 // Authentication
 const { user, isAuthenticated } = useAuth();
 const { t } = useI18n();
+const router = useRouter();
 
 // Form data
 const form = ref({
@@ -801,7 +802,7 @@ const handleSubmit = async (e) => {
       name: form.value.name,
       type: form.value.type || "simple", // Use simple product type
       regular_price: String(form.value.regular_price),
-      sale_price: form.value.sale_price
+      sale_price: (form.value.sale_price !== '' && form.value.sale_price != null)
         ? String(form.value.sale_price)
         : undefined,
       description: form.value.description || undefined,
@@ -943,52 +944,10 @@ const handleSubmit = async (e) => {
       text: t('create_product.create_success'),
     };
 
-    // Reset form after 2 seconds
+    // Go to my products page after a short delay so success message is visible
     setTimeout(() => {
-      const resetForm = {
-        type: "simple",
-        name: "",
-        regular_price: "",
-        sale_price: "",
-        description: "",
-        short_description: "",
-        manage_stock: true,
-        stock_quantity: 1,
-        categories: [],
-        tags: [],
-        images: [],
-      };
-
-      form.value = resetForm;
-      selectedCategoryIds.value = [];
-      selectedTags.value = [];
-
-      // Reset Select2 values
-      if (import.meta.client && window.jQuery && window.jQuery.fn.select2) {
-        const $ = window.jQuery;
-        const selectRefs = [categorySelect, tagsSelect];
-
-        selectRefs.forEach((selectRef) => {
-          if (
-            selectRef.value &&
-            $(selectRef.value).hasClass("select2-hidden-accessible")
-          ) {
-            $(selectRef.value).val(null).trigger("change");
-          }
-        });
-      }
-
-      // Clear all errors
-      errors.value = {
-        name: "",
-        regular_price: "",
-        category: "",
-        stock_quantity: "",
-        sale_price: "",
-      };
-      uploadedImages.value = [];
-      message.value = null;
-    }, 2000);
+      router.push("/my-products");
+    }, 1500);
   } catch (error) {
     console.error("[Form] Error:", error);
     message.value = {
