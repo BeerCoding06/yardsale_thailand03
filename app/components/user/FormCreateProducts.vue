@@ -380,14 +380,12 @@ watch(
   { deep: true }
 );
 
-// Watch selectedCategoryIds and update form + Select2
+// Watch selectedCategoryIds and update form (do NOT trigger("change") here to avoid infinite loop)
 watch(selectedCategoryIds, (ids) => {
   if (categorySelect.value && window.jQuery && window.jQuery.fn.select2) {
     const $ = window.jQuery;
     if ($(categorySelect.value).hasClass("select2-hidden-accessible")) {
-      $(categorySelect.value)
-        .val(Array.isArray(ids) ? ids : [])
-        .trigger("change");
+      $(categorySelect.value).val(Array.isArray(ids) ? ids : []);
     }
   }
 
