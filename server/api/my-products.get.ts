@@ -1,21 +1,25 @@
 // server/api/my-products.get.ts
-// Fetch user's products via WordPress custom endpoint with JWT authentication
+// Fetch products for the logged-in user only (JWT required; WordPress filters by post_author from JWT)
 
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
-    
-    // Get JWT token from Authorization header
+
+    // Require JWT – we never use user_id from query; only the user from the token
     const authHeader = getHeader(event, 'authorization') || getHeader(event, 'Authorization');
-    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw createError({
         statusCode: 401,
         message: "Authorization header with Bearer token is required",
       });
     }
-    
-    const token = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace('Bearer ', '').trim();
+    if (!token) {
+      throw createError({
+        statusCode: 401,
+        message: "JWT token is required",
+      });
+    }
 
     // Get WordPress base URL from runtime config
     const config = useRuntimeConfig();

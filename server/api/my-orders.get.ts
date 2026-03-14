@@ -1,38 +1,39 @@
 // server/api/my-orders.get.ts
-// Fetch user's orders via PHP API endpoint
+// Fetch orders for the logged-in user only (JWT required; never use client-supplied customer_id)
 
 import { executePhpScript } from '../utils/php-executor';
 
 export default defineEventHandler(async (event) => {
   try {
-    const query = getQuery(event);
-    
-    const customerId = query.customer_id;
-    const customerEmail = query.customer_email;
-    
-    if (!customerId && !customerEmail) {
+    const authHeader = getHeader(event, 'authorization') || getHeader(event, 'Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw createError({
-        statusCode: 400,
-        message: "customer_id or customer_email is required",
+        statusCode: 401,
+        message: 'Authorization header with Bearer token is required',
       });
     }
-    
-    // Build query params for PHP script
+    const token = authHeader.replace('Bearer ', '').trim();
+    if (!token) {
+      throw createError({
+        statusCode: 401,
+        message: 'JWT token is required',
+      });
+    }
+
+    const query = getQuery(event);
     const queryParams: Record<string, string | number> = {
-      per_page: 100,
+      per_page: query.per_page ? Number(query.per_page) : 100,
     };
-    if (customerId) queryParams.customer_id = Number(customerId);
-    if (customerEmail) queryParams.customer_email = String(customerEmail);
-    
-    console.log('[my-orders] Executing PHP script: getOrders.php', queryParams);
-    
-    // Execute PHP script directly using PHP CLI
+    if (query.page) queryParams.page = Number(query.page);
+    if (query.status) queryParams.status = String(query.status);
+
+    // Use getMyOrders.php so WordPress filters by JWT user only (ignore any customer_id from query)
     const data = await executePhpScript({
-      script: 'getOrders.php',
+      script: 'getMyOrders.php',
       queryParams,
       method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
     });
-    
     return data;
   } catch (error: any) {
     console.error('[my-orders] Error:', error.message || error);
