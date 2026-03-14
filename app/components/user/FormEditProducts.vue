@@ -50,7 +50,7 @@ const errors = ref({
 // Categories from WordPress
 const categories = ref([]);
 const isLoadingCategories = ref(false);
-const selectedCategoryId = ref(null);
+const selectedCategoryIds = ref([]);
 
 // CarouselCategories ถูกย้ายไปที่ app.vue แล้ว เพื่อแสดงในทุกหน้า
 
@@ -122,8 +122,9 @@ const initSelect2 = () => {
 
     $(categorySelect.value).select2({
       placeholder: "เลือกหมวดหมู่",
-      allowClear: false,
+      allowClear: true,
       width: "100%",
+      closeOnSelect: false,
       language: {
         noResults: function () {
           return "ไม่พบผลลัพธ์";
@@ -134,21 +135,20 @@ const initSelect2 = () => {
       },
     });
 
-    // Apply error class if needed
-    const $select2Container = $(categorySelect.value).next(
-      ".select2-container"
-    );
+    const $select2Container = $(categorySelect.value).next(".select2-container");
     if ($select2Container.length && errors.value.category) {
       $select2Container.addClass("select2-container--error");
     } else if ($select2Container.length) {
       $select2Container.removeClass("select2-container--error");
     }
 
-    // Handle Select2 change event
     $(categorySelect.value).on("change", function () {
       const selectedValue = $(this).val();
-      selectedCategoryId.value = selectedValue || null;
+      selectedCategoryIds.value = Array.isArray(selectedValue) ? selectedValue : (selectedValue ? [selectedValue] : []);
     });
+
+    const ids = selectedCategoryIds.value;
+    $(categorySelect.value).val(Array.isArray(ids) ? ids : []).trigger("change");
   }
 };
 
@@ -436,7 +436,7 @@ const loadProductData = () => {
     all_product_keys: Object.keys(prod),
   });
 
-  // Load categories
+  // Load categories (multiple)
   if (
     prod.categories &&
     Array.isArray(prod.categories) &&
@@ -445,7 +445,9 @@ const loadProductData = () => {
     form.value.categories = prod.categories.map((cat) => ({
       id: cat.id || cat,
     }));
-    selectedCategoryId.value = prod.categories[0].id || prod.categories[0];
+    selectedCategoryIds.value = prod.categories.map((cat) => String(cat.id || cat));
+  } else {
+    selectedCategoryIds.value = [];
   }
 
   // Load tags
@@ -542,10 +544,10 @@ onMounted(async () => {
 
     // Set Select2 values after initialization
     await nextTick();
-    if (selectedCategoryId.value && categorySelect.value && window.jQuery) {
+    if (selectedCategoryIds.value.length > 0 && categorySelect.value && window.jQuery) {
       const $ = window.jQuery;
       if ($(categorySelect.value).hasClass("select2-hidden-accessible")) {
-        $(categorySelect.value).val(selectedCategoryId.value).trigger("change");
+        $(categorySelect.value).val(selectedCategoryIds.value).trigger("change");
       }
     }
     if (selectedTags.value.length > 0 && tagsSelect.value && window.jQuery) {
@@ -581,24 +583,19 @@ watch(
   { deep: true }
 );
 
-// Watch selectedCategoryId and update Select2 value
-watch(selectedCategoryId, (newId) => {
+// Watch selectedCategoryIds and update form (do NOT trigger("change") here to avoid infinite loop)
+watch(selectedCategoryIds, (ids) => {
   if (categorySelect.value && window.jQuery && window.jQuery.fn.select2) {
     const $ = window.jQuery;
     if ($(categorySelect.value).hasClass("select2-hidden-accessible")) {
-      $(categorySelect.value)
-        .val(newId || "")
-        .trigger("change");
+      $(categorySelect.value).val(Array.isArray(ids) ? ids : []);
     }
   }
 
-  if (newId) {
-    form.value.categories = [{ id: Number(newId) }];
-    errors.value.category = ""; // Clear error when category is selected
-  } else {
-    form.value.categories = [];
-  }
-});
+  const arr = Array.isArray(ids) ? ids : [];
+  form.value.categories = arr.map((id) => ({ id: Number(id) }));
+  if (form.value.categories.length > 0) errors.value.category = "";
+}, { deep: true });
 
 // Watch errors.category to update Select2 error class
 watch(
@@ -1066,7 +1063,7 @@ const handleSubmit = async (e) => {
   }
 
   // Validate category
-  if (!selectedCategoryId.value || form.value.categories.length === 0) {
+  if (!form.value.categories.length) {
     errors.value.category = "กรุณาเลือกหมวดหมู่สินค้า";
     hasErrors = true;
   }
@@ -1397,6 +1394,7 @@ const handleSubmit = async (e) => {
               >
               <select
                 ref="categorySelect"
+                multiple
                 required
                 :disabled="isLoadingCategories"
                 :class="[
@@ -1406,9 +1404,6 @@ const handleSubmit = async (e) => {
                     : 'border-neutral-200 dark:border-neutral-700 focus:border-black dark:focus:border-white hover:border-neutral-300 dark:hover:border-neutral-600',
                 ]"
               >
-                <option value="">
-                  {{ isLoadingCategories ? "กำลังโหลด..." : "เลือกหมวดหมู่" }}
-                </option>
                 <option
                   v-for="category in categories"
                   :key="category.id"
