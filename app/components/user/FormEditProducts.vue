@@ -1841,7 +1841,7 @@ const handleSubmit = async (e) => {
 
 /* Quill Editor Styles */
 .quill-editor-wrapper :deep(.ql-container) {
-  height: 300px;
+  height: 400px;
   font-size: 14px;
   color: rgb(0, 0, 0);
 }
@@ -1851,7 +1851,7 @@ const handleSubmit = async (e) => {
 }
 
 .quill-editor-wrapper :deep(.ql-editor) {
-  min-height: 300px;
+  min-height: 400px;
   color: rgb(0, 0, 0);
 }
 
