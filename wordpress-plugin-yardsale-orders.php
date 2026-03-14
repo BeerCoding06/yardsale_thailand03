@@ -536,72 +536,40 @@ function yardsale_get_my_products($request) {
         );
     }
     
-    // Try using wc_get_products with author filter first
-    $args = array(
-        'limit' => $per_page,
-        'page' => $page,
-        'orderby' => 'date',
-        'order' => 'DESC',
-    );
-    
+    global $wpdb;
+
+    // Prefer direct DB query by post_author so we always get the current user's products (wc_get_products 'author' may be ignored in some WooCommerce versions)
+    $status_where = '';
+    $prepare_args = array((int) $user_id);
     if ($status && $status !== 'any') {
-        $args['status'] = $status;
+        $status_where = " AND p.post_status = %s";
+        $prepare_args[] = $status;
     } else {
-        // Get all statuses
-        $args['status'] = array('publish', 'pending', 'draft', 'private');
+        $status_where = " AND p.post_status IN ('publish', 'pending', 'draft', 'private')";
     }
-    
-    // Try with author parameter (may not work in all WooCommerce versions)
-    $args['author'] = $user_id;
-    
-    error_log('[yardsale_get_my_products] Query args: ' . print_r($args, true));
-    
-    // Get products
-    $wc_products = wc_get_products($args);
-    
-    error_log('[yardsale_get_my_products] Found ' . count($wc_products) . ' products using wc_get_products for user ID: ' . $user_id);
-    
-    // If no products found, try querying database directly
-    if (empty($wc_products)) {
-        error_log('[yardsale_get_my_products] No products found with wc_get_products, trying database query');
-        
-        global $wpdb;
-        
-        // Build status query
-        $status_query = '';
-        if ($status && $status !== 'any') {
-            $status_query = $wpdb->prepare(" AND p.post_status = %s", $status);
-        } else {
-            $status_query = " AND p.post_status IN ('publish', 'pending', 'draft', 'private')";
-        }
-        
-        // Query products directly from database
-        $query = $wpdb->prepare("
-            SELECT p.ID 
-            FROM {$wpdb->posts} p
-            WHERE p.post_type = 'product'
-            AND p.post_author = %d
-            {$status_query}
-            ORDER BY p.post_date DESC
-            LIMIT %d OFFSET %d
-        ", $user_id, $per_page, ($page - 1) * $per_page);
-        
-        error_log('[yardsale_get_my_products] Database query: ' . $query);
-        
-        $product_ids = $wpdb->get_col($query);
-        
-        error_log('[yardsale_get_my_products] Found ' . count($product_ids) . ' product IDs from database');
-        
-        if (!empty($product_ids)) {
-            // Get products using product IDs
-            $wc_products = array();
-            foreach ($product_ids as $product_id) {
-                $product = wc_get_product($product_id);
-                if ($product) {
-                    $wc_products[] = $product;
-                }
+    $prepare_args[] = (int) $per_page;
+    $prepare_args[] = (int) (($page - 1) * $per_page);
+    $query = $wpdb->prepare("
+        SELECT p.ID
+        FROM {$wpdb->posts} p
+        WHERE p.post_type = 'product'
+        AND p.post_author = %d
+        {$status_where}
+        ORDER BY p.post_date DESC
+        LIMIT %d OFFSET %d
+    ", $prepare_args);
+
+    error_log('[yardsale_get_my_products] Query by post_author=' . $user_id . ': ' . $query);
+    $product_ids = $wpdb->get_col($query);
+    error_log('[yardsale_get_my_products] Found ' . count($product_ids) . ' product IDs for user ' . $user_id);
+
+    $wc_products = array();
+    if (!empty($product_ids)) {
+        foreach ($product_ids as $pid) {
+            $product = wc_get_product($pid);
+            if ($product) {
+                $wc_products[] = $product;
             }
-            error_log('[yardsale_get_my_products] Loaded ' . count($wc_products) . ' products from database');
         }
     }
     
@@ -750,11 +718,20 @@ function yardsale_create_product($request) {
         $product->save();
         $product_id = $product->get_id();
 
-        // Set post_author to current user
-        wp_update_post(array(
-            'ID' => $product_id,
-            'post_author' => $user_id,
-        ));
+        // Set post_author to current user (direct DB update so it always works regardless of capabilities)
+        global $wpdb;
+        $wpdb->update(
+            $wpdb->posts,
+            array('post_author' => (int) $user_id),
+            array('ID' => (int) $product_id),
+            array('%d'),
+            array('%d')
+        );
+        if ($wpdb->last_error) {
+            error_log('[yardsale_create_product] Failed to set post_author: ' . $wpdb->last_error);
+        } else {
+            error_log('[yardsale_create_product] Set post_author=' . $user_id . ' for product_id=' . $product_id);
+        }
 
         // Categories
         if (!empty($params['categories']) && is_array($params['categories'])) {
