@@ -16,7 +16,6 @@ const form = ref({
   stock_quantity: 1,
   categories: [],
   tags: [],
-  brand: [],
   images: [],
 });
 
@@ -50,7 +49,6 @@ const uploadedImages = ref([]);
 // Select2 refs
 const categorySelect = ref(null);
 const tagsSelect = ref(null);
-const brandSelect = ref(null);
 
 // Editor refs
 const descriptionEditor = ref(null);
@@ -58,13 +56,10 @@ const descriptionEditorInstance = ref(null);
 const shortDescriptionEditor = ref(null);
 const shortDescriptionEditorInstance = ref(null);
 
-// Tags and Brands from WordPress
+// Tags from WordPress
 const tags = ref([]);
-const brands = ref([]);
 const isLoadingTags = ref(false);
-const isLoadingBrands = ref(false);
 const selectedTags = ref([]);
-const selectedBrands = ref([]);
 
 // Load Select2 and Quill from CDN
 // Load jQuery first, then Select2 and Quill
@@ -228,50 +223,10 @@ const initTagsSelect2 = () => {
   }
 };
 
-// Initialize Brand Select2
-const initBrandSelect2 = () => {
-  if (
-    import.meta.client &&
-    brandSelect.value &&
-    window.jQuery &&
-    window.jQuery.fn.select2
-  ) {
-    const $ = window.jQuery;
-
-    // Destroy existing instance if any
-    if ($(brandSelect.value).hasClass("select2-hidden-accessible")) {
-      $(brandSelect.value).select2("destroy");
-    }
-
-    $(brandSelect.value).select2({
-      placeholder: t('create_product.select_brand'),
-      allowClear: false,
-      multiple: true,
-      width: "100%",
-      language: {
-        noResults: function () {
-          return t('create_product.no_results');
-        },
-        searching: function () {
-          return t('create_product.searching');
-        },
-      },
-    });
-
-    // Handle Select2 change event
-    $(brandSelect.value).on("change", function () {
-      const selectedValues = $(this).val() || [];
-      selectedBrands.value = selectedValues.map((v) => Number(v));
-      form.value.brand = selectedValues.map((v) => String(v));
-    });
-  }
-};
-
-// Fetch categories, tags, and brands from WordPress
+// Fetch categories and tags from WordPress
 onMounted(async () => {
   isLoadingCategories.value = true;
   isLoadingTags.value = true;
-  isLoadingBrands.value = true;
 
   try {
     // Fetch categories for form select (wp-categories ใช้ WooCommerce API; fallback ไป /api/categories)
@@ -324,29 +279,12 @@ onMounted(async () => {
       tags.value = [];
     }
 
-    // Fetch brands
-    console.log("[Form] Fetching brands from /api/wp-brands...");
-    try {
-      const brandsData = await $fetch("/api/wp-brands").catch((err) => {
-        console.warn("[Form] Brands API error:", err);
-        return [];
-      });
-      brands.value = Array.isArray(brandsData) && brandsData ? brandsData : [];
-      console.log("[Form] Loaded brands:", brands.value.length);
-    } catch (error) {
-      console.warn("[Form] Error loading brands:", error);
-      brands.value = [];
-    }
-
-    // Error message already set in try-catch block above if categories are empty
-
     // Wait for Select2 to load, then initialize
     await waitForSelect2();
     await nextTick();
     initSelect2();
     initTagsSelect2();
-    initBrandSelect2();
-    
+
     // Wait for Quill to load, then initialize editors
     await waitForQuill();
     await nextTick();
@@ -361,7 +299,6 @@ onMounted(async () => {
   } finally {
     isLoadingCategories.value = false;
     isLoadingTags.value = false;
-    isLoadingBrands.value = false;
   }
 });
 
@@ -626,7 +563,7 @@ onBeforeUnmount(() => {
   if (window.jQuery && window.jQuery.fn.select2) {
     const $ = window.jQuery;
 
-    const selectRefs = [categorySelect, tagsSelect, brandSelect];
+    const selectRefs = [categorySelect, tagsSelect];
 
     selectRefs.forEach((selectRef) => {
       if (
@@ -874,7 +811,6 @@ const handleSubmit = async (e) => {
       status: "pending",
       categories: form.value.categories,
       tags: form.value.tags.length > 0 ? form.value.tags : undefined,
-      brand: form.value.brand.length > 0 ? form.value.brand : undefined,
       post_author: user.value.id, // Add logged-in user ID as post_author
     };
 
@@ -1020,19 +956,17 @@ const handleSubmit = async (e) => {
         stock_quantity: 1,
         categories: [],
         tags: [],
-        brand: [],
         images: [],
       };
 
       form.value = resetForm;
       selectedCategoryIds.value = [];
       selectedTags.value = [];
-      selectedBrands.value = [];
 
       // Reset Select2 values
       if (import.meta.client && window.jQuery && window.jQuery.fn.select2) {
         const $ = window.jQuery;
-        const selectRefs = [tagsSelect, brandSelect];
+        const selectRefs = [categorySelect, tagsSelect];
 
         selectRefs.forEach((selectRef) => {
           if (
@@ -1233,33 +1167,6 @@ const handleSubmit = async (e) => {
               </p>
             </div>
 
-            <!-- Brand -->
-            <div class="md:col-span-2">
-              <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >{{ $t('create_product.brand') }}</label
-              >
-              <select
-                ref="brandSelect"
-                multiple
-                :disabled="isLoadingBrands"
-                :class="[
-                  'w-full px-4 py-3 rounded-xl border-2 bg-white/80 dark:bg-black/20 text-black dark:text-white focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
-                  'border-neutral-200 dark:border-neutral-700 focus:border-black dark:focus:border-white hover:border-neutral-300 dark:hover:border-neutral-600',
-                ]"
-              >
-                <option
-                  v-for="brand in brands"
-                  :key="brand.id"
-                  :value="brand.id"
-                >
-                  {{ brand.name }}
-                </option>
-              </select>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                {{ $t('create_product.brand_hint') }}
-              </p>
-            </div>
           </div>
         </div>
 

@@ -800,36 +800,6 @@ function yardsale_create_product($request) {
             }
         }
 
-        // Brand (custom taxonomy product_brand or pa_brand) - multiple
-        $brand_taxonomies = array('product_brand', 'pa_brand', 'brand');
-        foreach ($brand_taxonomies as $tax) {
-            if (!taxonomy_exists($tax)) {
-                continue;
-            }
-            $brand_ids = array();
-            if (!empty($params['brand']) && is_array($params['brand'])) {
-                foreach ($params['brand'] as $b) {
-                    $id = is_array($b) ? (isset($b['id']) ? $b['id'] : null) : (is_numeric($b) ? $b : null);
-                    if ($id) {
-                        $brand_ids[] = (int) $id;
-                    } else {
-                        $name = is_array($b) ? (isset($b['name']) ? $b['name'] : '') : (is_string($b) ? $b : '');
-                        if ($name !== '') {
-                            $name = trim((string) $name);
-                            $t = is_numeric($name) ? get_term_by('id', (int) $name, $tax) : (get_term_by('name', $name, $tax) ?: get_term_by('slug', sanitize_title($name), $tax));
-                            if ($t && !is_wp_error($t)) {
-                                $brand_ids[] = $t->term_id;
-                            }
-                        }
-                    }
-                }
-            }
-            if (!empty($brand_ids)) {
-                wp_set_object_terms($product_id, $brand_ids, $tax);
-                break;
-            }
-        }
-
         // Images (by URL - resolve to attachment ID if possible)
         if (!empty($params['images']) && is_array($params['images'])) {
             $gallery_ids = array();

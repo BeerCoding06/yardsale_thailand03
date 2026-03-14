@@ -28,7 +28,6 @@ const form = ref({
   stock_quantity: 1,
   categories: [],
   tags: [],
-  brand: [],
   images: [],
 });
 
@@ -62,15 +61,11 @@ const uploadedImages = ref([]);
 // Select2 refs
 const categorySelect = ref(null);
 const tagsSelect = ref(null);
-const brandSelect = ref(null);
 
-// Tags and Brands from WordPress
+// Tags from WordPress
 const tags = ref([]);
-const brands = ref([]);
 const isLoadingTags = ref(false);
-const isLoadingBrands = ref(false);
 const selectedTags = ref([]);
-const selectedBrands = ref([]);
 
 // Editor refs
 const descriptionEditor = ref(null);
@@ -214,45 +209,6 @@ const initTagsSelect2 = () => {
       const selectedValues = $(this).val() || [];
       selectedTags.value = selectedValues.map((v) => Number(v));
       form.value.tags = selectedValues.map((v) => ({ id: Number(v) }));
-    });
-  }
-};
-
-// Initialize Brand Select2
-const initBrandSelect2 = () => {
-  if (
-    import.meta.client &&
-    brandSelect.value &&
-    window.jQuery &&
-    window.jQuery.fn.select2
-  ) {
-    const $ = window.jQuery;
-
-    // Destroy existing instance if any
-    if ($(brandSelect.value).hasClass("select2-hidden-accessible")) {
-      $(brandSelect.value).select2("destroy");
-    }
-
-    $(brandSelect.value).select2({
-      placeholder: "เลือกแบรนด์",
-      allowClear: false,
-      multiple: true,
-      width: "100%",
-      language: {
-        noResults: function () {
-          return "ไม่พบผลลัพธ์";
-        },
-        searching: function () {
-          return "กำลังค้นหา...";
-        },
-      },
-    });
-
-    // Handle Select2 change event
-    $(brandSelect.value).on("change", function () {
-      const selectedValues = $(this).val() || [];
-      selectedBrands.value = selectedValues.map((v) => Number(v));
-      form.value.brand = selectedValues.map((v) => String(v));
     });
   }
 };
@@ -477,11 +433,6 @@ const loadProductData = () => {
     original_sale_price: prod.sale_price,
     product_type: prod.type,
     attributes: prod.attributes,
-    has_brand_attr: prod.attributes
-      ? prod.attributes.some(
-          (attr) => attr.name === "pa_brand" || attr.name === "brand"
-        )
-      : false,
     all_product_keys: Object.keys(prod),
   });
 
@@ -501,141 +452,6 @@ const loadProductData = () => {
   if (prod.tags && Array.isArray(prod.tags) && prod.tags.length > 0) {
     form.value.tags = prod.tags.map((tag) => ({ id: tag.id || tag }));
     selectedTags.value = prod.tags.map((tag) => tag.id || tag);
-  }
-
-  // Load brand (from attributes, brands array, or meta)
-  // WooCommerce API may return brand in different formats:
-  // 1. As brands array: [{id: 183, name: "Index Living Mall", slug: "index-living-mall"}]
-  // 2. As attribute with options array containing term IDs (numbers or strings)
-  // 3. As attribute with options array containing term objects with id/term_id
-  // 4. As meta_data with brand information
-
-  // First, check if product has a brands array (some WooCommerce API versions return this)
-  if (prod.brands && Array.isArray(prod.brands) && prod.brands.length > 0) {
-    console.log("[FormEditProducts] Found brands array:", prod.brands);
-    form.value.brand = prod.brands.map((brand) => {
-      if (typeof brand === "object" && brand !== null) {
-        return String(brand.id || brand.term_id || brand);
-      }
-      return String(brand);
-    });
-    selectedBrands.value = prod.brands
-      .map((brand) => {
-        if (typeof brand === "object" && brand !== null) {
-          return Number(brand.id || brand.term_id || brand);
-        }
-        return Number(brand);
-      })
-      .filter((id) => id > 0);
-    console.log("[FormEditProducts] Loaded brands from brands array:", {
-      form_brand: form.value.brand,
-      selectedBrands: selectedBrands.value,
-    });
-  } else if (prod.attributes && Array.isArray(prod.attributes)) {
-    const brandAttr = prod.attributes.find(
-      (attr) => attr.name === "pa_brand" || attr.name === "brand"
-    );
-    if (brandAttr && brandAttr.options && brandAttr.options.length > 0) {
-      console.log("[FormEditProducts] Found brand attribute:", brandAttr);
-
-      // Handle both string and number options
-      form.value.brand = brandAttr.options.map((opt) => {
-        // If option is already a number (term ID), convert to string
-        if (typeof opt === "number") {
-          return String(opt);
-        }
-        // If option is a string that looks like a number, use it
-        if (typeof opt === "string" && /^\d+$/.test(opt)) {
-          return opt;
-        }
-        // If option is an object with id or term_id, extract the ID
-        if (typeof opt === "object" && opt !== null) {
-          const termId = opt.id || opt.term_id || opt.value;
-          if (termId !== undefined && termId !== null) {
-            return String(termId);
-          }
-        }
-        return String(opt);
-      });
-
-      selectedBrands.value = brandAttr.options
-        .map((opt) => {
-          if (typeof opt === "number") {
-            return opt;
-          }
-          if (typeof opt === "string" && /^\d+$/.test(opt)) {
-            return Number(opt);
-          }
-          if (typeof opt === "object" && opt !== null) {
-            const termId = opt.id || opt.term_id || opt.value;
-            if (termId !== undefined && termId !== null) {
-              return Number(termId);
-            }
-          }
-          // Try to parse as number
-          const parsed = Number(opt);
-          return isNaN(parsed) ? 0 : parsed;
-        })
-        .filter((id) => id > 0); // Filter out invalid IDs
-
-      console.log("[FormEditProducts] Loaded brands:", {
-        brandAttr,
-        options: brandAttr.options,
-        form_brand: form.value.brand,
-        selectedBrands: selectedBrands.value,
-      });
-    } else {
-      console.log("[FormEditProducts] No brand attribute found or no options");
-    }
-  } else {
-    console.log("[FormEditProducts] No attributes found in product");
-  }
-
-  // Also check meta_data for brand information (fallback)
-  if (
-    (!selectedBrands.value || selectedBrands.value.length === 0) &&
-    prod.meta_data &&
-    Array.isArray(prod.meta_data)
-  ) {
-    const brandMeta = prod.meta_data.find(
-      (meta) =>
-        meta.key === "_pa_brand" ||
-        meta.key === "pa_brand" ||
-        meta.key === "brand"
-    );
-    if (brandMeta && brandMeta.value) {
-      console.log("[FormEditProducts] Found brand in meta_data:", brandMeta);
-      // Handle different meta value formats
-      let brandIds = [];
-      if (Array.isArray(brandMeta.value)) {
-        brandIds = brandMeta.value
-          .map((v) => {
-            if (typeof v === "number") return v;
-            if (typeof v === "object" && v !== null) {
-              return Number(v.id || v.term_id || v);
-            }
-            return Number(v);
-          })
-          .filter((id) => id > 0);
-      } else if (
-        typeof brandMeta.value === "string" ||
-        typeof brandMeta.value === "number"
-      ) {
-        const parsed = Number(brandMeta.value);
-        if (!isNaN(parsed) && parsed > 0) {
-          brandIds = [parsed];
-        }
-      }
-
-      if (brandIds.length > 0) {
-        selectedBrands.value = brandIds;
-        form.value.brand = brandIds.map((id) => String(id));
-        console.log("[FormEditProducts] Loaded brands from meta_data:", {
-          selectedBrands: selectedBrands.value,
-          form_brand: form.value.brand,
-        });
-      }
-    }
   }
 
   // Load images
@@ -662,11 +478,10 @@ watch(
   { immediate: true, deep: true }
 );
 
-// Fetch categories, tags, and brands from WordPress
+// Fetch categories and tags from WordPress
 onMounted(async () => {
   isLoadingCategories.value = true;
   isLoadingTags.value = true;
-  isLoadingBrands.value = true;
 
   try {
     // Load product data first (will be called again by watch if product changes)
@@ -707,20 +522,6 @@ onMounted(async () => {
       tags.value = [];
     }
 
-    // Fetch brands
-    console.log("[Form] Fetching brands from /api/wp-brands...");
-    try {
-      const brandsData = await $fetch("/api/wp-brands").catch((err) => {
-        console.warn("[Form] Brands API error:", err);
-        return [];
-      });
-      brands.value = Array.isArray(brandsData) && brandsData ? brandsData : [];
-      console.log("[Form] Loaded brands:", brands.value.length);
-    } catch (error) {
-      console.warn("[Form] Error loading brands:", error);
-      brands.value = [];
-    }
-
     if (categories.value.length === 0) {
       message.value = {
         type: "error",
@@ -733,7 +534,6 @@ onMounted(async () => {
     await nextTick();
     initSelect2();
     initTagsSelect2();
-    initBrandSelect2();
 
     // Initialize Quill editors
     await nextTick();
@@ -754,41 +554,6 @@ onMounted(async () => {
         $(tagsSelect.value).val(selectedTags.value).trigger("change");
       }
     }
-    // Set brand Select2 values - wait a bit more to ensure brands are loaded
-    await nextTick();
-    if (selectedBrands.value.length > 0 && brandSelect.value && window.jQuery) {
-      const $ = window.jQuery;
-      if ($(brandSelect.value).hasClass("select2-hidden-accessible")) {
-        console.log(
-          "[FormEditProducts] Setting brand Select2 values:",
-          selectedBrands.value
-        );
-        $(brandSelect.value).val(selectedBrands.value).trigger("change");
-        // Force update after a short delay to ensure Select2 renders correctly
-        setTimeout(() => {
-          if ($(brandSelect.value).hasClass("select2-hidden-accessible")) {
-            $(brandSelect.value).val(selectedBrands.value).trigger("change");
-          }
-        }, 100);
-      } else {
-        console.warn(
-          "[FormEditProducts] Brand Select2 not initialized yet, retrying..."
-        );
-        // Retry after a short delay
-        setTimeout(() => {
-          if (brandSelect.value && window.jQuery && window.jQuery.fn.select2) {
-            const $ = window.jQuery;
-            if ($(brandSelect.value).hasClass("select2-hidden-accessible")) {
-              console.log(
-                "[FormEditProducts] Setting brand Select2 values (retry):",
-                selectedBrands.value
-              );
-              $(brandSelect.value).val(selectedBrands.value).trigger("change");
-            }
-          }
-        }, 500);
-      }
-    }
   } catch (error) {
     console.error("[Form] Error loading data:", error);
     message.value = {
@@ -798,7 +563,6 @@ onMounted(async () => {
   } finally {
     isLoadingCategories.value = false;
     isLoadingTags.value = false;
-    isLoadingBrands.value = false;
   }
 });
 
@@ -1097,7 +861,7 @@ onBeforeUnmount(() => {
   if (window.jQuery && window.jQuery.fn.select2) {
     const $ = window.jQuery;
 
-    const selectRefs = [categorySelect, tagsSelect, brandSelect];
+    const selectRefs = [categorySelect, tagsSelect];
 
     selectRefs.forEach((selectRef) => {
       if (
@@ -1375,7 +1139,6 @@ const handleSubmit = async (e) => {
       stock_quantity: form.value.stock_quantity,
       categories: form.value.categories,
       tags: form.value.tags.length > 0 ? form.value.tags : undefined,
-      brand: form.value.brand.length > 0 ? form.value.brand : undefined,
       sku: form.value.sku || undefined,
     };
 
@@ -1686,33 +1449,6 @@ const handleSubmit = async (e) => {
               </p>
             </div>
 
-            <!-- Brand -->
-            <div class="md:col-span-2">
-              <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >แบรนด์</label
-              >
-              <select
-                ref="brandSelect"
-                multiple
-                :disabled="isLoadingBrands"
-                :class="[
-                  'w-full px-4 py-3 rounded-xl border-2 bg-white/80 dark:bg-black/20 text-black dark:text-white focus:outline-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
-                  'border-neutral-200 dark:border-neutral-700 focus:border-black dark:focus:border-white hover:border-neutral-300 dark:hover:border-neutral-600',
-                ]"
-              >
-                <option
-                  v-for="brand in brands"
-                  :key="brand.id"
-                  :value="brand.id"
-                >
-                  {{ brand.name }}
-                </option>
-              </select>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                เลือกแบรนด์หลายรายการได้
-              </p>
-            </div>
           </div>
         </div>
 
