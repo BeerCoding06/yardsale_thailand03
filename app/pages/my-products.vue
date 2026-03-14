@@ -137,13 +137,8 @@ const cancelProduct = async () => {
   try {
     isCancelling.value = true;
     const response = await $fetch<{
-      success: boolean;
-      message: string;
-      product: {
-        id: number;
-        name: string;
-        status: string;
-      };
+      success?: boolean;
+      product?: { id: number; name: string; status: string };
     }>("/api/cancel-product", {
       method: "POST",
       body: {
@@ -152,16 +147,13 @@ const cancelProduct = async () => {
       },
     } as any);
 
-    if (response.success) {
-      // อัปเดตสถานะสินค้าในรายการ
-      const productIndex = products.value.findIndex(
-        (p: any) => p.id === productId
+    const ok = response?.product != null || response?.success === true;
+    if (ok) {
+      const newStatus = response?.product?.status ?? "draft";
+      // อัปเดตสถานะในรายการ (สร้าง array ใหม่เพื่อให้ Vue อัปเดต UI)
+      products.value = products.value.map((p: any) =>
+        p.id === productId ? { ...p, status: newStatus } : p
       );
-      if (productIndex !== -1) {
-        products.value[productIndex].status = "draft";
-      }
-
-      // แสดงข้อความสำเร็จ
       push.success(t('product.cancel_success'));
     } else {
       push.error(t('product.cancel_error'));
@@ -204,13 +196,8 @@ const restoreProduct = async () => {
   try {
     isRestoring.value = true;
     const response = await $fetch<{
-      success: boolean;
-      message: string;
-      product: {
-        id: number;
-        name: string;
-        status: string;
-      };
+      success?: boolean;
+      product?: { id: number; name: string; status: string };
     }>("/api/restore-product", {
       method: "POST",
       body: {
@@ -219,16 +206,13 @@ const restoreProduct = async () => {
       },
     } as any);
 
-    if (response.success) {
-      // อัปเดตสถานะสินค้าในรายการ
-      const productIndex = products.value.findIndex(
-        (p: any) => p.id === productId
+    const ok = response?.product != null || response?.success === true;
+    if (ok) {
+      const newStatus = response?.product?.status ?? "pending";
+      // อัปเดตสถานะในรายการ (สร้าง array ใหม่เพื่อให้ Vue อัปเดต UI)
+      products.value = products.value.map((p: any) =>
+        p.id === productId ? { ...p, status: newStatus } : p
       );
-      if (productIndex !== -1) {
-        products.value[productIndex].status = "pending";
-      }
-
-      // แสดงข้อความสำเร็จ
       push.success(t('product.restore_success'));
     } else {
       push.error(t('product.restore_error'));
