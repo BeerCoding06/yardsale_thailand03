@@ -57,10 +57,17 @@ export default defineEventHandler(async (event: any) => {
       console.warn('[wp-brands] WP_BASIC_AUTH not set - trying DB fallback');
     }
 
-    // DB fallback: PHP reads DB_HOST, WP_DB_NAME, WP_DB_USER, WP_DB_PASSWORD, WP_TABLE_PREFIX from process.env
+    // DB fallback: pass DB env so PHP can connect (same as login/categories)
+    const env: Record<string, string> = {};
+    if (process.env.DB_HOST) env.DB_HOST = process.env.DB_HOST;
+    if (process.env.WP_DB_NAME) env.WP_DB_NAME = process.env.WP_DB_NAME;
+    if (process.env.WP_DB_USER) env.WP_DB_USER = process.env.WP_DB_USER;
+    if (process.env.WP_DB_PASSWORD) env.WP_DB_PASSWORD = process.env.WP_DB_PASSWORD;
+    if (process.env.WP_TABLE_PREFIX) env.WP_TABLE_PREFIX = process.env.WP_TABLE_PREFIX;
     const raw = await executePhpScript({
       script: 'getBrandsFromDb.php',
       method: 'GET',
+      env,
     });
     const brands = formatBrands(raw);
     console.log('[wp-brands] Fetched', brands.length, 'brands from DB');

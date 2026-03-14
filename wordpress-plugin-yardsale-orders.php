@@ -735,8 +735,10 @@ function yardsale_create_product($request) {
         if (isset($params['short_description'])) {
             $product->set_short_description($params['short_description']);
         }
-        if (!empty($params['sku'])) {
+        if (!empty($params['sku']) && trim((string) $params['sku']) !== '') {
             $product->set_sku(sanitize_text_field($params['sku']));
+        } else {
+            $product->set_sku('YS-' . time() . '-' . bin2hex(random_bytes(2)));
         }
         if (isset($params['manage_stock'])) {
             $product->set_manage_stock((bool) $params['manage_stock']);
@@ -777,16 +779,54 @@ function yardsale_create_product($request) {
                     $tag_ids[] = (int) $id;
                 } else {
                     $name = is_array($tag) ? (isset($tag['name']) ? $tag['name'] : '') : $tag;
+                    if (is_string($tag)) {
+                        $name = $tag;
+                    }
                     if ($name) {
-                        $t = get_term_by('name', $name, 'product_tag');
+                        $t = get_term_by('name', trim($name), 'product_tag');
                         if ($t) {
                             $tag_ids[] = $t->term_id;
+                        } else {
+                            $ins = wp_insert_term(trim($name), 'product_tag');
+                            if (!is_wp_error($ins) && isset($ins['term_id'])) {
+                                $tag_ids[] = $ins['term_id'];
+                            }
                         }
                     }
                 }
             }
             if (!empty($tag_ids)) {
                 wp_set_object_terms($product_id, $tag_ids, 'product_tag');
+            }
+        }
+
+        // Brand (custom taxonomy product_brand or pa_brand) - multiple
+        $brand_taxonomies = array('product_brand', 'pa_brand', 'brand');
+        foreach ($brand_taxonomies as $tax) {
+            if (!taxonomy_exists($tax)) {
+                continue;
+            }
+            $brand_ids = array();
+            if (!empty($params['brand']) && is_array($params['brand'])) {
+                foreach ($params['brand'] as $b) {
+                    $id = is_array($b) ? (isset($b['id']) ? $b['id'] : null) : (is_numeric($b) ? $b : null);
+                    if ($id) {
+                        $brand_ids[] = (int) $id;
+                    } else {
+                        $name = is_array($b) ? (isset($b['name']) ? $b['name'] : '') : (is_string($b) ? $b : '');
+                        if ($name !== '') {
+                            $name = trim((string) $name);
+                            $t = is_numeric($name) ? get_term_by('id', (int) $name, $tax) : (get_term_by('name', $name, $tax) ?: get_term_by('slug', sanitize_title($name), $tax));
+                            if ($t && !is_wp_error($t)) {
+                                $brand_ids[] = $t->term_id;
+                            }
+                        }
+                    }
+                }
+            }
+            if (!empty($brand_ids)) {
+                wp_set_object_terms($product_id, $brand_ids, $tax);
+                break;
             }
         }
 

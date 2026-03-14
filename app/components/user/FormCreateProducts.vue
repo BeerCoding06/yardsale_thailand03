@@ -39,7 +39,7 @@ const errors = ref({
 // Categories from WordPress
 const categories = ref([]);
 const isLoadingCategories = ref(false);
-const selectedCategoryId = ref(null);
+const selectedCategoryIds = ref([]);
 
 // CarouselCategories ถูกย้ายไปที่ app.vue แล้ว เพื่อแสดงในทุกหน้า
 
@@ -115,8 +115,9 @@ const initSelect2 = () => {
 
     $(categorySelect.value).select2({
       placeholder: t('create_product.select_category'),
-      allowClear: false,
+      allowClear: true,
       width: "100%",
+      closeOnSelect: false,
       language: {
         noResults: function () {
           return t('create_product.no_results');
@@ -127,21 +128,20 @@ const initSelect2 = () => {
       },
     });
 
-    // Apply error class if needed
-    const $select2Container = $(categorySelect.value).next(
-      ".select2-container"
-    );
+    const $select2Container = $(categorySelect.value).next(".select2-container");
     if ($select2Container.length && errors.value.category) {
       $select2Container.addClass("select2-container--error");
     } else if ($select2Container.length) {
       $select2Container.removeClass("select2-container--error");
     }
 
-    // Handle Select2 change event
     $(categorySelect.value).on("change", function () {
       const selectedValue = $(this).val();
-      selectedCategoryId.value = selectedValue || null;
+      selectedCategoryIds.value = Array.isArray(selectedValue) ? selectedValue : (selectedValue ? [selectedValue] : []);
     });
+
+    const ids = selectedCategoryIds.value;
+    $(categorySelect.value).val(Array.isArray(ids) ? ids : []).trigger("change");
   }
 };
 
@@ -380,24 +380,21 @@ watch(
   { deep: true }
 );
 
-// Watch selectedCategoryId and update Select2 value
-watch(selectedCategoryId, (newId) => {
+// Watch selectedCategoryIds and update form + Select2
+watch(selectedCategoryIds, (ids) => {
   if (categorySelect.value && window.jQuery && window.jQuery.fn.select2) {
     const $ = window.jQuery;
     if ($(categorySelect.value).hasClass("select2-hidden-accessible")) {
       $(categorySelect.value)
-        .val(newId || "")
+        .val(Array.isArray(ids) ? ids : [])
         .trigger("change");
     }
   }
 
-  if (newId) {
-    form.value.categories = [{ id: Number(newId) }];
-    errors.value.category = ""; // Clear error when category is selected
-  } else {
-    form.value.categories = [];
-  }
-});
+  const arr = Array.isArray(ids) ? ids : [];
+  form.value.categories = arr.map((id) => ({ id: Number(id) }));
+  if (form.value.categories.length > 0) errors.value.category = "";
+}, { deep: true });
 
 // Watch errors.category to update Select2 error class
 watch(
@@ -809,7 +806,7 @@ const handleSubmit = async (e) => {
   }
 
   // Validate category
-  if (!selectedCategoryId.value || form.value.categories.length === 0) {
+  if (!form.value.categories.length) {
     errors.value.category = t('create_product.please_select_category');
     hasErrors = true;
   }
@@ -1030,7 +1027,7 @@ const handleSubmit = async (e) => {
       };
 
       form.value = resetForm;
-      selectedCategoryId.value = null;
+      selectedCategoryIds.value = [];
       selectedTags.value = [];
       selectedBrands.value = [];
 
@@ -1188,6 +1185,7 @@ const handleSubmit = async (e) => {
               >
               <select
                 ref="categorySelect"
+                multiple
                 required
                 :disabled="isLoadingCategories"
                 :class="[
@@ -1197,9 +1195,6 @@ const handleSubmit = async (e) => {
                     : 'border-neutral-200 dark:border-neutral-700 focus:border-black dark:focus:border-white hover:border-neutral-300 dark:hover:border-neutral-600',
                 ]"
               >
-                <option value="">
-                  {{ isLoadingCategories ? $t('general.loading') : $t('create_product.select_category') }}
-                </option>
                 <option
                   v-for="category in categories"
                   :key="category.id"

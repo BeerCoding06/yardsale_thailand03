@@ -68,9 +68,33 @@ if (!empty($productData['short_description'])) {
     $wcProductData['short_description'] = $productData['short_description'];
 }
 
-// Add SKU if provided
-if (!empty($productData['sku'])) {
-    $wcProductData['sku'] = $productData['sku'];
+// SKU: use provided or auto-generate (รหัสสินค้าต้องถูกสร้างขึ้น)
+if (!empty($productData['sku']) && trim($productData['sku']) !== '') {
+    $wcProductData['sku'] = trim($productData['sku']);
+} else {
+    $wcProductData['sku'] = 'YS-' . time() . '-' . bin2hex(random_bytes(2));
+}
+
+// Add tags if provided (multiple)
+if (!empty($productData['tags']) && is_array($productData['tags'])) {
+    $wcProductData['tags'] = [];
+    foreach ($productData['tags'] as $tag) {
+        $entry = [];
+        if (is_array($tag)) {
+            if (isset($tag['id'])) {
+                $entry['id'] = (int) $tag['id'];
+            } elseif (isset($tag['name']) && trim($tag['name']) !== '') {
+                $entry['name'] = trim($tag['name']);
+            }
+        } elseif (is_numeric($tag)) {
+            $entry['id'] = (int) $tag;
+        } elseif (is_string($tag) && trim($tag) !== '') {
+            $entry['name'] = trim($tag);
+        }
+        if (!empty($entry)) {
+            $wcProductData['tags'][] = $entry;
+        }
+    }
 }
 
 // Add stock management if provided
