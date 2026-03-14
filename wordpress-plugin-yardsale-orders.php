@@ -4,6 +4,15 @@
  * Description: Custom WordPress REST API endpoint for fetching user orders with JWT authentication
  * Version: 1.0.0
  * Author: Yardsale Team
+ *
+ * PERMISSIONS / ROLES (สิทธิ์ที่ user ต้องมี):
+ * - ไม่บังคับ role เฉพาะ: user ทุก role ใช้ my-products, my-orders, create-product, update-product ได้
+ *   (Subscriber, Contributor, Author, Editor, Shop Manager, Administrator)
+ * - สิ่งที่ต้องมี:
+ *   1. เป็น WordPress user ที่มีอยู่จริง (มีใน wp_users)
+ *   2. Login แล้วได้ JWT ที่มี payload.data.user.id = WordPress User ID
+ *   3. ถ้าใช้ plugin JWT Authentication for WP REST API: user ต้อง login ผ่าน /wp-json/jwt-auth/v1/token
+ *      หรือระบบคุณออก JWT ให้ user.id เป็น ID ใน WordPress
  */
 
 // Prevent direct access
@@ -199,10 +208,11 @@ function yardsale_validate_jwt_token($token) {
 }
 
 /**
- * Get orders for the authenticated user
+ * Get orders for the authenticated user เท่านั้น
+ * Returns only orders where customer_id = current user (ออเดอร์ที่ user นี้เป็นผู้ซื้อ).
+ * ไม่ใช้ customer_id จาก request – ใช้เฉพาะจาก JWT (get_current_user_id()).
  */
 function yardsale_get_my_orders($request) {
-    // Get current user (set by permission_callback)
     $user_id = get_current_user_id();
     
     if (!$user_id) {
@@ -304,11 +314,16 @@ function yardsale_get_my_orders($request) {
         );
     }
     
-    // Format orders for response
+    // Format orders for response (เฉพาะของตัวเองเท่านั้น – ตรวจ customer_id อีกครั้ง)
     $formatted_orders = array();
+    $user_id_int = (int) $user_id;
     foreach ($orders as $order) {
         // Handle both WC_Order object
         if (is_object($order) && method_exists($order, 'get_id')) {
+            $order_customer_id = (int) $order->get_customer_id();
+            if ($order_customer_id !== $user_id_int) {
+                continue; // ไม่ใช่ order ของ user นี้ – ไม่ส่งกลับ
+            }
             $product_image_id = null;
             $line_items_data = array();
             
@@ -503,11 +518,11 @@ function yardsale_get_seller_orders($request) {
 }
 
 /**
- * Get products for the authenticated user (seller)
- * Returns products owned by the authenticated user
+ * Get products for the authenticated user (seller) เท่านั้น
+ * Returns only products owned by the authenticated user (post_author = current user).
+ * ไม่ใช้ user_id จาก request – ใช้เฉพาะจาก JWT (get_current_user_id()).
  */
 function yardsale_get_my_products($request) {
-    // Get current user (set by permission_callback)
     $user_id = get_current_user_id();
     
     error_log('[yardsale_get_my_products] User ID: ' . $user_id);
@@ -581,10 +596,16 @@ function yardsale_get_my_products($request) {
         );
     }
     
-    // Format products for response
+    // Format products for response (เฉพาะของตัวเองเท่านั้น – ตรวจ post_author อีกครั้ง)
     $formatted_products = array();
-    
+    $user_id_int = (int) $user_id;
+
     foreach ($wc_products as $product) {
+        $pid = $product->get_id();
+        $author = (int) get_post_field('post_author', $pid);
+        if ($author !== $user_id_int) {
+            continue; // ไม่ใช่ของ user นี้ – ไม่ส่งกลับ
+        }
         // Get product image
         $image_id = $product->get_image_id();
         $image_url = $image_id ? wp_get_attachment_image_url($image_id, 'full') : null;
