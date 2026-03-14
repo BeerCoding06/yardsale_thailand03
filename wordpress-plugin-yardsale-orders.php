@@ -165,35 +165,28 @@ function yardsale_jwt_auth_check($request) {
         );
     }
     
-    // Validate JWT token using JWT Authentication plugin
-    // The plugin should be installed and activated
-    if (!function_exists('jwt_auth_validate_token')) {
-        // Try alternative JWT validation
-        $user_id = yardsale_validate_jwt_token($token);
-        
-        if (!$user_id) {
-            return new WP_Error(
-                'invalid_token',
-                'Invalid or expired JWT token',
-                array('status' => 401)
-            );
-        }
-        
-        // Set current user
+    // ใช้การ decode ของเราเท่านั้น (email → login → id) เพื่อให้ได้ user ตรงกับคนที่ login เสมอ
+    $user_id = yardsale_validate_jwt_token($token);
+    if ($user_id) {
         wp_set_current_user($user_id);
+        error_log('[yardsale_jwt_auth_check] Authenticated user_id=' . $user_id);
         return true;
     }
-    
-    // Use JWT Authentication plugin's validation
-    $user = jwt_auth_validate_token($token);
-    
-    if (is_wp_error($user)) {
-        return $user;
+    // Fallback: ถ้า decode เราไม่ผ่าน ค่อยใช้ของ JWT Auth plugin
+    if (function_exists('jwt_auth_validate_token')) {
+        $user = jwt_auth_validate_token($token);
+        if (!is_wp_error($user) && $user && isset($user->ID)) {
+            wp_set_current_user($user->ID);
+            error_log('[yardsale_jwt_auth_check] Authenticated via plugin user_id=' . $user->ID);
+            return true;
+        }
     }
-    
-    // Set current user
-    wp_set_current_user($user->ID);
-    return true;
+    error_log('[yardsale_jwt_auth_check] Token invalid or user not found');
+    return new WP_Error(
+        'invalid_token',
+        'Invalid or expired JWT token',
+        array('status' => 401)
+    );
 }
 
 /**
@@ -202,11 +195,15 @@ function yardsale_jwt_auth_check($request) {
  */
 function yardsale_validate_jwt_token($token) {
     $token_parts = explode('.', $token);
-    if (count($token_parts) !== 3) {
+    if (count($token_parts) < 2) {
+        error_log('[yardsale_validate_jwt_token] Token has less than 2 parts');
         return false;
     }
-    $payload = json_decode(base64_decode(strtr($token_parts[1], '-_', '+/')), true);
+    $payload_b64 = strtr($token_parts[1], '-_', '+/');
+    $payload_b64 .= str_repeat('=', (4 - strlen($payload_b64) % 4) % 4);
+    $payload = json_decode(base64_decode($payload_b64), true);
     if (!is_array($payload)) {
+        error_log('[yardsale_validate_jwt_token] Payload decode failed or not array');
         return false;
     }
     $email = null;
@@ -259,9 +256,11 @@ function yardsale_validate_jwt_token($token) {
     if ($user_id > 0) {
         $user = get_user_by('ID', $user_id);
         if ($user) {
+            error_log('[yardsale_validate_jwt_token] Resolved user by id: ' . $user_id . ' (' . $user->user_email . ')');
             return $user_id;
         }
     }
+    error_log('[yardsale_validate_jwt_token] Could not resolve user from payload. Keys: ' . implode(',', array_keys($payload)));
     return false;
 }
 
@@ -651,6 +650,7 @@ function yardsale_get_my_products($request) {
             'products' => array(),
             'count' => 0,
             'success' => true,
+            'requested_as_user_id' => (int) $user_id,
         );
     }
     
@@ -711,6 +711,7 @@ function yardsale_get_my_products($request) {
         'products' => $formatted_products,
         'count' => count($formatted_products),
         'success' => true,
+        'requested_as_user_id' => (int) $user_id,
     );
 }
 

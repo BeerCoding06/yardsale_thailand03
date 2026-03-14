@@ -79,11 +79,15 @@ export default defineEventHandler(async (event) => {
     
     // Ensure response format is consistent
     if (data && data.success !== false) {
-      return {
+      const out: Record<string, unknown> = {
         success: true,
-        count: data.count || (data.products ? data.products.length : 0),
+        count: data.count ?? (Array.isArray(data.products) ? data.products.length : 0),
         products: Array.isArray(data.products) ? data.products : [],
       };
+      if (data.requested_as_user_id != null) {
+        out.requested_as_user_id = data.requested_as_user_id;
+      }
+      return out;
     } else {
       // Return error response
       return {
