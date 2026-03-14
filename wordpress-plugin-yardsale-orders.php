@@ -21,6 +21,28 @@ if (!defined('ABSPATH')) {
 }
 
 /**
+ * ให้ JWT token มี email และ user_login ใน payload (ใช้กับ JWT Authentication for WP-API)
+ * เพื่อให้ Yardsale อ่าน user จาก email/login ได้แน่นอน ตอน my-products / create-product
+ */
+$yardsale_jwt_add_user_data = function ($token, $user) {
+    if (!is_array($token)) {
+        return $token;
+    }
+    if (!isset($token['data']) || !is_array($token['data'])) {
+        $token['data'] = array();
+    }
+    if (!isset($token['data']['user']) || !is_array($token['data']['user'])) {
+        $token['data']['user'] = array();
+    }
+    $token['data']['user']['email'] = $user->user_email;
+    $token['data']['user']['login'] = $user->user_login;
+    $token['data']['user']['username'] = $user->user_login;
+    return $token;
+};
+add_filter('jwt_auth_token_before_sign', $yardsale_jwt_add_user_data, 10, 2);
+add_filter('jwt_auth_token_before_dispatch', $yardsale_jwt_add_user_data, 10, 2);
+
+/**
  * Register custom REST API endpoint for user orders
  */
 add_action('rest_api_init', function () {
@@ -176,35 +198,71 @@ function yardsale_jwt_auth_check($request) {
 
 /**
  * Validate JWT token manually (fallback if JWT plugin function not available)
+ * รองรับหลายรูปแบบ payload; ถ้ามี email ใน payload จะใช้ email หา user ใน WordPress ก่อน (ให้ตรงกับ user ที่ login)
  */
 function yardsale_validate_jwt_token($token) {
-    // Decode JWT token
     $token_parts = explode('.', $token);
-    
     if (count($token_parts) !== 3) {
         return false;
     }
-    
-    // Decode payload
     $payload = json_decode(base64_decode(strtr($token_parts[1], '-_', '+/')), true);
-    
-    if (!$payload || !isset($payload['data']['user']['id'])) {
+    if (!is_array($payload)) {
         return false;
     }
-    
-    $user_id = $payload['data']['user']['id'];
-    
-    // Verify user exists
-    $user = get_user_by('ID', $user_id);
-    
-    if (!$user) {
-        return false;
+    $email = null;
+    if (!empty($payload['data']['user']['email'])) {
+        $email = $payload['data']['user']['email'];
+    } elseif (!empty($payload['user']['email'])) {
+        $email = $payload['user']['email'];
+    } elseif (!empty($payload['email'])) {
+        $email = $payload['email'];
     }
-    
-    // TODO: Add token expiration check if needed
-    // You can check $payload['exp'] against current time
-    
-    return $user_id;
+    // ถ้ามี email ให้ใช้หา user ใน WordPress ก่อน (ให้ได้ user คนที่ login จริง เช่น paradon45645@gmail.com)
+    if (is_string($email) && trim($email) !== '') {
+        $user = get_user_by('email', trim($email));
+        if ($user) {
+            error_log('[yardsale_validate_jwt_token] Resolved user by email: ' . $email . ' -> ID ' . $user->ID);
+            return (int) $user->ID;
+        }
+    }
+    // ลองจาก user_login ใน payload
+    $login = null;
+    if (!empty($payload['data']['user']['username'])) {
+        $login = $payload['data']['user']['username'];
+    } elseif (!empty($payload['user']['username'])) {
+        $login = $payload['user']['username'];
+    } elseif (!empty($payload['data']['user']['login'])) {
+        $login = $payload['data']['user']['login'];
+    } elseif (!empty($payload['user']['login'])) {
+        $login = $payload['user']['login'];
+    } elseif (!empty($payload['username'])) {
+        $login = $payload['username'];
+    }
+    if (is_string($login) && trim($login) !== '') {
+        $user = get_user_by('login', trim($login));
+        if ($user) {
+            error_log('[yardsale_validate_jwt_token] Resolved user by login: ' . $login . ' -> ID ' . $user->ID);
+            return (int) $user->ID;
+        }
+    }
+    // ลองจาก id ใน payload
+    $user_id = null;
+    if (!empty($payload['data']['user']['id'])) {
+        $user_id = (int) $payload['data']['user']['id'];
+    } elseif (!empty($payload['user']['id'])) {
+        $user_id = (int) $payload['user']['id'];
+    } elseif (isset($payload['user_id'])) {
+        $user_id = (int) $payload['user_id'];
+    } elseif (isset($payload['id'])) {
+        $user_id = (int) $payload['id'];
+    }
+    if ($user_id > 0) {
+        $user = get_user_by('ID', $user_id);
+        if ($user) {
+            return $user_id;
+        }
+    }
+    return false;
 }
 
 /**
@@ -676,6 +734,7 @@ function yardsale_allow_user_create_products($allcaps, $caps, $args, $user) {
 
 /**
  * Create product via WooCommerce internal API (runs as JWT user - every user can create)
+ * ผู้สร้าง (post_author) = user ที่ login จาก JWT เสมอ – ไม่รับ post_author จาก request
  */
 function yardsale_create_product($request) {
     $user_id = get_current_user_id();
@@ -822,6 +881,8 @@ function yardsale_create_product($request) {
 
         $product->save();
 
+        // ผู้สร้าง = user ที่ login (จาก JWT) เสมอ – ไม่รับ post_author จาก request
+        $creator = get_userdata($user_id);
         return array(
             'success' => true,
             'product' => array(
@@ -830,6 +891,13 @@ function yardsale_create_product($request) {
                 'status' => $product->get_status(),
                 'price' => $product->get_price(),
                 'regular_price' => $product->get_regular_price(),
+                'post_author' => (int) $user_id,
+                'author' => $creator ? array(
+                    'id' => (int) $user_id,
+                    'name' => $creator->display_name,
+                    'login' => $creator->user_login,
+                    'email' => $creator->user_email,
+                ) : null,
             ),
         );
     } catch (Exception $e) {
