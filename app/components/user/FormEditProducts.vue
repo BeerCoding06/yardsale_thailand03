@@ -1485,13 +1485,17 @@ const handleSubmit = async (e) => {
       }
     });
 
-    console.log("[Form] Sending update payload:", payload);
+    const token = user.value?.token;
+    if (token) {
+      payload.token = token;
+    }
+    console.log("[Form] Sending update payload (has token:", !!token, ")");
 
-    // Send to Nuxt API endpoint (which will call PHP API)
     const response = await $fetch("/api/update-product", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: payload,
     });

@@ -37,12 +37,10 @@ if (!$productId) {
 
 error_log('[updateProduct] Updating product ID: ' . $productId);
 
-// First, verify the product exists
-$getUrl = buildWcApiUrl('wc/v3/products/' . $productId, [], true); // Use Basic Auth
-
-error_log('[updateProduct] Fetching product from WooCommerce API: ' . $getUrl);
-
-$getResult = fetchWooCommerceApi($getUrl, 'GET', null, true); // Use Basic Auth
+// First, verify the product exists (use consumer key like categories)
+$getUrl = buildWcApiUrl('wc/v3/products/' . $productId, [], false);
+error_log('[updateProduct] Fetching product from WooCommerce API: ' . preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $getUrl));
+$getResult = fetchWooCommerceApi($getUrl, 'GET', null, false);
 
 if (!$getResult['success']) {
     error_log('[updateProduct] Product not found: ' . ($getResult['error'] ?? 'Unknown error'));
@@ -112,13 +110,16 @@ if (!empty($productData['stock_status'])) {
     $updateData['stock_status'] = $productData['stock_status'];
 }
 
-// Build API URL
-$url = buildWcApiUrl('wc/v3/products/' . $productId, [], true); // Use Basic Auth
+// Update via WooCommerce API (consumer key first; retry with Basic Auth on 401/403)
+$url = buildWcApiUrl('wc/v3/products/' . $productId, [], false);
+error_log('[updateProduct] Updating product via WooCommerce API: ' . preg_replace('/consumer_secret=[^&]+/', 'consumer_secret=***', $url));
+$result = fetchWooCommerceApi($url, 'PUT', $updateData, false);
 
-error_log('[updateProduct] Updating product via WooCommerce API: ' . $url);
-
-// Update product via WooCommerce API
-$result = fetchWooCommerceApi($url, 'PUT', $updateData, true); // Use Basic Auth
+if (!$result['success'] && in_array($result['http_code'] ?? 0, [401, 403]) && !empty(WP_BASIC_AUTH)) {
+    error_log('[updateProduct] Retrying with Basic Auth');
+    $urlBasic = buildWcApiUrl('wc/v3/products/' . $productId, [], true);
+    $result = fetchWooCommerceApi($urlBasic, 'PUT', $updateData, true);
+}
 
 if (!$result['success']) {
     $errorMessage = 'Failed to update product';

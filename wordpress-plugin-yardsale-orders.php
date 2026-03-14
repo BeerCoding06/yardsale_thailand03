@@ -56,6 +56,13 @@ add_action('rest_api_init', function () {
             'images' => array('type' => 'array'),
         ),
     ));
+    
+    // Update product (JWT user can edit own product only)
+    register_rest_route('yardsale/v1', '/update-product', array(
+        'methods' => 'POST',
+        'callback' => 'yardsale_update_product',
+        'permission_callback' => 'yardsale_jwt_auth_check',
+    ));
 });
 
 /**
@@ -820,6 +827,145 @@ function yardsale_create_product($request) {
     } catch (Exception $e) {
         error_log('[yardsale_create_product] Error: ' . $e->getMessage());
         return new WP_Error('create_failed', $e->getMessage(), array('status' => 500));
+    } finally {
+        remove_filter('user_has_cap', 'yardsale_allow_user_create_products', 10);
+    }
+}
+
+/**
+ * Update product via WooCommerce internal API (JWT user can edit own product only)
+ */
+function yardsale_update_product($request) {
+    $user_id = get_current_user_id();
+    if (!$user_id) {
+        return new WP_Error('not_authenticated', 'User not authenticated', array('status' => 401));
+    }
+
+    if (!class_exists('WooCommerce') || !function_exists('wc_get_product')) {
+        return new WP_Error('woocommerce_not_installed', 'WooCommerce is not installed', array('status' => 500));
+    }
+
+    $params = $request->get_json_params();
+    if (empty($params)) {
+        $params = $request->get_body_params();
+    }
+    if (empty($params) || empty($params['product_id'])) {
+        return new WP_Error('invalid_data', 'product_id is required', array('status' => 400));
+    }
+
+    $product_id = (int) $params['product_id'];
+    $product = wc_get_product($product_id);
+    if (!$product) {
+        return new WP_Error('not_found', 'Product not found', array('status' => 404));
+    }
+
+    $post = get_post($product_id);
+    if (!$post || (int) $post->post_author !== $user_id) {
+        return new WP_Error('forbidden', 'You do not have permission to update this product', array('status' => 403));
+    }
+
+    add_filter('user_has_cap', 'yardsale_allow_user_create_products', 10, 4);
+
+    try {
+        if (!empty($params['name'])) {
+            $product->set_name(sanitize_text_field($params['name']));
+        }
+        if (isset($params['regular_price'])) {
+            $product->set_regular_price($params['regular_price']);
+        }
+        if (isset($params['sale_price'])) {
+            $product->set_sale_price($params['sale_price']);
+        }
+        if (isset($params['description'])) {
+            $product->set_description($params['description']);
+        }
+        if (isset($params['short_description'])) {
+            $product->set_short_description($params['short_description']);
+        }
+        if (isset($params['sku'])) {
+            $product->set_sku(sanitize_text_field($params['sku']));
+        }
+        if (isset($params['manage_stock'])) {
+            $product->set_manage_stock((bool) $params['manage_stock']);
+        }
+        if (isset($params['stock_quantity'])) {
+            $product->set_stock_quantity((int) $params['stock_quantity']);
+        }
+        if (!empty($params['status'])) {
+            $product->set_status(sanitize_text_field($params['status']));
+        } else {
+            $product->set_status('pending');
+        }
+
+        if (!empty($params['categories']) && is_array($params['categories'])) {
+            $term_ids = array();
+            foreach ($params['categories'] as $cat) {
+                $id = is_array($cat) ? (isset($cat['id']) ? $cat['id'] : (isset($cat['databaseId']) ? $cat['databaseId'] : null)) : $cat;
+                if ($id) {
+                    $term_ids[] = (int) $id;
+                }
+            }
+            if (!empty($term_ids)) {
+                wp_set_object_terms($product_id, $term_ids, 'product_cat');
+            }
+        }
+
+        if (!empty($params['tags']) && is_array($params['tags'])) {
+            $tag_ids = array();
+            foreach ($params['tags'] as $tag) {
+                $id = is_array($tag) ? (isset($tag['id']) ? $tag['id'] : null) : $tag;
+                if ($id) {
+                    $tag_ids[] = (int) $id;
+                } else {
+                    $name = is_array($tag) ? (isset($tag['name']) ? $tag['name'] : '') : $tag;
+                    if ($name) {
+                        $t = get_term_by('name', $name, 'product_tag');
+                        if ($t) {
+                            $tag_ids[] = $t->term_id;
+                        }
+                    }
+                }
+            }
+            if (!empty($tag_ids)) {
+                wp_set_object_terms($product_id, $tag_ids, 'product_tag');
+            }
+        }
+
+        if (!empty($params['images']) && is_array($params['images'])) {
+            $gallery_ids = array();
+            foreach ($params['images'] as $img) {
+                $src = is_array($img) ? (isset($img['src']) ? $img['src'] : (isset($img['url']) ? $img['url'] : '')) : $img;
+                if (empty($src) || !is_string($src)) {
+                    continue;
+                }
+                $att_id = attachment_url_to_postid($src);
+                if ($att_id) {
+                    $gallery_ids[] = $att_id;
+                }
+            }
+            if (!empty($gallery_ids)) {
+                $product->set_image_id($gallery_ids[0]);
+                if (count($gallery_ids) > 1) {
+                    $product->set_gallery_image_ids(array_slice($gallery_ids, 1));
+                }
+            }
+        }
+
+        $product->save();
+
+        return array(
+            'success' => true,
+            'product' => array(
+                'id' => $product_id,
+                'name' => $product->get_name(),
+                'status' => $product->get_status(),
+                'price' => $product->get_price(),
+                'regular_price' => $product->get_regular_price(),
+            ),
+        );
+    } catch (Exception $e) {
+        error_log('[yardsale_update_product] Error: ' . $e->getMessage());
+        return new WP_Error('update_failed', $e->getMessage(), array('status' => 500));
     } finally {
         remove_filter('user_has_cap', 'yardsale_allow_user_create_products', 10);
     }

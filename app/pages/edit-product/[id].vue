@@ -73,11 +73,11 @@ const fetchProduct = async () => {
 onMounted(async () => {
   isClient.value = true;
 
-  // Wait for auth state to initialize from localStorage
+  // Restore auth from localStorage and wait for reactivity to update
   checkAuth();
   await nextTick();
+  await new Promise((r) => setTimeout(r, 50));
 
-  // Check authentication
   if (!isAuthenticated.value || !user.value) {
     navigateTo("/login");
     return;
@@ -85,7 +85,6 @@ onMounted(async () => {
 
   isChecking.value = false;
 
-  // Fetch product data
   await fetchProduct();
 });
 
@@ -127,6 +126,13 @@ watch(isAuthenticated, (newVal) => {
       </template>
       <template v-else-if="isAuthenticated && user && product">
         <UserFormEditProducts :product="product" :product-id="productId" />
+      </template>
+      <template v-else-if="isAuthenticated && user">
+        <div class="flex items-center justify-center min-h-screen">
+          <div class="text-center">
+            <p class="text-neutral-500 dark:text-neutral-400">{{ $t('my_products.loading_product') }}</p>
+          </div>
+        </div>
       </template>
       <template v-else>
         <div class="flex items-center justify-center min-h-screen">
