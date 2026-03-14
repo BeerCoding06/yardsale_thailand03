@@ -328,10 +328,10 @@ watch(() => cart.value?.length, (newLength) => {
         <button
           type="submit"
           :disabled="checkoutStatus !== 'order' || isCartEmpty"
-          class="pay-button-bezel w-full h-12 rounded-xl relative font-semibold text-white text-lg flex justify-center items-center bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+          class="pay-button-bezel w-full h-12 leading-[50px] rounded-xl relative font-semibold text-white text-lg flex justify-center items-center bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Transition name="slide-up">
-            <div v-if="checkoutStatus === 'order'" class="absolute">
+            <div v-if="checkoutStatus === 'order'">
               <template v-if="$t('checkout.pay.btn')">
                 {{
                   $t("checkout.pay.btn", {
