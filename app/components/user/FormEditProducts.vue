@@ -1882,7 +1882,7 @@ const handleSubmit = async (e) => {
           </div>
         </div>
 
-        <!-- Message -->simple
+        <!-- Message -->
         <div
           v-if="message"
           :class="[
