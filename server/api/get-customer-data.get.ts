@@ -48,7 +48,11 @@ export default defineEventHandler(async (event) => {
     
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      console.error('[get-customer-data] WordPress API error:', response.status, errorText);
+      console.warn('[get-customer-data] WordPress API error:', response.status, errorText);
+      // เมื่อ 401 (รหัสผ่าน/สิทธิ์) ไม่ throw – คืน success + billing ว่าง เพื่อให้ฟอร์มยังใช้ข้อมูลจาก login ได้
+      if (response.status === 401) {
+        return { success: true, customer: null, billing: {} };
+      }
       throw createError({
         statusCode: response.status,
         message: errorText || 'Failed to fetch customer data',

@@ -107,6 +107,13 @@ add_action('rest_api_init', function () {
             'product_id' => array('required' => true, 'type' => 'integer'),
         ),
     ));
+
+    // Create order (รันในบริบท user ที่ login ผ่าน JWT – ไม่พึ่ง WooCommerce REST API key)
+    register_rest_route('yardsale/v1', '/create-order', array(
+        'methods' => 'POST',
+        'callback' => 'yardsale_create_order',
+        'permission_callback' => 'yardsale_jwt_auth_check',
+    ));
 });
 
 /**
@@ -964,6 +971,108 @@ function yardsale_set_product_author($request) {
     }
     error_log('[yardsale_set_product_author] Set post_author=' . $user_id . ' for product_id=' . $product_id);
     return array('success' => true, 'product_id' => $product_id, 'post_author' => (int) $user_id);
+}
+
+/**
+ * Create order (รันเป็น user ที่ login จาก JWT – ใช้ WooCommerce ภายใน ไม่พึ่ง REST API key)
+ */
+function yardsale_create_order($request) {
+    $user_id = get_current_user_id();
+    if (!$user_id) {
+        return new WP_Error('not_authenticated', 'User not authenticated', array('status' => 401));
+    }
+    if (!class_exists('WooCommerce') || !function_exists('wc_create_order') || !function_exists('wc_get_product')) {
+        return new WP_Error('woocommerce_not_installed', 'WooCommerce is not installed', array('status' => 500));
+    }
+
+    $params = $request->get_json_params();
+    if (empty($params)) {
+        $params = $request->get_body_params();
+    }
+    if (empty($params) || empty($params['line_items']) || !is_array($params['line_items'])) {
+        return new WP_Error('invalid_data', 'line_items is required', array('status' => 400));
+    }
+
+    $billing = isset($params['billing']) && is_array($params['billing']) ? $params['billing'] : array();
+    $first_name = $billing['first_name'] ?? $billing['firstName'] ?? '';
+    $last_name  = $billing['last_name'] ?? $billing['lastName'] ?? '';
+    $email      = $billing['email'] ?? '';
+    $phone      = $billing['phone'] ?? '';
+    $address_1  = $billing['address_1'] ?? $billing['address1'] ?? '';
+    $address_2  = $billing['address_2'] ?? $billing['address2'] ?? '';
+    $city       = $billing['city'] ?? '';
+    $state      = $billing['state'] ?? '';
+    $postcode   = $billing['postcode'] ?? '';
+    $country    = $billing['country'] ?? 'TH';
+
+    try {
+        $order = wc_create_order(array('customer_id' => (int) $user_id));
+        if (is_wp_error($order)) {
+            return $order;
+        }
+
+        $order->set_billing_first_name($first_name);
+        $order->set_billing_last_name($last_name);
+        $order->set_billing_email($email ?: get_userdata($user_id)->user_email);
+        $order->set_billing_phone($phone);
+        $order->set_billing_address_1($address_1);
+        $order->set_billing_address_2($address_2);
+        $order->set_billing_city($city);
+        $order->set_billing_state($state);
+        $order->set_billing_postcode($postcode);
+        $order->set_billing_country($country ?: 'TH');
+
+        foreach ($params['line_items'] as $item) {
+            $product_id = (int) ($item['product_id'] ?? 0);
+            $quantity   = (int) ($item['quantity'] ?? 1);
+            $price      = isset($item['price']) ? (float) $item['price'] : 0;
+            if ($product_id <= 0) {
+                continue;
+            }
+            $product = wc_get_product($product_id);
+            if (!$product) {
+                continue;
+            }
+            $order->add_product($product, $quantity, array(
+                'subtotal' => $price,
+                'total'    => $price * $quantity,
+            ));
+        }
+
+        $order->set_payment_method($params['payment_method'] ?? 'cod');
+        $order->set_payment_method_title($params['payment_method_title'] ?? 'ชำระเงินปลายทาง');
+        $order->set_status($params['status'] ?? 'pending');
+        $order->save();
+
+        $order_id = $order->get_id();
+        error_log('[yardsale_create_order] Order created: ' . $order_id . ' for user ' . $user_id);
+
+        return array(
+            'success' => true,
+            'order'   => array(
+                'id'                   => $order_id,
+                'number'               => $order->get_order_number(),
+                'status'               => $order->get_status(),
+                'total'                => $order->get_total(),
+                'customer_id'          => (int) $user_id,
+                'billing'              => array(
+                    'first_name' => $order->get_billing_first_name(),
+                    'last_name'  => $order->get_billing_last_name(),
+                    'email'      => $order->get_billing_email(),
+                    'phone'      => $order->get_billing_phone(),
+                    'address_1'  => $order->get_billing_address_1(),
+                    'city'       => $order->get_billing_city(),
+                    'postcode'   => $order->get_billing_postcode(),
+                    'country'    => $order->get_billing_country(),
+                ),
+                'date_created'         => $order->get_date_created() ? $order->get_date_created()->format('c') : null,
+                'payment_method_title' => $order->get_payment_method_title(),
+            ),
+        );
+    } catch (Exception $e) {
+        error_log('[yardsale_create_order] Error: ' . $e->getMessage());
+        return new WP_Error('create_failed', $e->getMessage(), array('status' => 500));
+    }
 }
 
 /**

@@ -178,9 +178,11 @@ export const useCheckout = () => {
 
       console.log('[useCheckout] Sending checkout data:', checkoutData);
 
+      const jwtToken = user.value?.token;
       const res = await $fetch('/api/create-order', {
         method: 'POST',
         body: checkoutData,
+        ...(jwtToken ? { headers: { Authorization: `Bearer ${jwtToken}` } } : {}),
       });
 
       console.log('[useCheckout] Order created:', res);
