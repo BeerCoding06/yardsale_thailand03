@@ -1,25 +1,23 @@
 // server/api/my-orders-jwt.get.ts
-// Fetch user's orders via WordPress custom endpoint with JWT authentication
+// ดึงเฉพาะออเดอร์ของ user ที่ login (ใช้ JWT เท่านั้น – ไม่รับ customer_id จาก query)
 
 import { executePhpScript } from '../utils/php-executor';
 
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
-    
-    // Get JWT token from Authorization header
+
     const authHeader = getHeader(event, 'authorization') || getHeader(event, 'Authorization');
-    
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw createError({
         statusCode: 401,
         message: "Authorization header with Bearer token is required",
       });
     }
-    
-    const token = authHeader.replace('Bearer ', '');
-    
-    // Build query params for PHP script
+
+    const token = authHeader.replace('Bearer ', '').trim();
+
+    // ส่งเฉพาะ per_page, page, status – ไม่ส่ง customer_id เพื่อให้ WordPress ใช้ user จาก JWT เท่านั้น
     const queryParams: Record<string, string | number> = {
       per_page: 100,
     };

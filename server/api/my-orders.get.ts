@@ -1,5 +1,5 @@
 // server/api/my-orders.get.ts
-// Fetch orders for the logged-in user only (JWT required; never use client-supplied customer_id)
+// ดึงเฉพาะออเดอร์ของ user ที่ login (ใช้ JWT เท่านั้น – ไม่รับ customer_id จาก query)
 
 import { executePhpScript } from '../utils/php-executor';
 
@@ -26,8 +26,9 @@ export default defineEventHandler(async (event) => {
     };
     if (query.page) queryParams.page = Number(query.page);
     if (query.status) queryParams.status = String(query.status);
+    // ไม่ใส่ customer_id ใน queryParams – WordPress จะใช้ user จาก JWT เท่านั้น
 
-    // Use getMyOrders.php so WordPress filters by JWT user only (ignore any customer_id from query)
+    // getMyOrders.php เรียก WordPress yardsale/v1/my-orders โดยส่งแค่ JWT; WP กรองด้วย customer_id = current user
     const data = await executePhpScript({
       script: 'getMyOrders.php',
       queryParams,

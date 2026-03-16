@@ -1,5 +1,6 @@
 <!--app/pages/my-orders.vue-->
 <script setup>
+// แสดงเฉพาะออเดอร์ของ user ที่ login (API ใช้ JWT เท่านั้น ไม่ส่ง customer_id – เซิร์ฟเวอร์ดึงจาก token)
 definePageMeta({
   middleware: "auth",
   ssr: false, // Disable SSR to prevent hydration mismatches
@@ -298,7 +299,7 @@ const fetchOrders = async () => {
       return;
     }
 
-    // Use JWT authentication endpoint
+    // เรียก API โดยส่งเฉพาะ JWT – ไม่ส่ง customer_id เพื่อให้ดึงเฉพาะออเดอร์ของคนที่ login
     console.log("[my-orders] Calling /api/my-orders-jwt with JWT token");
     const ordersData = await $fetch('/api/my-orders-jwt', {
       headers: {
