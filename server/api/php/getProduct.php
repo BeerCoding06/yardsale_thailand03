@@ -11,9 +11,13 @@ require_once __DIR__ . '/config.php';
 // Set CORS headers
 setCorsHeaders();
 
-// Get query parameters
-$slug = isset($_GET['slug']) ? $_GET['slug'] : null;
-$sku = isset($_GET['sku']) ? $_GET['sku'] : null;
+// Get query parameters (sanitize to prevent injection)
+$slugRaw = isset($_GET['slug']) ? (string)$_GET['slug'] : null;
+$slug = $slugRaw !== null && $slugRaw !== '' ? preg_replace('/[^a-zA-Z0-9\-_]/', '', substr($slugRaw, 0, 200)) : null;
+$slug = ($slug !== null && $slug !== '') ? $slug : null;
+$skuRaw = isset($_GET['sku']) ? (string)$_GET['sku'] : null;
+$sku = $skuRaw !== null && $skuRaw !== '' ? preg_replace('/[^a-zA-Z0-9\-_.]/', '', substr($skuRaw, 0, 100)) : null;
+$sku = ($sku !== null && $sku !== '') ? $sku : null;
 $id = isset($_GET['id']) ? (int)$_GET['id'] : null;
 
 // Log received parameters for debugging

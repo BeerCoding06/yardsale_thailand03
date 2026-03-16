@@ -11,18 +11,23 @@ require_once __DIR__ . '/config.php';
 // Set CORS headers
 setCorsHeaders();
 
-// Get query parameters
+// Get query parameters (whitelist/cast to prevent injection)
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $per_page = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 21;
-$search = isset($_GET['search']) ? $_GET['search'] : null;
-$category = isset($_GET['category']) ? $_GET['category'] : null;
-$order = isset($_GET['order']) ? $_GET['order'] : 'desc';
-$orderby = isset($_GET['orderby']) ? $_GET['orderby'] : 'date';
-$after = isset($_GET['after']) ? $_GET['after'] : null;
+$search = isset($_GET['search']) ? trim((string)$_GET['search']) : null;
+if ($search !== null && strlen($search) > 200) {
+    $search = substr($search, 0, 200);
+}
+$category = isset($_GET['category']) ? (string)$_GET['category'] : null;
+if ($category !== null && strlen($category) > 100) {
+    $category = substr($category, 0, 100);
+}
+$orderbyRaw = isset($_GET['orderby']) ? (string)$_GET['orderby'] : 'date';
+$after = isset($_GET['after']) ? (string)$_GET['after'] : null;
 
 error_log('[getProducts] Category parameter: ' . ($category ?? 'null'));
 
-// Map orderby to WooCommerce format
+// Map orderby to WooCommerce format (whitelist only)
 $orderbyMap = [
     'date' => 'date',
     'title' => 'title',
@@ -30,7 +35,9 @@ $orderbyMap = [
     'rating' => 'rating',
     'popularity' => 'popularity'
 ];
-$wcOrderby = isset($orderbyMap[$orderby]) ? $orderbyMap[$orderby] : 'date';
+$wcOrderby = isset($orderbyMap[$orderbyRaw]) ? $orderbyMap[$orderbyRaw] : 'date';
+$orderRaw = isset($_GET['order']) ? strtolower((string)$_GET['order']) : 'desc';
+$order = ($orderRaw === 'asc' || $orderRaw === 'desc') ? $orderRaw : 'desc';
 
 // If category is provided, try to find category ID by name or slug
 $categoryId = null;

@@ -11,13 +11,14 @@ require_once __DIR__ . '/config.php';
 // Set CORS headers
 setCorsHeaders();
 
-// Get query parameters
+// Get query parameters (whitelist to prevent injection)
 $parent = isset($_GET['parent']) ? (int)$_GET['parent'] : 0;
-// Default hide_empty to false to show all categories (even if they have no products)
 $hide_empty = isset($_GET['hide_empty']) ? $_GET['hide_empty'] !== 'false' : false;
-$orderby = isset($_GET['orderby']) ? $_GET['orderby'] : 'name';
-// WooCommerce API requires lowercase for order parameter (asc/desc)
-$order = isset($_GET['order']) ? strtolower($_GET['order']) : 'asc';
+$orderbyRaw = isset($_GET['orderby']) ? (string)$_GET['orderby'] : 'name';
+$orderbyWhitelist = ['name', 'id', 'slug', 'count'];
+$orderby = in_array($orderbyRaw, $orderbyWhitelist, true) ? $orderbyRaw : 'name';
+$orderRaw = isset($_GET['order']) ? strtolower((string)$_GET['order']) : 'asc';
+$order = ($orderRaw === 'desc' || $orderRaw === 'asc') ? $orderRaw : 'asc';
 
 error_log('[getCategories] Query params - parent: ' . $parent . ', hide_empty: ' . ($hide_empty ? 'true' : 'false') . ', orderby: ' . $orderby . ', order: ' . $order);
 

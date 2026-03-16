@@ -5,6 +5,9 @@
  * Version: 1.0.0
  * Author: Yardsale Team
  *
+ * SECURITY: No eval(), assert(), create_function(), or dynamic include/require.
+ * All input is validated/sanitized; JWT payload is only base64_decode + json_decode and read as data (no code execution).
+ *
  * PERMISSIONS / ROLES (สิทธิ์ที่ user ต้องมี):
  * - ไม่บังคับ role เฉพาะ: user ทุก role ใช้ my-products, my-orders, create-product, update-product ได้
  *   (Subscriber, Contributor, Author, Editor, Shop Manager, Administrator)
@@ -202,8 +205,12 @@ function yardsale_jwt_auth_check($request) {
 /**
  * Validate JWT token manually (fallback if JWT plugin function not available)
  * รองรับหลายรูปแบบ payload; ถ้ามี email ใน payload จะใช้ email หา user ใน WordPress ก่อน (ให้ตรงกับ user ที่ login)
+ * SECURITY: Only base64_decode + json_decode; payload is used as data only (get_user_by, (int) id). No eval/exec.
  */
 function yardsale_validate_jwt_token($token) {
+    if (!is_string($token) || $token === '') {
+        return false;
+    }
     $token_parts = explode('.', $token);
     if (count($token_parts) < 2) {
         error_log('[yardsale_validate_jwt_token] Token has less than 2 parts');
@@ -211,7 +218,11 @@ function yardsale_validate_jwt_token($token) {
     }
     $payload_b64 = strtr($token_parts[1], '-_', '+/');
     $payload_b64 .= str_repeat('=', (4 - strlen($payload_b64) % 4) % 4);
-    $payload = json_decode(base64_decode($payload_b64), true);
+    $decoded = base64_decode($payload_b64, true);
+    if ($decoded === false) {
+        return false;
+    }
+    $payload = json_decode($decoded, true);
     if (!is_array($payload)) {
         error_log('[yardsale_validate_jwt_token] Payload decode failed or not array');
         return false;

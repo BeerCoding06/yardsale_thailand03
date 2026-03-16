@@ -57,10 +57,18 @@ if (empty($jwtToken)) {
 error_log('[getMyOrders] JWT token received (length: ' . strlen($jwtToken) . ')');
 error_log('[getMyOrders] JWT token (first 50 chars): ' . substr($jwtToken, 0, 50) . '...');
 
-// Get query parameters
-$status = isset($_GET['status']) ? $_GET['status'] : null;
+// Get query parameters (whitelist to prevent injection)
+$statusRaw = isset($_GET['status']) ? (string)$_GET['status'] : null;
+$statusWhitelist = ['pending', 'processing', 'on-hold', 'completed', 'cancelled', 'refunded', 'failed', 'any'];
+$status = $statusRaw !== null && in_array($statusRaw, $statusWhitelist, true) ? $statusRaw : null;
 $per_page = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 100;
+if ($per_page < 1 || $per_page > 100) {
+    $per_page = 100;
+}
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+if ($page < 1) {
+    $page = 1;
+}
 
 // Build WordPress custom endpoint URL
 $baseUrl = rtrim(WC_BASE_URL, '/');

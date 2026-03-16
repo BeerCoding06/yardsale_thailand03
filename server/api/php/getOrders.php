@@ -11,13 +11,27 @@ require_once __DIR__ . '/config.php';
 // Set CORS headers
 setCorsHeaders();
 
-// Get query parameters
-$customerId = isset($_GET['customer_id']) ? $_GET['customer_id'] : null;
-$customerEmail = isset($_GET['customer_email']) ? $_GET['customer_email'] : null;
-$status = isset($_GET['status']) ? $_GET['status'] : null;
+// Get query parameters (sanitize/whitelist to prevent injection)
+$customerId = isset($_GET['customer_id']) ? (int)$_GET['customer_id'] : null;
+if ($customerId !== null && $customerId <= 0) {
+    $customerId = null;
+}
+$customerEmail = isset($_GET['customer_email']) ? trim((string)$_GET['customer_email']) : null;
+if ($customerEmail !== null && strlen($customerEmail) > 100) {
+    $customerEmail = substr($customerEmail, 0, 100);
+}
+$statusRaw = isset($_GET['status']) ? (string)$_GET['status'] : null;
+$statusWhitelist = ['pending', 'processing', 'on-hold', 'completed', 'cancelled', 'refunded', 'failed', 'any'];
+$status = $statusRaw !== null && in_array($statusRaw, $statusWhitelist, true) ? $statusRaw : null;
 $sellerId = isset($_GET['seller_id']) ? (int)$_GET['seller_id'] : null;
 $per_page = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 100;
+if ($per_page < 1 || $per_page > 100) {
+    $per_page = 100;
+}
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+if ($page < 1) {
+    $page = 1;
+}
 
 // Build API parameters
 $params = [

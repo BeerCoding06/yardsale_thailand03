@@ -11,9 +11,15 @@ require_once __DIR__ . '/config.php';
 // Set CORS headers
 setCorsHeaders();
 
-// Get query parameters
-$search = isset($_GET['search']) ? $_GET['search'] : '';
+// Get query parameters (sanitize to prevent injection)
+$search = isset($_GET['search']) ? trim((string)$_GET['search']) : '';
+if (strlen($search) > 200) {
+    $search = substr($search, 0, 200);
+}
 $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 6;
+if ($limit < 1 || $limit > 100) {
+    $limit = 6;
+}
 
 if (empty($search)) {
     sendJsonResponse([
