@@ -59,6 +59,22 @@ define('OMISE_ORDER_PAID_SECRET', 'your_random_secret_string');
 
 ---
 
+## วิธีจ่ายเงินใน Test Mode (PromptPay / QR)
+
+⚠️ **ใน Test Mode QR Code จะจ่ายเงินจริงไม่ได้** — Omise จะ simulate การชำระให้
+
+### ขั้นตอนทดสอบ
+
+1. เปิดหน้า payment (หน้าแสดง QR Code หลังเลือกชำระด้วย PromptPay)
+2. แสดง QR Code ตามปกติ
+3. **รอประมาณ 10–20 วินาที**
+4. Omise จะส่ง webhook **charge.complete** (หรือ charge.successful) มาที่ `/api/omise-webhook`
+5. ออเดอร์จะเปลี่ยนสถานะเป็น **Processing**
+
+ในหน้า payment-promptpay จะมีกล่องคำอธิบาย Test Mode แจ้งผู้ทดสอบให้รอ 10–20 วินาที แล้วออเดอร์จะอัปเดตเอง
+
+---
+
 ## สิ่งที่ Nuxt ทำอยู่ตอนนี้
 
 | ส่วน | สถานะ |

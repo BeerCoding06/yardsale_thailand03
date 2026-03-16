@@ -1,4 +1,4 @@
-<!-- หน้าแสดง QR PromptPay (จาก Omise scannable_code) -->
+<!-- หน้าแสดง QR PromptPay (จาก Omise scannable_code) – โครงเดียวกับหน้าบัตรเครดิต -->
 <script setup>
 definePageMeta({ auth: false });
 const route = useRoute();
@@ -13,25 +13,49 @@ const qrImageUrl = computed(() => {
 
 <template>
   <div class="min-h-screen flex flex-col items-center justify-center p-6 bg-neutral-50 dark:bg-neutral-900">
-    <div class="max-w-sm w-full bg-white dark:bg-neutral-800 rounded-2xl shadow-xl p-6 text-center">
-      <h1 class="text-xl font-bold text-black dark:text-white mb-2">
-        {{ $t('checkout.pay.promptpay_title') || 'ชำระด้วย PromptPay' }}
-      </h1>
-      <p class="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-        {{ $t('checkout.pay.scan_qr') || 'สแกน QR Code ด้วยแอปธนาคาร' }}
-      </p>
-      <div v-if="qrImageUrl" class="inline-block p-4 bg-white rounded-xl border-2 border-neutral-200 dark:border-neutral-600 mb-4">
-        <img :src="qrImageUrl" alt="PromptPay QR" class="w-[220px] h-[220px]" />
+    <div class="max-w-md w-full bg-white dark:bg-neutral-800 rounded-2xl shadow-xl p-6">
+      <div class="text-center mb-6">
+        <UIcon
+          name="i-heroicons-qr-code"
+          class="w-14 h-14 mx-auto mb-4 text-alizarin-crimson-500 dark:text-alizarin-crimson-400"
+        />
+        <h1 class="text-xl font-bold text-black dark:text-white">
+          {{ $t('checkout.pay.promptpay_title') || 'ชำระด้วย PromptPay' }}
+        </h1>
+        <p v-if="amount" class="text-lg font-bold text-black dark:text-white mt-1">
+          ยอด {{ amount }} ฿
+        </p>
+        <p v-if="orderId" class="text-sm text-neutral-500 dark:text-neutral-400">
+          ออเดอร์ #{{ orderId }}
+        </p>
       </div>
-      <p v-if="amount" class="text-lg font-bold text-black dark:text-white">
-        ยอด {{ amount }} ฿
+
+      <p class="text-sm text-neutral-600 dark:text-neutral-400 text-center mb-4">
+        {{ $t('checkout.pay.scan_qr') || 'สแกน QR Code ด้วยแอปธนาคารหรือพร้อมเพย์' }}
       </p>
-      <p v-if="orderId" class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-        ออเดอร์ #{{ orderId }}
+      <div v-if="qrImageUrl" class="flex justify-center">
+        <div class="inline-block p-4 bg-white dark:bg-neutral-900 rounded-xl border-2 border-neutral-200 dark:border-neutral-600">
+          <img :src="qrImageUrl" alt="PromptPay QR" class="w-[220px] h-[220px]" />
+        </div>
+      </div>
+
+      <p class="mt-4 text-xs text-neutral-500 dark:text-neutral-400 text-center">
+        {{ $t('checkout.pay.promptpay_hint') || 'โอนตามยอดด้านบน แล้วกดปุ่ม "ชำระแล้ว" ด้านล่าง' }}
       </p>
+
+      <!-- Test Mode: Omise จะ simulate payment หลังเปิดหน้านี้ ~10-20 วินาที -->
+      <div class="mt-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+        <p class="text-xs font-semibold text-amber-800 dark:text-amber-200 mb-1">
+          {{ $t('checkout.pay.test_mode_title') || '⚠️ วิธีจ่ายใน Test Mode' }}
+        </p>
+        <p class="text-xs text-amber-700 dark:text-amber-300">
+          {{ $t('checkout.pay.test_mode_promptpay') || 'QR Code ในโหมดทดสอบจ่ายเงินจริงไม่ได้ — Omise จะ simulate การชำระอัตโนมัติ: เปิดหน้านี้แล้วรอประมาณ 10–20 วินาที Omise จะส่ง webhook (charge.complete) แล้วออเดอร์จะเปลี่ยนเป็น Processing' }}
+        </p>
+      </div>
+
       <NuxtLink
         :to="`/payment-successful?order_id=${orderId}`"
-        class="mt-6 inline-block px-6 py-3 rounded-xl font-semibold bg-alizarin-crimson-600 text-white hover:bg-alizarin-crimson-700"
+        class="mt-6 w-full block text-center py-3 rounded-xl font-semibold text-white bg-alizarin-crimson-600 hover:bg-alizarin-crimson-700"
       >
         {{ $t('checkout.pay.after_paid') || 'ชำระแล้ว' }}
       </NuxtLink>

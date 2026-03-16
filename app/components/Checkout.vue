@@ -10,6 +10,7 @@ const {
   showPaymentChoiceModal,
   loadCustomerData,
   isLoadingCustomerData,
+  isCartStockValid,
 } = useCheckout();
 const { cart } = useCart();
 const { isAuthenticated, checkAuth } = useAuth();
@@ -94,6 +95,9 @@ const cartTotal = computed(() => {
 });
 
 const isCartEmpty = computed(() => !reactiveCart.value || reactiveCart.value.length === 0);
+
+// ใช้ตรวจสต็อกก่อนกดชำระ: ต้องมี stock > 0 และ quantity <= stock ทุกรายการ
+const hasStockForPayment = computed(() => isCartStockValid());
 
 // Watch cart changes to ensure reactivity
 watch(() => cart.value, (newCart, oldCart) => {
@@ -187,6 +191,13 @@ watch(() => cart.value?.length, (newLength) => {
           class="w-full mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl"
         >
           <p class="text-red-600 dark:text-red-400 text-sm">{{ error }}</p>
+        </div>
+        <!-- สต็อกไม่เพียงพอ (ปุ่มชำระจะถูก disable ด้วย) -->
+        <div
+          v-if="!isCartEmpty && !hasStockForPayment && !error"
+          class="w-full mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl"
+        >
+          <p class="text-amber-700 dark:text-amber-300 text-sm">{{ $t('checkout.error.insufficient_stock') || 'มีสินค้าบางรายการหมดสต็อกหรือไม่เพียงพอ กรุณาปรับจำนวนหรือลบออกจากตะกร้า' }}</p>
         </div>
 
         <!-- Cart Items Summary -->
@@ -330,7 +341,7 @@ watch(() => cart.value?.length, (newLength) => {
         </div>
         <button
           type="submit"
-          :disabled="checkoutStatus !== 'order' || isCartEmpty"
+          :disabled="checkoutStatus !== 'order' || isCartEmpty || !hasStockForPayment"
           class="pay-button-bezel w-full h-12 leading-[50px] rounded-xl relative font-semibold text-white text-lg flex justify-center items-center bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Transition name="slide-up">

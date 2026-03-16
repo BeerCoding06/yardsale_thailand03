@@ -1,0 +1,102 @@
+// server/api/check-cart-stock.post.ts
+// ตรวจสต็อกของรายการในตะกร้าก่อนกดชำระเงิน: ทุกรายการต้องมี stock > 0 และ quantity <= stock
+
+import * as wpUtils from '../utils/wp';
+
+type Item = { product_id: number; variation_id?: number; quantity: number };
+
+export default defineEventHandler(async (event) => {
+  try {
+    const body = await readBody(event) as { items?: Item[] };
+    const items = body?.items;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return { valid: true, errors: [] };
+    }
+
+    const errors: { product_id: number; variation_id?: number; message: string; name?: string }[] = [];
+    const consumerKey = wpUtils.getWpConsumerKey();
+    const consumerSecret = wpUtils.getWpConsumerSecret();
+
+    if (!consumerKey || !consumerSecret) {
+      return { valid: true, errors: [] };
+    }
+
+    for (const item of items) {
+      const { product_id, variation_id, quantity } = item;
+      const qty = Math.max(0, Number(quantity) || 0);
+      if (qty < 1) continue;
+
+      try {
+        let stockQuantity: number | null = null;
+        let stockStatus: string = 'instock';
+        let name = '';
+
+        if (variation_id) {
+          const varUrl = wpUtils.buildWcApiUrl(`wc/v3/products/${product_id}/variations/${variation_id}`);
+          const varRes = await fetch(varUrl, { headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(5000) });
+          if (!varRes.ok) {
+            errors.push({ product_id, variation_id, message: 'ไม่พบรายการหรือสต็อก' });
+            continue;
+          }
+          const vari = await varRes.json();
+          name = vari.name || vari.sku || `#${variation_id}`;
+          stockStatus = (vari.stock_status || 'instock').toString().toLowerCase();
+          stockQuantity = vari.stock_quantity != null ? Number(vari.stock_quantity) : null;
+        } else {
+          const prodUrl = wpUtils.buildWcApiUrl(`wc/v3/products/${product_id}`);
+          const prodRes = await fetch(prodUrl, { headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(5000) });
+          if (!prodRes.ok) {
+            errors.push({ product_id, message: 'ไม่พบรายการหรือสต็อก' });
+            continue;
+          }
+          const prod = await prodRes.json();
+          name = prod.name || prod.sku || `#${product_id}`;
+          stockStatus = (prod.stock_status || 'instock').toString().toLowerCase();
+          stockQuantity = prod.stock_quantity != null ? Number(prod.stock_quantity) : null;
+        }
+
+        if (stockStatus === 'outofstock') {
+          errors.push({
+            product_id,
+            ...(variation_id && { variation_id }),
+            name,
+            message: 'สินค้าหมดสต็อก',
+          });
+          continue;
+        }
+
+        const available = stockQuantity != null ? stockQuantity : 999999;
+        if (available < 1) {
+          errors.push({
+            product_id,
+            ...(variation_id && { variation_id }),
+            name,
+            message: 'สต็อกไม่เพียงพอ (0 ชิ้น)',
+          });
+        } else if (qty > available) {
+          errors.push({
+            product_id,
+            ...(variation_id && { variation_id }),
+            name,
+            message: `สต็อกไม่เพียงพอ (มี ${available} ชิ้น, สั่ง ${qty})`,
+          });
+        }
+      } catch (e: any) {
+        errors.push({
+          product_id,
+          ...(variation_id && { variation_id }),
+          message: e?.message || 'ตรวจสต็อกไม่ได้',
+        });
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
+    };
+  } catch (e: any) {
+    console.error('[check-cart-stock] Error:', e?.message || e);
+    return { valid: false, errors: [{ product_id: 0, message: e?.message || 'ตรวจสต็อกไม่สำเร็จ' }] };
+  }
+});

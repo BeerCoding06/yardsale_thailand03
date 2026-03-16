@@ -100,7 +100,37 @@ export const useCheckout = () => {
     }
   };
 
-  /** กดปุ่มชำระเงิน: validate แล้วเปิด modal เลือกวิธีชำระ (PromptPay / บัตรเครดิต) */
+  /** สร้าง items สำหรับ check-cart-stock จาก cart (product_id = parent, variation_id = variation เมื่อเป็นตัวแปร) */
+  const getCartItemsForStockCheck = () => {
+    if (!cart.value || !cart.value.length) return [];
+    return cart.value.map((item) => {
+      const parentId = item.product?.node?.databaseId ?? item.product?.node?.id;
+      const variationId = item.variation?.node?.databaseId ?? item.variation?.node?.id;
+      const isVariation = item.variation?.node != null;
+      const product_id = isVariation ? Number(parentId) : Number(item.product?.node?.databaseId ?? item.product?.node?.id ?? 0);
+      return {
+        product_id: product_id || 0,
+        ...(isVariation && variationId != null && { variation_id: Number(variationId) }),
+        quantity: item.quantity || 1,
+      };
+    }).filter((i) => i.product_id > 0);
+  };
+
+  /** ตรวจสต็อกจากข้อมูลใน cart (client-side) ใช้ disable ปุ่ม */
+  const isCartStockValid = () => {
+    for (const item of cart.value || []) {
+      const node = item.variation?.node || item.product?.node || {};
+      const stockStatus = (node.stockStatus ?? '').toString().toUpperCase().replace(/\s/g, '_');
+      const stockQuantity = node.stockQuantity != null ? Number(node.stockQuantity) : null;
+      const qty = item.quantity || 1;
+      if (stockStatus === 'OUT_OF_STOCK' || stockStatus === 'OUTOFSTOCK') return false;
+      if (stockQuantity !== null && stockQuantity < 1) return false;
+      if (stockQuantity !== null && qty > stockQuantity) return false;
+    }
+    return true;
+  };
+
+  /** กดปุ่มชำระเงิน: validate + ตรวจสต็อก (API) แล้วเปิด modal เลือกวิธีชำระ */
   const handleCheckout = async () => {
     if (!isAuthenticated.value || !user.value) {
       error.value = 'กรุณาเข้าสู่ระบบก่อนสั่งซื้อ';
@@ -116,6 +146,21 @@ export const useCheckout = () => {
       error.value = t('checkout.error.incomplete_data');
       return;
     }
+
+    const items = getCartItemsForStockCheck();
+    if (items.length > 0) {
+      try {
+        const res = await $fetch('/api/check-cart-stock', { method: 'POST', body: { items } });
+        if (!res.valid && res.errors?.length) {
+          error.value = res.errors[0].message + (res.errors[0].name ? ` (${res.errors[0].name})` : '');
+          return;
+        }
+      } catch (e) {
+        error.value = t('checkout.error.stock_check_failed') || 'ตรวจสต็อกไม่สำเร็จ';
+        return;
+      }
+    }
+
     error.value = null;
     showPaymentChoiceModal.value = true;
   };
@@ -249,5 +294,6 @@ export const useCheckout = () => {
     isLoadingCustomerData,
     customerBillingData: readonly(customerBillingData),
     paymentMethod,
+    isCartStockValid,
   };
 };
