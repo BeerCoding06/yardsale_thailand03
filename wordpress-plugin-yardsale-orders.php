@@ -114,6 +114,17 @@ add_action('rest_api_init', function () {
         'callback' => 'yardsale_create_order',
         'permission_callback' => 'yardsale_jwt_auth_check',
     ));
+
+    // อัปเดตออเดอร์เป็น processing เมื่อชำระ Omise สำเร็จ (เรียกจาก webhook โดยส่ง secret)
+    register_rest_route('yardsale/v1', '/order-paid', array(
+        'methods' => 'POST',
+        'callback' => 'yardsale_order_paid',
+        'permission_callback' => '__return_true',
+        'args' => array(
+            'order_id' => array('required' => true, 'type' => 'integer'),
+            'secret'   => array('type' => 'string'),
+        ),
+    ));
 });
 
 /**
@@ -1033,15 +1044,21 @@ function yardsale_create_order($request) {
             if (!$product) {
                 continue;
             }
-            $order->add_product($product, $quantity, array(
-                'subtotal' => $price,
-                'total'    => $price * $quantity,
-            ));
+            $item_id = $order->add_product($product, $quantity);
+            if ($item_id && $price > 0) {
+                $line_item = $order->get_item($item_id, false);
+                if ($line_item) {
+                    $line_item->set_subtotal($price * $quantity);
+                    $line_item->set_total($price * $quantity);
+                    $line_item->save();
+                }
+            }
         }
 
         $order->set_payment_method($params['payment_method'] ?? 'cod');
         $order->set_payment_method_title($params['payment_method_title'] ?? 'ชำระเงินปลายทาง');
         $order->set_status($params['status'] ?? 'pending');
+        $order->calculate_totals();
         $order->save();
 
         $order_id = $order->get_id();
@@ -1073,6 +1090,39 @@ function yardsale_create_order($request) {
         error_log('[yardsale_create_order] Error: ' . $e->getMessage());
         return new WP_Error('create_failed', $e->getMessage(), array('status' => 500));
     }
+}
+
+/**
+ * อัปเดตออเดอร์เป็น processing เมื่อชำระ Omise สำเร็จ (เรียกจาก Nuxt webhook)
+ * ต้องส่ง secret ตรงกับ OMISE_ORDER_PAID_SECRET หรือ OMISE_WEBHOOK_SECRET ใน WordPress
+ */
+function yardsale_order_paid($request) {
+    $params = $request->get_json_params();
+    if (empty($params)) {
+        $params = $request->get_body_params();
+    }
+    $order_id = isset($params['order_id']) ? (int) $params['order_id'] : 0;
+    $secret   = isset($params['secret']) ? (string) $params['secret'] : '';
+
+    $expected = defined('OMISE_ORDER_PAID_SECRET') ? OMISE_ORDER_PAID_SECRET : (defined('OMISE_WEBHOOK_SECRET') ? OMISE_WEBHOOK_SECRET : getenv('OMISE_ORDER_PAID_SECRET'));
+    if ($expected !== '' && $secret !== (string) $expected) {
+        error_log('[yardsale_order_paid] Invalid or missing secret');
+        return new WP_Error('forbidden', 'Invalid secret', array('status' => 403));
+    }
+    if ($order_id <= 0) {
+        return new WP_Error('invalid_data', 'order_id is required', array('status' => 400));
+    }
+    if (!function_exists('wc_get_order')) {
+        return new WP_Error('woocommerce_not_installed', 'WooCommerce is not installed', array('status' => 500));
+    }
+    $order = wc_get_order($order_id);
+    if (!$order) {
+        return new WP_Error('not_found', 'Order not found', array('status' => 404));
+    }
+    $order->set_status('processing');
+    $order->save();
+    error_log('[yardsale_order_paid] Order ' . $order_id . ' set to processing');
+    return array('success' => true, 'order_id' => $order_id, 'status' => 'processing');
 }
 
 /**

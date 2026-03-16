@@ -7,6 +7,7 @@ const {
   handleCheckout,
   loadCustomerData,
   isLoadingCustomerData,
+  paymentMethod,
 } = useCheckout();
 const { cart } = useCart();
 const { isAuthenticated, checkAuth } = useAuth();
@@ -309,6 +310,20 @@ watch(() => cart.value?.length, (newLength) => {
             />
           </div>
         </div>
+        <!-- วิธีชำระเงิน -->
+        <div class="p-4 space-y-2">
+          <p class="text-sm font-semibold text-black dark:text-white">{{ $t('checkout.payment_method') || 'วิธีชำระเงิน' }}</p>
+          <label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition"
+            :class="paymentMethod === 'cod' ? 'border-alizarin-crimson-600 dark:border-alizarin-crimson-500 bg-alizarin-crimson-50 dark:bg-alizarin-crimson-900/20' : 'border-neutral-200 dark:border-neutral-700'">
+            <input type="radio" v-model="paymentMethod" value="cod" class="rounded-full" />
+            <span>{{ $t('checkout.pay.cod') || 'ชำระเงินปลายทาง (COD)' }}</span>
+          </label>
+          <label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition"
+            :class="paymentMethod === 'promptpay' ? 'border-alizarin-crimson-600 dark:border-alizarin-crimson-500 bg-alizarin-crimson-50 dark:bg-alizarin-crimson-900/20' : 'border-neutral-200 dark:border-neutral-700'">
+            <input type="radio" v-model="paymentMethod" value="promptpay" class="rounded-full" />
+            <span>{{ $t('checkout.pay.promptpay') || 'PromptPay (Omise – ทดสอบ)' }}</span>
+          </label>
+        </div>
         <div
           :key="`checkout-summary-${cartTotal}-${totalQuantity}`"
           class="text-sm font-semibold p-4 text-neutral-600 dark:text-neutral-400"
@@ -362,7 +377,7 @@ watch(() => cart.value?.length, (newLength) => {
           <div>
             {{
               $t("checkout.pay.secure", {
-                method: "Stripe",
+                method: paymentMethod === "promptpay" ? "Omise PromptPay" : "ระบบชำระเงิน",
               })
             }}
           </div>

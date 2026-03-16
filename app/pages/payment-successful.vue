@@ -4,12 +4,28 @@ definePageMeta({
   ssr: false, // Disable SSR to prevent hydration mismatches
 });
 
+const route = useRoute();
 const { order } = useCheckout();
 const router = useRouter();
+const loadingOrder = ref(false);
 
-// Redirect to home if no order data
-onMounted(() => {
-  if (!order.value || !order.value.id) {
+// เมื่อกลับจาก Omise (return_uri) จะมี order_id ใน query แต่ไม่มี order ใน state – ให้โหลดออเดอร์
+onMounted(async () => {
+  const orderId = route.query.order_id;
+  if (orderId && (!order.value || !order.value.id)) {
+    loadingOrder.value = true;
+    try {
+      const data = await $fetch('/api/get-order', { query: { order_id: orderId } });
+      if (data?.order) {
+        order.value = data.order;
+      }
+    } catch (e) {
+      console.warn('[payment-successful] Failed to fetch order:', e);
+    } finally {
+      loadingOrder.value = false;
+    }
+  }
+  if (!order.value?.id && !orderId) {
     console.warn('[payment-successful] No order data, redirecting to home');
     router.push('/');
   }
@@ -39,7 +55,10 @@ const formattedTotal = computed(() => {
 <template>
   <div class="min-h-screen bg-neutral-50 dark:bg-black">
     <ClientOnly>
-      <div v-if="order && order.id" class="max-w-2xl mx-auto p-6">
+      <div v-if="loadingOrder" class="max-w-2xl mx-auto p-6 flex justify-center items-center min-h-[40vh]">
+        <UIcon name="i-svg-spinners-90-ring-with-bg" class="w-10 h-10 text-neutral-400" />
+      </div>
+      <div v-else-if="order && order.id" class="max-w-2xl mx-auto p-6">
         <!-- Success Header -->
         <div class="flex flex-col items-center justify-center mb-8 mt-8 gap-2">
           <div

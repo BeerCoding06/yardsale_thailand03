@@ -70,6 +70,9 @@ export default defineNuxtConfig({
     wpBasicAuth: process.env.WP_BASIC_AUTH || '',
     wpConsumerKey: process.env.WP_CONSUMER_KEY || '',
     wpConsumerSecret: process.env.WP_CONSUMER_SECRET || '',
+    omiseSecretKey: process.env.OMISE_SECRET_KEY || '',
+    omisePublicKey: process.env.OMISE_PUBLIC_KEY || '',
+    omiseWebhookSecret: process.env.OMISE_WEBHOOK_SECRET || '',
     public: {
       version: pkg.version,
       baseUrl: process.env.BASE_URL || 'https://www.yardsaleth.com',
@@ -93,6 +96,7 @@ export default defineNuxtConfig({
     "/login": { ssr: true, prerender: false },
     "/register-user": { ssr: true, prerender: false },
     "/payment-successful": { prerender: false, ssr: false }, // Client-side only
+    "/payment-promptpay": { prerender: false, ssr: false }, // Client-side only
   },
 
   nitro: {

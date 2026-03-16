@@ -19,7 +19,7 @@ export const useCheckout = () => {
   const checkoutStatus = ref('order');
   const error = ref(null);
   const isLoadingCustomerData = ref(false);
-
+  const paymentMethod = ref('cod'); // 'cod' | 'promptpay'
 
   // Store customer billing data from profile
   const customerBillingData = ref(null);
@@ -155,8 +155,9 @@ export const useCheckout = () => {
       const customerId = user.value.id || user.value.ID;
 
       // Use billing data from form (user can enter new data)
+      const isPromptPay = paymentMethod.value === 'promptpay';
       const checkoutData = {
-        customer_id: customerId, // Use logged-in user's ID as customer
+        customer_id: customerId,
         billing: {
           email: userDetails.value.email,
           firstName: userDetails.value.firstName,
@@ -169,8 +170,8 @@ export const useCheckout = () => {
           postcode: userDetails.value.postcode || '',
           country: userDetails.value.country || 'TH',
         },
-        payment_method: 'cod',
-        payment_method_title: 'ชำระเงินปลายทาง',
+        payment_method: isPromptPay ? 'promptpay' : 'cod',
+        payment_method_title: isPromptPay ? 'PromptPay (Omise)' : 'ชำระเงินปลายทาง',
         set_paid: false,
         status: 'pending',
         line_items: line_items,
@@ -187,18 +188,42 @@ export const useCheckout = () => {
 
       console.log('[useCheckout] Order created:', res);
 
-      // Clear cart
+      const orderData = res.order;
+      order.value = orderData;
+
+      if (isPromptPay && orderData?.id) {
+        const amountThb = Number(orderData.total) || line_items.reduce((s, i) => s + (Number(i.price) || 0) * (i.quantity || 1), 0);
+        const chargeRes = await $fetch('/api/omise-create-charge', {
+          method: 'POST',
+          body: {
+            order_id: orderData.id,
+            amount_thb: amountThb,
+            return_uri: typeof window !== 'undefined' ? `${window.location.origin}/payment-successful?order_id=${orderData.id}` : undefined,
+          },
+        });
+        if (chargeRes?.authorize_uri) {
+          cart.value = [];
+          if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
+          if (import.meta.client) window.location.href = chargeRes.authorize_uri;
+          return;
+        }
+        if (chargeRes?.scannable_code && import.meta.client) {
+          cart.value = [];
+          if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
+          await router.push(`/payment-promptpay?order_id=${orderData.id}&code=${encodeURIComponent(chargeRes.scannable_code)}&amount=${amountThb}`);
+          return;
+        }
+        error.value = chargeRes?.message || 'ไม่สามารถสร้างลิงก์ชำระ PromptPay ได้';
+        checkoutStatus.value = 'order';
+        return;
+      }
+
+      // COD: clear cart and go to success
       cart.value = [];
       if (import.meta.client) {
         localStorage.setItem('cart', JSON.stringify(cart.value));
       }
-
-      // Store order data
-      order.value = res.order;
-
       checkoutStatus.value = 'success';
-
-      // Redirect to success page after a short delay
       setTimeout(() => {
         router.push('/payment-successful');
       }, 1500);
@@ -218,5 +243,6 @@ export const useCheckout = () => {
     loadCustomerData,
     isLoadingCustomerData,
     customerBillingData: readonly(customerBillingData),
+    paymentMethod,
   };
 };
