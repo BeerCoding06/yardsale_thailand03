@@ -19,7 +19,8 @@ export const useCheckout = () => {
   const checkoutStatus = ref('order');
   const error = ref(null);
   const isLoadingCustomerData = ref(false);
-  const paymentMethod = ref('cod'); // 'cod' | 'promptpay'
+  const paymentMethod = ref('cod'); // 'cod' | 'promptpay' | 'credit_card'
+  const showPaymentChoiceModal = ref(false);
 
   // Store customer billing data from profile
   const customerBillingData = ref(null);
@@ -99,31 +100,35 @@ export const useCheckout = () => {
     }
   };
 
+  /** กดปุ่มชำระเงิน: validate แล้วเปิด modal เลือกวิธีชำระ (PromptPay / บัตรเครดิต) */
   const handleCheckout = async () => {
     if (!isAuthenticated.value || !user.value) {
       error.value = 'กรุณาเข้าสู่ระบบก่อนสั่งซื้อ';
       return;
     }
-
     if (!cart.value || cart.value.length === 0) {
       error.value = 'ตะกร้าสินค้าว่างเปล่า';
       return;
     }
-
-
-    // Validate required fields from form
-    if (!userDetails.value.email || !userDetails.value.firstName || 
-        !userDetails.value.lastName || !userDetails.value.phone || 
+    if (!userDetails.value.email || !userDetails.value.firstName ||
+        !userDetails.value.lastName || !userDetails.value.phone ||
         !userDetails.value.address1 || !userDetails.value.city) {
       error.value = t('checkout.error.incomplete_data');
       return;
     }
+    error.value = null;
+    showPaymentChoiceModal.value = true;
+  };
 
+  /** เลือกวิธีชำระจาก modal แล้วสร้างออเดอร์และ redirect ตามวิธีที่เลือก */
+  const executeCheckout = async (method) => {
+    if (!['promptpay', 'credit_card'].includes(method)) return;
+    paymentMethod.value = method;
+    showPaymentChoiceModal.value = false;
     checkoutStatus.value = 'processing';
     error.value = null;
 
     try {
-      // Parse price (handles HTML like "<span>500</span>" or "฿500.00")
       const parsePrice = (val) => {
         if (val == null || val === '') return 0;
         const cleaned = String(val).replace(/<[^>]*>/g, '').replace(/[^0-9.]/g, '');
@@ -131,7 +136,6 @@ export const useCheckout = () => {
         return Number.isFinite(n) ? n : 0;
       };
 
-      // Prepare line items from cart (product_id from databaseId or id; price from regularPrice/salePrice)
       const line_items = cart.value.map(item => {
         const variationNode = item.variation?.node;
         const productNode = item.product?.node;
@@ -151,11 +155,10 @@ export const useCheckout = () => {
         throw new Error(t('checkout.error.no_valid_items'));
       }
 
-      // Get customer ID from logged-in user
       const customerId = user.value.id || user.value.ID;
-
-      // Use billing data from form (user can enter new data)
-      const isPromptPay = paymentMethod.value === 'promptpay';
+      const isPromptPay = method === 'promptpay';
+      const isCreditCard = method === 'credit_card';
+      const paymentTitle = isPromptPay ? 'PromptPay (Omise)' : isCreditCard ? 'บัตรเครดิต (Omise)' : 'ชำระเงินปลายทาง';
       const checkoutData = {
         customer_id: customerId,
         billing: {
@@ -170,14 +173,12 @@ export const useCheckout = () => {
           postcode: userDetails.value.postcode || '',
           country: userDetails.value.country || 'TH',
         },
-        payment_method: isPromptPay ? 'promptpay' : 'cod',
-        payment_method_title: isPromptPay ? 'PromptPay (Omise)' : 'ชำระเงินปลายทาง',
+        payment_method: method,
+        payment_method_title: paymentTitle,
         set_paid: false,
         status: 'pending',
         line_items: line_items,
       };
-
-      console.log('[useCheckout] Sending checkout data:', checkoutData);
 
       const jwtToken = user.value?.token;
       const res = await $fetch('/api/create-order', {
@@ -186,13 +187,11 @@ export const useCheckout = () => {
         ...(jwtToken ? { headers: { Authorization: `Bearer ${jwtToken}` } } : {}),
       });
 
-      console.log('[useCheckout] Order created:', res);
-
       const orderData = res.order;
       order.value = orderData;
+      const amountThb = Number(orderData.total) || line_items.reduce((s, i) => s + (Number(i.price) || 0) * (i.quantity || 1), 0);
 
       if (isPromptPay && orderData?.id) {
-        const amountThb = Number(orderData.total) || line_items.reduce((s, i) => s + (Number(i.price) || 0) * (i.quantity || 1), 0);
         const chargeRes = await $fetch('/api/omise-create-charge', {
           method: 'POST',
           body: {
@@ -218,15 +217,14 @@ export const useCheckout = () => {
         return;
       }
 
-      // COD: clear cart and go to success
-      cart.value = [];
-      if (import.meta.client) {
-        localStorage.setItem('cart', JSON.stringify(cart.value));
+      if (isCreditCard && orderData?.id) {
+        cart.value = [];
+        if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
+        await router.push(`/payment-creditcard?order_id=${orderData.id}&amount=${amountThb}`);
+        return;
       }
-      checkoutStatus.value = 'success';
-      setTimeout(() => {
-        router.push('/payment-successful');
-      }, 1500);
+
+      checkoutStatus.value = 'order';
     } catch (err) {
       console.error('[useCheckout] Error:', err);
       error.value = err?.data?.error || err?.message || t('checkout.error.create_order_failed');
@@ -234,12 +232,19 @@ export const useCheckout = () => {
     }
   };
 
-  return { 
-    order, 
-    userDetails, 
-    checkoutStatus, 
-    error, 
+  const closePaymentChoiceModal = () => {
+    showPaymentChoiceModal.value = false;
+  };
+
+  return {
+    order,
+    userDetails,
+    checkoutStatus,
+    error,
     handleCheckout,
+    executeCheckout,
+    closePaymentChoiceModal,
+    showPaymentChoiceModal,
     loadCustomerData,
     isLoadingCustomerData,
     customerBillingData: readonly(customerBillingData),

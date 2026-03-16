@@ -5,9 +5,11 @@ const {
   checkoutStatus,
   error,
   handleCheckout,
+  executeCheckout,
+  closePaymentChoiceModal,
+  showPaymentChoiceModal,
   loadCustomerData,
   isLoadingCustomerData,
-  paymentMethod,
 } = useCheckout();
 const { cart } = useCart();
 const { isAuthenticated, checkAuth } = useAuth();
@@ -310,20 +312,6 @@ watch(() => cart.value?.length, (newLength) => {
             />
           </div>
         </div>
-        <!-- วิธีชำระเงิน -->
-        <div class="p-4 space-y-2">
-          <p class="text-sm font-semibold text-black dark:text-white">{{ $t('checkout.payment_method') || 'วิธีชำระเงิน' }}</p>
-          <label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition"
-            :class="paymentMethod === 'cod' ? 'border-alizarin-crimson-600 dark:border-alizarin-crimson-500 bg-alizarin-crimson-50 dark:bg-alizarin-crimson-900/20' : 'border-neutral-200 dark:border-neutral-700'">
-            <input type="radio" v-model="paymentMethod" value="cod" class="rounded-full" />
-            <span>{{ $t('checkout.pay.cod') || 'ชำระเงินปลายทาง (COD)' }}</span>
-          </label>
-          <label class="flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition"
-            :class="paymentMethod === 'promptpay' ? 'border-alizarin-crimson-600 dark:border-alizarin-crimson-500 bg-alizarin-crimson-50 dark:bg-alizarin-crimson-900/20' : 'border-neutral-200 dark:border-neutral-700'">
-            <input type="radio" v-model="paymentMethod" value="promptpay" class="rounded-full" />
-            <span>{{ $t('checkout.pay.promptpay') || 'PromptPay (Omise – ทดสอบ)' }}</span>
-          </label>
-        </div>
         <div
           :key="`checkout-summary-${cartTotal}-${totalQuantity}`"
           class="text-sm font-semibold p-4 text-neutral-600 dark:text-neutral-400"
@@ -374,15 +362,45 @@ watch(() => cart.value?.length, (newLength) => {
           class="text-xs font-medium p-4 flex gap-1 items-end text-neutral-400 dark:text-neutral-600"
         >
           <UIcon name="i-iconamoon-lock-fill" size="18" />
-          <div>
-            {{
-              $t("checkout.pay.secure", {
-                method: paymentMethod === "promptpay" ? "Omise PromptPay" : "ระบบชำระเงิน",
-              })
-            }}
-          </div>
+          <div>{{ $t("checkout.pay.secure", { method: "Omise" }) }}</div>
         </div>
       </form>
+
+      <!-- Modal เลือกวิธีชำระ: PromptPay หรือ บัตรเครดิต (หลังกดปุ่มชำระเงิน) -->
+      <ClientOnly>
+        <UModal v-model="showPaymentChoiceModal" :ui="{ width: 'w-full sm:max-w-md' }">
+          <div class="p-6">
+            <h3 class="text-lg font-bold text-black dark:text-white mb-4">
+              {{ $t('checkout.choose_payment') || 'เลือกวิธีชำระเงิน' }}
+            </h3>
+            <div class="space-y-3">
+              <button
+                type="button"
+                class="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 hover:border-alizarin-crimson-500 dark:hover:border-alizarin-crimson-500 bg-white dark:bg-black/20 transition text-left"
+                @click="executeCheckout('promptpay')"
+              >
+                <UIcon name="i-heroicons-qr-code" class="w-6 h-6 text-alizarin-crimson-600 dark:text-alizarin-crimson-400" />
+                <span class="font-semibold text-black dark:text-white">{{ $t('checkout.pay.promptpay') || 'PromptPay' }}</span>
+              </button>
+              <button
+                type="button"
+                class="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 hover:border-alizarin-crimson-500 dark:hover:border-alizarin-crimson-500 bg-white dark:bg-black/20 transition text-left"
+                @click="executeCheckout('credit_card')"
+              >
+                <UIcon name="i-heroicons-credit-card" class="w-6 h-6 text-alizarin-crimson-600 dark:text-alizarin-crimson-400" />
+                <span class="font-semibold text-black dark:text-white">{{ $t('checkout.pay.credit_card') || 'บัตรเครดิต' }}</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              class="mt-4 w-full py-2 text-sm text-neutral-500 dark:text-neutral-400 hover:text-black dark:hover:text-white"
+              @click="closePaymentChoiceModal"
+            >
+              {{ $t('general.cancel') || 'ยกเลิก' }}
+            </button>
+          </div>
+        </UModal>
+      </ClientOnly>
       <template #fallback>
         <div class="flex flex-col items-center justify-center p-6 h-[500px] overflow-y-auto">
           <p class="text-sm text-neutral-600 dark:text-neutral-400">
