@@ -1,13 +1,15 @@
-<!-- หน้าแสดง QR PromptPay (จาก Omise scannable_code) – โครงเดียวกับหน้าบัตรเครดิต -->
+<!-- หน้าแสดง QR PromptPay — ใช้ qr_uri จาก Omise (charge.source.scannable_code.image.download_uri) หรือสร้างจาก code -->
 <script setup>
 definePageMeta({ auth: false });
 const route = useRoute();
 const orderId = route.query.order_id;
 const code = route.query.code;
+const qrUri = route.query.qr_uri;
 const amount = route.query.amount;
 const qrImageUrl = computed(() => {
-  if (!code) return null;
-  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(code)}`;
+  if (qrUri) return qrUri;
+  if (code) return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(code)}`;
+  return null;
 });
 </script>
 
@@ -37,6 +39,9 @@ const qrImageUrl = computed(() => {
         <div class="inline-block p-4 bg-white dark:bg-neutral-900 rounded-xl border-2 border-neutral-200 dark:border-neutral-600">
           <img :src="qrImageUrl" alt="PromptPay QR" class="w-[220px] h-[220px]" />
         </div>
+      </div>
+      <div v-else class="flex justify-center py-8">
+        <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ $t('checkout.pay.qr_loading') || 'กำลังโหลด QR Code...' }}</p>
       </div>
 
       <p class="mt-4 text-xs text-neutral-500 dark:text-neutral-400 text-center">

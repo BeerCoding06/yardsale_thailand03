@@ -1119,10 +1119,16 @@ function yardsale_order_paid($request) {
     if (!$order) {
         return new WP_Error('not_found', 'Order not found', array('status' => 404));
     }
-    $order->set_status('processing');
-    $order->save();
-    error_log('[yardsale_order_paid] Order ' . $order_id . ' set to processing');
-    return array('success' => true, 'order_id' => $order_id, 'status' => 'processing');
+    // ใช้ payment_complete() เพื่อให้ WooCommerce บันทึกว่าชำระแล้ว (วันที่ชำระ, ลดสต็อก, แสดงสถานะชำระแล้ว)
+    if (method_exists($order, 'payment_complete')) {
+        $order->payment_complete();
+        error_log('[yardsale_order_paid] Order ' . $order_id . ' payment_complete (status: ' . $order->get_status() . ')');
+    } else {
+        $order->set_status('processing');
+        $order->save();
+        error_log('[yardsale_order_paid] Order ' . $order_id . ' set to processing (fallback)');
+    }
+    return array('success' => true, 'order_id' => $order_id, 'status' => $order->get_status());
 }
 
 /**

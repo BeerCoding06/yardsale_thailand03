@@ -245,16 +245,20 @@ export const useCheckout = () => {
             return_uri: typeof window !== 'undefined' ? `${window.location.origin}/payment-successful?order_id=${orderData.id}` : undefined,
           },
         });
+        const hasQr = chargeRes?.qr_image_uri || chargeRes?.scannable_code;
+        if (hasQr && import.meta.client) {
+          cart.value = [];
+          if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
+          const params = new URLSearchParams({ order_id: orderData.id, amount: amountThb });
+          if (chargeRes.qr_image_uri) params.set('qr_uri', chargeRes.qr_image_uri);
+          if (chargeRes.scannable_code) params.set('code', chargeRes.scannable_code);
+          await router.push(`/payment-promptpay?${params.toString()}`);
+          return;
+        }
         if (chargeRes?.authorize_uri) {
           cart.value = [];
           if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
           if (import.meta.client) window.location.href = chargeRes.authorize_uri;
-          return;
-        }
-        if (chargeRes?.scannable_code && import.meta.client) {
-          cart.value = [];
-          if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
-          await router.push(`/payment-promptpay?order_id=${orderData.id}&code=${encodeURIComponent(chargeRes.scannable_code)}&amount=${amountThb}`);
           return;
         }
         error.value = chargeRes?.message || 'ไม่สามารถสร้างลิงก์ชำระ PromptPay ได้';

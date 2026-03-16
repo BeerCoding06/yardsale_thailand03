@@ -100,12 +100,23 @@ export default defineEventHandler(async (event) => {
     const charge = await chargeRes.json();
     const authorize_uri = charge.authorize_uri;
     const charge_id = charge.id;
+    // QR มาจาก Charge response ไม่ใช่ Source — โครงสร้าง charge.source.scannable_code.image.download_uri
+    const scannable = charge.source?.scannable_code;
+    const qrImageUri =
+      (typeof scannable === 'object' && scannable?.image?.download_uri)
+        ? scannable.image.download_uri
+        : null;
+    const scannableCodeRaw =
+      typeof source.scannable_code === 'string'
+        ? source.scannable_code
+        : null;
 
     return {
       success: true,
       charge_id,
       authorize_uri: authorize_uri || null,
-      scannable_code: source.scannable_code || null,
+      scannable_code: scannableCodeRaw || null,
+      qr_image_uri: qrImageUri || null,
       amount_thb,
       order_id,
     };
