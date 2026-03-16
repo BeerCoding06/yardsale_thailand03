@@ -1,7 +1,24 @@
 // server/api/upload-image.post.ts
 // Upload image to WordPress media library (supports JWT or WP Basic Auth)
+// รองรับมือถือ (type ว่าง) และ webp/heic โดย infer MIME จากนามสกุล
 
 import * as wpUtils from '../utils/wp';
+
+const IMAGE_EXT_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  heic: "image/heic",
+};
+
+function getImageMime(file: File): string {
+  const t = (file.type || "").trim();
+  if (t.startsWith("image/")) return t;
+  const ext = (file.name || "").split(".").pop()?.toLowerCase();
+  return (ext && IMAGE_EXT_MIME[ext]) || "image/jpeg";
+}
 
 export default defineEventHandler(async (event) => {
   try {
@@ -14,6 +31,8 @@ export default defineEventHandler(async (event) => {
         message: "No file provided",
       });
     }
+
+    const mimeType = getImageMime(file);
 
     // Prefer JWT from request (logged-in user) so WordPress authorizes as that user
     // Accept token from header or FormData (in case header is stripped when sending FormData)
@@ -50,8 +69,8 @@ export default defineEventHandler(async (event) => {
     const uint8Array = new Uint8Array(arrayBuffer);
 
     const wpFormData = new FormData();
-    const fileBlob = new Blob([uint8Array], { type: file.type });
-    const fileObj = new File([fileBlob], file.name, { type: file.type });
+    const fileBlob = new Blob([uint8Array], { type: mimeType });
+    const fileObj = new File([fileBlob], file.name, { type: mimeType });
     wpFormData.append("file", fileObj);
 
     const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
@@ -65,7 +84,7 @@ export default defineEventHandler(async (event) => {
 
     console.log("[upload-image] Uploading to WordPress:", mediaUrl);
     console.log("[upload-image] Auth:", jwt ? "JWT" : "Basic Auth");
-    console.log("[upload-image] File:", file.name, file.type, file.size);
+    console.log("[upload-image] File:", file.name, "type:", file.type, "->", mimeType, "size:", file.size);
 
     let response = await fetch(mediaUrl, {
       method: "POST",
@@ -78,7 +97,7 @@ export default defineEventHandler(async (event) => {
     if (!response.ok && response.status === 401 && jwt && basicAuth) {
       console.log("[upload-image] 401 with JWT, retrying with Basic Auth");
       const retryFormData = new FormData();
-      const retryFile = new File([fileBlob], file.name, { type: file.type });
+      const retryFile = new File([fileBlob], file.name, { type: mimeType });
       retryFormData.append("file", retryFile);
       retryFormData.append("title", fileNameWithoutExt);
       retryFormData.append("alt_text", fileNameWithoutExt);

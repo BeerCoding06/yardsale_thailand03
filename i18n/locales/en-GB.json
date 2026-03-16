@@ -366,7 +366,7 @@
     "stock_quantity_hint": "Stock quantity must be greater than 0",
     "product_images": "Product Images",
     "drag_drop_hint": "Click or drag files here",
-    "image_formats": "Supports image files (JPG, PNG, GIF, etc.)",
+    "image_formats": "Supports JPG, PNG, GIF, WebP, HEIC (including from mobile)",
     "create_button": "Create Product",
     "creating": "Creating...",
     "create_success": "Product created successfully!",

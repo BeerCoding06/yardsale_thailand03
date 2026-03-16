@@ -1,7 +1,24 @@
 // server/api/upload-profile-picture.post.ts
 // Upload profile picture using WordPress REST API (same as upload-image.post.ts)
+// รองรับมือถือและ webp โดย infer MIME จากนามสกุลเมื่อ type ว่าง
 
 import * as wpUtils from '../utils/wp';
+
+const IMAGE_EXT_MIME: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  heic: "image/heic",
+};
+
+function getImageMime(file: File): string {
+  const t = (file.type || "").trim();
+  if (t.startsWith("image/")) return t;
+  const ext = (file.name || "").split(".").pop()?.toLowerCase();
+  return (ext && IMAGE_EXT_MIME[ext]) || "image/jpeg";
+}
 
 export default defineEventHandler(async (event) => {
   try {
@@ -16,6 +33,11 @@ export default defineEventHandler(async (event) => {
       });
     }
 
+    const mimeType = getImageMime(file);
+    const arrayBuffer = await file.arrayBuffer();
+    const fileBlob = new Blob([new Uint8Array(arrayBuffer)], { type: mimeType });
+    const fileToSend = new File([fileBlob], file.name, { type: mimeType });
+
     const headers = wpUtils.getWpApiHeaders(true, false); // Use Basic Auth for WP REST API
 
     if (!headers['Authorization']) {
@@ -28,12 +50,11 @@ export default defineEventHandler(async (event) => {
     // Upload image to WordPress Media Library
     const mediaUrl = wpUtils.buildWpApiUrl('wp/v2/media');
 
-    // Convert File to FormData for WordPress
     const wpFormData = new FormData();
-    wpFormData.append("file", file);
+    wpFormData.append("file", fileToSend);
 
     console.log("[upload-profile-picture] Uploading to WordPress:", mediaUrl);
-    console.log("[upload-profile-picture] File:", file.name, file.type, file.size);
+    console.log("[upload-profile-picture] File:", file.name, "type:", file.type, "->", mimeType, "size:", file.size);
 
     const response = await fetch(mediaUrl, {
       method: "POST",

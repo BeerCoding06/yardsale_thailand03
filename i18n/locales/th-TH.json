@@ -375,7 +375,7 @@
     "stock_quantity_hint": "จำนวนสต็อกต้องมากกว่า 0",
     "product_images": "รูปภาพสินค้า",
     "drag_drop_hint": "คลิกหรือลากไฟล์มาวางที่นี่",
-    "image_formats": "รองรับไฟล์รูปภาพ (JPG, PNG, GIF, etc.)",
+    "image_formats": "รองรับ JPG, PNG, GIF, WebP, HEIC (รวมรูปจากมือถือ)",
     "create_button": "สร้างสินค้า",
     "creating": "กำลังสร้าง...",
     "create_success": "สร้างสินค้าสำเร็จ!",

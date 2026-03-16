@@ -1,6 +1,6 @@
 <!--app/pages/my-products.vue-->
 <script setup lang="ts">
-// Page for displaying user's own products - requires authentication
+// แสดงเฉพาะสินค้าของ user ที่ login (API ใช้ JWT เท่านั้น ไม่ส่ง user_id – เซิร์ฟเวอร์ดึงจาก token)
 definePageMeta({
   middleware: "auth",
   ssr: false, // Disable SSR to prevent hydration mismatch
@@ -71,7 +71,7 @@ const fetchProducts = async () => {
       return;
     }
 
-    // Call Nuxt API route which will proxy to WordPress endpoint
+    // เรียก API โดยส่งเฉพาะ JWT – ไม่ส่ง user_id เพื่อให้ดึงเฉพาะสินค้าของคนที่ login
     console.log("[my-products] Calling /api/my-products with JWT token");
     const response = await $fetch<{
       success: boolean;

@@ -677,12 +677,19 @@ watch(
   { deep: true }
 );
 
+// รองรับมือถือและ webp: รับทั้ง type image/* และไฟล์ที่มีนามสกุลรูป (กรณีมือถือส่ง type ว่าง)
+const isImageFile = (file) => {
+  if (file.type && file.type.startsWith("image/")) return true;
+  const ext = (file.name || "").split(".").pop()?.toLowerCase();
+  return ["jpg", "jpeg", "png", "gif", "webp", "heic"].includes(ext || "");
+};
+
 // Handle file selection
 const handleFileSelect = (files) => {
   if (!files || files.length === 0) return;
 
   Array.from(files).forEach((file) => {
-    if (file.type.startsWith("image/")) {
+    if (isImageFile(file)) {
       const reader = new FileReader();
       reader.onload = (e) => {
         const src = e.target && e.target.result;
@@ -1226,7 +1233,7 @@ const handleSubmit = async (e) => {
             <input
               ref="imageInput"
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/*"
               multiple
               class="hidden"
               @change="

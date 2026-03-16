@@ -1,11 +1,11 @@
 // server/api/my-products.get.ts
-// Fetch products for the logged-in user only (JWT required; WordPress filters by post_author from JWT)
+// ดึงเฉพาะสินค้าของ user ที่ login เท่านั้น (ใช้ JWT เท่านั้น – ไม่รับ user_id จาก query)
 
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
 
-    // Require JWT – we never use user_id from query; only the user from the token
+    // ใช้เฉพาะ JWT – ไม่ใช้ user_id / author จาก query เพื่อให้แสดงเฉพาะของคนที่ login
     const authHeader = getHeader(event, 'authorization') || getHeader(event, 'Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw createError({
@@ -21,17 +21,17 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    // Get WordPress base URL from runtime config
     const config = useRuntimeConfig();
     const wpBaseUrl = config.public.wpBaseUrl || 'http://157.85.98.150:8080';
 
-    // Build query params for WordPress custom endpoint
+    // ส่งไป WordPress เฉพาะ status, per_page, page – ไม่ส่ง user_id เพื่อให้ WP ใช้ user จาก JWT เท่านั้น
     const queryParams: Record<string, string | number> = {
       per_page: 100,
     };
     if (query.status) queryParams.status = String(query.status);
     if (query.per_page) queryParams.per_page = Number(query.per_page);
     if (query.page) queryParams.page = Number(query.page);
+    // ไม่ใส่ user_id / author ใน queryParams เลย – WordPress จะใช้ user จาก JWT
 
     const url = `${wpBaseUrl}/wp-json/yardsale/v1/my-products?${new URLSearchParams(queryParams as Record<string, string>).toString()}`;
 
