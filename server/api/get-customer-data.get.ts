@@ -1,45 +1,55 @@
 // server/api/get-customer-data.get.ts
-// Fetch customer data from WordPress REST API
+// Fetch customer data from WordPress REST API (ใช้ JWT ของผู้ login ถ้ามี จะได้ไม่ 401)
 
 import * as wpUtils from '../utils/wp';
 
 export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
-    
     const customerId = query.customer_id;
     const customerEmail = query.customer_email;
-    
+
     if (!customerId && !customerEmail) {
       throw createError({
         statusCode: 400,
         message: "customer_id or customer_email is required",
       });
     }
-    
-    // Use WordPress REST API to fetch user data
-    const headers = wpUtils.getWpApiHeaders(true, false);
-    
+
+    const authHeader = getHeader(event, 'authorization') || getHeader(event, 'Authorization');
+    const jwt = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (jwt) {
+      headers['Authorization'] = `Bearer ${jwt}`;
+    } else {
+      const wpHeaders = wpUtils.getWpApiHeaders(true, false);
+      if (wpHeaders['Authorization']) {
+        headers['Authorization'] = wpHeaders['Authorization'];
+      }
+    }
+
     if (!headers['Authorization']) {
       throw createError({
         statusCode: 500,
-        message: "WordPress API credentials not configured",
+        message: "WordPress API credentials not configured (ใช้ JWT หรือ WP_BASIC_AUTH)",
       });
     }
-    
+
     let apiUrl: string;
-    if (customerId) {
+    if (jwt) {
+      apiUrl = wpUtils.buildWpApiUrl('wp/v2/users/me');
+    } else if (customerId) {
       apiUrl = wpUtils.buildWpApiUrl(`wp/v2/users/${customerId}`);
     } else {
-      // Search by email
       apiUrl = wpUtils.buildWpApiUrl('wp/v2/users', {
         search: customerEmail,
-        per_page: 1
+        per_page: 1,
       });
     }
-    
-    console.log('[get-customer-data] Fetching from WordPress API:', apiUrl);
-    
+
+    console.log('[get-customer-data] Fetching from WordPress API:', apiUrl, jwt ? '(with JWT)' : '(with Basic Auth)');
+
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers,

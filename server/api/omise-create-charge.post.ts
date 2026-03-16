@@ -100,16 +100,37 @@ export default defineEventHandler(async (event) => {
     const charge = await chargeRes.json();
     const authorize_uri = charge.authorize_uri;
     const charge_id = charge.id;
-    // QR มาจาก Charge response ไม่ใช่ Source — โครงสร้าง charge.source.scannable_code.image.download_uri
-    const scannable = charge.source?.scannable_code;
-    const qrImageUri =
-      (typeof scannable === 'object' && scannable?.image?.download_uri)
-        ? scannable.image.download_uri
-        : null;
-    const scannableCodeRaw =
-      typeof source.scannable_code === 'string'
-        ? source.scannable_code
-        : null;
+
+    // ตอนสร้าง charge Omise คืน source แค่ id (string) ไม่ expand — ต้อง GET charge อีกครั้งเพื่อดึง source.scannable_code
+    let qrImageUri: string | null = null;
+    let scannableCodeRaw: string | null = typeof source.scannable_code === 'string' ? source.scannable_code : null;
+    const sourceFromCharge = charge.source;
+    const scannable = typeof sourceFromCharge === 'object' && sourceFromCharge?.scannable_code;
+    if (scannable?.image?.download_uri) {
+      qrImageUri = scannable.image.download_uri;
+    }
+    if (!qrImageUri && charge_id) {
+      try {
+        const getRes = await fetch(`${OMISE_API}/charges/${charge_id}?expand[]=source`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Basic ' + authSecret },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (getRes.ok) {
+          const fullCharge = await getRes.json();
+          const fullSource = fullCharge.source;
+          const fullScannable = typeof fullSource === 'object' && fullSource?.scannable_code;
+          if (fullScannable?.image?.download_uri) {
+            qrImageUri = fullScannable.image.download_uri;
+          }
+          if (!scannableCodeRaw && typeof fullScannable?.raw_data === 'string') {
+            scannableCodeRaw = fullScannable.raw_data;
+          }
+        }
+      } catch (e) {
+        console.warn('[omise-create-charge] GET charge for QR failed:', (e as Error)?.message);
+      }
+    }
 
     return {
       success: true,

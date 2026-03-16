@@ -1,10 +1,11 @@
-<!-- หน้าแสดง QR PromptPay — ใช้ qr_uri จาก Omise (charge.source.scannable_code.image.download_uri) หรือสร้างจาก code -->
+<!-- หน้าแสดง QR PromptPay — ใช้ qr_uri จาก Omise หรือสร้างจาก code หรือปุ่มเปิด authorize_uri -->
 <script setup>
 definePageMeta({ auth: false });
 const route = useRoute();
 const orderId = route.query.order_id;
 const code = route.query.code;
 const qrUri = route.query.qr_uri;
+const authorizeUri = route.query.authorize_uri;
 const amount = route.query.amount;
 const qrImageUrl = computed(() => {
   if (qrUri) return qrUri;
@@ -39,6 +40,19 @@ const qrImageUrl = computed(() => {
         <div class="inline-block p-4 bg-white dark:bg-neutral-900 rounded-xl border-2 border-neutral-200 dark:border-neutral-600">
           <img :src="qrImageUrl" alt="PromptPay QR" class="w-[220px] h-[220px]" />
         </div>
+      </div>
+      <div v-else-if="authorizeUri" class="flex justify-center py-6">
+        <a
+          :href="authorizeUri"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white bg-alizarin-crimson-600 hover:bg-alizarin-crimson-700"
+        >
+          {{ $t('checkout.pay.open_omise_page') || 'เปิดหน้าชำระ Omise (สแกน QR / ทดสอบ)' }}
+        </a>
+        <p class="mt-3 text-xs text-neutral-500 dark:text-neutral-400 text-center w-full">
+          {{ $t('checkout.pay.open_omise_hint') || 'หรือรอ 10–20 วินาที ในโหมดทดสอบ Omise จะ simulate การชำระอัตโนมัติ' }}
+        </p>
       </div>
       <div v-else class="flex justify-center py-8">
         <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ $t('checkout.pay.qr_loading') || 'กำลังโหลด QR Code...' }}</p>

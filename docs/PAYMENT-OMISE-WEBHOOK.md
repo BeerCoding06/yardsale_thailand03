@@ -75,6 +75,47 @@ define('OMISE_ORDER_PAID_SECRET', 'your_random_secret_string');
 
 ---
 
+## ตรวจเช็ค: สถานะ WooCommerce เปลี่ยนหลังชำระเงิน
+
+Flow ที่ทำให้สถานะเปลี่ยน:
+
+1. **สร้าง Charge** (`server/api/omise-create-charge.post.ts`)  
+   - ส่ง `metadata: { order_id: String(order_id) }` ไป Omise ตอนสร้าง charge  
+   - ถ้าไม่มี → webhook จะไม่มี order_id อัปเดตไม่ได้
+
+2. **Omise ส่ง Webhook** มาที่ Nuxt `POST /api/omise-webhook`  
+   - Event: `charge.complete`  
+   - Body: `{ object: 'event', key: 'charge.complete', data: { object: 'charge', status: 'successful', metadata: { order_id: '123' } } }`  
+   - Nuxt ตรวจ: `payload.object === 'event'`, `data.object === 'charge'`, `data.status === 'successful'`, มี `data.metadata.order_id`
+
+3. **Nuxt เรียก WordPress**  
+   - `POST {wpBaseUrl}/wp-json/yardsale/v1/order-paid`  
+   - Body: `{ order_id: number, secret: OMISE_ORDER_PAID_SECRET }`  
+   - ต้องตั้ง `wpBaseUrl` (Nuxt) และ WordPress ต้องเปิด endpoint นี้ได้จาก Nuxt
+
+4. **WordPress Plugin** (`yardsale_order_paid`)  
+   - ตรวจ `secret` ตรงกับ `OMISE_ORDER_PAID_SECRET` หรือ `OMISE_WEBHOOK_SECRET` ใน wp-config  
+   - `wc_get_order(order_id)` → `$order->payment_complete()`  
+   - สถานะ WooCommerce จะเปลี่ยนเป็น **Processing** และบันทึกว่าชำระแล้ว (วันที่ชำระ, ลดสต็อก)
+
+### Checklist ให้สถานะเปลี่ยน
+
+| รายการ | ตรวจ |
+|--------|------|
+| Omise Dashboard → Webhooks | URL = `https://{โดเมน Nuxt}/api/omise-webhook` และเลือก event **charge.complete** |
+| Nuxt env | `OMISE_WEBHOOK_SECRET` (ถ้าใส่ Omise จะตรวจ signature), `OMISE_ORDER_PAID_SECRET` |
+| WordPress wp-config.php | `define('OMISE_ORDER_PAID_SECRET', 'ค่าเดียวกับ Nuxt');` |
+| Nuxt env | `WP_BASE_URL` หรือ `wpBaseUrl` ชี้ไป WordPress จริง (เช่น cms.yardsaleth.com) |
+| สร้าง charge | ส่ง `metadata.order_id` แล้ว (ใน omise-create-charge มีแล้ว) |
+
+### ถ้าสถานะไม่เปลี่ยน
+
+- ดู log เซิร์ฟเวอร์ Nuxt: `[omise-webhook] ...` (เรียก order-paid หรือไม่, order-paid failed หรือไม่)  
+- ดู Omise Dashboard → Webhooks → Recent Deliveries: ต้องได้ **200**  
+- ดู error log WordPress: `[yardsale_order_paid] Invalid or missing secret` หรือ `Order ... payment_complete`
+
+---
+
 ## สิ่งที่ Nuxt ทำอยู่ตอนนี้
 
 | ส่วน | สถานะ |

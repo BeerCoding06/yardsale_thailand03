@@ -24,13 +24,18 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    const payload = JSON.parse(rawBody) as { object?: string; key?: string; id?: string; metadata?: { order_id?: string }; status?: string };
+    const payload = JSON.parse(rawBody) as { object?: string; key?: string; data?: { object?: string; status?: string; metadata?: { order_id?: string } } };
     if (payload.object !== 'event') {
       return { received: true };
     }
     const key = payload.key; // e.g. charge.complete
     const data = (payload as any).data;
-    if (!data || data.object !== 'charge' || data.status !== 'successful') {
+    if (!data || data.object !== 'charge') {
+      return { received: true };
+    }
+    // Omise ส่ง status เป็น 'successful' เมื่อชำระสำเร็จ
+    if (data.status !== 'successful') {
+      console.log('[omise-webhook] Ignored event', key, 'charge status:', data.status);
       return { received: true };
     }
     const order_id = data.metadata?.order_id;
@@ -41,6 +46,7 @@ export default defineEventHandler(async (event) => {
 
     const wpBaseUrl = wpUtils.getWpBaseUrl();
     const url = `${wpBaseUrl}/wp-json/yardsale/v1/order-paid`;
+    console.log('[omise-webhook] Calling order-paid for order_id=', order_id, 'url=', url);
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -52,7 +58,7 @@ export default defineEventHandler(async (event) => {
       console.error('[omise-webhook] order-paid failed:', res.status, text);
       throw createError({ statusCode: 502, message: 'Failed to update order' });
     }
-    console.log('[omise-webhook] Order', order_id, 'set to processing');
+    console.log('[omise-webhook] Order', order_id, 'WooCommerce updated successfully');
     return { received: true, order_id: Number(order_id) };
   } catch (e: any) {
     if (e?.statusCode) throw e;

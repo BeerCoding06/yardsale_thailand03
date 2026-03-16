@@ -75,7 +75,10 @@ export const useCheckout = () => {
         queryParams.append('customer_email', customerEmail);
       }
 
-      const customerData = await $fetch(`/api/get-customer-data?${queryParams.toString()}`);
+      const jwtToken = user.value?.token;
+      const customerData = await $fetch(`/api/get-customer-data?${queryParams.toString()}`, {
+        ...(jwtToken ? { headers: { Authorization: `Bearer ${jwtToken}` } } : {}),
+      });
 
       // ถ้า API ส่ง billing มา (จาก WooCommerce/WordPress) ใช้เขียนทับ
       const billing = customerData?.billing ?? customerData?.customer;
@@ -246,19 +249,14 @@ export const useCheckout = () => {
           },
         });
         const hasQr = chargeRes?.qr_image_uri || chargeRes?.scannable_code;
-        if (hasQr && import.meta.client) {
+        if (import.meta.client) {
           cart.value = [];
-          if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
+          localStorage.setItem('cart', JSON.stringify(cart.value));
           const params = new URLSearchParams({ order_id: orderData.id, amount: amountThb });
-          if (chargeRes.qr_image_uri) params.set('qr_uri', chargeRes.qr_image_uri);
-          if (chargeRes.scannable_code) params.set('code', chargeRes.scannable_code);
+          if (chargeRes?.qr_image_uri) params.set('qr_uri', chargeRes.qr_image_uri);
+          if (chargeRes?.scannable_code) params.set('code', chargeRes.scannable_code);
+          if (chargeRes?.authorize_uri) params.set('authorize_uri', chargeRes.authorize_uri);
           await router.push(`/payment-promptpay?${params.toString()}`);
-          return;
-        }
-        if (chargeRes?.authorize_uri) {
-          cart.value = [];
-          if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
-          if (import.meta.client) window.location.href = chargeRes.authorize_uri;
           return;
         }
         error.value = chargeRes?.message || 'ไม่สามารถสร้างลิงก์ชำระ PromptPay ได้';
