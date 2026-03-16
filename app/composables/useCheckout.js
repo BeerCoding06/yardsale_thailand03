@@ -114,23 +114,25 @@ export const useCheckout = () => {
     error.value = null;
 
     try {
-      // Prepare line items from cart
+      // Parse price (handles HTML like "<span>500</span>" or "฿500.00")
+      const parsePrice = (val) => {
+        if (val == null || val === '') return 0;
+        const cleaned = String(val).replace(/<[^>]*>/g, '').replace(/[^0-9.]/g, '');
+        const n = parseFloat(cleaned);
+        return Number.isFinite(n) ? n : 0;
+      };
+
+      // Prepare line items from cart (product_id from databaseId or id; price from regularPrice/salePrice)
       const line_items = cart.value.map(item => {
-        // For variable products, use variation node
-        // For simple products, use product node
         const variationNode = item.variation?.node;
         const productNode = item.product?.node;
         const node = variationNode || productNode || {};
-        
-        // Get databaseId from variation (variable) or product (simple)
-        const productId = variationNode?.databaseId || productNode?.databaseId || node.databaseId || node.id || 0;
-        
-        const regularPrice = parseFloat(node.regularPrice) || 0;
-        const salePrice = parseFloat(node.salePrice) || 0;
+        const productId = variationNode?.databaseId ?? productNode?.databaseId ?? node.databaseId ?? node.id ?? 0;
+        const regularPrice = parsePrice(node.regularPrice);
+        const salePrice = parsePrice(node.salePrice);
         const price = salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
-        
         return {
-          product_id: productId,
+          product_id: Number(productId) || 0,
           quantity: item.quantity || 1,
           price: price,
         };
