@@ -24,11 +24,42 @@ export const useCheckout = () => {
   // Store customer billing data from profile
   const customerBillingData = ref(null);
 
-  // Load customer data from profile when authenticated
+  /** เติมฟอร์มจากข้อมูล user ที่ login (email, ชื่อ) – เรียกก่อนโหลดจาก API */
+  const fillUserDetailsFromLogin = () => {
+    const u = user.value;
+    if (!u) return;
+    if (u.email || u.user_email) {
+      userDetails.value.email = u.email || u.user_email || '';
+    }
+    if (u.first_name) {
+      userDetails.value.firstName = u.first_name;
+    }
+    if (u.last_name) {
+      userDetails.value.lastName = u.last_name;
+    }
+    if (!userDetails.value.firstName && !userDetails.value.lastName && (u.name || u.display_name)) {
+      const fullName = (u.name || u.display_name || '').trim();
+      const parts = fullName.split(/\s+/);
+      if (parts.length >= 2) {
+        userDetails.value.firstName = parts[0];
+        userDetails.value.lastName = parts.slice(1).join(' ');
+      } else if (parts.length === 1) {
+        userDetails.value.firstName = parts[0];
+      }
+    }
+    if (u.phone) {
+      userDetails.value.phone = u.phone;
+    }
+  };
+
+  // โหลดข้อมูลลูกค้า: เติมจาก login ก่อน แล้วดึงจาก API (ถ้ามี) มาเขียนทับ
   const loadCustomerData = async () => {
     if (!isAuthenticated.value || !user.value) {
       return;
     }
+
+    // เติมจากข้อมูล login ทันที (email, ชื่อ)
+    fillUserDetailsFromLogin();
 
     try {
       isLoadingCustomerData.value = true;
@@ -45,46 +76,24 @@ export const useCheckout = () => {
 
       const customerData = await $fetch(`/api/get-customer-data?${queryParams.toString()}`);
 
-      if (customerData.success && customerData.billing) {
-        // Store billing data for checkout
-        customerBillingData.value = customerData.billing;
-        
-        // Update userDetails for display only
-        const billing = customerData.billing;
-        if (billing.email) {
-          userDetails.value.email = billing.email;
-        }
-        if (billing.first_name) {
-          userDetails.value.firstName = billing.first_name;
-        }
-        if (billing.last_name) {
-          userDetails.value.lastName = billing.last_name;
-        }
-        if (billing.phone) {
-          userDetails.value.phone = billing.phone;
-        }
-        if (billing.address1) {
-          userDetails.value.address1 = billing.address1;
-        }
-        if (billing.address2) {
-          userDetails.value.address2 = billing.address2;
-        }
-        if (billing.city) {
-          userDetails.value.city = billing.city;
-        }
-        if (billing.state) {
-          userDetails.value.state = billing.state;
-        }
-        if (billing.postcode) {
-          userDetails.value.postcode = billing.postcode;
-        }
-        if (billing.country) {
-          userDetails.value.country = billing.country;
-        }
+      // ถ้า API ส่ง billing มา (จาก WooCommerce/WordPress) ใช้เขียนทับ
+      const billing = customerData?.billing ?? customerData?.customer;
+      if (billing && typeof billing === 'object') {
+        customerBillingData.value = billing;
+        if (billing.email) userDetails.value.email = billing.email;
+        if (billing.first_name) userDetails.value.firstName = billing.first_name;
+        if (billing.last_name) userDetails.value.lastName = billing.last_name;
+        if (billing.phone) userDetails.value.phone = billing.phone || '';
+        if (billing.address_1 || billing.address1) userDetails.value.address1 = billing.address_1 || billing.address1 || '';
+        if (billing.address_2 || billing.address2) userDetails.value.address2 = billing.address_2 || billing.address2 || '';
+        if (billing.city) userDetails.value.city = billing.city || '';
+        if (billing.state) userDetails.value.state = billing.state || '';
+        if (billing.postcode) userDetails.value.postcode = billing.postcode || '';
+        if (billing.country) userDetails.value.country = billing.country || 'TH';
       }
     } catch (err) {
       console.error('[useCheckout] Error loading customer data:', err);
-      // Don't show error to user, just use empty form
+      // ยังมีข้อมูลจาก login อยู่แล้ว ไม่ต้องแสดง error
     } finally {
       isLoadingCustomerData.value = false;
     }

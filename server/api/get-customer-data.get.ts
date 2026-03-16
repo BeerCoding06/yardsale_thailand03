@@ -57,16 +57,37 @@ export default defineEventHandler(async (event) => {
     
     let userData = await response.json();
     
-    // If searching by email, get first result
     if (Array.isArray(userData) && userData.length > 0) {
       userData = userData[0];
     }
+    if (!userData || typeof userData !== 'object') {
+      throw createError({ statusCode: 502, message: 'Invalid user data from WordPress' });
+    }
     
-    // Filter sensitive data
     const { password, ...safeUserData } = userData;
+    const meta = userData?.meta ?? {};
+    
+    // Build billing for checkout form (รองรับทั้ง WP user และ meta เช่น first_name, billing_address_1)
+    const first = userData?.first_name ?? meta?.first_name ?? '';
+    const last = userData?.last_name ?? meta?.last_name ?? '';
+    const nameParts = (userData?.name || '').trim().split(/\s+/);
+    const billing = {
+      first_name: first || nameParts[0] || '',
+      last_name: last || (nameParts.length > 1 ? nameParts.slice(1).join(' ') : ''),
+      email: userData?.email ?? userData?.user_email ?? '',
+      phone: userData?.phone ?? meta?.billing_phone ?? meta?.phone ?? '',
+      address_1: meta?.billing_address_1 ?? meta?.billing_address ?? '',
+      address_2: meta?.billing_address_2 ?? '',
+      city: meta?.billing_city ?? '',
+      state: meta?.billing_state ?? '',
+      postcode: meta?.billing_postcode ?? '',
+      country: meta?.billing_country ?? 'TH',
+    };
     
     return {
-      customer: safeUserData
+      success: true,
+      customer: safeUserData,
+      billing,
     };
   } catch (error: any) {
     console.error('[get-customer-data] Error:', error);
