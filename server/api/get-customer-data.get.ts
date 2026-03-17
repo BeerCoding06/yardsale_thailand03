@@ -8,16 +8,15 @@ export default defineEventHandler(async (event) => {
     const query = getQuery(event);
     const customerId = query.customer_id;
     const customerEmail = query.customer_email;
-
-    if (!customerId && !customerEmail) {
-      throw createError({
-        statusCode: 400,
-        message: "customer_id or customer_email is required",
-      });
-    }
-
     const authHeader = getHeader(event, 'authorization') || getHeader(event, 'Authorization');
     const jwt = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+    if (!jwt && !customerId && !customerEmail) {
+      throw createError({
+        statusCode: 400,
+        message: "Authorization Bearer (JWT) or customer_id or customer_email is required",
+      });
+    }
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (jwt) {
@@ -36,9 +35,10 @@ export default defineEventHandler(async (event) => {
       });
     }
 
+    const wpBaseUrl = wpUtils.getWpBaseUrl();
     let apiUrl: string;
     if (jwt) {
-      apiUrl = wpUtils.buildWpApiUrl('wp/v2/users/me');
+      apiUrl = `${wpBaseUrl}/wp-json/yardsale/v1/customer-data`;
     } else if (customerId) {
       apiUrl = wpUtils.buildWpApiUrl(`wp/v2/users/${customerId}`);
     } else {
@@ -48,7 +48,7 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    console.log('[get-customer-data] Fetching from WordPress API:', apiUrl, jwt ? '(with JWT)' : '(with Basic Auth)');
+    console.log('[get-customer-data] Fetching:', jwt ? 'yardsale/v1/customer-data (JWT)' : apiUrl);
 
     const response = await fetch(apiUrl, {
       method: 'GET',
@@ -69,19 +69,22 @@ export default defineEventHandler(async (event) => {
       });
     }
     
-    let userData = await response.json();
-    
+    const data = await response.json();
+
+    if (data && data.success === true && data.billing && typeof data.billing === 'object') {
+      return { success: true, customer: data.customer ?? null, billing: data.billing };
+    }
+
+    let userData = data;
     if (Array.isArray(userData) && userData.length > 0) {
       userData = userData[0];
     }
     if (!userData || typeof userData !== 'object') {
       throw createError({ statusCode: 502, message: 'Invalid user data from WordPress' });
     }
-    
+
     const { password, ...safeUserData } = userData;
     const meta = userData?.meta ?? {};
-    
-    // Build billing for checkout form (รองรับทั้ง WP user และ meta เช่น first_name, billing_address_1)
     const first = userData?.first_name ?? meta?.first_name ?? '';
     const last = userData?.last_name ?? meta?.last_name ?? '';
     const nameParts = (userData?.name || '').trim().split(/\s+/);
@@ -97,12 +100,8 @@ export default defineEventHandler(async (event) => {
       postcode: meta?.billing_postcode ?? '',
       country: meta?.billing_country ?? 'TH',
     };
-    
-    return {
-      success: true,
-      customer: safeUserData,
-      billing,
-    };
+
+    return { success: true, customer: safeUserData, billing };
   } catch (error: any) {
     console.error('[get-customer-data] Error:', error);
     throw createError({

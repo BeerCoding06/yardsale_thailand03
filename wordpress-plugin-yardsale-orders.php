@@ -125,6 +125,13 @@ add_action('rest_api_init', function () {
             'secret'   => array('type' => 'string'),
         ),
     ));
+
+    // ข้อมูลลูกค้า/ที่อยู่สำหรับ checkout (ใช้ JWT เดียวกับ create-order – ไม่พึ่ง wp/v2/users/me)
+    register_rest_route('yardsale/v1', '/customer-data', array(
+        'methods' => 'GET',
+        'callback' => 'yardsale_get_customer_data',
+        'permission_callback' => 'yardsale_jwt_auth_check',
+    ));
 });
 
 /**
@@ -1090,6 +1097,45 @@ function yardsale_create_order($request) {
         error_log('[yardsale_create_order] Error: ' . $e->getMessage());
         return new WP_Error('create_failed', $e->getMessage(), array('status' => 500));
     }
+}
+
+/**
+ * คืนข้อมูลลูกค้า/ที่อยู่สำหรับ checkout (เรียกจาก Nuxt get-customer-data พร้อม JWT)
+ * ใช้ JWT เดียวกับ create-order จึงไม่เจอ 401 จาก wp/v2/users/me
+ */
+function yardsale_get_customer_data($request) {
+    $user_id = get_current_user_id();
+    if (!$user_id) {
+        return new WP_Error('not_authenticated', 'User not authenticated', array('status' => 401));
+    }
+    $user = get_userdata($user_id);
+    if (!$user) {
+        return new WP_Error('not_found', 'User not found', array('status' => 404));
+    }
+    $first  = get_user_meta($user_id, 'first_name', true) ?: get_user_meta($user_id, 'billing_first_name', true);
+    $last   = get_user_meta($user_id, 'last_name', true) ?: get_user_meta($user_id, 'billing_last_name', true);
+    $billing = array(
+        'first_name' => $first ?: '',
+        'last_name'  => $last ?: '',
+        'email'      => $user->user_email ?: '',
+        'phone'      => get_user_meta($user_id, 'billing_phone', true) ?: get_user_meta($user_id, 'phone', true) ?: '',
+        'address_1'  => get_user_meta($user_id, 'billing_address_1', true) ?: '',
+        'address_2'  => get_user_meta($user_id, 'billing_address_2', true) ?: '',
+        'city'       => get_user_meta($user_id, 'billing_city', true) ?: '',
+        'state'      => get_user_meta($user_id, 'billing_state', true) ?: '',
+        'postcode'   => get_user_meta($user_id, 'billing_postcode', true) ?: '',
+        'country'    => get_user_meta($user_id, 'billing_country', true) ?: 'TH',
+    );
+    return array(
+        'success'  => true,
+        'customer' => array(
+            'id'         => (int) $user_id,
+            'email'      => $user->user_email,
+            'first_name' => $billing['first_name'],
+            'last_name'  => $billing['last_name'],
+        ),
+        'billing'  => $billing,
+    );
 }
 
 /**
