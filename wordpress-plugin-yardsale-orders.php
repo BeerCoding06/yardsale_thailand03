@@ -1041,18 +1041,33 @@ function yardsale_create_order($request) {
         $order->set_billing_country($country ?: 'TH');
 
         foreach ($params['line_items'] as $item) {
-            $product_id = (int) ($item['product_id'] ?? 0);
-            $quantity   = (int) ($item['quantity'] ?? 1);
-            $price      = isset($item['price']) ? (float) $item['price'] : 0;
-            if ($product_id <= 0) {
+            $product_id    = (int) ($item['product_id'] ?? 0);
+            $variation_id  = (int) ($item['variation_id'] ?? 0);
+            $quantity      = (int) ($item['quantity'] ?? 1);
+            $price         = isset($item['price']) ? (float) $item['price'] : 0;
+
+            // สินค้าแปรผัน: ต้องใช้ wc_get_product(variation_id) — ห้าม add แค่ parent variable
+            $product = null;
+            if ($variation_id > 0) {
+                $product = wc_get_product($variation_id);
+                if ($product && ! $product->is_type('variation')) {
+                    $product = null;
+                }
+            }
+            if (! $product && $product_id > 0) {
+                $product = wc_get_product($product_id);
+            }
+            if (! $product) {
+                error_log('[yardsale_create_order] Skip line: no product (product_id=' . $product_id . ', variation_id=' . $variation_id . ')');
                 continue;
             }
-            $product = wc_get_product($product_id);
-            if (!$product) {
-                continue;
-            }
+
             $item_id = $order->add_product($product, $quantity);
-            if ($item_id && $price > 0) {
+            if (! $item_id) {
+                error_log('[yardsale_create_order] add_product failed for product_id=' . $product->get_id());
+                continue;
+            }
+            if ($price > 0) {
                 $line_item = $order->get_item($item_id, false);
                 if ($line_item) {
                     $line_item->set_subtotal($price * $quantity);
@@ -1060,6 +1075,15 @@ function yardsale_create_order($request) {
                     $line_item->save();
                 }
             }
+        }
+
+        if (count($order->get_items()) === 0) {
+            $order->delete(true);
+            return new WP_Error(
+                'no_line_items',
+                'ไม่สามารถเพิ่มสินค้าในออเดอร์ได้ (สินค้าไม่ถูกต้อง สต็อกไม่พอ หรือสินค้าแปรผันต้องส่ง variation_id) — ล้างตะกร้าแล้วเพิ่มจากหน้าสินค้าใหม่',
+                array('status' => 400)
+            );
         }
 
         $order->set_payment_method($params['payment_method'] ?? 'cod');

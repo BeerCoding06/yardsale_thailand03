@@ -66,5 +66,6 @@ export default defineCachedEventHandler(async (event) => {
     return { has_orders: false };
   }
 }, {
-  maxAge: 60, // Cache for 60 seconds
+  // สั้นลง — หลังแอดมินลบออเดอร์ใน WC จะได้ has_orders ใหม่เร็วขึ้น (ไม่ค้าง "มีผู้ซื้อแล้ว")
+  maxAge: 15,
 });
