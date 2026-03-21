@@ -409,9 +409,10 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
               v-if="isSimpleProduct && product.stockStatus"
               class="text-sm font-semibold leading-5 opacity-50 mb-4"
             >
-              {{ $t("cart.stock") }}: 
-              <span :class="(!isCancelled && (product.stockStatus === 'OUT_OF_STOCK' || hasBuyer)) ? 'text-red-500' : 'text-green-500'">
-                {{ (!isCancelled && (product.stockStatus === 'OUT_OF_STOCK' || hasBuyer)) ? '0' : (product.stockQuantity || $t("cart.in_stock")) }}
+              {{ $t("cart.stock") }}:
+              <!-- ไม่ใช้ hasBuyer บังคับเป็น 0 — หลังลบออเดอร์ใน WC สต็อกจริงต้องตรงกับที่แสดง; hasBuyer แค่ข้อความแจ้งด้านบน -->
+              <span :class="(!isCancelled && product.stockStatus === 'OUT_OF_STOCK') ? 'text-red-500' : 'text-green-500'">
+                {{ (!isCancelled && product.stockStatus === 'OUT_OF_STOCK') ? '0' : (product.stockQuantity || $t("cart.in_stock")) }}
               </span>
             </div>
             

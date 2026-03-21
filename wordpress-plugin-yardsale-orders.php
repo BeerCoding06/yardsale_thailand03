@@ -126,6 +126,16 @@ add_action('rest_api_init', function () {
         ),
     ));
 
+    // ตรวจว่ามีออเดอร์ที่ยังมีผล (ชำระ/ดำเนินการ) ที่มีสินค้านี้หรือไม่ — ใช้ wc_get_orders (ออเดอร์ที่ลบถาวรแล้วจะไม่นับ)
+    register_rest_route('yardsale/v1', '/product-has-orders', array(
+        'methods' => 'GET',
+        'callback' => 'yardsale_product_has_orders',
+        'permission_callback' => '__return_true',
+        'args' => array(
+            'product_id' => array('required' => true, 'type' => 'integer'),
+        ),
+    ));
+
     // ข้อมูลลูกค้า/ที่อยู่สำหรับ checkout (ใช้ JWT เดียวกับ create-order – ไม่พึ่ง wp/v2/users/me)
     register_rest_route('yardsale/v1', '/customer-data', array(
         'methods' => 'GET',
@@ -989,6 +999,52 @@ function yardsale_set_product_author($request) {
     }
     error_log('[yardsale_set_product_author] Set post_author=' . $user_id . ' for product_id=' . $product_id);
     return array('success' => true, 'product_id' => $product_id, 'post_author' => (int) $user_id);
+}
+
+/**
+ * มีออเดอร์ที่ยังไม่ถูกลบและสถานะเป็น processing / completed / on-hold ที่มีสินค้า (หรือ variation) นี้หรือไม่
+ * หลังแอดมินลบออเดอร์ใน WooCommerce แล้ว จะคืน has_orders=false
+ */
+function yardsale_product_has_orders($request) {
+    if (! function_exists('wc_get_orders')) {
+        return new WP_REST_Response(array('has_orders' => false), 200);
+    }
+
+    $product_id = absint($request->get_param('product_id'));
+    if (! $product_id) {
+        return new WP_REST_Response(array('has_orders' => false), 200);
+    }
+
+    try {
+        $statuses = array('wc-processing', 'wc-completed', 'wc-on-hold', 'processing', 'completed', 'on-hold');
+
+        $ids_to_check = array($product_id);
+        $product = wc_get_product($product_id);
+        if ($product && $product->is_type('variable')) {
+            foreach ($product->get_children() as $child_id) {
+                $ids_to_check[] = (int) $child_id;
+            }
+        }
+
+        foreach (array_unique($ids_to_check) as $pid) {
+            if ($pid < 1) {
+                continue;
+            }
+            $orders = wc_get_orders(array(
+                'limit'      => 1,
+                'status'     => $statuses,
+                'product_id' => $pid,
+                'return'     => 'ids',
+            ));
+            if (! empty($orders)) {
+                return new WP_REST_Response(array('has_orders' => true), 200);
+            }
+        }
+    } catch (Exception $e) {
+        error_log('[yardsale_product_has_orders] ' . $e->getMessage());
+    }
+
+    return new WP_REST_Response(array('has_orders' => false), 200);
 }
 
 /**

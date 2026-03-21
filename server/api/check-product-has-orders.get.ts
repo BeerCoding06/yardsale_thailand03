@@ -1,71 +1,78 @@
 // server/api/check-product-has-orders.get.ts
-// Check if a product has been purchased (has orders) using WooCommerce REST API
+// ตรวจว่าสินค้ายังมีออเดอร์ที่ active อยู่หรือไม่ — หลังลบออเดอร์ใน WC ต้องเป็น false ทันที (ไม่ใช้ Nitro cache)
 
-import * as wpUtils from '../utils/wp';
+import {
+  buildWcApiUrl,
+  getWpBaseUrl,
+  getWpConsumerKey,
+  getWpConsumerSecret,
+} from '../utils/wp';
 
-export default defineCachedEventHandler(async (event) => {
+export default defineEventHandler(async (event) => {
   try {
     const query = getQuery(event);
     const productId = query.product_id;
-    
+
     if (!productId) {
-      // Return false instead of throwing error to not block the UI
       console.warn('[check-product-has-orders] product_id is required');
       return { has_orders: false };
     }
-    
-    // Use WooCommerce REST API to check if product has orders
-    
+
+    const idStr = String(productId);
+
+    // 1) ปลั๊กอิน WordPress: wc_get_orders — สอดคล้อง DB จริง ออเดอร์ที่ลบแล้วไม่นับ
     try {
-      const consumerKey = wpUtils.getWpConsumerKey();
-      const consumerSecret = wpUtils.getWpConsumerSecret();
-      
+      const wpBase = getWpBaseUrl();
+      const pluginUrl = `${wpBase}/wp-json/yardsale/v1/product-has-orders?product_id=${encodeURIComponent(idStr)}`;
+      const res = await fetch(pluginUrl, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { has_orders?: boolean };
+        if (typeof data?.has_orders === 'boolean') {
+          return { has_orders: data.has_orders };
+        }
+      }
+    } catch (e: unknown) {
+      console.warn('[check-product-has-orders] Plugin yardsale/v1/product-has-orders failed:', e);
+    }
+
+    // 2) Fallback: WooCommerce REST (ถ้าปลั๊กอินยังไม่อัปเดต)
+    try {
+      const consumerKey = getWpConsumerKey();
+      const consumerSecret = getWpConsumerSecret();
+
       if (!consumerKey || !consumerSecret) {
-        // If WooCommerce API not configured, return false (no orders)
-        console.warn('[check-product-has-orders] WooCommerce API not configured, assuming no orders');
         return { has_orders: false };
       }
-      
-      // Search for orders containing this product
-      const apiUrl = wpUtils.buildWcApiUrl('wc/v3/orders', {
+
+      const apiUrl = buildWcApiUrl('wc/v3/orders', {
         product: productId,
         per_page: 1,
-        status: 'completed,processing,on-hold'
+        status: 'completed,processing,on-hold',
       });
-      
-      console.log('[check-product-has-orders] Checking orders for product:', productId);
-    
+
       const response = await fetch(apiUrl, {
-      method: 'GET',
+        method: 'GET',
         headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(10000),
-    });
-    
-    if (!response.ok) {
-        // If API error, assume no orders (don't block the UI)
-        console.warn('[check-product-has-orders] WooCommerce API error:', response.status);
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!response.ok) {
         return { has_orders: false };
       }
-      
+
       const orders = await response.json();
       const hasOrders = Array.isArray(orders) && orders.length > 0;
-      
-      console.log('[check-product-has-orders] Product has orders:', hasOrders);
-      
-      return {
-        has_orders: hasOrders
-      };
-    } catch (fetchError: any) {
-      console.warn('[check-product-has-orders] Fetch error:', fetchError);
+      return { has_orders: hasOrders };
+    } catch (fetchError: unknown) {
+      console.warn('[check-product-has-orders] WC REST fallback error:', fetchError);
       return { has_orders: false };
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[check-product-has-orders] Error:', error);
-    
-    // Return false on error to not block the UI
     return { has_orders: false };
   }
-}, {
-  // สั้นลง — หลังแอดมินลบออเดอร์ใน WC จะได้ has_orders ใหม่เร็วขึ้น (ไม่ค้าง "มีผู้ซื้อแล้ว")
-  maxAge: 15,
 });
