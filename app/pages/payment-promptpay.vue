@@ -23,18 +23,18 @@ const qrImageUrl = computed(() => {
           class="w-14 h-14 mx-auto mb-4 text-alizarin-crimson-500 dark:text-alizarin-crimson-400"
         />
         <h1 class="text-xl font-bold text-black dark:text-white">
-          {{ $t('checkout.pay.promptpay_title') || 'ชำระด้วย PromptPay' }}
+          {{ $t('checkout.pay.promptpay_title') }}
         </h1>
         <p v-if="amount" class="text-lg font-bold text-black dark:text-white mt-1">
-          ยอด {{ amount }} ฿
+          {{ $t('checkout.pay.amount_thb', { amount }) }}
         </p>
         <p v-if="orderId" class="text-sm text-neutral-500 dark:text-neutral-400">
-          ออเดอร์ #{{ orderId }}
+          {{ $t('checkout.pay.order_number_display', { n: orderId }) }}
         </p>
       </div>
 
       <p class="text-sm text-neutral-600 dark:text-neutral-400 text-center mb-4">
-        {{ $t('checkout.pay.scan_qr') || 'สแกน QR Code ด้วยแอปธนาคารหรือพร้อมเพย์' }}
+        {{ $t('checkout.pay.scan_qr') }}
       </p>
       <div v-if="qrImageUrl" class="flex justify-center">
         <div class="inline-block p-4 bg-white dark:bg-neutral-900 rounded-xl border-2 border-neutral-200 dark:border-neutral-600">
@@ -48,27 +48,27 @@ const qrImageUrl = computed(() => {
           rel="noopener noreferrer"
           class="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white bg-alizarin-crimson-600 hover:bg-alizarin-crimson-700"
         >
-          {{ $t('checkout.pay.open_omise_page') || 'เปิดหน้าชำระ Omise (สแกน QR / ทดสอบ)' }}
+          {{ $t('checkout.pay.open_omise_page') }}
         </a>
         <p class="mt-3 text-xs text-neutral-500 dark:text-neutral-400 text-center w-full">
-          {{ $t('checkout.pay.open_omise_hint') || 'หรือรอ 10–20 วินาที ในโหมดทดสอบ Omise จะ simulate การชำระอัตโนมัติ' }}
+          {{ $t('checkout.pay.open_omise_hint') }}
         </p>
       </div>
       <div v-else class="flex justify-center py-8">
-        <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ $t('checkout.pay.qr_loading') || 'กำลังโหลด QR Code...' }}</p>
+        <p class="text-sm text-neutral-500 dark:text-neutral-400">{{ $t('checkout.pay.qr_loading') }}</p>
       </div>
 
       <p class="mt-4 text-xs text-neutral-500 dark:text-neutral-400 text-center">
-        {{ $t('checkout.pay.promptpay_hint') || 'โอนตามยอดด้านบน แล้วกดปุ่ม "ชำระแล้ว" ด้านล่าง' }}
+        {{ $t('checkout.pay.promptpay_hint') }}
       </p>
 
       <!-- Test Mode: Omise จะ simulate payment หลังเปิดหน้านี้ ~10-20 วินาที -->
       <div class="mt-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
         <p class="text-xs font-semibold text-amber-800 dark:text-amber-200 mb-1">
-          {{ $t('checkout.pay.test_mode_title') || '⚠️ วิธีจ่ายใน Test Mode' }}
+          {{ $t('checkout.pay.test_mode_title') }}
         </p>
         <p class="text-xs text-amber-700 dark:text-amber-300">
-          {{ $t('checkout.pay.test_mode_promptpay') || 'QR Code ในโหมดทดสอบจ่ายเงินจริงไม่ได้ — Omise จะ simulate การชำระอัตโนมัติ: เปิดหน้านี้แล้วรอประมาณ 10–20 วินาที Omise จะส่ง webhook (charge.complete) แล้วออเดอร์จะเปลี่ยนเป็น Processing' }}
+          {{ $t('checkout.pay.test_mode_promptpay') }}
         </p>
       </div>
 
@@ -76,7 +76,7 @@ const qrImageUrl = computed(() => {
         :to="`/payment-successful?order_id=${orderId}`"
         class="mt-6 w-full block text-center py-3 rounded-xl font-semibold text-white bg-alizarin-crimson-600 hover:bg-alizarin-crimson-700"
       >
-        {{ $t('checkout.pay.after_paid') || 'ชำระแล้ว' }}
+        {{ $t('checkout.pay.after_paid') }}
       </NuxtLink>
     </div>
   </div>

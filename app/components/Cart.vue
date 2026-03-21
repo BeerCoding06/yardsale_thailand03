@@ -54,7 +54,7 @@ onMounted(() => {
                 <div
                   class="font-medium text-sm line-clamp-2 overflow-hidden text-ellipsis"
                 >
-                  {{ product.product?.node?.name || product.variation?.node?.name || 'Product' }}
+                  {{ product.product?.node?.name || product.variation?.node?.name || $t('common.product') }}
                 </div>
                 <ProductPrice
                   :sale-price="product.variation?.node?.salePrice || product.product?.node?.salePrice"

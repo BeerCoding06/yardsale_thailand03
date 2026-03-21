@@ -364,7 +364,7 @@ onMounted(async () => {
                           </span>
                         </p>
                         <p class="text-neutral-700 dark:text-neutral-300" v-if="order.transaction_id">
-                          <span class="font-semibold">{{ $t('order.transaction_id') || 'Transaction ID' }}:</span>
+                          <span class="font-semibold">{{ $t('order.transaction_id') }}:</span>
                           <span class="ml-2 font-mono text-xs">{{ order.transaction_id }}</span>
                         </p>
                         <!-- Payment Status -->

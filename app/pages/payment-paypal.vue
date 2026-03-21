@@ -71,10 +71,10 @@ function onPayPalError(err: unknown) {
   <div class="min-h-screen flex flex-col items-center justify-center p-6 bg-neutral-50 dark:bg-neutral-900">
     <div class="max-w-md w-full bg-white dark:bg-neutral-800 rounded-2xl shadow-xl p-6">
       <h1 class="text-xl font-bold text-black dark:text-white text-center mb-1">
-        {{ $t('checkout.pay.paypal_title') || 'ชำระด้วย PayPal' }}
+        {{ $t('checkout.pay.paypal_title') }}
       </h1>
       <p v-if="orderId" class="text-center text-sm text-neutral-500 dark:text-neutral-400">
-        {{ $t('checkout.pay.order_ref') || 'ออเดอร์' }} #{{ orderId }}
+        {{ $t('checkout.pay.order_number_display', { n: orderId }) }}
       </p>
       <p
         class="text-center text-lg font-bold text-black dark:text-white mt-2"
@@ -83,7 +83,7 @@ function onPayPalError(err: unknown) {
         <template v-if="checkoutCurrency === 'USD'">
           {{ amount }} THB
           <span class="block text-sm font-normal text-neutral-600 dark:text-neutral-400 mt-1">
-            (ยอดออเดอร์ในร้าน)
+            {{ $t('checkout.pay.store_order_total_hint') }}
           </span>
         </template>
         <template v-else> {{ amount }} {{ checkoutCurrency }} </template>
@@ -92,11 +92,11 @@ function onPayPalError(err: unknown) {
         v-if="checkoutCurrency === 'USD'"
         class="text-center text-xs text-amber-700 dark:text-amber-400 mb-6 max-w-xs mx-auto"
       >
-        Sandbox: PayPal จะเรียกเก็บเป็น USD ตาม PAYPAL_SANDBOX_THB_TO_USD บนเซิร์ฟเวอร์
+        {{ $t('checkout.pay.paypal_sandbox_usd_note') }}
       </p>
 
       <div v-if="!orderId || amount === '0.00'" class="text-center text-red-600 text-sm">
-        {{ $t('checkout.pay.paypal_invalid') || 'ลิงก์ไม่ถูกต้อง กรุณาสั่งซื้อใหม่จากตะกร้า' }}
+        {{ $t('checkout.pay.paypal_invalid') }}
       </div>
       <ClientOnly v-else>
         <p
@@ -125,7 +125,7 @@ function onPayPalError(err: unknown) {
         :to="`/payment-successful?order_id=${orderId}`"
         class="mt-6 block text-center text-sm text-neutral-500 dark:text-neutral-400 hover:text-alizarin-crimson-500"
       >
-        {{ $t('checkout.pay.view_order') || 'ข้าม — ดูออเดอร์' }}
+        {{ $t('checkout.pay.view_order') }}
       </NuxtLink>
     </div>
   </div>

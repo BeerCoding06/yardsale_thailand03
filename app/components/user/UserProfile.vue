@@ -405,7 +405,7 @@ const updateProfile = async () => {
                         disabled
                       />
                       <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                        {{ $t("profile.email_readonly") || "อีเมลแสดงเพื่อดูเท่านั้น การเปลี่ยนอีเมลทำได้ใน WordPress" }}
+                        {{ $t("profile.email_readonly") }}
                       </p>
                     </div>
                   </div>

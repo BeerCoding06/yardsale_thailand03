@@ -12,8 +12,10 @@
 -->
 
 <script setup>
-// ตัวอย่างนี้ใช้ Tailwind CSS ในส่วนของ class ชัดเจน
-// ถ้า style ไม่ทำงาน ให้ตรวจสอบตาม list ข้างบน
+const { t } = useI18n();
+
+/** Error codes → `register_form.errors.<code>` */
+const EMAIL_IN_USE = "email_in_use";
 
 const form = ref({
   username: "",
@@ -66,10 +68,9 @@ const checkEmailExists = async (email) => {
       });
 
       if (result && result.exists) {
-        errors.value.email = "อีเมลนี้ถูกใช้งานแล้วในระบบ";
+        errors.value.email = EMAIL_IN_USE;
       } else {
-        // Clear error if email is available
-        if (errors.value.email === "อีเมลนี้ถูกใช้งานแล้วในระบบ") {
+        if (errors.value.email === EMAIL_IN_USE) {
           errors.value.email = "";
         }
       }
@@ -114,7 +115,7 @@ watch(
         checkEmailExists(newVal);
       } else {
         // Clear error if email format is invalid (will be caught by validation)
-        if (errors.value.email === "อีเมลนี้ถูกใช้งานแล้วในระบบ") {
+        if (errors.value.email === EMAIL_IN_USE) {
           errors.value.email = "";
         }
       }
@@ -138,24 +139,24 @@ const handleSubmit = async (e) => {
 
   let hasErrors = false;
   if (!form.value.username || !form.value.username.trim()) {
-    errors.value.username = "กรุณากรอกชื่อผู้ใช้";
+    errors.value.username = "username_required";
     hasErrors = true;
   }
   if (!form.value.email || !form.value.email.trim()) {
-    errors.value.email = "กรุณากรอกอีเมล";
+    errors.value.email = "email_required";
     hasErrors = true;
   } else {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(form.value.email)) {
-      errors.value.email = "รูปแบบอีเมลไม่ถูกต้อง";
+      errors.value.email = "email_invalid";
       hasErrors = true;
     }
   }
   if (!form.value.password || !form.value.password.trim()) {
-    errors.value.password = "กรุณากรอกรหัสผ่าน";
+    errors.value.password = "password_required";
     hasErrors = true;
   } else if (form.value.password.length < 8) {
-    errors.value.password = "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร";
+    errors.value.password = "password_min_length";
     hasErrors = true;
   }
 
@@ -167,7 +168,7 @@ const handleSubmit = async (e) => {
       if (isCheckingEmail.value) {
         message.value = {
           type: "error",
-          text: "กรุณารอการตรวจสอบอีเมลให้เสร็จ",
+          text: t("register_form.messages.wait_email_check"),
         };
         return;
       }
@@ -175,7 +176,7 @@ const handleSubmit = async (e) => {
   }
 
   if (hasErrors) {
-    message.value = { type: "error", text: "กรุณาตรวจสอบข้อมูลที่กรอก" };
+    message.value = { type: "error", text: t("register_form.messages.check_form") };
     return;
   }
   isSubmitting.value = true;
@@ -210,7 +211,7 @@ const handleSubmit = async (e) => {
 
     message.value = {
       type: "success",
-      text: "สร้างผู้ใช้ WordPress สำเร็จ!",
+      text: t("register_form.messages.success"),
     };
 
     setTimeout(() => {
@@ -247,14 +248,13 @@ const handleSubmit = async (e) => {
     ) {
       message.value = {
         type: "error",
-        text: "เกิดข้อผิดพลาดอาจเกิดจาก อีเมลนี้ได้มีผู้ใช้ในระบบแล้ว",
+        text: t("register_form.messages.error_email_conflict"),
       };
-      // แสดง error ที่ email field ด้วย
-      errors.value.email = "อีเมลนี้ถูกใช้งานแล้วในระบบ";
+      errors.value.email = EMAIL_IN_USE;
     } else {
       message.value = {
         type: "error",
-        text: errorMessage || "เกิดข้อผิดพลาดในการสร้างผู้ใช้ WordPress",
+        text: errorMessage || t("register_form.messages.error_create_failed"),
       };
     }
   } finally {
@@ -272,7 +272,7 @@ const handleSubmit = async (e) => {
       <h1
         class="text-3xl font-bold mb-2 text-black dark:text-white text-center"
       >
-        สมัครสมาชิก
+        {{ $t('register_form.title') }}
       </h1>
 
       <!-- ทำไมไม่ทำงาน -->
@@ -281,14 +281,14 @@ const handleSubmit = async (e) => {
           class="bg-white/80 dark:bg-black/20 rounded-2xl p-6 shadow-lg border-2 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors"
         >
           <h2 class="text-xl font-semibold mb-4 text-black dark:text-white">
-            ข้อมูลผู้ใช้
+            {{ $t('register_form.section_user') }}
           </h2>
 
           <div class="space-y-4">
             <div>
               <label
                 class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >ชื่อผู้ใช้ (ต้องการ) / Username (Required)</label
+                >{{ $t('register_form.label_username') }}</label
               >
               <input
                 v-model="form.username"
@@ -300,20 +300,20 @@ const handleSubmit = async (e) => {
                     ? 'border-red-500 dark:border-red-500 focus:border-red-600 dark:focus:border-red-600'
                     : 'border-neutral-200 dark:border-neutral-700 focus:border-black dark:focus:border-white hover:border-neutral-300 dark:hover:border-neutral-600',
                 ]"
-                placeholder="กรอกชื่อผู้ใช้"
+                :placeholder="$t('register_form.placeholder_username')"
               />
               <p
                 v-if="errors.username"
                 class="text-xs text-red-500 dark:text-red-400 mt-1"
               >
-                {{ errors.username }}
+                {{ $t(`register_form.errors.${errors.username}`) }}
               </p>
             </div>
 
             <div>
               <label
                 class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >อีเมล (ต้องการ) / Email (Required)</label
+                >{{ $t('register_form.label_email') }}</label
               >
               <div class="relative">
                 <input
@@ -342,13 +342,13 @@ const handleSubmit = async (e) => {
                 v-if="errors.email"
                 class="text-xs text-red-500 dark:text-red-400 mt-1"
               >
-                {{ errors.email }}
+                {{ $t(`register_form.errors.${errors.email}`) }}
               </p>
               <p
                 v-else-if="isCheckingEmail"
                 class="text-xs text-neutral-500 dark:text-neutral-400 mt-1"
               >
-                กำลังตรวจสอบอีเมล...
+                {{ $t('register_form.checking_email') }}
               </p>
             </div>
 
@@ -356,26 +356,26 @@ const handleSubmit = async (e) => {
               <div>
                 <label
                   class="block text-sm font-medium mb-2 text-black dark:text-white"
-                  >ชื่อ / First Name</label
+                  >{{ $t('register_form.label_first_name') }}</label
                 >
                 <input
                   v-model="form.first_name"
                   type="text"
                   class="w-full px-4 py-3 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-black/20 text-black dark:text-white placeholder:text-neutral-400 focus:outline-none focus:border-black dark:focus:border-white hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors"
-                  placeholder="ชื่อ"
+                  :placeholder="$t('register_form.placeholder_first_name')"
                 />
               </div>
 
               <div>
                 <label
                   class="block text-sm font-medium mb-2 text-black dark:text-white"
-                  >นามสกุล / Last Name</label
+                  >{{ $t('register_form.label_last_name') }}</label
                 >
                 <input
                   v-model="form.last_name"
                   type="text"
                   class="w-full px-4 py-3 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-black/20 text-black dark:text-white placeholder:text-neutral-400 focus:outline-none focus:border-black dark:focus:border-white hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors"
-                  placeholder="นามสกุล"
+                  :placeholder="$t('register_form.placeholder_last_name')"
                 />
               </div>
             </div>
@@ -386,7 +386,7 @@ const handleSubmit = async (e) => {
           class="bg-white/80 dark:bg-black/20 rounded-2xl p-6 shadow-lg border-2 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors"
         >
           <h2 class="text-xl font-semibold mb-4 text-black dark:text-white">
-            รหัสผ่าน / Password
+            {{ $t('register_form.section_password') }}
           </h2>
 
           <div class="space-y-4">
@@ -396,7 +396,7 @@ const handleSubmit = async (e) => {
                 @click="generatePassword"
                 class="px-4 py-2 bg-neutral-200 dark:bg-neutral-700 text-black dark:text-white rounded-lg hover:bg-neutral-300 dark:hover:bg-neutral-600 transition-colors text-sm font-medium"
               >
-                สร้างรหัสผ่าน
+                {{ $t('register_form.generate_password') }}
               </button>
             </div>
 
@@ -411,7 +411,7 @@ const handleSubmit = async (e) => {
                     ? 'border-red-500 dark:border-red-500 focus:border-red-600 dark:focus:border-red-600'
                     : 'border-neutral-200 dark:border-neutral-700 focus:border-black dark:focus:border-white hover:border-neutral-300 dark:hover:border-neutral-600',
                 ]"
-                placeholder="รหัสผ่าน"
+                :placeholder="$t('register_form.placeholder_password')"
               />
               <button
                 type="button"
@@ -432,7 +432,7 @@ const handleSubmit = async (e) => {
               class="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800"
             >
               <p class="text-xs text-green-700 dark:text-green-300">
-                ปลอดภัยสูง
+                {{ $t('register_form.password_strong_hint') }}
               </p>
             </div>
 
@@ -440,7 +440,7 @@ const handleSubmit = async (e) => {
               v-if="errors.password"
               class="text-xs text-red-500 dark:text-red-400 mt-1"
             >
-              เกิดข้อผิดพลาดอีเมล์นี้อาจถูกสร้างในระบบแล้ว
+              {{ $t(`register_form.errors.${errors.password}`) }}
             </p>
           </div>
         </div>
@@ -463,7 +463,7 @@ const handleSubmit = async (e) => {
             :disabled="isSubmitting"
             class="px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
           >
-            <span v-if="!isSubmitting">ส่งข้อมูล</span>
+            <span v-if="!isSubmitting">{{ $t('register_form.submit') }}</span>
             <span
               v-else
               class="d-flex align-items-center gap-2 justify-content-center"
@@ -473,7 +473,7 @@ const handleSubmit = async (e) => {
                 class="me-2"
                 style="width: 1.25rem; height: 1.25rem"
               />
-              กำลังสร้าง...
+              {{ $t('register_form.submitting') }}
             </span>
           </button>
         </div>

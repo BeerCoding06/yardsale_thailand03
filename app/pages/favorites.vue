@@ -46,7 +46,7 @@ useSeoMeta({
         >
           <div class="relative overflow-hidden pb-[125%] rounded-[32px]">
             <NuxtImg
-              :alt="product?.name || 'Product'"
+              :alt="product?.name || $t('common.product')"
               class="absolute w-full h-full object-cover bg-neutral-200 dark:bg-neutral-800"
               :src="product?.image?.sourceUrl || ''"
               loading="lazy"

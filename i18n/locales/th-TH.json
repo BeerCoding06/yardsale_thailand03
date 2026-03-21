@@ -33,11 +33,47 @@
     "in": "ใน",
     "reset_search": "รีเซ็ตการค้นหา"
   },
+  "common": {
+    "reload": "โหลดใหม่",
+    "unknown": "ไม่ทราบ",
+    "product": "สินค้า",
+    "not_available": "ไม่มี"
+  },
+  "errors": {
+    "default_message": "เกิดข้อผิดพลาด กรุณาลองใหม่ภายหลัง",
+    "error_code": "ข้อผิดพลาด",
+    "not_found_title": "ไม่พบหน้า (Page Not Found)",
+    "not_found_description": "หน้าที่คุณต้องการไม่มีอยู่หรือย้ายไปแล้ว",
+    "server_error_title": "เกิดข้อผิดพลาด (Error)",
+    "back_home": "กลับหน้าหลัก",
+    "retry": "ลองอีกครั้ง"
+  },
+  "payment_success": {
+    "title": "สั่งซื้อสำเร็จ!",
+    "subtitle": "ขอบคุณสำหรับการสั่งซื้อ เราจะติดต่อกลับไปในเร็วๆ นี้",
+    "order_details": "รายละเอียดออเดอร์",
+    "order_number_label": "หมายเลขออเดอร์:",
+    "order_date_label": "วันที่สั่งซื้อ:",
+    "status_label": "สถานะ:",
+    "payment_method_label": "วิธีการชำระเงิน:",
+    "total_label": "ยอดรวม:",
+    "shipping_address": "ที่อยู่จัดส่ง",
+    "phone_label": "โทร:",
+    "email_label": "อีเมล:",
+    "items_ordered": "สินค้าที่สั่งซื้อ",
+    "qty_pcs": "จำนวน: {n} ชิ้น",
+    "back_home": "กลับไปหน้าหลัก",
+    "my_orders": "รายการสั่งซื้อของฉัน",
+    "no_order_title": "ไม่พบข้อมูลออเดอร์",
+    "no_order_message": "ไม่พบข้อมูลออเดอร์ กรุณาลองใหม่อีกครั้ง",
+    "loading": "กำลังโหลด..."
+  },
   "filter": {
     "all_categories": "ทุกหมวดหมู่",
     "newest": "ใหม่ล่าสุด",
     "price_low_high": "ราคา: ต่ำไปสูง",
-    "price_high_low": "ราคา: สูงไปต่ำ"
+    "price_high_low": "ราคา: สูงไปต่ำ",
+    "no_categories": "ไม่พบข้อมูลหมวดหมู่"
   },
   "checkout": {
     "title": "ชำระเงิน",
@@ -67,7 +103,31 @@
       "paypal_compliance_hint": "PayPal ปฏิเสธการชำระ (COMPLIANCE) — ให้กดเข้าสู่ระบบด้วยบัญชี PayPal เท่านั้น (หน้านี้ปิดการจ่ายด้วยบัตรในวิดเจ็ต PayPal แล้ว) ถ้ายังติดใน Sandbox ลองตั้งค่า USD ตามเอกสาร: PAYPAL_ORDER_CURRENCY=USD และ NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY=USD",
       "paypal_sdk_error": "เกิดข้อผิดพลาดจาก PayPal กรุณาลองใหม่หรือใช้วิธีชำระอื่น",
       "paypal_missing_order_paid_secret": "PayPal เก็บเงินสำเร็จแล้ว แต่ยังไม่อัปเดตออเดอร์ในร้าน — ตั้ง ORDER_PAID_SECRET บนเซิร์ฟเวอร์ Nuxt ให้ตรงกับ WordPress (define ORDER_PAID_SECRET ใน wp-config.php) แล้วรีสตาร์ทแอป (Dokploy → Environment) ดู docs/PAYPAL-INTEGRATION.md",
-      "paypal_missing_wc_update_config": "PayPal สำเร็จแล้ว แต่ยังไม่อัปเดต WooCommerce — ตั้ง WP_CONSUMER_KEY + WP_CONSUMER_SECRET (สิทธิ์ Read/Write) ใน Nuxt หรือตั้ง ORDER_PAID_SECRET สำหรับ plugin สำรอง แล้วรีสตาร์ทแอป ดู docs/PAYPAL-INTEGRATION.md"
+      "paypal_missing_wc_update_config": "PayPal สำเร็จแล้ว แต่ยังไม่อัปเดต WooCommerce — ตั้ง WP_CONSUMER_KEY + WP_CONSUMER_SECRET (สิทธิ์ Read/Write) ใน Nuxt หรือตั้ง ORDER_PAID_SECRET สำหรับ plugin สำรอง แล้วรีสตาร์ทแอป ดู docs/PAYPAL-INTEGRATION.md",
+      "promptpay": "PromptPay",
+      "credit_card": "บัตรเครดิต / เดบิต",
+      "paypal": "PayPal",
+      "promptpay_title": "ชำระด้วย PromptPay",
+      "scan_qr": "สแกน QR Code ด้วยแอปธนาคารหรือพร้อมเพย์",
+      "open_omise_page": "เปิดหน้าชำระ Omise (สแกน QR / ทดสอบ)",
+      "open_omise_hint": "หรือรอ 10–20 วินาที ในโหมดทดสอบ Omise จะ simulate การชำระอัตโนมัติ",
+      "qr_loading": "กำลังโหลด QR Code...",
+      "promptpay_hint": "โอนตามยอดด้านบน แล้วกดปุ่ม \"ชำระแล้ว\" ด้านล่าง",
+      "test_mode_title": "⚠️ วิธีจ่ายใน Test Mode",
+      "test_mode_promptpay": "QR Code ในโหมดทดสอบจ่ายเงินจริงไม่ได้ — Omise จะ simulate การชำระอัตโนมัติ: เปิดหน้านี้แล้วรอประมาณ 10–20 วินาที Omise จะส่ง webhook (charge.complete) แล้วออเดอร์จะเปลี่ยนเป็น Processing",
+      "after_paid": "ชำระแล้ว",
+      "paypal_title": "ชำระด้วย PayPal",
+      "order_ref": "ออเดอร์",
+      "paypal_invalid": "ลิงก์ไม่ถูกต้อง กรุณาสั่งซื้อใหม่จากตะกร้า",
+      "view_order": "ข้าม — ดูออเดอร์",
+      "credit_card_title": "ชำระด้วยบัตรเครดิต",
+      "test_card_hint": "บัตรทดสอบ (Omise): 4242 4242 4242 4242 | หมดอายุ 12/30 | CVV 123",
+      "pay_now": "ชำระเงิน",
+      "processing_payment": "กำลังดำเนินการ...",
+      "amount_thb": "ยอด {amount} ฿",
+      "order_number_display": "ออเดอร์ #{n}",
+      "store_order_total_hint": "(ยอดออเดอร์ในร้าน)",
+      "paypal_sandbox_usd_note": "Sandbox: PayPal จะเรียกเก็บเป็น USD ตาม PAYPAL_SANDBOX_THB_TO_USD บนเซิร์ฟเวอร์"
     },
     "login_required": {
       "title": "กรุณาเข้าสู่ระบบ",
@@ -79,12 +139,28 @@
     "item": "รายการ",
     "items": "รายการ",
     "items_summary_text": "{quantity} {items} • รวม {total}฿",
+    "empty_cart": {
+      "title": "ตะกร้าสินค้าว่างเปล่า",
+      "message": "กรุณาเพิ่มสินค้าในตะกร้าก่อนทำการสั่งซื้อ",
+      "button": "เลือกสินค้า"
+    },
+    "choose_payment": "เลือกวิธีชำระเงิน",
+    "quantity": "จำนวน",
     "error": {
       "login_required": "กรุณาเข้าสู่ระบบก่อนสั่งซื้อ",
       "empty_cart": "ตะกร้าสินค้าว่างเปล่า",
       "incomplete_data": "กรุณากรอกข้อมูลให้ครบถ้วน",
       "create_order_failed": "เกิดข้อผิดพลาดในการสร้างออเดอร์",
-      "no_valid_items": "ไม่มีสินค้าที่ถูกต้องในตะกร้า"
+      "no_valid_items": "ไม่มีสินค้าที่ถูกต้องในตะกร้า",
+      "insufficient_stock": "มีสินค้าบางรายการหมดสต็อกหรือไม่เพียงพอ กรุณาปรับจำนวนหรือลบออกจากตะกร้า",
+      "stock_check_failed": "ตรวจสอบสต็อกไม่สำเร็จ กรุณาลองใหม่",
+      "promptpay_link_failed": "สร้างลิงก์ชำระ PromptPay ไม่สำเร็จ"
+    },
+    "payment_title": {
+      "promptpay": "PromptPay (Omise)",
+      "credit_card": "บัตรเครดิต (Omise)",
+      "paypal": "PayPal",
+      "cod": "ชำระเงินปลายทาง"
     }
   },
   "general": {
@@ -158,6 +234,39 @@
     "nothing_to_show_yet": "ยังไม่มีอะไรให้แสดง...",
     "wishlist_lives_here": "รายการที่คุณสร้างจะอยู่ที่นี่ นี่คือบางสิ่งที่คุณชื่นชอบ...",
     "remove_product": "Remove Product"
+  },
+  "register_form": {
+    "title": "สมัครสมาชิก",
+    "section_user": "ข้อมูลผู้ใช้",
+    "section_password": "รหัสผ่าน",
+    "label_username": "ชื่อผู้ใช้ (ต้องการ)",
+    "label_email": "อีเมล (ต้องการ)",
+    "label_first_name": "ชื่อ",
+    "label_last_name": "นามสกุล",
+    "placeholder_username": "กรอกชื่อผู้ใช้",
+    "placeholder_first_name": "ชื่อ",
+    "placeholder_last_name": "นามสกุล",
+    "placeholder_password": "รหัสผ่าน",
+    "generate_password": "สร้างรหัสผ่าน",
+    "password_strong_hint": "ปลอดภัยสูง",
+    "checking_email": "กำลังตรวจสอบอีเมล...",
+    "submit": "ส่งข้อมูล",
+    "submitting": "กำลังสร้าง...",
+    "errors": {
+      "username_required": "กรุณากรอกชื่อผู้ใช้",
+      "email_required": "กรุณากรอกอีเมล",
+      "email_invalid": "รูปแบบอีเมลไม่ถูกต้อง",
+      "email_in_use": "อีเมลนี้ถูกใช้งานแล้วในระบบ",
+      "password_required": "กรุณากรอกรหัสผ่าน",
+      "password_min_length": "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"
+    },
+    "messages": {
+      "wait_email_check": "กรุณารอการตรวจสอบอีเมลให้เสร็จ",
+      "check_form": "กรุณาตรวจสอบข้อมูลที่กรอก",
+      "success": "สร้างผู้ใช้ WordPress สำเร็จ!",
+      "error_email_conflict": "เกิดข้อผิดพลาดอาจเกิดจาก อีเมลนี้ได้มีผู้ใช้ในระบบแล้ว",
+      "error_create_failed": "เกิดข้อผิดพลาดในการสร้างผู้ใช้ WordPress"
+    }
   },
   "auth": {
     "login": "เข้าสู่ระบบ",
@@ -258,7 +367,11 @@
     "loading_order_details": "กำลังโหลดรายละเอียดออเดอร์...",
     "back_to_orders": "กลับไปรายการสั่งซื้อ",
     "order_summary": "สรุปออเดอร์",
-    "error_loading": "เกิดข้อผิดพลาดในการโหลดรายละเอียดออเดอร์"
+    "error_loading": "เกิดข้อผิดพลาดในการโหลดรายละเอียดออเดอร์",
+    "payment_method_unknown": "วิธีชำระเงิน",
+    "payment_method_cod": "ชำระเงินปลายทาง",
+    "line_items_title": "รายการสินค้า",
+    "price_times_qty": "฿{price} × {qty}"
   },
   "shipping": {
     "pending": "รอการจัดส่ง",
@@ -300,6 +413,7 @@
     "last_name": "นามสกุล",
     "display_name": "ชื่อที่แสดง",
     "email": "อีเมล",
+    "email_readonly": "อีเมลแสดงเพื่อดูเท่านั้น การเปลี่ยนอีเมลทำได้ใน WordPress",
     "user_info": "ข้อมูลผู้ใช้",
     "user_profile": "โปรไฟล์ผู้ใช้",
     "username": "ชื่อผู้ใช้",

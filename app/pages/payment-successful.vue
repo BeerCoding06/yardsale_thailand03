@@ -7,6 +7,7 @@ definePageMeta({
 const route = useRoute();
 const { order } = useCheckout();
 const router = useRouter();
+const { t, locale } = useI18n();
 const loadingOrder = ref(false);
 
 // เมื่อกลับจาก Omise (return_uri) จะมี order_id ใน query แต่ไม่มี order ใน state – ให้โหลดออเดอร์
@@ -31,12 +32,12 @@ onMounted(async () => {
   }
 });
 
-// Format order date
+// Format order date (follows current UI locale)
 const formattedDate = computed(() => {
   if (!order.value || !order.value.date_created) return '';
-  
+
   const date = new Date(order.value.date_created);
-  return new Intl.DateTimeFormat('th-TH', {
+  return new Intl.DateTimeFormat(locale.value, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -44,6 +45,26 @@ const formattedDate = computed(() => {
     minute: '2-digit',
   }).format(date);
 });
+
+const orderStatusLabel = computed(() => {
+  const s = order.value?.status;
+  if (!s) return '';
+  const map = {
+    pending: 'order.pending',
+    processing: 'order.processing_status',
+    completed: 'order.completed',
+    cancelled: 'order.cancelled',
+    refunded: 'order.refunded',
+    failed: 'order.failed',
+    'on-hold': 'order.on_hold',
+  };
+  const key = map[s];
+  return key ? t(key) : s;
+});
+
+const paymentMethodDisplay = computed(() =>
+  order.value?.payment_method_title || t('order.payment_method_cod')
+);
 
 // Format total price
 const formattedTotal = computed(() => {
@@ -71,10 +92,10 @@ const formattedTotal = computed(() => {
             />
           </div>
           <h1 class="text-3xl font-bold text-black dark:text-white">
-            สั่งซื้อสำเร็จ!
+            {{ $t('payment_success.title') }}
           </h1>
           <p class="text-sm text-neutral-500 dark:text-neutral-400 text-center">
-            ขอบคุณสำหรับการสั่งซื้อ เราจะติดต่อกลับไปในเร็วๆ นี้
+            {{ $t('payment_success.subtitle') }}
           </p>
         </div>
 
@@ -83,13 +104,13 @@ const formattedTotal = computed(() => {
           class="bg-white/80 dark:bg-black/20 rounded-2xl p-6 shadow-lg border-2 border-neutral-200 dark:border-neutral-800 mb-6"
         >
           <h2 class="text-xl font-semibold mb-4 text-black dark:text-white">
-            รายละเอียดออเดอร์
+            {{ $t('payment_success.order_details') }}
           </h2>
 
           <div class="space-y-4">
             <div class="flex justify-between items-center">
               <span class="text-neutral-600 dark:text-neutral-400"
-                >หมายเลขออเดอร์:</span
+                >{{ $t('payment_success.order_number_label') }}</span
               >
               <span class="font-semibold text-lg text-black dark:text-white"
                 >#{{ order.number || order.id }}</span
@@ -98,7 +119,7 @@ const formattedTotal = computed(() => {
 
             <div class="flex justify-between items-center">
               <span class="text-neutral-600 dark:text-neutral-400"
-                >วันที่สั่งซื้อ:</span
+                >{{ $t('payment_success.order_date_label') }}</span
               >
               <span class="font-semibold text-black dark:text-white">{{
                 formattedDate
@@ -107,7 +128,7 @@ const formattedTotal = computed(() => {
 
             <div class="flex justify-between items-center">
               <span class="text-neutral-600 dark:text-neutral-400"
-                >สถานะ:</span
+                >{{ $t('payment_success.status_label') }}</span
               >
               <span
                 :class="[
@@ -121,24 +142,16 @@ const formattedTotal = computed(() => {
                     : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200',
                 ]"
               >
-                {{
-                  order.status === 'pending'
-                    ? 'รอการตรวจสอบ'
-                    : order.status === 'processing'
-                    ? 'กำลังดำเนินการ'
-                    : order.status === 'completed'
-                    ? 'เสร็จสมบูรณ์'
-                    : order.status
-                }}
+                {{ orderStatusLabel }}
               </span>
             </div>
 
             <div class="flex justify-between items-center">
               <span class="text-neutral-600 dark:text-neutral-400"
-                >วิธีการชำระเงิน:</span
+                >{{ $t('payment_success.payment_method_label') }}</span
               >
               <span class="font-semibold text-black dark:text-white">{{
-                order.payment_method_title || 'ชำระเงินปลายทาง'
+                paymentMethodDisplay
               }}</span>
             </div>
 
@@ -147,7 +160,7 @@ const formattedTotal = computed(() => {
             >
               <div class="flex justify-between items-center">
                 <span class="text-lg font-semibold text-black dark:text-white"
-                  >ยอดรวม:</span
+                  >{{ $t('payment_success.total_label') }}</span
                 >
                 <span class="text-2xl font-bold text-alizarin-crimson-600 dark:text-alizarin-crimson-500"
                   >฿{{ formattedTotal }}</span
@@ -163,7 +176,7 @@ const formattedTotal = computed(() => {
           class="bg-white/80 dark:bg-black/20 rounded-2xl p-6 shadow-lg border-2 border-neutral-200 dark:border-neutral-800 mb-6"
         >
           <h2 class="text-xl font-semibold mb-4 text-black dark:text-white">
-            ที่อยู่จัดส่ง
+            {{ $t('payment_success.shipping_address') }}
           </h2>
 
           <div class="space-y-2 text-sm">
@@ -191,10 +204,10 @@ const formattedTotal = computed(() => {
               {{ order.billing.country }}
             </p>
             <p class="text-neutral-600 dark:text-neutral-400">
-              โทร: {{ order.billing.phone }}
+              {{ $t('payment_success.phone_label') }} {{ order.billing.phone }}
             </p>
             <p class="text-neutral-600 dark:text-neutral-400">
-              อีเมล: {{ order.billing.email }}
+              {{ $t('payment_success.email_label') }} {{ order.billing.email }}
             </p>
           </div>
         </div>
@@ -205,7 +218,7 @@ const formattedTotal = computed(() => {
           class="bg-white/80 dark:bg-black/20 rounded-2xl p-6 shadow-lg border-2 border-neutral-200 dark:border-neutral-800 mb-6"
         >
           <h2 class="text-xl font-semibold mb-4 text-black dark:text-white">
-            สินค้าที่สั่งซื้อ
+            {{ $t('payment_success.items_ordered') }}
           </h2>
 
           <div class="space-y-4">
@@ -229,7 +242,7 @@ const formattedTotal = computed(() => {
                   {{ item.name }}
                 </h3>
                 <p class="text-sm text-neutral-600 dark:text-neutral-400">
-                  จำนวน: {{ item.quantity }} ชิ้น
+                  {{ $t('payment_success.qty_pcs', { n: item.quantity }) }}
                 </p>
                 <p class="text-sm font-semibold text-black dark:text-white mt-1">
                   ฿{{ parseFloat(item.price || 0).toFixed(2) }}
@@ -245,13 +258,13 @@ const formattedTotal = computed(() => {
             to="/"
             class="flex-1 px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg hover:shadow-xl text-center"
           >
-            กลับไปหน้าหลัก
+            {{ $t('payment_success.back_home') }}
           </NuxtLink>
           <NuxtLink
             to="/my-orders"
             class="flex-1 px-6 py-3 bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white rounded-xl font-semibold hover:bg-neutral-300 dark:hover:bg-neutral-700 transition text-center"
           >
-            รายการสั่งซื้อของฉัน
+            {{ $t('payment_success.my_orders') }}
           </NuxtLink>
         </div>
       </div>
@@ -266,16 +279,16 @@ const formattedTotal = computed(() => {
             class="w-16 h-16 mx-auto mb-4 text-yellow-500 dark:text-yellow-400"
           />
           <h2 class="text-xl font-semibold text-black dark:text-white mb-2">
-            ไม่พบข้อมูลออเดอร์
+            {{ $t('payment_success.no_order_title') }}
           </h2>
           <p class="text-neutral-500 dark:text-neutral-400 mb-6">
-            ไม่พบข้อมูลออเดอร์ กรุณาลองใหม่อีกครั้ง
+            {{ $t('payment_success.no_order_message') }}
           </p>
           <NuxtLink
             to="/"
             class="inline-block px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg"
           >
-            กลับไปหน้าหลัก
+            {{ $t('payment_success.back_home') }}
           </NuxtLink>
         </div>
       </div>
@@ -284,7 +297,7 @@ const formattedTotal = computed(() => {
         <div class="flex items-center justify-center min-h-screen">
           <div class="text-center">
             <p class="text-neutral-500 dark:text-neutral-400">
-              กำลังโหลด...
+              {{ $t('payment_success.loading') }}
             </p>
           </div>
         </div>

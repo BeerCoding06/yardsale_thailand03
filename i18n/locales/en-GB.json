@@ -33,11 +33,47 @@
     "in": "in",
     "reset_search": "Reset Search"
   },
+  "common": {
+    "reload": "Reload",
+    "unknown": "Unknown",
+    "product": "Product",
+    "not_available": "N/A"
+  },
+  "errors": {
+    "default_message": "Something went wrong. Please try again later.",
+    "error_code": "Error",
+    "not_found_title": "Page not found",
+    "not_found_description": "The page you are looking for does not exist or has been moved.",
+    "server_error_title": "Something went wrong",
+    "back_home": "Back to home",
+    "retry": "Try again"
+  },
+  "payment_success": {
+    "title": "Order placed successfully!",
+    "subtitle": "Thank you for your order. We will be in touch shortly.",
+    "order_details": "Order details",
+    "order_number_label": "Order number:",
+    "order_date_label": "Order date:",
+    "status_label": "Status:",
+    "payment_method_label": "Payment method:",
+    "total_label": "Total:",
+    "shipping_address": "Shipping address",
+    "phone_label": "Tel:",
+    "email_label": "Email:",
+    "items_ordered": "Items ordered",
+    "qty_pcs": "Quantity: {n} pcs",
+    "back_home": "Back to home",
+    "my_orders": "My orders",
+    "no_order_title": "No order found",
+    "no_order_message": "We could not find your order. Please try again.",
+    "loading": "Loading..."
+  },
   "filter": {
     "all_categories": "All Categories",
     "newest": "Newest",
     "price_low_high": "Price: Low to High",
-    "price_high_low": "Price: High to Low"
+    "price_high_low": "Price: High to Low",
+    "no_categories": "No categories found"
   },
   "checkout": {
     "title": "Checkout",
@@ -67,7 +103,31 @@
       "paypal_compliance_hint": "PayPal blocked this payment (COMPLIANCE). Log in with your PayPal account only — card-in-widget is disabled here (use Omise for cards). In sandbox, try USD: PAYPAL_ORDER_CURRENCY=USD and NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY=USD.",
       "paypal_sdk_error": "Something went wrong with PayPal. Please try again or use another payment method.",
       "paypal_missing_order_paid_secret": "PayPal charged successfully, but the shop order was not updated. Set ORDER_PAID_SECRET on your Nuxt server to match WordPress (define('ORDER_PAID_SECRET', ...) in wp-config.php), then restart the app (e.g. Dokploy → Environment). See docs/PAYPAL-INTEGRATION.md",
-      "paypal_missing_wc_update_config": "PayPal succeeded but WooCommerce was not updated. Set WP_CONSUMER_KEY + WP_CONSUMER_SECRET (Read/Write) on Nuxt, or ORDER_PAID_SECRET for plugin fallback, then restart. See docs/PAYPAL-INTEGRATION.md"
+      "paypal_missing_wc_update_config": "PayPal succeeded but WooCommerce was not updated. Set WP_CONSUMER_KEY + WP_CONSUMER_SECRET (Read/Write) on Nuxt, or ORDER_PAID_SECRET for plugin fallback, then restart. See docs/PAYPAL-INTEGRATION.md",
+      "promptpay": "PromptPay",
+      "credit_card": "Credit / Debit Card",
+      "paypal": "PayPal",
+      "promptpay_title": "Pay with PromptPay",
+      "scan_qr": "Scan QR Code",
+      "open_omise_page": "Open Omise payment page",
+      "open_omise_hint": "If the page does not open, allow pop-ups or copy the link from the address bar.",
+      "qr_loading": "Loading QR code...",
+      "promptpay_hint": "Scan the QR with your banking app to pay.",
+      "test_mode_title": "Test mode",
+      "test_mode_promptpay": "In test mode, use Omise test amounts. Real money is not charged.",
+      "after_paid": "After payment, you will be redirected automatically.",
+      "paypal_title": "Pay with PayPal",
+      "order_ref": "Order reference",
+      "paypal_invalid": "Invalid PayPal response. Please try again.",
+      "view_order": "View order",
+      "credit_card_title": "Pay by card",
+      "test_card_hint": "Test: card 4242424242424242, any future expiry, any 3-digit CVC.",
+      "pay_now": "Pay now",
+      "processing_payment": "Processing payment...",
+      "amount_thb": "Amount: {amount} THB",
+      "order_number_display": "Order #{n}",
+      "store_order_total_hint": "(Store order total)",
+      "paypal_sandbox_usd_note": "Sandbox: PayPal charges in USD per PAYPAL_SANDBOX_THB_TO_USD on the server."
     },
     "login_required": {
       "title": "Please log in",
@@ -79,12 +139,28 @@
     "item": "item",
     "items": "items",
     "items_summary_text": "{quantity} {items} • Total {total}฿",
+    "empty_cart": {
+      "title": "Your cart is empty",
+      "message": "Add items to your cart before checkout.",
+      "button": "Browse products"
+    },
+    "choose_payment": "Choose payment method",
+    "quantity": "Quantity",
     "error": {
       "login_required": "Please login before checkout",
       "empty_cart": "Cart is empty",
       "incomplete_data": "Please fill in all required fields",
       "create_order_failed": "Failed to create order",
-      "no_valid_items": "No valid items in cart"
+      "no_valid_items": "No valid items in cart",
+      "insufficient_stock": "Some items are out of stock or quantity is too high. Adjust or remove them from your cart.",
+      "stock_check_failed": "Could not verify stock. Please try again.",
+      "promptpay_link_failed": "Could not create PromptPay payment link."
+    },
+    "payment_title": {
+      "promptpay": "PromptPay (Omise)",
+      "credit_card": "Credit / debit card (Omise)",
+      "paypal": "PayPal",
+      "cod": "Cash on delivery"
     }
   },
   "general": {
@@ -158,6 +234,39 @@
     "nothing_to_show_yet": "Nothing to show... yet!",
     "wishlist_lives_here": "Wishlist you create will live here. These are a few of your favorite things...",
     "remove_product": "Remove Product"
+  },
+  "register_form": {
+    "title": "Register",
+    "section_user": "User details",
+    "section_password": "Password",
+    "label_username": "Username (required)",
+    "label_email": "Email (required)",
+    "label_first_name": "First name",
+    "label_last_name": "Last name",
+    "placeholder_username": "Enter username",
+    "placeholder_first_name": "First name",
+    "placeholder_last_name": "Last name",
+    "placeholder_password": "Password",
+    "generate_password": "Generate password",
+    "password_strong_hint": "Strong password",
+    "checking_email": "Checking email...",
+    "submit": "Submit",
+    "submitting": "Creating...",
+    "errors": {
+      "username_required": "Please enter a username",
+      "email_required": "Please enter your email",
+      "email_invalid": "Invalid email format",
+      "email_in_use": "This email is already registered",
+      "password_required": "Please enter a password",
+      "password_min_length": "Password must be at least 8 characters"
+    },
+    "messages": {
+      "wait_email_check": "Please wait for the email check to finish",
+      "check_form": "Please check the form",
+      "success": "WordPress user created successfully!",
+      "error_email_conflict": "This email may already be registered.",
+      "error_create_failed": "Failed to create WordPress user"
+    }
   },
   "auth": {
     "login": "Log in",
@@ -249,7 +358,16 @@
     "loading_order_details": "Loading order details...",
     "back_to_orders": "Back to Orders",
     "order_summary": "Order Summary",
-    "error_loading": "An error occurred while loading order details"
+    "error_loading": "An error occurred while loading order details",
+    "paid": "Paid",
+    "transaction_id": "Transaction ID",
+    "date_paid": "Date paid",
+    "quantity": "Qty",
+    "unit_price": "Unit price",
+    "payment_method_unknown": "Payment method",
+    "payment_method_cod": "Cash on delivery",
+    "line_items_title": "Order items",
+    "price_times_qty": "฿{price} × {qty}"
   },
   "shipping": {
     "pending": "Pending Shipping",
@@ -291,6 +409,7 @@
     "last_name": "Last Name",
     "display_name": "Display Name",
     "email": "Email",
+    "email_readonly": "Email cannot be changed (linked to your account)",
     "user_info": "User Information",
     "user_profile": "User Profile",
     "username": "Username",
@@ -316,6 +435,7 @@
     "customer": "Customer",
     "customer_info": "Customer Information",
     "email": "Email",
+    "email_readonly": "Email cannot be changed (linked to your account)",
     "phone": "Phone",
     "seller_total": "My Total",
     "amount_to_pay": "Amount to Pay",

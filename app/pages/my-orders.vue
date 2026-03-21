@@ -773,7 +773,7 @@ const canCancelOrder = (order) => {
                       class="text-neutral-600 dark:text-neutral-400"
                     >
                       <span class="font-semibold">{{ $t('order.shipping_method_label') }}</span>
-                      {{ order.shipping_methods[0].method_title || "N/A" }}
+                      {{ order.shipping_methods[0].method_title || $t('common.not_available') }}
                     </p>
                     <p
                       v-if="order.date_shipped"
@@ -839,7 +839,7 @@ const canCancelOrder = (order) => {
                       <NuxtImg
                         v-if="getItemImage(item)"
                         :src="getItemImage(item)"
-                        :alt="item.name || 'Product'"
+                        :alt="item.name || $t('common.product')"
                         class="w-12 h-12 object-cover rounded-lg border-2 border-neutral-200 dark:border-neutral-700"
                         loading="lazy"
                       />

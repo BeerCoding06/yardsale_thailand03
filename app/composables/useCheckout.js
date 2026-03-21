@@ -159,7 +159,7 @@ export const useCheckout = () => {
           return;
         }
       } catch (e) {
-        error.value = t('checkout.error.stock_check_failed') || 'ตรวจสต็อกไม่สำเร็จ';
+        error.value = t('checkout.error.stock_check_failed');
         return;
       }
     }
@@ -208,12 +208,12 @@ export const useCheckout = () => {
       const isCreditCard = method === 'credit_card';
       const isPayPal = method === 'paypal';
       const paymentTitle = isPromptPay
-        ? 'PromptPay (Omise)'
+        ? t('checkout.payment_title.promptpay')
         : isCreditCard
-          ? 'บัตรเครดิต (Omise)'
+          ? t('checkout.payment_title.credit_card')
           : isPayPal
-            ? 'PayPal'
-            : 'ชำระเงินปลายทาง';
+            ? t('checkout.payment_title.paypal')
+            : t('checkout.payment_title.cod');
       const checkoutData = {
         customer_id: customerId,
         billing: {
@@ -266,7 +266,7 @@ export const useCheckout = () => {
           await router.push(`/payment-promptpay?${params.toString()}`);
           return;
         }
-        error.value = chargeRes?.message || 'ไม่สามารถสร้างลิงก์ชำระ PromptPay ได้';
+        error.value = chargeRes?.message || t('checkout.error.promptpay_link_failed');
         checkoutStatus.value = 'order';
         return;
       }

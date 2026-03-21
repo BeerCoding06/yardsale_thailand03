@@ -77,7 +77,7 @@ async function handleSubmit() {
           class="w-14 h-14 mx-auto mb-4 text-alizarin-crimson-500 dark:text-alizarin-crimson-400"
         />
         <h1 class="text-xl font-bold text-black dark:text-white">
-          {{ $t('checkout.pay.credit_card_title') || 'ชำระด้วยบัตรเครดิต' }}
+          {{ $t('checkout.pay.credit_card_title') }}
         </h1>
         <p v-if="amount" class="text-lg font-bold text-black dark:text-white mt-1">
           ยอด {{ amount }} ฿
@@ -128,7 +128,7 @@ async function handleSubmit() {
         </div>
 
         <p class="text-xs text-neutral-500 dark:text-neutral-400">
-          {{ $t('checkout.pay.test_card_hint') || 'บัตรทดสอบ (Omise): 4242 4242 4242 4242 | หมดอายุ 12/30 | CVV 123' }}
+          {{ $t('checkout.pay.test_card_hint') }}
         </p>
 
         <div v-if="cardError" class="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-sm">
@@ -140,8 +140,8 @@ async function handleSubmit() {
           :disabled="isSubmitting"
           class="w-full py-3 rounded-xl font-semibold text-white bg-alizarin-crimson-600 hover:bg-alizarin-crimson-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <span v-if="!isSubmitting">{{ $t('checkout.pay.pay_now') || 'ชำระเงิน' }}</span>
-          <span v-else>{{ $t('checkout.pay.processing') || 'กำลังดำเนินการ...' }}</span>
+          <span v-if="!isSubmitting">{{ $t('checkout.pay.pay_now') }}</span>
+          <span v-else>{{ $t('checkout.pay.processing_payment') }}</span>
         </button>
       </form>
 
@@ -149,7 +149,7 @@ async function handleSubmit() {
         :to="`/payment-successful?order_id=${orderId}`"
         class="mt-4 block text-center text-sm text-neutral-500 dark:text-neutral-400 hover:text-alizarin-crimson-500"
       >
-        {{ $t('checkout.pay.view_order') || 'ข้าม — ดูออเดอร์' }}
+        {{ $t('checkout.pay.view_order') }}
       </NuxtLink>
     </div>
   </div>

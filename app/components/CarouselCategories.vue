@@ -219,14 +219,14 @@ onBeforeUnmount(() => {
             class="p-4 flex flex-col items-center justify-center gap-3"
           >
             <p class="text-sm text-gray-500 dark:text-gray-400">
-              {{ $t("filter.no_categories") || "ไม่พบข้อมูลหมวดหมู่" }}
+              {{ $t("filter.no_categories") }}
             </p>
             <button
               @click="reloadCategories"
               class="px-4 py-2 bg-[#509e9e] hover:bg-[#509e9e]/90 dark:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-800 text-white rounded-full transition flex items-center gap-2"
             >
               <UIcon name="i-heroicons-arrow-path" size="20" :class="{ 'animate-spin': isReloading }" />
-              <span>{{ $t("common.reload") || "โหลดใหม่" }}</span>
+              <span>{{ $t("common.reload") }}</span>
             </button>
           </div>
 

@@ -5,14 +5,16 @@ const props = defineProps<{
 }>();
 
 const { site } = useAppConfig();
+const { t } = useI18n();
+
 const is404 = computed(() => props.error?.statusCode === 404);
 const title = computed(() =>
-  is404.value ? 'ไม่พบหน้า (Page Not Found)' : 'เกิดข้อผิดพลาด (Error)'
+  is404.value ? t('errors.not_found_title') : t('errors.server_error_title')
 );
 const message = computed(() =>
   is404.value
-    ? 'หน้าที่คุณต้องการไม่มีอยู่หรือย้ายไปแล้ว'
-    : props.error?.message || props.error?.statusMessage || 'เกิดข้อผิดพลาด กรุณาลองใหม่ภายหลัง'
+    ? t('errors.not_found_description')
+    : props.error?.message || props.error?.statusMessage || t('errors.default_message')
 );
 
 const clearErr = () => clearError({ redirect: '/' });
@@ -22,7 +24,7 @@ const clearErr = () => clearError({ redirect: '/' });
   <div class="min-h-[60vh] flex flex-col items-center justify-center px-4">
     <div class="text-center max-w-md">
       <p class="text-6xl font-bold text-primary-500 mb-2">
-        {{ error?.statusCode || 'Error' }}
+        {{ error?.statusCode || t('errors.error_code') }}
       </p>
       <h1 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-2">
         {{ title }}
@@ -35,14 +37,14 @@ const clearErr = () => clearError({ redirect: '/' });
           to="/"
           class="inline-flex items-center justify-center rounded-lg bg-primary-500 px-4 py-2 text-white hover:bg-primary-600 transition"
         >
-          กลับหน้าหลัก
+          {{ t('errors.back_home') }}
         </NuxtLink>
         <button
           type="button"
           class="inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
           @click="clearErr"
         >
-          ลองอีกครั้ง
+          {{ t('errors.retry') }}
         </button>
       </div>
     </div>

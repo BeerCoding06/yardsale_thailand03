@@ -8,6 +8,7 @@ definePageMeta({
 const route = useRoute();
 const router = useRouter();
 const { user, isAuthenticated, checkAuth } = useAuth();
+const { t, locale } = useI18n();
 
 const orderId = computed(() => route.params.id);
 const isClient = ref(false);
@@ -15,11 +16,11 @@ const isLoading = ref(true);
 const order = ref(null);
 const error = ref(null);
 
-// Format order date
+// Format order date (follows current UI locale)
 const formatDate = (dateString) => {
   if (!dateString) return "";
   const date = new Date(dateString);
-  return new Intl.DateTimeFormat("th-TH", {
+  return new Intl.DateTimeFormat(locale.value, {
     year: "numeric",
     month: "long",
     day: "numeric",
@@ -28,14 +29,13 @@ const formatDate = (dateString) => {
   }).format(date);
 };
 
-const { t } = useI18n();
-
 // Format order status
 const getStatusText = (status) => {
   const statusMap = {
     pending: t('order.pending'),
     processing: t('order.processing_status'),
     on_hold: t('order.on_hold'),
+    'on-hold': t('order.on_hold'),
     completed: t('order.completed'),
     cancelled: t('order.cancelled'),
     refunded: t('order.refunded'),
@@ -203,10 +203,10 @@ onMounted(async () => {
 
               <div class="flex justify-between items-center">
                 <span class="text-neutral-600 dark:text-neutral-400"
-                  >วิธีการชำระเงิน:</span
+                  >{{ $t('payment_success.payment_method_label') }}</span
                 >
                 <span class="font-semibold text-black dark:text-white">{{
-                  order.payment_method_title || order.payment_method || "N/A"
+                  order.payment_method_title || order.payment_method || $t('common.not_available')
                 }}</span>
               </div>
 
@@ -215,7 +215,7 @@ onMounted(async () => {
               >
                 <span
                   class="dark:text-neutral-300 text-neutral-700 text-xl font-bold"
-                  >ยอดรวม:</span
+                  >{{ $t('payment_success.total_label') }}</span
                 >
                 <span
                   class="font-bold text-2xl text-alizarin-crimson-600 dark:text-alizarin-crimson-500"
@@ -231,7 +231,7 @@ onMounted(async () => {
             class="bg-white/80 dark:bg-black/20 rounded-2xl p-6 shadow-lg border-2 border-neutral-200 dark:border-neutral-800 mb-6"
           >
             <h2 class="text-xl font-semibold mb-4 text-black dark:text-white">
-              ที่อยู่จัดส่ง
+              {{ $t('payment_success.shipping_address') }}
             </h2>
 
             <div class="space-y-2 text-sm">
@@ -253,10 +253,10 @@ onMounted(async () => {
                 >
               </p>
               <p class="text-neutral-600 dark:text-neutral-400">
-                โทร: {{ order.billing.phone }}
+                {{ $t('payment_success.phone_label') }} {{ order.billing.phone }}
               </p>
               <p class="text-neutral-600 dark:text-neutral-400">
-                อีเมล: {{ order.billing.email }}
+                {{ $t('payment_success.email_label') }} {{ order.billing.email }}
               </p>
             </div>
           </div>
@@ -267,7 +267,7 @@ onMounted(async () => {
             class="bg-white/80 dark:bg-black/20 rounded-2xl p-6 shadow-lg border-2 border-neutral-200 dark:border-neutral-800 mb-6"
           >
             <h2 class="text-xl font-semibold mb-4 text-black dark:text-white">
-              รายการสินค้า
+              {{ $t('order.line_items_title') }}
             </h2>
 
             <div class="space-y-4">
@@ -281,7 +281,7 @@ onMounted(async () => {
                     {{ item.name }}
                   </p>
                   <p class="text-sm text-neutral-500 dark:text-neutral-400">
-                    จำนวน: {{ item.quantity }} ชิ้น
+                    {{ $t('payment_success.qty_pcs', { n: item.quantity }) }}
                   </p>
                 </div>
                 <div class="text-right">
@@ -292,8 +292,12 @@ onMounted(async () => {
                     v-if="item.quantity > 1"
                     class="text-xs text-neutral-500 dark:text-neutral-400"
                   >
-                    ฿{{ parseFloat(item.price || 0).toFixed(2) }} x
-                    {{ item.quantity }}
+                    {{
+                      $t('order.price_times_qty', {
+                        price: parseFloat(item.price || 0).toFixed(2),
+                        qty: item.quantity,
+                      })
+                    }}
                   </p>
                 </div>
               </div>
@@ -305,7 +309,7 @@ onMounted(async () => {
       <template #fallback>
         <div class="flex items-center justify-center min-h-screen">
           <div class="text-center">
-            <p class="text-neutral-500 dark:text-neutral-400">กำลังโหลด...</p>
+            <p class="text-neutral-500 dark:text-neutral-400">{{ $t('order.loading_order_details') }}</p>
           </div>
         </div>
       </template>

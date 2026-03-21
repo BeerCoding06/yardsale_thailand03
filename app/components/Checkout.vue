@@ -165,16 +165,16 @@ watch(() => cart.value?.length, (newLength) => {
             class="w-12 h-12 mb-4 text-neutral-400 dark:text-neutral-600"
           />
           <p class="text-lg font-semibold text-black dark:text-white mb-2">
-            {{ $t('checkout.empty_cart.title') || 'ตะกร้าสินค้าว่างเปล่า' }}
+            {{ $t('checkout.empty_cart.title') }}
           </p>
           <p class="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
-            {{ $t('checkout.empty_cart.message') || 'กรุณาเพิ่มสินค้าในตะกร้าก่อนทำการสั่งซื้อ' }}
+            {{ $t('checkout.empty_cart.message') }}
           </p>
           <NuxtLink
             to="/"
             class="px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg"
           >
-            {{ $t('checkout.empty_cart.button') || 'เลือกสินค้า' }}
+            {{ $t('checkout.empty_cart.button') }}
           </NuxtLink>
         </div>
       </template>
@@ -197,7 +197,7 @@ watch(() => cart.value?.length, (newLength) => {
           v-if="!isCartEmpty && !hasStockForPayment && !error"
           class="w-full mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl"
         >
-          <p class="text-amber-700 dark:text-amber-300 text-sm">{{ $t('checkout.error.insufficient_stock') || 'มีสินค้าบางรายการหมดสต็อกหรือไม่เพียงพอ กรุณาปรับจำนวนหรือลบออกจากตะกร้า' }}</p>
+          <p class="text-amber-700 dark:text-amber-300 text-sm">{{ $t('checkout.error.insufficient_stock') }}</p>
         </div>
 
         <!-- Cart Items Summary -->
@@ -220,10 +220,10 @@ watch(() => cart.value?.length, (newLength) => {
               />
               <div class="flex-1 min-w-0">
                 <p class="text-xs font-medium text-black dark:text-white truncate">
-                  {{ item.product?.node?.name || item.variation?.node?.name || 'Product' }}
+                  {{ item.product?.node?.name || item.variation?.node?.name || $t('common.product') }}
                 </p>
                 <p class="text-xs text-neutral-600 dark:text-neutral-400">
-                  {{ $t('checkout.quantity') || 'จำนวน' }}: {{ item.quantity }}
+                  {{ $t('checkout.quantity') }}: {{ item.quantity }}
                 </p>
               </div>
               <div class="text-xs font-semibold text-black dark:text-white">
@@ -382,7 +382,7 @@ watch(() => cart.value?.length, (newLength) => {
         <UModal v-model="showPaymentChoiceModal" :ui="{ width: 'w-full sm:max-w-md' }">
           <div class="p-6">
             <h3 class="text-lg font-bold text-black dark:text-white mb-4">
-              {{ $t('checkout.choose_payment') || 'เลือกวิธีชำระเงิน' }}
+              {{ $t('checkout.choose_payment') }}
             </h3>
             <div class="space-y-3">
               <button
@@ -391,7 +391,7 @@ watch(() => cart.value?.length, (newLength) => {
                 @click="executeCheckout('promptpay')"
               >
                 <UIcon name="i-heroicons-qr-code" class="w-6 h-6 text-alizarin-crimson-600 dark:text-alizarin-crimson-400" />
-                <span class="font-semibold text-black dark:text-white">{{ $t('checkout.pay.promptpay') || 'PromptPay' }}</span>
+                <span class="font-semibold text-black dark:text-white">{{ $t('checkout.pay.promptpay') }}</span>
               </button>
               <button
                 type="button"
@@ -399,7 +399,7 @@ watch(() => cart.value?.length, (newLength) => {
                 @click="executeCheckout('credit_card')"
               >
                 <UIcon name="i-heroicons-credit-card" class="w-6 h-6 text-alizarin-crimson-600 dark:text-alizarin-crimson-400" />
-                <span class="font-semibold text-black dark:text-white">{{ $t('checkout.pay.credit_card') || 'บัตรเครดิต' }}</span>
+                <span class="font-semibold text-black dark:text-white">{{ $t('checkout.pay.credit_card') }}</span>
               </button>
               <button
                 type="button"
@@ -407,7 +407,7 @@ watch(() => cart.value?.length, (newLength) => {
                 @click="executeCheckout('paypal')"
               >
                 <UIcon name="i-simple-icons-paypal" class="w-6 h-6 shrink-0 text-[#00457C] dark:text-[#009cde]" />
-                <span class="font-semibold text-black dark:text-white">{{ $t('checkout.pay.paypal') || 'PayPal' }}</span>
+                <span class="font-semibold text-black dark:text-white">{{ $t('checkout.pay.paypal') }}</span>
               </button>
             </div>
             <button
@@ -415,7 +415,7 @@ watch(() => cart.value?.length, (newLength) => {
               class="mt-4 w-full py-2 text-sm text-neutral-500 dark:text-neutral-400 hover:text-black dark:hover:text-white"
               @click="closePaymentChoiceModal"
             >
-              {{ $t('general.cancel') || 'ยกเลิก' }}
+              {{ $t('general.cancel') }}
             </button>
           </div>
         </UModal>
