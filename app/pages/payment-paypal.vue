@@ -31,6 +31,8 @@ function onPayPalSuccess(payload: unknown) {
   if (p?.woocommerce_updated === false) {
     if (p?.warning_code === 'MISSING_ORDER_PAID_SECRET') {
       paypalSdkError.value = t('checkout.pay.paypal_missing_order_paid_secret');
+    } else if (p?.warning_code === 'MISSING_WOOCOMMERCE_UPDATE_CONFIG') {
+      paypalSdkError.value = t('checkout.pay.paypal_missing_wc_update_config');
     } else if (p?.warning) {
       paypalSdkError.value = String(p.warning);
     } else {

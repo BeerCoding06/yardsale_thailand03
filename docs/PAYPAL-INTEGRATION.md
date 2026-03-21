@@ -6,7 +6,7 @@
 |-------|------------------|
 | Browser | Loads PayPal JS SDK with **public** Client ID only. Renders Smart Buttons. |
 | `POST /api/paypal-create-order` | OAuth + **minimal** `POST /v2/checkout/orders`: `intent` + `purchase_units[].amount` only + `application_context.shipping_preference: NO_SHIPPING` (no `custom_id` / `reference_id`). |
-| `POST /api/paypal-capture-order` | Body must include **`woocommerce_order_id`** (same as checkout) + PayPal `orderID`. Then capture + WordPress `yardsale/v1/order-paid`. |
+| `POST /api/paypal-capture-order` | Capture PayPal แล้วอัปเดต WC: **ลำดับแรก** `PUT wc/v3/orders/{id}` (ถ้ามี `WP_CONSUMER_KEY` / `WP_CONSUMER_SECRET`) → ถ้าล้มเหลวและมี `ORDER_PAID_SECRET` เรียก `yardsale/v1/order-paid` |
 
 Secrets never leave the server.
 
@@ -30,10 +30,16 @@ PAYPAL_ENVIRONMENT=sandbox
 # PAYPAL_SANDBOX_THB_TO_USD=0.029
 # NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY=USD
 
-# บังคับ — ให้ WooCommerce อัปเดตหลัง PayPal capture (ค่าเดียวกับ WordPress)
+# แนะนำ — อัปเดตออเดอร์หลัง PayPal ผ่าน WooCommerce REST (Read/Write keys)
+WP_CONSUMER_KEY=ck_...
+WP_CONSUMER_SECRET=cs_...
+
+# สำรอง — ถ้า REST ล้มเหลว หรือไม่ใช้ keys: plugin order-paid (ค่าเดียวกับ WordPress)
 ORDER_PAID_SECRET=your_random_secret_string
 # ถ้า runtime ไม่โหลดจาก build: NUXT_ORDER_PAID_SECRET=ค่าเดียวกัน
 ```
+
+รายละเอียด REST + `curl` + checklist: **`docs/PAYPAL-WOOCOMMERCE-REST.md`**
 
 WordPress `wp-config.php`:
 
@@ -48,6 +54,7 @@ define('ORDER_PAID_SECRET', 'your_random_secret_string');
 - `server/utils/paypal.ts` – access token, create order, capture
 - `server/api/paypal-create-order.post.ts`
 - `server/api/paypal-capture-order.post.ts`
+- `server/utils/woocommerce-order.ts` — `PUT wc/v3/orders/{id}` + logging
 - `app/components/payment/PayPalSmartButton.vue`
 
 ## Usage in a page (after WooCommerce order exists)

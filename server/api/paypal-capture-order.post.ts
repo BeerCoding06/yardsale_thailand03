@@ -4,6 +4,7 @@
 import { paypalCaptureOrder, paypalGetAccessToken } from '../utils/paypal';
 import { paypalLogError, paypalLogEvent, paypalLogWarn } from '../utils/paypal-log';
 import * as wpUtils from '../utils/wp';
+import { woocommercePutOrderProcessing } from '../utils/woocommerce-order';
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
@@ -78,10 +79,58 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    if (!orderPaidSecret) {
+    const hasWcRestCreds =
+      Boolean(wpUtils.getWpConsumerKey()?.trim()) && Boolean(wpUtils.getWpConsumerSecret()?.trim());
+
+    /** Primary: WooCommerce REST PUT (consumer key + secret). Fallback: yardsale/v1/order-paid + ORDER_PAID_SECRET */
+    if (hasWcRestCreds) {
+      const wcRes = await woocommercePutOrderProcessing(woocommerceOrderId);
+      if (wcRes.ok) {
+        paypalLogEvent('capture_ok', {
+          paypal_order_id: result.paypalOrderId,
+          capture_id: result.captureId ?? undefined,
+          woocommerce_order_id: woocommerceOrderId,
+          paypal_environment: env,
+          woocommerce_updated: true,
+          woocommerce_update_method: 'wc_rest_put',
+        });
+        return {
+          success: true,
+          paypal: { ...result, woocommerceOrderId },
+          woocommerce_updated: true,
+          woocommerce_order_id: woocommerceOrderId,
+          woocommerce_update_method: 'wc_rest_put',
+        };
+      }
+
+      paypalLogError('wc_rest_put_failed', wcRes.errorLabel || 'WooCommerce PUT failed', {
+        paypal_order_id: result.paypalOrderId,
+        woocommerce_order_id: woocommerceOrderId,
+        wc_http_status: wcRes.httpStatus,
+        wc_body_preview: wcRes.rawBody.slice(0, 500),
+      });
+
+      if (!orderPaidSecret) {
+        throw createError({
+          statusCode: 502,
+          message: 'Payment captured but WooCommerce REST update failed and no ORDER_PAID_SECRET for fallback',
+          data: {
+            paypal: result,
+            wc_status: wcRes.httpStatus,
+            wc_body: wcRes.rawBody.slice(0, 2000),
+            wc_error: wcRes.errorLabel,
+          },
+        });
+      }
+
+      paypalLogWarn('wc_rest_fallback_order_paid', 'WC REST failed; trying yardsale/v1/order-paid', {
+        woocommerce_order_id: woocommerceOrderId,
+        wc_http_status: wcRes.httpStatus,
+      });
+    } else if (!orderPaidSecret) {
       paypalLogWarn(
         'capture_ok_woocommerce_skipped',
-        'No ORDER_PAID_SECRET on Nuxt server (must match WordPress ORDER_PAID_SECRET)',
+        'No WC REST keys and no ORDER_PAID_SECRET — set WP_CONSUMER_KEY + WP_CONSUMER_SECRET and/or ORDER_PAID_SECRET',
         {
           paypal_order_id: result.paypalOrderId,
           capture_id: result.captureId ?? undefined,
@@ -89,15 +138,15 @@ export default defineEventHandler(async (event) => {
         }
       );
       console.error(
-        '[paypal-capture-order] WooCommerce not updated: set ORDER_PAID_SECRET (or NUXT_ORDER_PAID_SECRET) on Nuxt — same value as WordPress ORDER_PAID_SECRET'
+        '[paypal-capture-order] WooCommerce not updated: set WP_CONSUMER_KEY + WP_CONSUMER_SECRET (REST) or ORDER_PAID_SECRET (plugin order-paid)'
       );
       return {
         success: true,
         paypal: result,
         woocommerce_updated: false,
-        warning_code: 'MISSING_ORDER_PAID_SECRET',
+        warning_code: 'MISSING_WOOCOMMERCE_UPDATE_CONFIG',
         warning:
-          'PayPal captured but WooCommerce not updated: set ORDER_PAID_SECRET on the Nuxt server (same value as WordPress ORDER_PAID_SECRET in wp-config.php). Restart the app. See docs/PAYPAL-INTEGRATION.md',
+          'PayPal captured but WooCommerce not updated: set WP_CONSUMER_KEY + WP_CONSUMER_SECRET for REST API, or ORDER_PAID_SECRET for plugin fallback. See docs/PAYPAL-INTEGRATION.md',
       };
     }
 
@@ -122,7 +171,7 @@ export default defineEventHandler(async (event) => {
       console.error('[paypal-capture-order] order-paid failed:', res.status, text);
       throw createError({
         statusCode: 502,
-        message: 'Payment captured but WooCommerce update failed',
+        message: 'Payment captured but WooCommerce update failed (order-paid)',
         data: { paypal: result, wp_status: res.status, wp_body: text },
       });
     }
@@ -133,12 +182,14 @@ export default defineEventHandler(async (event) => {
       woocommerce_order_id: woocommerceOrderId,
       paypal_environment: env,
       woocommerce_updated: true,
+      woocommerce_update_method: 'yardsale_order_paid',
     });
     return {
       success: true,
       paypal: { ...result, woocommerceOrderId },
       woocommerce_updated: true,
       woocommerce_order_id: woocommerceOrderId,
+      woocommerce_update_method: 'yardsale_order_paid',
     };
   } catch (e: any) {
     if (e?.statusCode) throw e;

@@ -66,7 +66,8 @@
       "order_created_success": "✓ สร้างออเดอร์สำเร็จ",
       "paypal_compliance_hint": "PayPal ปฏิเสธการชำระ (COMPLIANCE) — ให้กดเข้าสู่ระบบด้วยบัญชี PayPal เท่านั้น (หน้านี้ปิดการจ่ายด้วยบัตรในวิดเจ็ต PayPal แล้ว) ถ้ายังติดใน Sandbox ลองตั้งค่า USD ตามเอกสาร: PAYPAL_ORDER_CURRENCY=USD และ NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY=USD",
       "paypal_sdk_error": "เกิดข้อผิดพลาดจาก PayPal กรุณาลองใหม่หรือใช้วิธีชำระอื่น",
-      "paypal_missing_order_paid_secret": "PayPal เก็บเงินสำเร็จแล้ว แต่ยังไม่อัปเดตออเดอร์ในร้าน — ตั้ง ORDER_PAID_SECRET บนเซิร์ฟเวอร์ Nuxt ให้ตรงกับ WordPress (define ORDER_PAID_SECRET ใน wp-config.php) แล้วรีสตาร์ทแอป (Dokploy → Environment) ดู docs/PAYPAL-INTEGRATION.md"
+      "paypal_missing_order_paid_secret": "PayPal เก็บเงินสำเร็จแล้ว แต่ยังไม่อัปเดตออเดอร์ในร้าน — ตั้ง ORDER_PAID_SECRET บนเซิร์ฟเวอร์ Nuxt ให้ตรงกับ WordPress (define ORDER_PAID_SECRET ใน wp-config.php) แล้วรีสตาร์ทแอป (Dokploy → Environment) ดู docs/PAYPAL-INTEGRATION.md",
+      "paypal_missing_wc_update_config": "PayPal สำเร็จแล้ว แต่ยังไม่อัปเดต WooCommerce — ตั้ง WP_CONSUMER_KEY + WP_CONSUMER_SECRET (สิทธิ์ Read/Write) ใน Nuxt หรือตั้ง ORDER_PAID_SECRET สำหรับ plugin สำรอง แล้วรีสตาร์ทแอป ดู docs/PAYPAL-INTEGRATION.md"
     },
     "login_required": {
       "title": "กรุณาเข้าสู่ระบบ",
