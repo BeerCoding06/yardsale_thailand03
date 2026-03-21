@@ -21,7 +21,8 @@ export default defineEventHandler(async (event: any) => {
     const wcParams: Record<string, string | number> = {
       per_page: perPage,
       page: page,
-      ...(search ? { search: search } : {})
+      stock_status: 'instock',
+      ...(search ? { search: search } : {}),
     };
     
     // Use buildWcApiUrl which automatically adds consumer_key and consumer_secret

@@ -170,7 +170,7 @@ export const useCheckout = () => {
 
   /** เลือกวิธีชำระจาก modal แล้วสร้างออเดอร์และ redirect ตามวิธีที่เลือก */
   const executeCheckout = async (method) => {
-    if (!['promptpay', 'credit_card'].includes(method)) return;
+    if (!['promptpay', 'credit_card', 'paypal'].includes(method)) return;
     paymentMethod.value = method;
     showPaymentChoiceModal.value = false;
     checkoutStatus.value = 'processing';
@@ -206,7 +206,14 @@ export const useCheckout = () => {
       const customerId = user.value.id || user.value.ID;
       const isPromptPay = method === 'promptpay';
       const isCreditCard = method === 'credit_card';
-      const paymentTitle = isPromptPay ? 'PromptPay (Omise)' : isCreditCard ? 'บัตรเครดิต (Omise)' : 'ชำระเงินปลายทาง';
+      const isPayPal = method === 'paypal';
+      const paymentTitle = isPromptPay
+        ? 'PromptPay (Omise)'
+        : isCreditCard
+          ? 'บัตรเครดิต (Omise)'
+          : isPayPal
+            ? 'PayPal'
+            : 'ชำระเงินปลายทาง';
       const checkoutData = {
         customer_id: customerId,
         billing: {
@@ -268,6 +275,13 @@ export const useCheckout = () => {
         cart.value = [];
         if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
         await router.push(`/payment-creditcard?order_id=${orderData.id}&amount=${amountThb}`);
+        return;
+      }
+
+      if (isPayPal && orderData?.id) {
+        cart.value = [];
+        if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
+        await router.push(`/payment-paypal?order_id=${orderData.id}&amount=${amountThb}`);
         return;
       }
 

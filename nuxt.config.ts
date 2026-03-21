@@ -73,9 +73,12 @@ export default defineNuxtConfig({
     omiseSecretKey: process.env.OMISE_SECRET_KEY || '',
     omisePublicKey: process.env.OMISE_PUBLIC_KEY || '',
     omiseWebhookSecret: process.env.OMISE_WEBHOOK_SECRET || '',
+    paypalClientSecret: process.env.PAYPAL_CLIENT_SECRET || '',
+    paypalEnvironment: process.env.PAYPAL_ENVIRONMENT || 'sandbox',
     public: {
       version: pkg.version,
       baseUrl: process.env.BASE_URL || 'https://www.yardsaleth.com',
+      paypalClientId: process.env.NUXT_PUBLIC_PAYPAL_CLIENT_ID || process.env.PAYPAL_CLIENT_ID || '',
     },
   },
 
@@ -97,6 +100,7 @@ export default defineNuxtConfig({
     "/register-user": { ssr: true, prerender: false },
     "/payment-successful": { prerender: false, ssr: false }, // Client-side only
     "/payment-promptpay": { prerender: false, ssr: false }, // Client-side only
+    "/payment-paypal": { prerender: false, ssr: false },
   },
 
   nitro: {

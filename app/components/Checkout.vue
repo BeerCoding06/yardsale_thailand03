@@ -373,11 +373,11 @@ watch(() => cart.value?.length, (newLength) => {
           class="text-xs font-medium p-4 flex gap-1 items-end text-neutral-400 dark:text-neutral-600"
         >
           <UIcon name="i-iconamoon-lock-fill" size="18" />
-          <div>{{ $t("checkout.pay.secure", { method: "Omise" }) }}</div>
+          <div>{{ $t("checkout.pay.secure", { method: "Omise / PayPal" }) }}</div>
         </div>
       </form>
 
-      <!-- Modal เลือกวิธีชำระ: PromptPay หรือ บัตรเครดิต (หลังกดปุ่มชำระเงิน) -->
+      <!-- Modal เลือกวิธีชำระ: PromptPay / บัตรเครดิต / PayPal -->
       <ClientOnly>
         <UModal v-model="showPaymentChoiceModal" :ui="{ width: 'w-full sm:max-w-md' }">
           <div class="p-6">
@@ -400,6 +400,14 @@ watch(() => cart.value?.length, (newLength) => {
               >
                 <UIcon name="i-heroicons-credit-card" class="w-6 h-6 text-alizarin-crimson-600 dark:text-alizarin-crimson-400" />
                 <span class="font-semibold text-black dark:text-white">{{ $t('checkout.pay.credit_card') || 'บัตรเครดิต' }}</span>
+              </button>
+              <button
+                type="button"
+                class="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 hover:border-[#0070ba] dark:hover:border-[#009cde] bg-white dark:bg-black/20 transition text-left"
+                @click="executeCheckout('paypal')"
+              >
+                <UIcon name="i-simple-icons-paypal" class="w-6 h-6 shrink-0 text-[#00457C] dark:text-[#009cde]" />
+                <span class="font-semibold text-black dark:text-white">{{ $t('checkout.pay.paypal') || 'PayPal' }}</span>
               </button>
             </div>
             <button

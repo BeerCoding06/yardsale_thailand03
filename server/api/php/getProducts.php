@@ -96,13 +96,14 @@ if ($category) {
     }
 }
 
-// Build WooCommerce API parameters
+// Build WooCommerce API parameters (stock_status=instock = ไม่ดึงสินค้าหมดสต็อก)
 $params = [
     'per_page' => $per_page,
     'page' => $page,
     'order' => $order,
     'orderby' => $wcOrderby,
-    'status' => 'publish'
+    'status' => 'publish',
+    'stock_status' => 'instock',
 ];
 
 if ($search) {
@@ -217,6 +218,9 @@ foreach ($products as $product) {
     
     if (empty($product['id'])) {
         error_log('[getProducts] Product missing ID: ' . json_encode($product));
+        continue;
+    }
+    if (!yardsale_product_visible_in_catalog($product)) {
         continue;
     }
     // Format prices from WooCommerce API

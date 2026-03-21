@@ -332,6 +332,30 @@ function setCorsHeaders() {
 }
 
 /**
+ * แสดงสินค้าในรายการหน้าร้านหรือไม่ — ซ่อนถ้า out of stock หรือจัดการสต็อกแล้วเหลือน้อยกว่า 1
+ *
+ * @param array $product รายการจาก WooCommerce REST API (wc/v3/products)
+ * @return bool
+ */
+function yardsale_product_visible_in_catalog($product) {
+    if (!is_array($product)) {
+        return false;
+    }
+    $status = strtolower((string)($product['stock_status'] ?? 'instock'));
+    if ($status === 'outofstock') {
+        return false;
+    }
+    if (!empty($product['manage_stock'])) {
+        if (array_key_exists('stock_quantity', $product) && $product['stock_quantity'] !== null && $product['stock_quantity'] !== '') {
+            if ((int)$product['stock_quantity'] < 1) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+/**
  * Send JSON response
  */
 function sendJsonResponse($data, $status_code = 200) {

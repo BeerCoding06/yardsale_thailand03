@@ -33,7 +33,8 @@ if (empty($search)) {
 $params = [
     'search' => $search,
     'per_page' => $limit,
-    'status' => 'publish'
+    'status' => 'publish',
+    'stock_status' => 'instock',
 ];
 
 // Build WooCommerce API URL
@@ -69,6 +70,9 @@ $formattedProducts = [];
 foreach ($products as $product) {
     // Validate product structure
     if (!is_array($product) || empty($product['id'])) {
+        continue;
+    }
+    if (!yardsale_product_visible_in_catalog($product)) {
         continue;
     }
     // Format prices
