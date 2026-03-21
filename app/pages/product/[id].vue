@@ -41,8 +41,6 @@ const sku = computed(() => {
 const productResult = ref({});
 const selectedVariation = ref(null);
 const isLoading = ref(true);
-const hasBuyer = ref(false);
-const checkingBuyer = ref(false);
 
 async function fetchProduct() {
   const s = slug.value;
@@ -72,20 +70,6 @@ async function fetchProduct() {
     }
     const data = await $fetch('/api/product', { query });
     productResult.value = data?.product || {};
-    hasBuyer.value = false;
-    if (productResult.value.databaseId) {
-      checkingBuyer.value = true;
-      try {
-        const buyerData = await $fetch('/api/check-product-has-orders', {
-          query: { product_id: productResult.value.databaseId },
-        });
-        hasBuyer.value = buyerData?.has_orders ?? false;
-      } catch {
-        hasBuyer.value = false;
-      } finally {
-        checkingBuyer.value = false;
-      }
-    }
   } catch (error) {
     console.error('[product] Error fetching product:', error);
     productResult.value = {};
@@ -252,10 +236,6 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
               :sale-price="product.salePrice"
               :regular-price="product.regularPrice"
             />
-            <!-- Show "มีผู้ซื้อแล้ว" if product has been purchased -->
-            <div v-if="hasBuyer" class="mt-2 text-sm text-green-600 dark:text-green-400 font-medium">
-              {{ $t("product.has_buyer") }}
-            </div>
           </div>
           <template
             v-for="(variation, i) in product.productTypes?.nodes"
@@ -410,7 +390,6 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
               class="text-sm font-semibold leading-5 opacity-50 mb-4"
             >
               {{ $t("cart.stock") }}:
-              <!-- ไม่ใช้ hasBuyer บังคับเป็น 0 — หลังลบออเดอร์ใน WC สต็อกจริงต้องตรงกับที่แสดง; hasBuyer แค่ข้อความแจ้งด้านบน -->
               <span :class="(!isCancelled && product.stockStatus === 'OUT_OF_STOCK') ? 'text-red-500' : 'text-green-500'">
                 {{ (!isCancelled && product.stockStatus === 'OUT_OF_STOCK') ? '0' : (product.stockQuantity || $t("cart.in_stock")) }}
               </span>
