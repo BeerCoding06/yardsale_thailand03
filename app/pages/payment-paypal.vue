@@ -3,6 +3,7 @@
 definePageMeta({ auth: false });
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 
 const orderIdRaw = route.query.order_id;
 const amountRaw = route.query.amount;
@@ -25,6 +26,33 @@ const checkoutCurrency = computed(
 
 function onSuccess() {
   router.push(`/payment-successful?order_id=${orderId.value}`);
+}
+
+/** PayPal SDK ส่ง object/string — รวมถึง scf_* / COMPLIANCE_VIOLATION */
+function serializePayPalErr(err: unknown): string {
+  if (err == null) return '';
+  if (typeof err === 'string') return err;
+  if (err instanceof Error) return `${err.name} ${err.message}`;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
+const paypalSdkError = ref<string | null>(null);
+
+function onPayPalError(err: unknown) {
+  const raw = serializePayPalErr(err);
+  console.error('[PayPal]', err);
+  if (/COMPLIANCE_VIOLATION|scf_/i.test(raw)) {
+    paypalSdkError.value = t('checkout.pay.paypal_compliance_hint');
+  } else if (raw) {
+    const base = t('checkout.pay.paypal_sdk_error');
+    paypalSdkError.value = raw.length < 120 ? `${base}: ${raw}` : base;
+  } else {
+    paypalSdkError.value = t('checkout.pay.paypal_sdk_error');
+  }
 }
 </script>
 
@@ -60,13 +88,19 @@ function onSuccess() {
         {{ $t('checkout.pay.paypal_invalid') || 'ลิงก์ไม่ถูกต้อง กรุณาสั่งซื้อใหม่จากตะกร้า' }}
       </div>
       <ClientOnly v-else>
+        <p
+          v-if="paypalSdkError"
+          class="text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-lg p-3 mb-4"
+        >
+          {{ paypalSdkError }}
+        </p>
         <div :class="{ 'opacity-60 pointer-events-none': paying }">
           <PaymentPayPalSmartButton
             :woocommerce-order-id="orderId"
             :amount="amount"
             @success="onSuccess"
             @cancel="() => {}"
-            @error="(e) => console.error('[PayPal]', e)"
+            @error="onPayPalError"
             @loading="(v) => (paying = v)"
           />
         </div>

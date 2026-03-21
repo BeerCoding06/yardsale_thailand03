@@ -26,20 +26,48 @@ const effectiveCurrency = computed(
 const loadError = ref<string | null>(null);
 let buttonsInstance: { close?: () => void } | null = null;
 
+/** URL โหลด SDK — ปิดบัตรในปุ่ม PayPal เพื่อเลี่ยง scf_* / COMPLIANCE_VIOLATION (Hosted Card Fields) */
+function buildPayPalSdkUrl(clientId: string, currency: string): string {
+  const q = new URLSearchParams({
+    'client-id': clientId,
+    currency,
+    intent: 'capture',
+    // ไม่โหลดปุ่มชำระด้วยบัตรในวิดเจ็ต PayPal — ใช้บัตรผ่าน Omise ใน checkout แทน
+    'disable-funding': 'card,credit,paylater,venmo',
+  });
+  return `https://www.paypal.com/sdk/js?${q.toString()}`;
+}
+
 function loadPayPalScript(clientId: string, currency: string): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve();
   const w = window as Window & { paypal?: unknown };
-  if (w.paypal) return Promise.resolve();
+  const desiredSrc = buildPayPalSdkUrl(clientId, currency);
+
+  const existing = document.querySelector(
+    'script[data-paypal-yardsale]'
+  ) as HTMLScriptElement | null;
+  const sdkOk =
+    existing &&
+    existing.getAttribute('data-currency') === currency &&
+    existing.src.includes('disable-funding') &&
+    w.paypal;
+
+  if (sdkOk) {
+    return Promise.resolve();
+  }
+
+  document.querySelectorAll('script[src*="paypal.com/sdk/js"]').forEach((el) => el.remove());
+  try {
+    delete (w as Window & { paypal?: unknown }).paypal;
+  } catch {
+    (w as Window & { paypal?: unknown }).paypal = undefined;
+  }
+
   return new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-paypal-sdk]');
-    if (existing) {
-      existing.addEventListener('load', () => resolve());
-      existing.addEventListener('error', () => reject(new Error('PayPal SDK load failed')));
-      return;
-    }
     const script = document.createElement('script');
-    script.setAttribute('data-paypal-sdk', '1');
-    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=${encodeURIComponent(currency)}&intent=capture`;
+    script.setAttribute('data-paypal-yardsale', '1');
+    script.setAttribute('data-currency', currency);
+    script.src = desiredSrc;
     script.async = true;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error('PayPal SDK load failed'));
@@ -63,13 +91,20 @@ async function mountButtons() {
   try {
     await loadPayPalScript(clientId, effectiveCurrency.value);
     const w = window as Window & {
-      paypal?: { Buttons: (opts: Record<string, unknown>) => { render: (el: HTMLElement) => Promise<void>; close?: () => void } };
+      paypal?: {
+        FUNDING?: { PAYPAL?: string };
+        Buttons: (opts: Record<string, unknown>) => {
+          render: (el: HTMLElement) => Promise<void>;
+          close?: () => void;
+        };
+      };
     };
     if (!w.paypal) {
       throw new Error('PayPal SDK not available');
     }
     containerRef.value.innerHTML = '';
-    buttonsInstance = w.paypal.Buttons({
+    const fundingPaypal = w.paypal.FUNDING?.PAYPAL;
+    const buttonOptions: Record<string, unknown> = {
       style: {
         layout: 'vertical',
         shape: 'rect',
@@ -106,7 +141,11 @@ async function mountButtons() {
       onError: (err: unknown) => {
         emit('error', err);
       },
-    });
+    };
+    if (fundingPaypal) {
+      buttonOptions.fundingSource = fundingPaypal;
+    }
+    buttonsInstance = w.paypal.Buttons(buttonOptions);
     await buttonsInstance.render(containerRef.value as HTMLElement);
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e);

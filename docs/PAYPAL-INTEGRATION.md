@@ -168,6 +168,7 @@ OMISE_ORDER_PAID_SECRET=<ตรงกับ WordPress>
 | `401` / token failed | Client ID กับ Secret ไม่ตรงกันหรือใช้ Live กับ Sandbox สลับกัน |
 | `INVALID_CURRENCY` | บาง sandbox account ไม่รองรับ THB — ใช้คู่ `PAYPAL_ORDER_CURRENCY=USD` + `NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY=USD` (แปลงยอดด้วย `PAYPAL_SANDBOX_THB_TO_USD`) หรือตรวจว่า Business sandbox รองรับ THB |
 | `COMPLIANCE_VIOLATION` / address verify fail | มักมาจาก **ที่อยู่ + sandbox + สกุลเงิน**: (1) server ส่ง `shipping_preference=NO_SHIPPING` ใน sandbox อยู่แล้ว (override ด้วย `PAYPAL_SHIPPING_PREFERENCE`) (2) ตั้ง `PAYPAL_LOCALE=en-US` (3) ถ้ายังติด ลอง USD mode ตามบรรทัดด้านบน |
+| Console: `scf_fetch_credit_form_submit_error` / `scf_unhandled_error_on_submit_COMPLIANCE_VIOLATION` | มาจาก **ปุ่มชำระด้วยบัตรในวิดเจ็ต PayPal** (Hosted Card Fields) — ในโปรเจกต์นี้โหลด SDK ด้วย `disable-funding=card,credit` และ `fundingSource=PAYPAL` เพื่อให้เหลือแค่ “เข้าสู่ระบบ PayPal”; ชำระบัตรใช้ Omise ในหน้า checkout |
 | ปุ่ม PayPal ไม่ขึ้น | ดู Console ว่า SDK โหลดได้; ตรวจ adblock |
 
 SDK โหลดจาก `https://www.paypal.com/sdk/js?client-id=...` — โหมด sandbox/live ขึ้นกับ **ค่า Client ID** ที่ใส่ ไม่ต้องเปลี่ยน URL

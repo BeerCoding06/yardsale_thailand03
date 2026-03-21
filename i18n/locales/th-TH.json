@@ -63,7 +63,9 @@
       "date": "วันที่",
       "payment_method": "วิธีการชำระเงิน",
       "processing": "กำลังสร้างออเดอร์...",
-      "order_created_success": "✓ สร้างออเดอร์สำเร็จ"
+      "order_created_success": "✓ สร้างออเดอร์สำเร็จ",
+      "paypal_compliance_hint": "PayPal ปฏิเสธการชำระ (COMPLIANCE) — ให้กดเข้าสู่ระบบด้วยบัญชี PayPal เท่านั้น (หน้านี้ปิดการจ่ายด้วยบัตรในวิดเจ็ต PayPal แล้ว) ถ้ายังติดใน Sandbox ลองตั้งค่า USD ตามเอกสาร: PAYPAL_ORDER_CURRENCY=USD และ NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY=USD",
+      "paypal_sdk_error": "เกิดข้อผิดพลาดจาก PayPal กรุณาลองใหม่หรือใช้วิธีชำระอื่น"
     },
     "login_required": {
       "title": "กรุณาเข้าสู่ระบบ",

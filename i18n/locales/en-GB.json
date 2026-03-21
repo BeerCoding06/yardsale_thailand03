@@ -63,7 +63,9 @@
       "date": "Date",
       "payment_method": "Payment Method",
       "processing": "Creating order...",
-      "order_created_success": "✓ Order created successfully"
+      "order_created_success": "✓ Order created successfully",
+      "paypal_compliance_hint": "PayPal blocked this payment (COMPLIANCE). Log in with your PayPal account only — card-in-widget is disabled here (use Omise for cards). In sandbox, try USD: PAYPAL_ORDER_CURRENCY=USD and NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY=USD.",
+      "paypal_sdk_error": "Something went wrong with PayPal. Please try again or use another payment method."
     },
     "login_required": {
       "title": "Please log in",
