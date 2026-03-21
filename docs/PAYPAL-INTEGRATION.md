@@ -22,6 +22,16 @@ PAYPAL_CLIENT_SECRET=EL1tUJ...
 # sandbox | live
 PAYPAL_ENVIRONMENT=sandbox
 
+# (ทางเลือก) ลด COMPLIANCE_VIOLATION / address verify — ค่าเริ่มต้น: sandbox = NO_SHIPPING, live = GET_FROM_FILE
+# PAYPAL_SHIPPING_PREFERENCE=NO_SHIPPING
+# PAYPAL_LOCALE=en-US
+# PAYPAL_LANDING_PAGE=NO_PREFERENCE
+
+# (ทางเลือก Sandbox) ส่ง PayPal เป็น USD แทน THB — ต้องตั้งคู่กับ public ด้านล่าง
+# PAYPAL_ORDER_CURRENCY=USD
+# PAYPAL_SANDBOX_THB_TO_USD=0.029
+# NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY=USD
+
 # Same secret as Omise flow – WordPress plugin order-paid
 OMISE_ORDER_PAID_SECRET=your_random_secret_string
 ```
@@ -109,3 +119,57 @@ curl -X POST "https://cms.example.com/wp-json/yardsale/v1/order-paid" \
 - [Smart Payment Buttons](https://developer.paypal.com/docs/checkout/)
 
 Sandbox testing: create sandbox Business + Personal accounts in PayPal Developer Dashboard; use Business app Client ID / Secret.
+
+---
+
+## ทดสอบ Sandbox (developer.paypal.com)
+
+### 1) สร้าง App แบบ Sandbox
+
+1. ไป [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/) → **Apps & Credentials**
+2. เลือกแท็บ **Sandbox** (ไม่ใช่ Live)
+3. สร้างหรือเลือก **Default Application** → คัดลอก **Client ID** และ **Secret**
+
+### 2) ตั้งค่า `.env` ของ Nuxt
+
+```env
+NUXT_PUBLIC_PAYPAL_CLIENT_ID=<Client ID จาก Sandbox>
+PAYPAL_CLIENT_SECRET=<Secret จาก Sandbox>
+PAYPAL_ENVIRONMENT=sandbox
+OMISE_ORDER_PAID_SECRET=<ตรงกับ WordPress>
+```
+
+รีสตาร์ท dev server หลังแก้ `.env`
+
+**สำคัญ:** Client ID / Secret ต้องเป็นคู่จาก **Sandbox** เท่านั้น ถ้าเอา Live มาใส่จะ error ตอน token หรือ create order
+
+### 3) บัญชีทดสอบชำระเงิน
+
+ใน Dashboard → **Sandbox** → **Accounts** จะมี:
+
+- **Business** (ร้านค้า) — ผูกกับ App แล้ว
+- **Personal** (ลูกค้า) — ใช้ **email + password** ตรงนี้ login ตอน popup PayPal ตอนเทส
+
+### 4) Flow ทดสอบบนเว็บคุณ
+
+1. Login → ใส่สินค้าในตะกร้า → Checkout → กดชำระเงิน → เลือก **PayPal**
+2. หน้า `/payment-paypal` → กดปุ่ม PayPal → login ด้วย **Sandbox Personal** account
+3. อนุมัติการชำระ → ควร redirect ไป `/payment-successful`
+4. ตรวจ WooCommerce ออเดอร์ว่าเป็น **Processing** (ต้องตั้ง `OMISE_ORDER_PAID_SECRET` ใน Nuxt + WordPress)
+
+### 5) ถ้า error
+
+| อาการ | แนวทาง |
+|--------|--------|
+| `PayPal credentials not configured` | ใส่ `NUXT_PUBLIC_PAYPAL_CLIENT_ID` และ `PAYPAL_CLIENT_SECRET` |
+| `401` / token failed | Client ID กับ Secret ไม่ตรงกันหรือใช้ Live กับ Sandbox สลับกัน |
+| `INVALID_CURRENCY` | บาง sandbox account ไม่รองรับ THB — ใช้คู่ `PAYPAL_ORDER_CURRENCY=USD` + `NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY=USD` (แปลงยอดด้วย `PAYPAL_SANDBOX_THB_TO_USD`) หรือตรวจว่า Business sandbox รองรับ THB |
+| `COMPLIANCE_VIOLATION` / address verify fail | มักมาจาก **ที่อยู่ + sandbox + สกุลเงิน**: (1) server ส่ง `shipping_preference=NO_SHIPPING` ใน sandbox อยู่แล้ว (override ด้วย `PAYPAL_SHIPPING_PREFERENCE`) (2) ตั้ง `PAYPAL_LOCALE=en-US` (3) ถ้ายังติด ลอง USD mode ตามบรรทัดด้านบน |
+| ปุ่ม PayPal ไม่ขึ้น | ดู Console ว่า SDK โหลดได้; ตรวจ adblock |
+
+SDK โหลดจาก `https://www.paypal.com/sdk/js?client-id=...` — โหมด sandbox/live ขึ้นกับ **ค่า Client ID** ที่ใส่ ไม่ต้องเปลี่ยน URL
+
+### `application_context` ที่เซิร์ฟเวอร์ส่งให้ PayPal
+
+- `shipping_preference`: default **NO_SHIPPING** เมื่อ `PAYPAL_ENVIRONMENT=sandbox`, มิฉะนั้น **GET_FROM_FILE** (ร้านที่ต้องเก็บที่อยู่จริงใน production อาจตั้ง `PAYPAL_SHIPPING_PREFERENCE=SET_PROVIDED_ADDRESS` และส่งที่อยู่ใน order ตามแผนอนาคต)
+- `locale`: default **en-US** (sandbox), **th-TH** (live) — แก้ด้วย `PAYPAL_LOCALE`

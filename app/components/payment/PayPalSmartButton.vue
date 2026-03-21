@@ -19,6 +19,10 @@ const emit = defineEmits<{
 
 const containerRef = ref<HTMLElement | null>(null);
 const config = useRuntimeConfig();
+/** SDK ต้องใช้สกุลเดียวกับ order บน server (รวมตอน sandbox ใช้ USD) */
+const effectiveCurrency = computed(
+  () => props.currency || (config.public.paypalCheckoutCurrency as string) || 'THB'
+);
 const loadError = ref<string | null>(null);
 let buttonsInstance: { close?: () => void } | null = null;
 
@@ -57,7 +61,7 @@ async function mountButtons() {
 
   emit('loading', true);
   try {
-    await loadPayPalScript(clientId, props.currency || 'THB');
+    await loadPayPalScript(clientId, effectiveCurrency.value);
     const w = window as Window & {
       paypal?: { Buttons: (opts: Record<string, unknown>) => { render: (el: HTMLElement) => Promise<void>; close?: () => void } };
     };
@@ -77,7 +81,7 @@ async function mountButtons() {
           body: {
             woocommerce_order_id: props.woocommerceOrderId,
             amount: props.amount,
-            currency: props.currency || 'THB',
+            currency: effectiveCurrency.value,
           },
         });
         return res.id;
@@ -117,7 +121,8 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.woocommerceOrderId, props.amount, props.currency, props.disabled] as const,
+  () =>
+    [props.woocommerceOrderId, props.amount, props.currency, effectiveCurrency.value, props.disabled] as const,
   () => {
     if (containerRef.value) {
       containerRef.value.innerHTML = '';
