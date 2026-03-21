@@ -35,18 +35,15 @@ export async function paypalGetAccessToken(
   return data.access_token;
 }
 
+/**
+ * Orders v2 แบบ minimal — ลด COMPLIANCE / address โดยไม่ส่ง brand, locale, custom_id ฯลฯ
+ * อ้างอิง WooCommerce order ผ่าน `woocommerce_order_id` ใน POST /api/paypal-capture-order แทน
+ */
 export interface PayPalCreateOrderInput {
-  woocommerceOrderId: number;
   amountValue: string;
   currencyCode: string;
-  brandName?: string;
-  returnUrl?: string;
-  cancelUrl?: string;
-  /** NO_SHIPPING ลด COMPLIANCE_VIOLATION / address verify ใน Sandbox */
-  shippingPreference?: 'NO_SHIPPING' | 'GET_FROM_FILE' | 'SET_PROVIDED_ADDRESS';
-  /** เช่น en-US — Sandbox + THB มักใช้ en-US ช่วยเรื่อง compliance */
-  locale?: string;
-  landingPage?: 'LOGIN' | 'BILLING' | 'NO_PREFERENCE';
+  /** PayPal-Request-Id (idempotency) */
+  payPalRequestId: string;
 }
 
 export async function paypalCreateOrder(
@@ -55,34 +52,20 @@ export async function paypalCreateOrder(
   input: PayPalCreateOrderInput
 ): Promise<{ id: string }> {
   const base = getApiBase(environment);
-  const shippingPref = input.shippingPreference || 'NO_SHIPPING';
-  const locale = input.locale || 'en-US';
-  const landing = input.landingPage || 'NO_PREFERENCE';
-
-  const application_context: Record<string, string> = {
-    brand_name: input.brandName || 'Yardsale',
-    locale,
-    landing_page: landing,
-    shipping_preference: shippingPref,
-    user_action: 'PAY_NOW',
-  };
-  if (input.returnUrl) application_context.return_url = input.returnUrl;
-  if (input.cancelUrl) application_context.cancel_url = input.cancelUrl;
 
   const body = {
-    intent: 'CAPTURE',
+    intent: 'CAPTURE' as const,
     purchase_units: [
       {
-        reference_id: `wc-${input.woocommerceOrderId}`,
-        custom_id: String(input.woocommerceOrderId),
-        description: `Order #${input.woocommerceOrderId}`,
         amount: {
           currency_code: input.currencyCode.toUpperCase(),
           value: input.amountValue,
         },
       },
     ],
-    application_context,
+    application_context: {
+      shipping_preference: 'NO_SHIPPING' as const,
+    },
   };
 
   const res = await fetch(`${base}/v2/checkout/orders`, {
@@ -90,7 +73,7 @@ export async function paypalCreateOrder(
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
-      'PayPal-Request-Id': `wc-${input.woocommerceOrderId}-${Date.now()}`,
+      'PayPal-Request-Id': input.payPalRequestId,
     },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(30000),

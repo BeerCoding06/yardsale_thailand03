@@ -5,8 +5,8 @@
 | Layer | Responsibility |
 |-------|------------------|
 | Browser | Loads PayPal JS SDK with **public** Client ID only. Renders Smart Buttons. |
-| `POST /api/paypal-create-order` | OAuth + `POST /v2/checkout/orders` with **secret** (server). Embeds WooCommerce `order_id` in `purchase_units[].custom_id`. |
-| `POST /api/paypal-capture-order` | `POST /v2/checkout/orders/{id}/capture`, then calls WordPress `yardsale/v1/order-paid` to set WooCommerce **processing** + `payment_complete()`. |
+| `POST /api/paypal-create-order` | OAuth + **minimal** `POST /v2/checkout/orders`: `intent` + `purchase_units[].amount` only + `application_context.shipping_preference: NO_SHIPPING` (no `custom_id` / `reference_id`). |
+| `POST /api/paypal-capture-order` | Body must include **`woocommerce_order_id`** (same as checkout) + PayPal `orderID`. Then capture + WordPress `yardsale/v1/order-paid`. |
 
 Secrets never leave the server.
 
@@ -24,11 +24,6 @@ PAYPAL_ENVIRONMENT=sandbox
 
 # Log JSON ไป stdout (Docker / Dokploy) — เหตุการณ์ create/capture สำเร็จ
 # PAYPAL_LOG=1
-
-# (ทางเลือก) ลด COMPLIANCE_VIOLATION / address verify — ค่าเริ่มต้น: sandbox = NO_SHIPPING, live = GET_FROM_FILE
-# PAYPAL_SHIPPING_PREFERENCE=NO_SHIPPING
-# PAYPAL_LOCALE=en-US
-# PAYPAL_LANDING_PAGE=NO_PREFERENCE
 
 # (ทางเลือก Sandbox) ส่ง PayPal เป็น USD แทน THB — ต้องตั้งคู่กับ public ด้านล่าง
 # PAYPAL_ORDER_CURRENCY=USD
@@ -81,6 +76,8 @@ function onPayPalSuccess() {
 
 Nuxt auto-imports `PaymentPayPalSmartButton` from `components/payment/PayPalSmartButton.vue`.
 
+**SDK URL (frontend):** โหลดแค่ `https://www.paypal.com/sdk/js?client-id=…&currency=…` — สกุลจาก `NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY` (default **USD** ใน `nuxt.config`) หรือ prop `currency` บนปุ่ม ไม่ใส่ `intent` / `disable-funding` ใน URL
+
 ## WooCommerce order update (already implemented)
 
 `paypal-capture-order` calls:
@@ -112,9 +109,10 @@ curl -X POST "https://cms.example.com/wp-json/yardsale/v1/order-paid" \
 ## Production hardening (recommended)
 
 1. **Verify amount server-side** – Before `paypal-create-order`, load the WooCommerce order (REST or internal API) and compare `total` to the requested `amount`.
-2. **Auth** – Require logged-in user JWT on create/capture if only the buyer should pay their order.
-3. **Idempotency** – PayPal supports `PayPal-Request-Id` on create (already sent). Handle duplicate capture responses if user retries.
-4. **Webhooks** – Optional: subscribe to PayPal webhooks for `PAYMENT.CAPTURE.COMPLETED` as a backup to mark orders paid.
+2. **After capture (สำคัญกับ minimal order)** – อ่านยอดจาก PayPal capture response แล้วเทียบกับยอดออเดอร์ WC ก่อนเรียก `order-paid` — เพราะไม่มี `custom_id` ใน PayPal body การอ้างอิง WC มาจาก body ของ `/api/paypal-capture-order`.
+3. **Auth** – Require logged-in user JWT on create/capture if only the buyer should pay their order.
+4. **Idempotency** – PayPal supports `PayPal-Request-Id` on create (already sent). Handle duplicate capture responses if user retries.
+5. **Webhooks** – Optional: subscribe to PayPal webhooks for `PAYMENT.CAPTURE.COMPLETED` as a backup to mark orders paid.
 
 ## PayPal Developer
 
@@ -167,13 +165,25 @@ OMISE_ORDER_PAID_SECRET=<ตรงกับ WordPress>
 | `PayPal credentials not configured` | ใส่ `NUXT_PUBLIC_PAYPAL_CLIENT_ID` และ `PAYPAL_CLIENT_SECRET` |
 | `401` / token failed | Client ID กับ Secret ไม่ตรงกันหรือใช้ Live กับ Sandbox สลับกัน |
 | `INVALID_CURRENCY` | บาง sandbox account ไม่รองรับ THB — ใช้คู่ `PAYPAL_ORDER_CURRENCY=USD` + `NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY=USD` (แปลงยอดด้วย `PAYPAL_SANDBOX_THB_TO_USD`) หรือตรวจว่า Business sandbox รองรับ THB |
-| `COMPLIANCE_VIOLATION` / address verify fail | มักมาจาก **ที่อยู่ + sandbox + สกุลเงิน**: (1) server ส่ง `shipping_preference=NO_SHIPPING` ใน sandbox อยู่แล้ว (override ด้วย `PAYPAL_SHIPPING_PREFERENCE`) (2) ตั้ง `PAYPAL_LOCALE=en-US` (3) ถ้ายังติด ลอง USD mode ตามบรรทัดด้านบน |
+| `COMPLIANCE_VIOLATION` / address verify fail | Create order ใช้ **minimal** + `NO_SHIPPING` อยู่แล้ว; ถ้ายังติด ลอง **USD sandbox** (`PAYPAL_ORDER_CURRENCY` + `NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY`) และชำระแค่ปุ่มเข้าสู่ระบบ PayPal (ไม่ใช้บัตรในวิดเจ็ต) |
 | Console: `scf_fetch_credit_form_submit_error` / `scf_unhandled_error_on_submit_COMPLIANCE_VIOLATION` | มาจาก **ปุ่มชำระด้วยบัตรในวิดเจ็ต PayPal** (Hosted Card Fields) — ในโปรเจกต์นี้โหลด SDK ด้วย `disable-funding=card,credit` และ `fundingSource=PAYPAL` เพื่อให้เหลือแค่ “เข้าสู่ระบบ PayPal”; ชำระบัตรใช้ Omise ในหน้า checkout |
 | ปุ่ม PayPal ไม่ขึ้น | ดู Console ว่า SDK โหลดได้; ตรวจ adblock |
+| Log `capture_missing_custom_id` | มาจาก **build เก่า** — เวอร์ชันปัจจุบันใช้ minimal order (ไม่มี `custom_id`) และต้องมี `woocommerce_order_id` ใน `POST /api/paypal-capture-order`; **deploy โค้ดล่าสุด** + refresh หน้า `/payment-paypal` ถ้ายังเจอ `capture_missing_woocommerce_order_id` แปลว่า body ไม่มี `woocommerce_order_id` |
 
 SDK โหลดจาก `https://www.paypal.com/sdk/js?client-id=...` — โหมด sandbox/live ขึ้นกับ **ค่า Client ID** ที่ใส่ ไม่ต้องเปลี่ยน URL
 
-### `application_context` ที่เซิร์ฟเวอร์ส่งให้ PayPal
+### Minimal order body (สร้างออเดอร์ PayPal)
 
-- `shipping_preference`: default **NO_SHIPPING** เมื่อ `PAYPAL_ENVIRONMENT=sandbox`, มิฉะนั้น **GET_FROM_FILE** (ร้านที่ต้องเก็บที่อยู่จริงใน production อาจตั้ง `PAYPAL_SHIPPING_PREFERENCE=SET_PROVIDED_ADDRESS` และส่งที่อยู่ใน order ตามแผนอนาคต)
-- `locale`: default **en-US** (sandbox), **th-TH** (live) — แก้ด้วย `PAYPAL_LOCALE`
+ส่งให้ PayPal เฉพาะโครงแบบนี้ (ไม่มี `brand_name`, `locale`, `custom_id`, `return_url`):
+
+```json
+{
+  "intent": "CAPTURE",
+  "purchase_units": [{ "amount": { "currency_code": "THB", "value": "100.00" } }],
+  "application_context": { "shipping_preference": "NO_SHIPPING" }
+}
+```
+
+ยอด/สกุลจริงมาจาก checkout; Sandbox แปลง THB→USD ได้ตาม `PAYPAL_ORDER_CURRENCY` ใน `paypal-create-order.post.ts`.
+
+**ความปลอดภัย:** ควรตรวจยอด capture กับยอดออเดอร์ WooCommerce ฝั่งเซิร์ฟเวอร์ก่อน `order-paid` (แนะนำใน Production hardening ด้านบน)

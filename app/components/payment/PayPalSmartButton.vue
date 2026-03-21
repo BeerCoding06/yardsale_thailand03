@@ -4,10 +4,11 @@ const props = withDefaults(
   defineProps<{
     woocommerceOrderId: number;
     amount: number | string;
+    /** ถ้าไม่ส่ง ใช้ `runtimeConfig.public.paypalCheckoutCurrency` หรือ USD */
     currency?: string;
     disabled?: boolean;
   }>(),
-  { currency: 'THB', disabled: false }
+  { disabled: false }
 );
 
 const emit = defineEmits<{
@@ -19,21 +20,18 @@ const emit = defineEmits<{
 
 const containerRef = ref<HTMLElement | null>(null);
 const config = useRuntimeConfig();
-/** SDK ต้องใช้สกุลเดียวกับ order บน server (รวมตอน sandbox ใช้ USD) */
+/** ต้องตรงกับสกุลใน PayPal order บน server (เช่น USD สำหรับ sandbox) */
 const effectiveCurrency = computed(
-  () => props.currency || (config.public.paypalCheckoutCurrency as string) || 'THB'
+  () => props.currency || (config.public.paypalCheckoutCurrency as string) || 'USD'
 );
 const loadError = ref<string | null>(null);
 let buttonsInstance: { close?: () => void } | null = null;
 
-/** URL โหลด SDK — ปิดบัตรในปุ่ม PayPal เพื่อเลี่ยง scf_* / COMPLIANCE_VIOLATION (Hosted Card Fields) */
+/** รูปแบบที่ต้องการ: https://www.paypal.com/sdk/js?client-id=XXX&currency=USD */
 function buildPayPalSdkUrl(clientId: string, currency: string): string {
   const q = new URLSearchParams({
     'client-id': clientId,
-    currency,
-    intent: 'capture',
-    // ไม่โหลดปุ่มชำระด้วยบัตรในวิดเจ็ต PayPal — ใช้บัตรผ่าน Omise ใน checkout แทน
-    'disable-funding': 'card,credit,paylater,venmo',
+    currency: currency.toUpperCase(),
   });
   return `https://www.paypal.com/sdk/js?${q.toString()}`;
 }
@@ -41,15 +39,14 @@ function buildPayPalSdkUrl(clientId: string, currency: string): string {
 function loadPayPalScript(clientId: string, currency: string): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve();
   const w = window as Window & { paypal?: unknown };
-  const desiredSrc = buildPayPalSdkUrl(clientId, currency);
-
   const existing = document.querySelector(
     'script[data-paypal-yardsale]'
   ) as HTMLScriptElement | null;
+  const desiredSrc = buildPayPalSdkUrl(clientId, currency);
   const sdkOk =
     existing &&
-    existing.getAttribute('data-currency') === currency &&
-    existing.src.includes('disable-funding') &&
+    existing.getAttribute('data-currency') === currency.toUpperCase() &&
+    existing.src === desiredSrc &&
     w.paypal;
 
   if (sdkOk) {
@@ -66,7 +63,7 @@ function loadPayPalScript(clientId: string, currency: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.setAttribute('data-paypal-yardsale', '1');
-    script.setAttribute('data-currency', currency);
+    script.setAttribute('data-currency', currency.toUpperCase());
     script.src = desiredSrc;
     script.async = true;
     script.onload = () => resolve();
@@ -126,7 +123,10 @@ async function mountButtons() {
         try {
           const result = await $fetch('/api/paypal-capture-order', {
             method: 'POST',
-            body: { orderID: data.orderID },
+            body: {
+              orderID: data.orderID,
+              woocommerce_order_id: props.woocommerceOrderId,
+            },
           });
           emit('success', result as Record<string, unknown>);
         } catch (e) {

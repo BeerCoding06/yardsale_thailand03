@@ -79,9 +79,9 @@ export default defineNuxtConfig({
       version: pkg.version,
       baseUrl: process.env.BASE_URL || 'https://www.yardsaleth.com',
       paypalClientId: process.env.NUXT_PUBLIC_PAYPAL_CLIENT_ID || process.env.PAYPAL_CLIENT_ID || '',
-      /** ต้องตรงกับสกุลที่ server ส่งใน PayPal order (THB หรือ USD ตอน sandbox) */
+      /** ต้องตรงกับสกุลใน PayPal SDK + order บน server (ค่าเริ่ม USD ตาม SDK URL มาตรฐาน) */
       paypalCheckoutCurrency:
-        process.env.NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY || 'THB',
+        process.env.NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY || 'USD',
     },
   },
 

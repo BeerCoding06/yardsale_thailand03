@@ -20,8 +20,6 @@ export default defineEventHandler(async (event) => {
     woocommerce_order_id?: number;
     amount?: string | number;
     currency?: string;
-    return_url?: string;
-    cancel_url?: string;
   };
 
   const wcId = Number(body?.woocommerce_order_id);
@@ -35,7 +33,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Valid amount is required' });
   }
 
-  const requestedCurrency = (body?.currency || 'THB').toUpperCase();
+  /** ค่าเริ่ม USD ให้ตรงกับ PayPal SDK URL ฝั่ง client (nuxt `paypalCheckoutCurrency`) */
+  const requestedCurrency = (body?.currency || 'USD').toUpperCase();
   const orderCurrencyEnv = (process.env.PAYPAL_ORDER_CURRENCY || '').trim().toUpperCase();
   let currency = orderCurrencyEnv || requestedCurrency;
   let amountValue = num.toFixed(2);
@@ -63,35 +62,12 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const shippingPrefRaw = process.env.PAYPAL_SHIPPING_PREFERENCE?.trim();
-  const shippingPreference =
-    shippingPrefRaw === 'GET_FROM_FILE' ||
-    shippingPrefRaw === 'SET_PROVIDED_ADDRESS' ||
-    shippingPrefRaw === 'NO_SHIPPING'
-      ? shippingPrefRaw
-      : env === 'sandbox'
-        ? 'NO_SHIPPING'
-        : 'GET_FROM_FILE';
-
-  const locale =
-    process.env.PAYPAL_LOCALE?.trim() || (env === 'sandbox' ? 'en-US' : 'th-TH');
-  const landingPage =
-    process.env.PAYPAL_LANDING_PAGE === 'LOGIN' ||
-    process.env.PAYPAL_LANDING_PAGE === 'BILLING'
-      ? process.env.PAYPAL_LANDING_PAGE
-      : 'NO_PREFERENCE';
-
   try {
     const token = await paypalGetAccessToken(clientId, clientSecret, env);
     const order = await paypalCreateOrder(token, env, {
-      woocommerceOrderId: wcId,
       amountValue,
       currencyCode: currency,
-      returnUrl: body?.return_url,
-      cancelUrl: body?.cancel_url,
-      shippingPreference,
-      locale,
-      landingPage,
+      payPalRequestId: `wc-${wcId}-${Date.now()}`,
     });
     paypalLogEvent('create_order_ok', {
       woocommerce_order_id: wcId,
@@ -100,7 +76,7 @@ export default defineEventHandler(async (event) => {
       paypal_amount: amountValue,
       paypal_environment: env,
       requested_currency: requestedCurrency,
-      shipping_preference: shippingPreference,
+      order_shape: 'minimal',
     });
     return {
       id: order.id,
