@@ -3,6 +3,8 @@
 const route = useRoute();
 const { name } = useAppConfig().site;
 const url = useRequestURL();
+/** ต้องเรียกนอก useHead — ภายใน callback ของ unhead อาจไม่มี Nuxt context (SSR /locale) */
+const runtimeConfig = useRuntimeConfig();
 const canonical = computed(() => {
   const base = `${url.origin}${url.pathname}`;
   const params = new URLSearchParams();
@@ -36,8 +38,7 @@ useHead(() => {
   }
 
   const canonicalUrl = canonical.value;
-  const config = useRuntimeConfig();
-  const ogImageLogo = `${config.public?.baseUrl || url.origin}/logo.svg`;
+  const ogImageLogo = `${runtimeConfig.public?.baseUrl || url.origin}/logo.svg`;
 
   return {
     title,
