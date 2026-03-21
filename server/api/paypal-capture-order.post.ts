@@ -10,6 +10,7 @@ export default defineEventHandler(async (event) => {
   const clientId = config.public.paypalClientId || process.env.PAYPAL_CLIENT_ID;
   const clientSecret = config.paypalClientSecret || process.env.PAYPAL_CLIENT_SECRET;
   const env = (config.paypalEnvironment || process.env.PAYPAL_ENVIRONMENT || 'sandbox') as 'sandbox' | 'live';
+  /** ต้องตรงกับ WordPress `OMISE_ORDER_PAID_SECRET` หรือ `OMISE_WEBHOOK_SECRET` (wp-config) — ตั้งใน Dokploy / .env Nuxt */
   const orderPaidSecret =
     process.env.OMISE_ORDER_PAID_SECRET ||
     config.omiseWebhookSecret ||
@@ -78,17 +79,24 @@ export default defineEventHandler(async (event) => {
     }
 
     if (!orderPaidSecret) {
-      paypalLogWarn('capture_ok_woocommerce_skipped', 'OMISE_ORDER_PAID_SECRET not set', {
-        paypal_order_id: result.paypalOrderId,
-        capture_id: result.captureId ?? undefined,
-        woocommerce_order_id: woocommerceOrderId,
-      });
-      console.error('[paypal-capture-order] OMISE_ORDER_PAID_SECRET not set – WooCommerce not updated');
+      paypalLogWarn(
+        'capture_ok_woocommerce_skipped',
+        'No order-paid secret: set OMISE_ORDER_PAID_SECRET or OMISE_WEBHOOK_SECRET on Nuxt server (match wp-config.php)',
+        {
+          paypal_order_id: result.paypalOrderId,
+          capture_id: result.captureId ?? undefined,
+          woocommerce_order_id: woocommerceOrderId,
+        }
+      );
+      console.error(
+        '[paypal-capture-order] WooCommerce not updated: set OMISE_ORDER_PAID_SECRET (or OMISE_WEBHOOK_SECRET) in Dokploy/env — same value as WordPress yardsale_order_paid'
+      );
       return {
         success: true,
         paypal: result,
         woocommerce_updated: false,
-        warning: 'Configure OMISE_ORDER_PAID_SECRET to update WooCommerce order status',
+        warning:
+          'PayPal captured but WooCommerce not updated: set OMISE_ORDER_PAID_SECRET or OMISE_WEBHOOK_SECRET on this server (see docs/PAYPAL-INTEGRATION.md)',
       };
     }
 

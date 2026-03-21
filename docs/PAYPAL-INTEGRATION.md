@@ -170,6 +170,7 @@ OMISE_ORDER_PAID_SECRET=<ตรงกับ WordPress>
 | ปุ่ม PayPal ไม่ขึ้น | ดู Console ว่า SDK โหลดได้; ตรวจ adblock |
 | Log `capture_missing_custom_id` | มาจาก **build เก่า** — เวอร์ชันปัจจุบันใช้ minimal order (ไม่มี `custom_id`) และต้องมี `woocommerce_order_id` ใน `POST /api/paypal-capture-order`; **deploy โค้ดล่าสุด** + refresh หน้า `/payment-paypal` ถ้ายังเจอ `capture_missing_woocommerce_order_id` แปลว่า body ไม่มี `woocommerce_order_id` |
 | `FetchError [POST] ".../paypal-capture-order": 400` | ดู **ข้อความจริงจาก API** บนหน้า (หลัง deploy ล่าสุด): มักเป็น `woocommerce_order_id is required`, `orderID is required`, `woocommerce_order_id does not match`, หรือ `PayPal capture status: …` — ตรวจ Network tab → response JSON field `message` |
+| Log `capture_ok_woocommerce_skipped` / `OMISE_ORDER_PAID_SECRET not set` | **PayPal capture สำเร็จแล้ว** แต่เซิร์ฟเวอร์ Nuxt **ไม่มี secret** เรียก `yardsale/v1/order-paid` — ใส่ใน **Dokploy / .env** อย่างใดอย่างหนึ่ง: `OMISE_ORDER_PAID_SECRET` (แนะนำ) หรือ `OMISE_WEBHOOK_SECRET` ให้ **ตรงกับ WordPress** (`wp-config.php` หรือดู `docs/PAYMENT-OMISE-WEBHOOK.md`) แล้ว redeploy/restart container |
 
 SDK โหลดจาก `https://www.paypal.com/sdk/js?client-id=...` — โหมด sandbox/live ขึ้นกับ **ค่า Client ID** ที่ใส่ ไม่ต้องเปลี่ยน URL
 

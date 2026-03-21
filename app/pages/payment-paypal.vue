@@ -26,7 +26,12 @@ const checkoutCurrency = computed(
   () => (config.public.paypalCheckoutCurrency as string) || 'THB'
 );
 
-function onSuccess() {
+function onPayPalSuccess(payload: unknown) {
+  const p = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : undefined;
+  if (p?.woocommerce_updated === false && p?.warning) {
+    paypalSdkError.value = String(p.warning);
+    return;
+  }
   router.push(`/payment-successful?order_id=${orderId.value}`);
 }
 
@@ -96,7 +101,7 @@ function onPayPalError(err: unknown) {
           <PaymentPayPalSmartButton
             :woocommerce-order-id="orderId"
             :amount="amount"
-            @success="onSuccess"
+            @success="onPayPalSuccess"
             @cancel="() => {}"
             @error="onPayPalError"
             @loading="(v) => (paying = v)"

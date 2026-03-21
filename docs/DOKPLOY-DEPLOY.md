@@ -91,6 +91,9 @@ WP_MEDIA_URL=https://cms.yardsaleth.com
 # Nuxt Frontend URL
 BASE_URL=https://www.yardsaleth.com
 
+# บังคับถ้าใช้ PayPal หรือ Omise webhook — ให้ตรงกับ wp-config.php (define OMISE_ORDER_PAID_SECRET หรือ OMISE_WEBHOOK_SECRET)
+OMISE_ORDER_PAID_SECRET=your_random_secret_same_as_wordpress
+
 # Database
 DB_HOST=157.85.98.150:3306
 DB_NAME=nuxtcommerce_db
@@ -100,6 +103,7 @@ DB_PASSWORD=
 
 - **WP_MEDIA_URL** ใช้เป็น base URL สำหรับรูปจาก WordPress (ถ้าไม่ตั้ง จะใช้ `WP_PROXY_PUBLIC_URL`)
 - อย่า commit ค่า **WP_BASIC_AUTH** / **WP_CONSUMER_*** ลง git; ใส่เฉพาะใน Environment ของ Dockploy
+- **`OMISE_ORDER_PAID_SECRET`** — ถ้าไม่ตั้ง จะเห็น log `capture_ok_woocommerce_skipped` / PayPal เก็บเงินแล้วแต่ WooCommerce ไม่เป็น Processing; ต้องตรงกับ WordPress (ดู `docs/PAYMENT-OMISE-WEBHOOK.md`)
 
 ---
 
