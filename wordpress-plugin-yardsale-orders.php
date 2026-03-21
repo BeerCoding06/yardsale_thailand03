@@ -136,6 +136,32 @@ add_action('rest_api_init', function () {
         ),
     ));
 
+    /**
+     * สต็อกคงเหลือหลังหักยอดที่ชำระแล้ว (ออเดอร์ processing / completed / on-hold)
+     * formula=subtract_paid: effective = max(0, wc_stock - paid_qty) — ใช้เมื่อ WC ไม่ลดสต็อกตอนชำระ
+     * formula=wc_only: effective = wc_stock (เชื่อ WC เท่านั้น)
+     */
+    register_rest_route('yardsale/v1', '/product-stock-info', array(
+        'methods' => 'GET',
+        'callback' => 'yardsale_product_stock_info',
+        'permission_callback' => '__return_true',
+        'args' => array(
+            'product_id' => array('required' => true, 'type' => 'integer'),
+            'formula' => array(
+                'required' => false,
+                'type' => 'string',
+                'enum' => array('subtract_paid', 'wc_only'),
+                'default' => 'wc_only',
+            ),
+        ),
+    ));
+
+    register_rest_route('yardsale/v1', '/product-stock-batch', array(
+        'methods' => 'POST',
+        'callback' => 'yardsale_product_stock_batch',
+        'permission_callback' => '__return_true',
+    ));
+
     // ข้อมูลลูกค้า/ที่อยู่สำหรับ checkout (ใช้ JWT เดียวกับ create-order – ไม่พึ่ง wp/v2/users/me)
     register_rest_route('yardsale/v1', '/customer-data', array(
         'methods' => 'GET',
@@ -1045,6 +1071,168 @@ function yardsale_product_has_orders($request) {
     }
 
     return new WP_REST_Response(array('has_orders' => false), 200);
+}
+
+/**
+ * WC order line → ID ของสินค้า/ตัวแปรที่ใช้จับคู่กับ wc_get_product (variation ใช้ variation_id)
+ */
+function yardsale_order_line_product_wc_id($item) {
+    if (! is_a($item, 'WC_Order_Item_Product')) {
+        return 0;
+    }
+    $vid = (int) $item->get_variation_id();
+    if ($vid > 0) {
+        return $vid;
+    }
+    return (int) $item->get_product_id();
+}
+
+/**
+ * รวมจำนวนชิ้นที่ชำระ/ดำเนินการแล้ว (สถานะเดียวกับ product-has-orders) ต่อ WC line product id
+ */
+function yardsale_sum_paid_qty_for_line($wc_line_id) {
+    if (! function_exists('wc_get_orders')) {
+        return 0;
+    }
+    $wc_line_id = absint($wc_line_id);
+    if ($wc_line_id < 1) {
+        return 0;
+    }
+    $statuses = array('wc-processing', 'wc-completed', 'wc-on-hold', 'processing', 'completed', 'on-hold');
+    try {
+        $orders = wc_get_orders(array(
+            'limit'      => -1,
+            'status'     => $statuses,
+            'product_id' => $wc_line_id,
+            'return'     => 'objects',
+        ));
+        if (empty($orders)) {
+            return 0;
+        }
+        $total = 0;
+        foreach ($orders as $order) {
+            foreach ($order->get_items() as $item) {
+                if (yardsale_order_line_product_wc_id($item) === $wc_line_id) {
+                    $total += (int) $item->get_quantity();
+                }
+            }
+        }
+        return $total;
+    } catch (Exception $e) {
+        error_log('[yardsale_sum_paid_qty_for_line] ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * @param int         $wc_line_id Simple หรือ variation ID
+ * @param string      $formula    subtract_paid | wc_only
+ * @return array{line_id:int,paid_quantity:int,wc_stock_quantity:?int,effective_quantity:?int,effective_status:string}
+ */
+function yardsale_build_stock_row_for_line($wc_line_id, $formula) {
+    $wc_line_id = absint($wc_line_id);
+    $row = array(
+        'line_id'             => $wc_line_id,
+        'paid_quantity'       => 0,
+        'wc_stock_quantity'   => null,
+        'effective_quantity'  => null,
+        'effective_status'    => 'instock',
+    );
+    if ($wc_line_id < 1 || ! function_exists('wc_get_product')) {
+        return $row;
+    }
+    $product = wc_get_product($wc_line_id);
+    if (! $product) {
+        return $row;
+    }
+    $paid = yardsale_sum_paid_qty_for_line($wc_line_id);
+    $row['paid_quantity'] = (int) $paid;
+
+    if (! $product->managing_stock()) {
+        return $row;
+    }
+
+    $wc_q = $product->get_stock_quantity();
+    $wc_int = ($wc_q === null || $wc_q === '') ? 0 : (int) $wc_q;
+    $row['wc_stock_quantity'] = $wc_int;
+
+    $formula = ($formula === 'subtract_paid') ? 'subtract_paid' : 'wc_only';
+    $formula = apply_filters('yardsale_stock_effective_formula', $formula, $wc_line_id);
+
+    if ($formula === 'subtract_paid') {
+        $eff = max(0, $wc_int - (int) $paid);
+    } else {
+        $eff = max(0, $wc_int);
+    }
+    $row['effective_quantity'] = $eff;
+    $row['effective_status'] = ($eff < 1) ? 'outofstock' : 'instock';
+
+    return $row;
+}
+
+/**
+ * GET yardsale/v1/product-stock-info
+ */
+function yardsale_product_stock_info($request) {
+    if (! class_exists('WooCommerce') || ! function_exists('wc_get_product')) {
+        return new WP_Error('woocommerce_not_installed', 'WooCommerce is not installed', array('status' => 500));
+    }
+    $product_id = absint($request->get_param('product_id'));
+    $formula = $request->get_param('formula');
+    if ($formula !== 'subtract_paid') {
+        $formula = 'wc_only';
+    }
+
+    $product = wc_get_product($product_id);
+    if (! $product) {
+        return new WP_Error('not_found', 'Product not found', array('status' => 404));
+    }
+
+    $out = array(
+        'product_id' => $product_id,
+        'formula'    => $formula,
+        'simple'     => null,
+        'variations' => array(),
+    );
+
+    if ($product->is_type('variable')) {
+        foreach ($product->get_children() as $child_id) {
+            $cid = (int) $child_id;
+            if ($cid < 1) {
+                continue;
+            }
+            $out['variations'][] = yardsale_build_stock_row_for_line($cid, $formula);
+        }
+    } else {
+        $out['simple'] = yardsale_build_stock_row_for_line($product_id, $formula);
+    }
+
+    return new WP_REST_Response($out, 200);
+}
+
+/**
+ * POST yardsale/v1/product-stock-batch — body: { "formula": "subtract_paid"|"wc_only", "ids": [1,2,3] }
+ */
+function yardsale_product_stock_batch($request) {
+    if (! class_exists('WooCommerce') || ! function_exists('wc_get_product')) {
+        return new WP_Error('woocommerce_not_installed', 'WooCommerce is not installed', array('status' => 500));
+    }
+    $params = $request->get_json_params();
+    if (empty($params) || ! is_array($params)) {
+        $params = $request->get_body_params();
+    }
+    $ids = isset($params['ids']) && is_array($params['ids']) ? $params['ids'] : array();
+    $formula = isset($params['formula']) && $params['formula'] === 'subtract_paid' ? 'subtract_paid' : 'wc_only';
+
+    $lines = array();
+    foreach (array_unique(array_map('absint', $ids)) as $id) {
+        if ($id < 1) {
+            continue;
+        }
+        $lines[] = yardsale_build_stock_row_for_line($id, $formula);
+    }
+
+    return new WP_REST_Response(array('formula' => $formula, 'lines' => $lines), 200);
 }
 
 /**

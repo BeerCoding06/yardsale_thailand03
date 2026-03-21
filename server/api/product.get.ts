@@ -3,6 +3,10 @@
 
 import { executePhpScript } from '../utils/php-executor';
 import { rewriteWpUrlsInObject } from '../utils/rewrite-wp-urls';
+import {
+  fetchYardsaleProductStockInfo,
+  mergeEffectiveStockIntoProduct,
+} from '../utils/yardsale-stock';
 
 const wpBaseDefault = 'https://cms.yardsaleth.com';
 
@@ -38,6 +42,16 @@ function formatWcProductToOurShape(wc: any, productId: number): any {
       variations: { nodes: [] },
     },
   };
+}
+
+async function applySubtractPaidStockIfEnabled(
+  data: { product?: any } | null,
+  config: ReturnType<typeof useRuntimeConfig>
+): Promise<void> {
+  const enabled = (config as { stockSubtractPaidOrders?: boolean }).stockSubtractPaidOrders !== false;
+  if (!enabled || !data?.product?.databaseId) return;
+  const info = await fetchYardsaleProductStockInfo(Number(data.product.databaseId), 'subtract_paid');
+  mergeEffectiveStockIntoProduct(data.product, info);
 }
 
 export default cachedEventHandler(
@@ -81,18 +95,28 @@ export default cachedEventHandler(
         console.warn('[product] PHP/WooCommerce error:', data.error || data);
         if (hasId) {
           const fallback = await fetchProductByIdFallback(id!, config);
-          if (fallback) return rewriteWpUrlsInObject(fallback, wpBase, siteBase);
+          if (fallback) {
+            const out = rewriteWpUrlsInObject(fallback, wpBase, siteBase);
+            await applySubtractPaidStockIfEnabled(out, config);
+            return out;
+          }
         }
         return { product: null };
       }
       if (data?.product) {
-        return rewriteWpUrlsInObject(data, wpBase, siteBase);
+        const out = rewriteWpUrlsInObject(data, wpBase, siteBase);
+        await applySubtractPaidStockIfEnabled(out, config);
+        return out;
       }
     } catch (err: any) {
       console.error('[product] PHP failed:', err?.message || err);
       if (hasId) {
         const fallback = await fetchProductByIdFallback(id!, config);
-        if (fallback) return rewriteWpUrlsInObject(fallback, wpBase, siteBase);
+        if (fallback) {
+          const out = rewriteWpUrlsInObject(fallback, wpBase, siteBase);
+          await applySubtractPaidStockIfEnabled(out, config);
+          return out;
+        }
       }
       return { product: null };
     }
@@ -100,7 +124,11 @@ export default cachedEventHandler(
     // 2) ถ้ามี id แต่ PHP ไม่คืน product ลองดึงจาก WooCommerce โดยตรง (fallback)
     if (hasId) {
       const fallback = await fetchProductByIdFallback(id!, config);
-      if (fallback) return rewriteWpUrlsInObject(fallback, wpBase, siteBase);
+      if (fallback) {
+        const out = rewriteWpUrlsInObject(fallback, wpBase, siteBase);
+        await applySubtractPaidStockIfEnabled(out, config);
+        return out;
+      }
     }
 
     return { product: null };

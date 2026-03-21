@@ -78,6 +78,11 @@ export default defineNuxtConfig({
     orderPaidSecret: process.env.ORDER_PAID_SECRET || process.env.OMISE_ORDER_PAID_SECRET || '',
     paypalClientSecret: process.env.PAYPAL_CLIENT_SECRET || '',
     paypalEnvironment: process.env.PAYPAL_ENVIRONMENT || 'sandbox',
+    /**
+     * คำนวณสต็อกหน้าร้าน = สต็อก WC − จำนวนที่ชำระแล้ว (ออเดอร์ processing/completed/on-hold)
+     * ตั้ง NUXT_STOCK_SUBTRACT_PAID=false ถ้า WooCommerce ลดสต็อกตอนชำระเงินอยู่แล้ว (กันหักซ้ำ)
+     */
+    stockSubtractPaidOrders: process.env.NUXT_STOCK_SUBTRACT_PAID !== 'false',
     public: {
       version: pkg.version,
       baseUrl: process.env.BASE_URL || 'https://www.yardsaleth.com',

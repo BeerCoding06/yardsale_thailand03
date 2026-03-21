@@ -3,8 +3,18 @@
 
 import * as wpUtils from '../utils/wp';
 import { isCartLineSalableBySnapshot } from '../utils/cart-line-salable';
+import { fetchYardsaleStockBatch } from '../utils/yardsale-stock';
 
 type Item = { product_id: number; variation_id?: number; quantity: number };
+
+type PendingLine = {
+  item: Item;
+  qty: number;
+  stockQuantity: number | null;
+  stockStatus: string;
+  name: string;
+  lineId: number;
+};
 
 export default defineEventHandler(async (event) => {
   try {
@@ -22,6 +32,12 @@ export default defineEventHandler(async (event) => {
     if (!consumerKey || !consumerSecret) {
       return { valid: true, errors: [] };
     }
+
+    const config = useRuntimeConfig();
+    const useSubtractPaid =
+      (config as { stockSubtractPaidOrders?: boolean }).stockSubtractPaidOrders !== false;
+
+    const pending: PendingLine[] = [];
 
     for (const item of items) {
       const { product_id, variation_id, quantity } = item;
@@ -67,38 +83,58 @@ export default defineEventHandler(async (event) => {
           stockQuantity = prod.stock_quantity != null ? Number(prod.stock_quantity) : null;
         }
 
-        const stNorm = (stockStatus || '').toLowerCase().replace(/\s/g, '');
-        if (!isCartLineSalableBySnapshot(stockStatus, stockQuantity, qty)) {
-          if (stockQuantity != null && qty > stockQuantity) {
-            errors.push({
-              product_id,
-              ...(variation_id && { variation_id }),
-              name,
-              message: `สต็อกไม่เพียงพอ (มี ${stockQuantity} ชิ้น, สั่ง ${qty})`,
-            });
-          } else if (stNorm === 'outofstock') {
-            errors.push({
-              product_id,
-              ...(variation_id && { variation_id }),
-              name,
-              message: 'สินค้าหมดสต็อก',
-            });
-          } else {
-            errors.push({
-              product_id,
-              ...(variation_id && { variation_id }),
-              name,
-              message: 'สต็อกไม่เพียงพอ (0 ชิ้น)',
-            });
-          }
-          continue;
-        }
+        const lineId = variation_id ? Number(variation_id) : Number(product_id);
+        pending.push({ item, qty, stockQuantity, stockStatus, name, lineId });
       } catch (e: any) {
         errors.push({
-          product_id,
-          ...(variation_id && { variation_id }),
+          product_id: item.product_id,
+          ...(item.variation_id && { variation_id: item.variation_id }),
           message: e?.message || 'ตรวจสต็อกไม่ได้',
         });
+      }
+    }
+
+    const lineIds = pending.map((p) => p.lineId);
+    const stockMap = useSubtractPaid
+      ? await fetchYardsaleStockBatch(lineIds, 'subtract_paid')
+      : new Map();
+
+    for (const row of pending) {
+      const { item, qty, name } = row;
+      const { product_id, variation_id } = item;
+
+      let stockQuantity = row.stockQuantity;
+      let stockStatus = row.stockStatus;
+      const adj = stockMap.get(row.lineId);
+      if (adj && adj.effective_quantity != null) {
+        stockQuantity = adj.effective_quantity;
+        stockStatus = adj.effective_status || stockStatus;
+      }
+
+      const stNorm = (stockStatus || '').toLowerCase().replace(/\s/g, '');
+      if (!isCartLineSalableBySnapshot(stockStatus, stockQuantity, qty)) {
+        if (stockQuantity != null && qty > stockQuantity) {
+          errors.push({
+            product_id,
+            ...(variation_id && { variation_id }),
+            name,
+            message: `สต็อกไม่เพียงพอ (มี ${stockQuantity} ชิ้น, สั่ง ${qty})`,
+          });
+        } else if (stNorm === 'outofstock') {
+          errors.push({
+            product_id,
+            ...(variation_id && { variation_id }),
+            name,
+            message: 'สินค้าหมดสต็อก',
+          });
+        } else {
+          errors.push({
+            product_id,
+            ...(variation_id && { variation_id }),
+            name,
+            message: 'สต็อกไม่เพียงพอ (0 ชิ้น)',
+          });
+        }
       }
     }
 
