@@ -34,8 +34,9 @@ export default defineEventHandler(async (event) => {
     }
 
     const config = useRuntimeConfig();
+    /** Opt-in — ถ้าเปิดโดยไม่จำเป็นเมื่อ WC ลดสต็อกแล้ว จะทำให้สต็อกต่ำเกินจริงและบล็อก checkout */
     const useSubtractPaid =
-      (config as { stockSubtractPaidOrders?: boolean }).stockSubtractPaidOrders !== false;
+      (config as { stockSubtractPaidOrders?: boolean }).stockSubtractPaidOrders === true;
 
     const pending: PendingLine[] = [];
 

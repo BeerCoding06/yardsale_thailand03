@@ -3,7 +3,7 @@
 ## พฤติกรรม
 
 - ปลั๊กอิน WordPress **Yardsale Orders API** นับจำนวนชิ้นจากออเดอร์ที่สถานะ **`processing`**, **`completed`**, **`on-hold`** (รวมรูปแบบ `wc-*`) ต่อรหัสสินค้า WooCommerce (simple = product id, variable = **variation id**)
-- โหมด **`subtract_paid`** (ค่าเริ่มต้นฝั่ง Nuxt เมื่อไม่ตั้ง `NUXT_STOCK_SUBTRACT_PAID=false`):
+- โหมด **`subtract_paid`** (**ต้องเปิดเอง** ด้วย `NUXT_STOCK_SUBTRACT_PAID=true` — ค่าเริ่มต้น Nuxt เป็น **ปิด** เพื่อไม่หักซ้ำกับ WooCommerce):
 
   `effective_stock = max(0, stock_quantity_ใน_WC − จำนวนที่ชำระ/ดำเนินการแล้ว)`
 
@@ -11,14 +11,16 @@
   - **`GET /api/product`** — หลังดึงสินค้า จะเรียก `yardsale/v1/product-stock-info` แล้วเขียนทับ `stockQuantity` / `stockStatus` ของสินค้าและแต่ละ variation
   - **`POST /api/check-cart-stock`** — เรียก `yardsale/v1/product-stock-batch` แล้วใช้ `effective_quantity` ตรวจก่อนชำระเงิน
 
-## เมื่อ WooCommerce ลดสต็อกตอนชำระเงินอยู่แล้ว
+## เมื่อ WooCommerce ลดสต็อกอยู่แล้ว (กรณีทั่วไป)
 
-ถ้าเปิดลดสต็อกมาตรฐานของ WooCommerce (`payment_complete()` ฯลฯ) ค่า `stock_quantity` ใน WC **ลดลงแล้ว** — การหัก `paid` ซ้ำจะทำให้สต็อกต่ำเกินจริง
+ถ้า WooCommerce ลด `_stock` ตอนสร้างออเดอร์หรือตอนชำระเงิน ค่า `stock_quantity` ใน WC **คือคงเหลือจริงแล้ว** — **ห้าม** เปิด `subtract_paid` เพราะจะหักซ้ำ
 
-ให้ปิดการหักฝั่ง Yardsale:
+ค่าเริ่มต้น: **ไม่เปิด** (`NUXT_STOCK_SUBTRACT_PAID` ไม่ใช่ `true`)
+
+เปิดเฉพาะเมื่อ WC **ไม่** ลดสต็อกแต่ต้องการให้หน้าร้านหักจากออเดอร์ที่ชำระแล้ว:
 
 ```bash
-NUXT_STOCK_SUBTRACT_PAID=false
+NUXT_STOCK_SUBTRACT_PAID=true
 ```
 
 ## Endpoint ปลั๊กอิน (ไม่ต้อง JWT)

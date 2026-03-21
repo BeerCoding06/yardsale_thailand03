@@ -48,7 +48,8 @@ async function applySubtractPaidStockIfEnabled(
   data: { product?: any } | null,
   config: ReturnType<typeof useRuntimeConfig>
 ): Promise<void> {
-  const enabled = (config as { stockSubtractPaidOrders?: boolean }).stockSubtractPaidOrders !== false;
+  /** Opt-in only — avoids double-deduction when WC already reduces stock on order/payment */
+  const enabled = (config as { stockSubtractPaidOrders?: boolean }).stockSubtractPaidOrders === true;
   if (!enabled || !data?.product?.databaseId) return;
   const info = await fetchYardsaleProductStockInfo(Number(data.product.databaseId), 'subtract_paid');
   mergeEffectiveStockIntoProduct(data.product, info);
@@ -133,7 +134,8 @@ export default cachedEventHandler(
 
     return { product: null };
   },
-  { maxAge: 1, swr: false, getKey: (e) => e.req.url! }
+  /** ไม่แคชผลสินค้า — ลดโอกาส checkout ใช้ stock_quantity / stock_status เก่า */
+  { maxAge: 0, swr: false, getKey: (e) => e.req.url! }
 );
 
 /** Fallback: ดึง product by ID จาก WooCommerce โดยตรง (ไม่ผ่าน PHP) สำหรับเมื่อ PHP ล้มเหลวหรือไม่มี PHP */
