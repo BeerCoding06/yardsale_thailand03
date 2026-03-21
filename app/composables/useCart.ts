@@ -1,5 +1,6 @@
 // app/composables/useCart.ts
 import { push } from 'notivue';
+import { isCartLineSalableBySnapshot } from '~/utils/cart-line-salable';
 
 export const useCart = () => {
   const { t } = useI18n();
@@ -144,19 +145,15 @@ export const useCart = () => {
     const stockQuantity = item.variation?.node?.stockQuantity ?? 
                          item.product?.node?.stockQuantity ?? 
                          null;
-    const stockStatus = (item.variation?.node?.stockStatus ?? 
-                        item.product?.node?.stockStatus ?? 
-                        '').toUpperCase();
-    
-    // Check if product is out of stock (support multiple formats)
-    if (stockStatus === 'OUT_OF_STOCK' || stockStatus === 'OUTOFSTOCK' || stockStatus === 'OUT OF STOCK') {
-      push.error(t('cart.out_of_stock'));
-      return;
-    }
-    
-    // Check if quantity exceeds stock (only if managing stock)
-    if (stockQuantity !== null && quantity > stockQuantity) {
-      push.error(t('cart.insufficient_stock'));
+    const stockStatus = item.variation?.node?.stockStatus ?? item.product?.node?.stockStatus;
+
+    if (!isCartLineSalableBySnapshot(stockStatus, stockQuantity, quantity)) {
+      const norm = (stockStatus ?? '').toString().toUpperCase().replace(/\s/g, '_');
+      if (norm === 'OUT_OF_STOCK' || norm === 'OUTOFSTOCK') {
+        push.error(t('cart.out_of_stock'));
+      } else {
+        push.error(t('cart.insufficient_stock'));
+      }
       return;
     }
     

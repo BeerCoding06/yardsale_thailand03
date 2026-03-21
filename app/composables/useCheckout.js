@@ -1,3 +1,5 @@
+import { isCartLineSalableBySnapshot } from '~/utils/cart-line-salable';
+
 export const useCheckout = () => {
   const { cart } = useCart();
   const { user, isAuthenticated } = useAuth();
@@ -119,16 +121,14 @@ export const useCheckout = () => {
     }).filter((i) => i.product_id > 0);
   };
 
-  /** ตรวจสต็อกจากข้อมูลใน cart (client-side) ใช้ disable ปุ่ม */
+  /** ตรวจสต็อกจากข้อมูลใน cart (client-side) ใช้ disable ปุ่ม — สอดคล้อง check-cart-stock (ดูจำนวนจริงแม้ WC ค้าง outofstock) */
   const isCartStockValid = () => {
     for (const item of cart.value || []) {
       const node = item.variation?.node || item.product?.node || {};
-      const stockStatus = (node.stockStatus ?? '').toString().toUpperCase().replace(/\s/g, '_');
+      const stockStatus = node.stockStatus;
       const stockQuantity = node.stockQuantity != null ? Number(node.stockQuantity) : null;
       const qty = item.quantity || 1;
-      if (stockStatus === 'OUT_OF_STOCK' || stockStatus === 'OUTOFSTOCK') return false;
-      if (stockQuantity !== null && stockQuantity < 1) return false;
-      if (stockQuantity !== null && qty > stockQuantity) return false;
+      if (!isCartLineSalableBySnapshot(stockStatus, stockQuantity, qty)) return false;
     }
     return true;
   };

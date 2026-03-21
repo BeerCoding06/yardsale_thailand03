@@ -2,6 +2,7 @@
 // ตรวจสต็อกของรายการในตะกร้าก่อนกดชำระเงิน: ทุกรายการต้องมี stock > 0 และ quantity <= stock
 
 import * as wpUtils from '../utils/wp';
+import { isCartLineSalableBySnapshot } from '../utils/cart-line-salable';
 
 type Item = { product_id: number; variation_id?: number; quantity: number };
 
@@ -56,31 +57,31 @@ export default defineEventHandler(async (event) => {
           stockQuantity = prod.stock_quantity != null ? Number(prod.stock_quantity) : null;
         }
 
-        if (stockStatus === 'outofstock') {
-          errors.push({
-            product_id,
-            ...(variation_id && { variation_id }),
-            name,
-            message: 'สินค้าหมดสต็อก',
-          });
+        const stNorm = (stockStatus || '').toLowerCase().replace(/\s/g, '');
+        if (!isCartLineSalableBySnapshot(stockStatus, stockQuantity, qty)) {
+          if (stockQuantity != null && qty > stockQuantity) {
+            errors.push({
+              product_id,
+              ...(variation_id && { variation_id }),
+              name,
+              message: `สต็อกไม่เพียงพอ (มี ${stockQuantity} ชิ้น, สั่ง ${qty})`,
+            });
+          } else if (stNorm === 'outofstock') {
+            errors.push({
+              product_id,
+              ...(variation_id && { variation_id }),
+              name,
+              message: 'สินค้าหมดสต็อก',
+            });
+          } else {
+            errors.push({
+              product_id,
+              ...(variation_id && { variation_id }),
+              name,
+              message: 'สต็อกไม่เพียงพอ (0 ชิ้น)',
+            });
+          }
           continue;
-        }
-
-        const available = stockQuantity != null ? stockQuantity : 999999;
-        if (available < 1) {
-          errors.push({
-            product_id,
-            ...(variation_id && { variation_id }),
-            name,
-            message: 'สต็อกไม่เพียงพอ (0 ชิ้น)',
-          });
-        } else if (qty > available) {
-          errors.push({
-            product_id,
-            ...(variation_id && { variation_id }),
-            name,
-            message: `สต็อกไม่เพียงพอ (มี ${available} ชิ้น, สั่ง ${qty})`,
-          });
         }
       } catch (e: any) {
         errors.push({
