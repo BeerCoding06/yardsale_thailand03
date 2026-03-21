@@ -10,14 +10,11 @@ export default defineEventHandler(async (event) => {
   const clientId = config.public.paypalClientId || process.env.PAYPAL_CLIENT_ID;
   const clientSecret = config.paypalClientSecret || process.env.PAYPAL_CLIENT_SECRET;
   const env = (config.paypalEnvironment || process.env.PAYPAL_ENVIRONMENT || 'sandbox') as 'sandbox' | 'live';
-  /** ตรงกับ WordPress wp-config — Dokploy: ใส่ `OMISE_ORDER_PAID_SECRET` หรือถ้า build แยก runtime ใช้ `NUXT_OMISE_ORDER_PAID_SECRET` */
+  /** ตรงกับ WordPress `ORDER_PAID_SECRET` (หรือ define เก่าใน plugin) — Dokploy: `ORDER_PAID_SECRET` หรือ `NUXT_ORDER_PAID_SECRET` */
   const orderPaidSecret =
-    process.env.OMISE_ORDER_PAID_SECRET ||
-    process.env.NUXT_OMISE_ORDER_PAID_SECRET ||
-    (config.omiseOrderPaidSecret as string) ||
-    config.omiseWebhookSecret ||
-    process.env.OMISE_WEBHOOK_SECRET ||
-    process.env.NUXT_OMISE_WEBHOOK_SECRET ||
+    process.env.ORDER_PAID_SECRET ||
+    process.env.NUXT_ORDER_PAID_SECRET ||
+    (config.orderPaidSecret as string) ||
     '';
 
   if (!clientId || !clientSecret) {
@@ -84,7 +81,7 @@ export default defineEventHandler(async (event) => {
     if (!orderPaidSecret) {
       paypalLogWarn(
         'capture_ok_woocommerce_skipped',
-        'No order-paid secret: set OMISE_ORDER_PAID_SECRET or OMISE_WEBHOOK_SECRET on Nuxt server (match wp-config.php)',
+        'No ORDER_PAID_SECRET on Nuxt server (must match WordPress ORDER_PAID_SECRET)',
         {
           paypal_order_id: result.paypalOrderId,
           capture_id: result.captureId ?? undefined,
@@ -92,7 +89,7 @@ export default defineEventHandler(async (event) => {
         }
       );
       console.error(
-        '[paypal-capture-order] WooCommerce not updated: set OMISE_ORDER_PAID_SECRET (or OMISE_WEBHOOK_SECRET) in Dokploy/env — same value as WordPress yardsale_order_paid'
+        '[paypal-capture-order] WooCommerce not updated: set ORDER_PAID_SECRET (or NUXT_ORDER_PAID_SECRET) on Nuxt — same value as WordPress ORDER_PAID_SECRET'
       );
       return {
         success: true,
@@ -100,7 +97,7 @@ export default defineEventHandler(async (event) => {
         woocommerce_updated: false,
         warning_code: 'MISSING_ORDER_PAID_SECRET',
         warning:
-          'PayPal captured but WooCommerce not updated: set OMISE_ORDER_PAID_SECRET (or OMISE_WEBHOOK_SECRET) on the Nuxt server — same value as WordPress wp-config.php. Dokploy: Environment tab on this app. See docs/PAYPAL-INTEGRATION.md',
+          'PayPal captured but WooCommerce not updated: set ORDER_PAID_SECRET on the Nuxt server (same value as WordPress ORDER_PAID_SECRET in wp-config.php). Restart the app. See docs/PAYPAL-INTEGRATION.md',
       };
     }
 

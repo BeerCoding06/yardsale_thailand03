@@ -115,7 +115,7 @@ add_action('rest_api_init', function () {
         'permission_callback' => 'yardsale_jwt_auth_check',
     ));
 
-    // อัปเดตออเดอร์เป็น processing เมื่อชำระ Omise สำเร็จ (เรียกจาก webhook โดยส่ง secret)
+    // อัปเดตออเดอร์เป็น processing เมื่อชำระสำเร็จ (Nuxt หลัง PayPal / Omise — ส่ง secret ตรงกับ ORDER_PAID_SECRET)
     register_rest_route('yardsale/v1', '/order-paid', array(
         'methods' => 'POST',
         'callback' => 'yardsale_order_paid',
@@ -1139,8 +1139,28 @@ function yardsale_get_customer_data($request) {
 }
 
 /**
- * อัปเดตออเดอร์เป็น processing เมื่อชำระ Omise สำเร็จ (เรียกจาก Nuxt webhook)
- * ต้องส่ง secret ตรงกับ OMISE_ORDER_PAID_SECRET หรือ OMISE_WEBHOOK_SECRET ใน WordPress
+ * Secret สำหรับ REST order-paid (PayPal / Omise ผ่าน Nuxt) — ลำดับ: ORDER_PAID_SECRET แล้วจึงชื่อเก่า Omise
+ */
+function yardsale_get_order_paid_expected_secret() {
+    if (defined('ORDER_PAID_SECRET') && (string) ORDER_PAID_SECRET !== '') {
+        return (string) ORDER_PAID_SECRET;
+    }
+    $env_order = getenv('ORDER_PAID_SECRET');
+    if ($env_order !== false && $env_order !== '') {
+        return (string) $env_order;
+    }
+    if (defined('OMISE_ORDER_PAID_SECRET') && (string) OMISE_ORDER_PAID_SECRET !== '') {
+        return (string) OMISE_ORDER_PAID_SECRET;
+    }
+    if (defined('OMISE_WEBHOOK_SECRET') && (string) OMISE_WEBHOOK_SECRET !== '') {
+        return (string) OMISE_WEBHOOK_SECRET;
+    }
+    $legacy = getenv('OMISE_ORDER_PAID_SECRET');
+    return ($legacy !== false && $legacy !== '') ? (string) $legacy : '';
+}
+
+/**
+ * อัปเดตออเดอร์เป็น processing เมื่อชำระสำเร็จ (เรียกจาก Nuxt หลัง PayPal capture หรือ Omise webhook)
  */
 function yardsale_order_paid($request) {
     $params = $request->get_json_params();
@@ -1150,7 +1170,7 @@ function yardsale_order_paid($request) {
     $order_id = isset($params['order_id']) ? (int) $params['order_id'] : 0;
     $secret   = isset($params['secret']) ? (string) $params['secret'] : '';
 
-    $expected = defined('OMISE_ORDER_PAID_SECRET') ? OMISE_ORDER_PAID_SECRET : (defined('OMISE_WEBHOOK_SECRET') ? OMISE_WEBHOOK_SECRET : getenv('OMISE_ORDER_PAID_SECRET'));
+    $expected = yardsale_get_order_paid_expected_secret();
     if ($expected !== '' && $secret !== (string) $expected) {
         error_log('[yardsale_order_paid] Invalid or missing secret');
         return new WP_Error('forbidden', 'Invalid secret', array('status' => 403));

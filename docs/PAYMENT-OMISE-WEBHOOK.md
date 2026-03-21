@@ -39,15 +39,16 @@ OMISE_PUBLIC_KEY=pkey_test_xxxx
 OMISE_SECRET_KEY=skey_test_xxxx
 # Optional: สำหรับตรวจ signature webhook
 OMISE_WEBHOOK_SECRET=whsec_xxxx
-# ค่าลับให้ WordPress รับคำขอ order-paid (ตั้งใน WordPress ด้วยค่าเดียวกัน)
-OMISE_ORDER_PAID_SECRET=your_random_secret_string
+# ค่าลับให้ WordPress รับคำขอ order-paid (PayPal / Omise ผ่าน Nuxt) — แนะนำชื่อนี้
+ORDER_PAID_SECRET=your_random_secret_string
+# ชื่อเก่า (ยังใช้ได้): OMISE_ORDER_PAID_SECRET=...
 ```
 
-ใน **WordPress** (wp-config.php หรือ env ของเว็บเซิร์ฟเวอร์) ตั้งค่าเดียวกับ Nuxt สำหรับ order-paid:
+ใน **WordPress** (wp-config.php):
 
 ```php
-define('OMISE_ORDER_PAID_SECRET', 'your_random_secret_string');
-// หรือ OMISE_WEBHOOK_SECRET
+define('ORDER_PAID_SECRET', 'your_random_secret_string');
+// ชื่อเก่ายังรองรับ: define('OMISE_ORDER_PAID_SECRET', ...) หรือ OMISE_WEBHOOK_SECRET
 ```
 
 ### ตั้ง Webhook ใน Omise Dashboard
@@ -90,11 +91,11 @@ Flow ที่ทำให้สถานะเปลี่ยน:
 
 3. **Nuxt เรียก WordPress**  
    - `POST {wpBaseUrl}/wp-json/yardsale/v1/order-paid`  
-   - Body: `{ order_id: number, secret: OMISE_ORDER_PAID_SECRET }`  
+   - Body: `{ order_id: number, secret: ORDER_PAID_SECRET }` (ค่าเดียวกับ `ORDER_PAID_SECRET` บน Nuxt)  
    - ต้องตั้ง `wpBaseUrl` (Nuxt) และ WordPress ต้องเปิด endpoint นี้ได้จาก Nuxt
 
 4. **WordPress Plugin** (`yardsale_order_paid`)  
-   - ตรวจ `secret` ตรงกับ `OMISE_ORDER_PAID_SECRET` หรือ `OMISE_WEBHOOK_SECRET` ใน wp-config  
+   - ตรวจ `secret` ตรงกับ `ORDER_PAID_SECRET` (หรือชื่อเก่า Omise ใน wp-config)  
    - `wc_get_order(order_id)` → `$order->payment_complete()`  
    - สถานะ WooCommerce จะเปลี่ยนเป็น **Processing** และบันทึกว่าชำระแล้ว (วันที่ชำระ, ลดสต็อก)
 
@@ -103,8 +104,8 @@ Flow ที่ทำให้สถานะเปลี่ยน:
 | รายการ | ตรวจ |
 |--------|------|
 | Omise Dashboard → Webhooks | URL = `https://{โดเมน Nuxt}/api/omise-webhook` และเลือก event **charge.complete** |
-| Nuxt env | `OMISE_WEBHOOK_SECRET` (ถ้าใส่ Omise จะตรวจ signature), `OMISE_ORDER_PAID_SECRET` |
-| WordPress wp-config.php | `define('OMISE_ORDER_PAID_SECRET', 'ค่าเดียวกับ Nuxt');` |
+| Nuxt env | `OMISE_WEBHOOK_SECRET` (ตรวจ signature webhook), `ORDER_PAID_SECRET` (เรียก order-paid) |
+| WordPress wp-config.php | `define('ORDER_PAID_SECRET', 'ค่าเดียวกับ Nuxt');` |
 | Nuxt env | `WP_BASE_URL` หรือ `wpBaseUrl` ชี้ไป WordPress จริง (เช่น cms.yardsaleth.com) |
 | สร้าง charge | ส่ง `metadata.order_id` แล้ว (ใน omise-create-charge มีแล้ว) |
 

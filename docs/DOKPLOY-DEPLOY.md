@@ -91,9 +91,9 @@ WP_MEDIA_URL=https://cms.yardsaleth.com
 # Nuxt Frontend URL
 BASE_URL=https://www.yardsaleth.com
 
-# บังคับถ้าใช้ PayPal หรือ Omise webhook — ให้ตรงกับ wp-config.php (define OMISE_ORDER_PAID_SECRET หรือ OMISE_WEBHOOK_SECRET)
-OMISE_ORDER_PAID_SECRET=your_random_secret_same_as_wordpress
-# ถ้า env ด้านบนไม่ถูกโหลดหลัง build ลอง: NUXT_OMISE_ORDER_PAID_SECRET=ค่าเดียวกัน
+# บังคับถ้าใช้ PayPal — ให้ตรงกับ WordPress define('ORDER_PAID_SECRET', ...)
+ORDER_PAID_SECRET=your_random_secret_same_as_wordpress
+# ถ้า runtime ไม่เห็นค่า: NUXT_ORDER_PAID_SECRET=ค่าเดียวกัน
 
 # Database
 DB_HOST=157.85.98.150:3306
@@ -104,7 +104,7 @@ DB_PASSWORD=
 
 - **WP_MEDIA_URL** ใช้เป็น base URL สำหรับรูปจาก WordPress (ถ้าไม่ตั้ง จะใช้ `WP_PROXY_PUBLIC_URL`)
 - อย่า commit ค่า **WP_BASIC_AUTH** / **WP_CONSUMER_*** ลง git; ใส่เฉพาะใน Environment ของ Dockploy
-- **`OMISE_ORDER_PAID_SECRET`** — ถ้าไม่ตั้ง จะเห็น log `capture_ok_woocommerce_skipped` / PayPal เก็บเงินแล้วแต่ WooCommerce ไม่เป็น Processing; ต้องตรงกับ WordPress (ดู `docs/PAYMENT-OMISE-WEBHOOK.md`)
+- **`ORDER_PAID_SECRET`** — ถ้าไม่ตั้ง จะเห็น log `capture_ok_woocommerce_skipped` / PayPal เก็บเงินแล้วแต่ WooCommerce ไม่เป็น Processing; ต้องตรงกับ WordPress `ORDER_PAID_SECRET` (ดู `docs/PAYPAL-INTEGRATION.md`)
 
 ---
 
@@ -115,7 +115,7 @@ DB_PASSWORD=
 | ตัวแปร | ความหมาย |
 |--------|-----------|
 | `PAYPAL_LOG=1` | เปิด log เหตุการณ์ปกติ: `create_order_ok`, `capture_ok` (ยอด/สกุล/ออเดอร์ WC ฯลฯ) |
-| (ไม่ตั้ง) | ยังมี log **เตือน/ผิดพลาด** อยู่ (`level":"warn"` / `"error"`) เช่น capture ไม่สำเร็จ, `order-paid` ล้มเหลว, ไม่มี `OMISE_ORDER_PAID_SECRET` |
+| (ไม่ตั้ง) | ยังมี log **เตือน/ผิดพลาด** อยู่ (`level":"warn"` / `"error"`) เช่น capture ไม่สำเร็จ, `order-paid` ล้มเหลว, ไม่มี `ORDER_PAID_SECRET` |
 
 ตัวอย่างใน Environment ของ Dokploy:
 

@@ -13,9 +13,11 @@ export default defineEventHandler(async (event) => {
       process.env.NUXT_OMISE_WEBHOOK_SECRET ||
       '';
     const orderPaidSecret =
+      process.env.ORDER_PAID_SECRET ||
+      process.env.NUXT_ORDER_PAID_SECRET ||
+      (config.orderPaidSecret as string) ||
       process.env.OMISE_ORDER_PAID_SECRET ||
       process.env.NUXT_OMISE_ORDER_PAID_SECRET ||
-      (config.omiseOrderPaidSecret as string) ||
       webhookSecret;
     const rawBody = await readRawBody(event);
     if (!rawBody) {
