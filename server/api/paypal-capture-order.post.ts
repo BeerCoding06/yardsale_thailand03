@@ -10,11 +10,14 @@ export default defineEventHandler(async (event) => {
   const clientId = config.public.paypalClientId || process.env.PAYPAL_CLIENT_ID;
   const clientSecret = config.paypalClientSecret || process.env.PAYPAL_CLIENT_SECRET;
   const env = (config.paypalEnvironment || process.env.PAYPAL_ENVIRONMENT || 'sandbox') as 'sandbox' | 'live';
-  /** ต้องตรงกับ WordPress `OMISE_ORDER_PAID_SECRET` หรือ `OMISE_WEBHOOK_SECRET` (wp-config) — ตั้งใน Dokploy / .env Nuxt */
+  /** ตรงกับ WordPress wp-config — Dokploy: ใส่ `OMISE_ORDER_PAID_SECRET` หรือถ้า build แยก runtime ใช้ `NUXT_OMISE_ORDER_PAID_SECRET` */
   const orderPaidSecret =
     process.env.OMISE_ORDER_PAID_SECRET ||
+    process.env.NUXT_OMISE_ORDER_PAID_SECRET ||
+    (config.omiseOrderPaidSecret as string) ||
     config.omiseWebhookSecret ||
     process.env.OMISE_WEBHOOK_SECRET ||
+    process.env.NUXT_OMISE_WEBHOOK_SECRET ||
     '';
 
   if (!clientId || !clientSecret) {
@@ -95,8 +98,9 @@ export default defineEventHandler(async (event) => {
         success: true,
         paypal: result,
         woocommerce_updated: false,
+        warning_code: 'MISSING_ORDER_PAID_SECRET',
         warning:
-          'PayPal captured but WooCommerce not updated: set OMISE_ORDER_PAID_SECRET or OMISE_WEBHOOK_SECRET on this server (see docs/PAYPAL-INTEGRATION.md)',
+          'PayPal captured but WooCommerce not updated: set OMISE_ORDER_PAID_SECRET (or OMISE_WEBHOOK_SECRET) on the Nuxt server — same value as WordPress wp-config.php. Dokploy: Environment tab on this app. See docs/PAYPAL-INTEGRATION.md',
       };
     }
 

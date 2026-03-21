@@ -30,8 +30,10 @@ PAYPAL_ENVIRONMENT=sandbox
 # PAYPAL_SANDBOX_THB_TO_USD=0.029
 # NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY=USD
 
-# Same secret as Omise flow – WordPress plugin order-paid
+# Same secret as Omise flow – WordPress plugin order-paid (required for WC status after PayPal)
 OMISE_ORDER_PAID_SECRET=your_random_secret_string
+# Docker/Nuxt runtime override (ถ้า build ไม่มีค่า — บางโฮสต์ใช้แทนได้)
+# NUXT_OMISE_ORDER_PAID_SECRET=your_random_secret_string
 ```
 
 WordPress `wp-config.php`:

@@ -73,6 +73,8 @@ export default defineNuxtConfig({
     omiseSecretKey: process.env.OMISE_SECRET_KEY || '',
     omisePublicKey: process.env.OMISE_PUBLIC_KEY || '',
     omiseWebhookSecret: process.env.OMISE_WEBHOOK_SECRET || '',
+    /** เรียก WordPress order-paid หลัง PayPal capture / ใช้คู่กับ Omise — runtime: ตั้ง `OMISE_ORDER_PAID_SECRET` หรือ `NUXT_OMISE_ORDER_PAID_SECRET` */
+    omiseOrderPaidSecret: process.env.OMISE_ORDER_PAID_SECRET || '',
     paypalClientSecret: process.env.PAYPAL_CLIENT_SECRET || '',
     paypalEnvironment: process.env.PAYPAL_ENVIRONMENT || 'sandbox',
     public: {

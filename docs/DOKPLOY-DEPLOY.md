@@ -93,6 +93,7 @@ BASE_URL=https://www.yardsaleth.com
 
 # บังคับถ้าใช้ PayPal หรือ Omise webhook — ให้ตรงกับ wp-config.php (define OMISE_ORDER_PAID_SECRET หรือ OMISE_WEBHOOK_SECRET)
 OMISE_ORDER_PAID_SECRET=your_random_secret_same_as_wordpress
+# ถ้า env ด้านบนไม่ถูกโหลดหลัง build ลอง: NUXT_OMISE_ORDER_PAID_SECRET=ค่าเดียวกัน
 
 # Database
 DB_HOST=157.85.98.150:3306

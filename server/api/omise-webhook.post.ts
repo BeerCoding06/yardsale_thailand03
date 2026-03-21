@@ -7,8 +7,16 @@ import crypto from 'crypto';
 export default defineEventHandler(async (event) => {
   try {
     const config = useRuntimeConfig();
-    const webhookSecret = config.omiseWebhookSecret || process.env.OMISE_WEBHOOK_SECRET;
-    const orderPaidSecret = process.env.OMISE_ORDER_PAID_SECRET || webhookSecret;
+    const webhookSecret =
+      config.omiseWebhookSecret ||
+      process.env.OMISE_WEBHOOK_SECRET ||
+      process.env.NUXT_OMISE_WEBHOOK_SECRET ||
+      '';
+    const orderPaidSecret =
+      process.env.OMISE_ORDER_PAID_SECRET ||
+      process.env.NUXT_OMISE_ORDER_PAID_SECRET ||
+      (config.omiseOrderPaidSecret as string) ||
+      webhookSecret;
     const rawBody = await readRawBody(event);
     if (!rawBody) {
       throw createError({ statusCode: 400, message: 'Empty body' });

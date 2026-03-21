@@ -28,8 +28,14 @@ const checkoutCurrency = computed(
 
 function onPayPalSuccess(payload: unknown) {
   const p = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : undefined;
-  if (p?.woocommerce_updated === false && p?.warning) {
-    paypalSdkError.value = String(p.warning);
+  if (p?.woocommerce_updated === false) {
+    if (p?.warning_code === 'MISSING_ORDER_PAID_SECRET') {
+      paypalSdkError.value = t('checkout.pay.paypal_missing_order_paid_secret');
+    } else if (p?.warning) {
+      paypalSdkError.value = String(p.warning);
+    } else {
+      paypalSdkError.value = t('checkout.pay.paypal_missing_order_paid_secret');
+    }
     return;
   }
   router.push(`/payment-successful?order_id=${orderId.value}`);
