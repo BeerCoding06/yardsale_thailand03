@@ -1,5 +1,7 @@
 <!-- PayPal Smart Payment Buttons – create/capture ผ่าน Nuxt server API -->
 <script setup lang="ts">
+import { getOfetchErrorMessage } from '~/utils/ofetch-error-message';
+
 const props = withDefaults(
   defineProps<{
     woocommerceOrderId: number;
@@ -118,19 +120,27 @@ async function mountButtons() {
         });
         return res.id;
       },
-      onApprove: async (data: { orderID: string }) => {
+      onApprove: async (data: { orderID?: string; orderId?: string }) => {
         emit('loading', true);
+        const paypalOid = data.orderID || data.orderId;
+        const wcId = Number(props.woocommerceOrderId);
         try {
+          if (!paypalOid || typeof paypalOid !== 'string') {
+            throw new Error('PayPal did not return order id after approve (orderID / orderId)');
+          }
+          if (!Number.isFinite(wcId) || wcId < 1) {
+            throw new Error('Invalid WooCommerce order id on payment page');
+          }
           const result = await $fetch('/api/paypal-capture-order', {
             method: 'POST',
             body: {
-              orderID: data.orderID,
-              woocommerce_order_id: props.woocommerceOrderId,
+              orderID: paypalOid,
+              woocommerce_order_id: wcId,
             },
           });
           emit('success', result as Record<string, unknown>);
         } catch (e) {
-          emit('error', e);
+          emit('error', new Error(getOfetchErrorMessage(e)));
         } finally {
           emit('loading', false);
         }

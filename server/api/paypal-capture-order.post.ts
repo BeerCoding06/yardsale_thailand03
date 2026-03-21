@@ -23,13 +23,14 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event) as {
     orderID?: string;
     paypal_order_id?: string;
-    woocommerce_order_id?: number;
+    woocommerce_order_id?: number | string;
+    woocommerceOrderId?: number | string;
   };
   const paypalOrderId = body?.orderID || body?.paypal_order_id;
   if (!paypalOrderId || typeof paypalOrderId !== 'string') {
     throw createError({ statusCode: 400, message: 'orderID (PayPal order id) is required' });
   }
-  const rawWc = body?.woocommerce_order_id;
+  const rawWc = body?.woocommerce_order_id ?? body?.woocommerceOrderId;
   const wcIdFromClient =
     typeof rawWc === 'string' ? parseInt(rawWc, 10) : Number(rawWc);
   if (!Number.isFinite(wcIdFromClient) || wcIdFromClient < 1) {
@@ -60,7 +61,8 @@ export default defineEventHandler(async (event) => {
       woocommerceOrderId = result.woocommerceOrderId;
     }
 
-    if (result.status !== 'COMPLETED') {
+    const captureOk = String(result.status || '').toUpperCase() === 'COMPLETED';
+    if (!captureOk) {
       paypalLogWarn('capture_unexpected_status', `status=${result.status}`, {
         paypal_order_id: paypalOrderId,
         paypal_status: result.status,
@@ -69,7 +71,9 @@ export default defineEventHandler(async (event) => {
       console.warn('[paypal-capture-order] Unexpected status:', result.status);
       throw createError({
         statusCode: 400,
-        message: `PayPal capture status: ${result.status}`,
+        statusMessage: `PayPal capture status: ${result.status}`,
+        message: `PayPal capture status: ${result.status} (expected COMPLETED)`,
+        data: { paypal_status: result.status, paypal_order_id: paypalOrderId },
       });
     }
 

@@ -1,5 +1,7 @@
 <!-- ชำระด้วย PayPal หลังเลือกจาก modal checkout -->
 <script setup lang="ts">
+import { getOfetchErrorMessage } from '~/utils/ofetch-error-message';
+
 definePageMeta({ auth: false });
 const route = useRoute();
 const router = useRouter();
@@ -28,16 +30,11 @@ function onSuccess() {
   router.push(`/payment-successful?order_id=${orderId.value}`);
 }
 
-/** PayPal SDK ส่ง object/string — รวมถึง scf_* / COMPLIANCE_VIOLATION */
+/** PayPal SDK / $fetch — รวมถึง scf_* / COMPLIANCE_VIOLATION */
 function serializePayPalErr(err: unknown): string {
   if (err == null) return '';
   if (typeof err === 'string') return err;
-  if (err instanceof Error) return `${err.name} ${err.message}`;
-  try {
-    return JSON.stringify(err);
-  } catch {
-    return String(err);
-  }
+  return getOfetchErrorMessage(err);
 }
 
 const paypalSdkError = ref<string | null>(null);
@@ -49,7 +46,8 @@ function onPayPalError(err: unknown) {
     paypalSdkError.value = t('checkout.pay.paypal_compliance_hint');
   } else if (raw) {
     const base = t('checkout.pay.paypal_sdk_error');
-    paypalSdkError.value = raw.length < 120 ? `${base}: ${raw}` : base;
+    // แสดงข้อความจาก API (เช่น woocommerce_order_id / capture status) — ไม่ตัดที่ 120 ตัวอักษร
+    paypalSdkError.value = raw.length > 280 ? `${base}. ${raw.slice(0, 280)}…` : `${base}: ${raw}`;
   } else {
     paypalSdkError.value = t('checkout.pay.paypal_sdk_error');
   }

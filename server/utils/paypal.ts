@@ -120,16 +120,24 @@ export async function paypalCaptureOrder(
     id?: string;
     purchase_units?: Array<{
       custom_id?: string;
-      payments?: { captures?: Array<{ id?: string }> };
+      payments?: { captures?: Array<{ id?: string; status?: string }> };
     }>;
   };
 
   const unit = data.purchase_units?.[0];
   const customId = unit?.custom_id;
   const capture = unit?.payments?.captures?.[0];
+  const captureStatus = capture?.status;
+  const topStatus = data.status;
+  const norm = (s?: string) => (s == null ? '' : String(s).toUpperCase());
+  /** ออเดอร์หรือ capture ใดก็ได้ที่เป็น COMPLETED */
+  const effectiveStatus =
+    norm(topStatus) === 'COMPLETED' || norm(captureStatus) === 'COMPLETED'
+      ? 'COMPLETED'
+      : topStatus || captureStatus || 'UNKNOWN';
 
   return {
-    status: data.status || 'UNKNOWN',
+    status: effectiveStatus,
     paypalOrderId: data.id || paypalOrderId,
     woocommerceOrderId: customId ? parseInt(customId, 10) : null,
     captureId: capture?.id || null,

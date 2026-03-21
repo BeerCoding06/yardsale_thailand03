@@ -169,6 +169,7 @@ OMISE_ORDER_PAID_SECRET=<ตรงกับ WordPress>
 | Console: `scf_fetch_credit_form_submit_error` / `scf_unhandled_error_on_submit_COMPLIANCE_VIOLATION` | มาจาก **ปุ่มชำระด้วยบัตรในวิดเจ็ต PayPal** (Hosted Card Fields) — ในโปรเจกต์นี้โหลด SDK ด้วย `disable-funding=card,credit` และ `fundingSource=PAYPAL` เพื่อให้เหลือแค่ “เข้าสู่ระบบ PayPal”; ชำระบัตรใช้ Omise ในหน้า checkout |
 | ปุ่ม PayPal ไม่ขึ้น | ดู Console ว่า SDK โหลดได้; ตรวจ adblock |
 | Log `capture_missing_custom_id` | มาจาก **build เก่า** — เวอร์ชันปัจจุบันใช้ minimal order (ไม่มี `custom_id`) และต้องมี `woocommerce_order_id` ใน `POST /api/paypal-capture-order`; **deploy โค้ดล่าสุด** + refresh หน้า `/payment-paypal` ถ้ายังเจอ `capture_missing_woocommerce_order_id` แปลว่า body ไม่มี `woocommerce_order_id` |
+| `FetchError [POST] ".../paypal-capture-order": 400` | ดู **ข้อความจริงจาก API** บนหน้า (หลัง deploy ล่าสุด): มักเป็น `woocommerce_order_id is required`, `orderID is required`, `woocommerce_order_id does not match`, หรือ `PayPal capture status: …` — ตรวจ Network tab → response JSON field `message` |
 
 SDK โหลดจาก `https://www.paypal.com/sdk/js?client-id=...` — โหมด sandbox/live ขึ้นกับ **ค่า Client ID** ที่ใส่ ไม่ต้องเปลี่ยน URL
 
