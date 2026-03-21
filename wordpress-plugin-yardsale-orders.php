@@ -1338,6 +1338,10 @@ function yardsale_create_order($request) {
 
         $order_id = $order->get_id();
         error_log('[yardsale_create_order] Order created: ' . $order_id . ' for user ' . $user_id);
+        $order = wc_get_order($order_id);
+        if ($order) {
+            yardsale_log_order_stock_snapshot($order, 'create_order AFTER save (check WC stock reduction for pending)');
+        }
 
         return array(
             'success' => true,
@@ -1453,16 +1457,22 @@ function yardsale_order_paid($request) {
     if (!$order) {
         return new WP_Error('not_found', 'Order not found', array('status' => 404));
     }
+    yardsale_log_order_stock_snapshot($order, 'order_paid BEFORE payment_complete');
     // ใช้ payment_complete() เพื่อให้ WooCommerce บันทึกว่าชำระแล้ว (วันที่ชำระ, ลดสต็อก, แสดงสถานะชำระแล้ว)
     if (method_exists($order, 'payment_complete')) {
         $order->payment_complete();
-        error_log('[yardsale_order_paid] Order ' . $order_id . ' payment_complete (status: ' . $order->get_status() . ')');
+        $order = wc_get_order($order_id);
+        error_log('[yardsale_order_paid] Order ' . $order_id . ' payment_complete (status: ' . ($order ? $order->get_status() : '?') . ')');
     } else {
         $order->set_status('processing');
         $order->save();
+        $order = wc_get_order($order_id);
         error_log('[yardsale_order_paid] Order ' . $order_id . ' set to processing (fallback)');
     }
-    return array('success' => true, 'order_id' => $order_id, 'status' => $order->get_status());
+    if ($order) {
+        yardsale_log_order_stock_snapshot($order, 'order_paid AFTER payment_complete');
+    }
+    return array('success' => true, 'order_id' => $order_id, 'status' => $order ? $order->get_status() : '');
 }
 
 /**
@@ -1603,3 +1613,97 @@ function yardsale_update_product($request) {
         remove_filter('user_has_cap', 'yardsale_allow_user_create_products', 10);
     }
 }
+
+// -----------------------------------------------------------------------------
+// Optional stock / order debugging (wp-config.php: define('YARDSALE_DEBUG_STOCK', true);)
+// -----------------------------------------------------------------------------
+
+/**
+ * @return bool
+ */
+function yardsale_stock_debug_enabled() {
+    return defined('YARDSALE_DEBUG_STOCK') && YARDSALE_DEBUG_STOCK;
+}
+
+/**
+ * Log product line stock snapshot for an order (shop-facing qty after WC reductions).
+ *
+ * @param WC_Order $order
+ * @param string   $label
+ */
+function yardsale_log_order_stock_snapshot($order, $label) {
+    if (! yardsale_stock_debug_enabled() || ! is_a($order, 'WC_Order')) {
+        return;
+    }
+    $oid = (int) $order->get_id();
+    $st  = $order->get_status();
+    $reduced = $order->get_meta('_order_stock_reduced', true);
+    error_log(sprintf('[yardsale_stock_debug] %s order_id=%d status=%s _order_stock_reduced=%s', $label, $oid, $st, $reduced ? 'yes' : 'no'));
+    foreach ($order->get_items() as $item) {
+        if (! is_a($item, 'WC_Order_Item_Product')) {
+            continue;
+        }
+        $p = $item->get_product();
+        if (! $p) {
+            continue;
+        }
+        $pid = (int) $p->get_id();
+        $qty = (int) $item->get_quantity();
+        $manage = $p->managing_stock() ? 'yes' : 'no';
+        $sq = $p->managing_stock() ? (string) $p->get_stock_quantity() : 'n/a';
+        $ss = $p->get_stock_status();
+        error_log(sprintf('[yardsale_stock_debug]   line product_id=%d qty_ordered=%d managing=%s stock_qty=%s stock_status=%s', $pid, $qty, $manage, $sq, $ss));
+    }
+}
+
+/**
+ * Register WooCommerce hooks for stock transition logging.
+ */
+function yardsale_register_stock_debug_hooks() {
+    if (! yardsale_stock_debug_enabled()) {
+        return;
+    }
+    if (! class_exists('WooCommerce')) {
+        return;
+    }
+
+    add_action(
+        'woocommerce_order_status_changed',
+        function ($order_id, $old_status, $new_status, $order) {
+            if (! is_a($order, 'WC_Order')) {
+                return;
+            }
+            error_log(sprintf('[yardsale_stock_debug] order_status_changed id=%d %s -> %s', (int) $order_id, $old_status, $new_status));
+            yardsale_log_order_stock_snapshot($order, 'after_status_change');
+        },
+        99,
+        4
+    );
+
+    add_action(
+        'woocommerce_reduce_order_stock',
+        function ($order) {
+            if (! is_a($order, 'WC_Order')) {
+                return;
+            }
+            error_log('[yardsale_stock_debug] hook woocommerce_reduce_order_stock order_id=' . $order->get_id());
+            yardsale_log_order_stock_snapshot($order, 'after_reduce_order_stock');
+        },
+        99,
+        1
+    );
+
+    add_action(
+        'woocommerce_restore_order_stock',
+        function ($order) {
+            if (! is_a($order, 'WC_Order')) {
+                return;
+            }
+            error_log('[yardsale_stock_debug] hook woocommerce_restore_order_stock order_id=' . $order->get_id());
+            yardsale_log_order_stock_snapshot($order, 'after_restore_order_stock');
+        },
+        99,
+        1
+    );
+}
+add_action('plugins_loaded', 'yardsale_register_stock_debug_hooks', 30);

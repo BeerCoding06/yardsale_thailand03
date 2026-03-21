@@ -100,6 +100,8 @@ export default defineEventHandler(async (event) => {
       ? await fetchYardsaleStockBatch(lineIds, 'subtract_paid')
       : new Map();
 
+    const debugCartStock = process.env.NUXT_DEBUG_CART_STOCK === 'true';
+
     for (const row of pending) {
       const { item, qty, name } = row;
       const { product_id, variation_id } = item;
@@ -110,6 +112,21 @@ export default defineEventHandler(async (event) => {
       if (adj && adj.effective_quantity != null) {
         stockQuantity = adj.effective_quantity;
         stockStatus = adj.effective_status || stockStatus;
+      }
+
+      if (debugCartStock) {
+        console.log('[check-cart-stock]', {
+          lineId: row.lineId,
+          product_id,
+          variation_id,
+          qty,
+          wcRestQty: row.stockQuantity,
+          wcRestStatus: row.stockStatus,
+          yardsaleEffectiveQty: adj?.effective_quantity,
+          yardsalePaidQty: adj?.paid_quantity,
+          usedQty: stockQuantity,
+          usedStatus: stockStatus,
+        });
       }
 
       const stNorm = (stockStatus || '').toLowerCase().replace(/\s/g, '');
