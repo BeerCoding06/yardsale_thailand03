@@ -417,7 +417,12 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
             
             <div class="flex">
               <button
-                @click="handleAddToCart(selectedVariation?.databaseId || product.databaseId)"
+                @click="
+                  handleAddToCart(
+                    selectedVariation?.databaseId || product.databaseId,
+                    isSimpleProduct ? undefined : product.databaseId
+                  )
+                "
                 :disabled="addToCartButtonStatus !== 'add'"
                 class="button-bezel w-full h-12 rounded-md relative tracking-wide font-semibold text-white text-sm flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed"
               >

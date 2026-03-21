@@ -1,7 +1,11 @@
 export type Money = string | number;
 
 export interface VariationNode {
+  id?: number;
   databaseId: number;
+  name?: string;
+  slug?: string;
+  sku?: string;
   salePrice: Money;
   regularPrice: Money;
   stockQuantity?: number;

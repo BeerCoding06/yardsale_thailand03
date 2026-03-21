@@ -53,6 +53,16 @@ export default defineEventHandler(async (event) => {
           }
           const prod = await prodRes.json();
           name = prod.name || prod.sku || `#${product_id}`;
+          const pType = String(prod.type || '').toLowerCase();
+          if (pType === 'variable' && !variation_id) {
+            errors.push({
+              product_id,
+              name,
+              message:
+                'สินค้านี้มีตัวเลือก — ลบรายการในตะกร้าแล้วเปิดหน้าสินค้าเลือกตัวเลือกแล้วเพิ่มใหม่',
+            });
+            continue;
+          }
           stockStatus = (prod.stock_status || 'instock').toString().toLowerCase();
           stockQuantity = prod.stock_quantity != null ? Number(prod.stock_quantity) : null;
         }

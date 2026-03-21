@@ -5,18 +5,24 @@ import { executePhpScript } from '../../utils/php-executor';
 
 export default defineEventHandler(async (event) => {
   try {
-    const body = await readBody(event);
-    
-    const { productId } = body;
-    
+    const body = await readBody(event) as {
+      productId?: number;
+      parentProductId?: number;
+    };
+
+    const { productId, parentProductId } = body;
+
     if (!productId) {
       throw createError({
         statusCode: 400,
         message: 'productId is required',
       });
     }
-    
-    console.log('[cart/add] Executing PHP script: addToCart.php', { productId });
+
+    console.log('[cart/add] Executing PHP script: addToCart.php', {
+      productId,
+      parentProductId,
+    });
     
     const config = useRuntimeConfig();
     const phpEnv: Record<string, string> = {};
@@ -29,7 +35,13 @@ export default defineEventHandler(async (event) => {
       script: 'addToCart.php',
       queryParams: {},
       method: 'POST',
-      body: { productId },
+      body: {
+        productId,
+        ...(parentProductId != null &&
+        Number(parentProductId) > 0 && {
+          parentProductId: Number(parentProductId),
+        }),
+      },
       env: phpEnv,
     });
     

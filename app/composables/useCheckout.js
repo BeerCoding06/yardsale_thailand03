@@ -188,15 +188,22 @@ export const useCheckout = () => {
         const variationNode = item.variation?.node;
         const productNode = item.product?.node;
         const node = variationNode || productNode || {};
-        const productId = variationNode?.databaseId ?? productNode?.databaseId ?? node.databaseId ?? node.id ?? 0;
+        const hasVariation = Boolean(variationNode?.databaseId || variationNode?.id);
+        const parentId = Number(productNode?.databaseId ?? productNode?.id ?? 0);
+        const varId = Number(variationNode?.databaseId ?? variationNode?.id ?? 0);
+        const wcProductId = hasVariation && parentId > 0 ? parentId : Number(node.databaseId ?? node.id ?? 0);
         const regularPrice = parsePrice(node.regularPrice);
         const salePrice = parsePrice(node.salePrice);
         const price = salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
-        return {
-          product_id: Number(productId) || 0,
+        const line = {
+          product_id: wcProductId || 0,
           quantity: item.quantity || 1,
           price: price,
         };
+        if (hasVariation && varId > 0) {
+          line.variation_id = varId;
+        }
+        return line;
       }).filter(item => item.product_id > 0);
 
       if (line_items.length === 0) {

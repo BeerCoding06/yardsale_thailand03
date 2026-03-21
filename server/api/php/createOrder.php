@@ -49,6 +49,9 @@ if (!empty($orderData['line_items']) && is_array($orderData['line_items'])) {
         $orderData['line_items'][$idx]['product_id'] = (int) ($item['product_id'] ?? 0);
         $orderData['line_items'][$idx]['quantity'] = (int) ($item['quantity'] ?? 1);
         $orderData['line_items'][$idx]['price'] = (string) ($item['price'] ?? '0');
+        if (isset($item['variation_id']) && (int) $item['variation_id'] > 0) {
+            $orderData['line_items'][$idx]['variation_id'] = (int) $item['variation_id'];
+        }
     }
     $orderData['line_items'] = array_values(array_filter($orderData['line_items'], function ($item) {
         return isset($item['product_id']) && $item['product_id'] > 0;

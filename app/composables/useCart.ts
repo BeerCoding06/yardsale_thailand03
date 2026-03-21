@@ -26,7 +26,8 @@ export const useCart = () => {
     console.log('[useCart] Cart state updated, current length:', cart.value.length);
   };
 
-  const handleAddToCart = async (productId: number) => {
+  /** parentProductId = WooCommerce parent product id เมื่อ productId คือ variation id */
+  const handleAddToCart = async (productId: number, parentProductId?: number) => {
     try {
       addToCartButtonStatus.value = 'loading';
       
@@ -35,12 +36,16 @@ export const useCart = () => {
       const currentQuantity = existingItem?.quantity || 0;
       const requestedQuantity = currentQuantity + 1;
       
-      console.log('[useCart] Calling /api/cart/add with productId:', productId);
+      console.log('[useCart] Calling /api/cart/add with productId:', productId, 'parentProductId:', parentProductId);
       
       // Use $fetch with explicit relative path - no baseURL to avoid any redirects
       const res = await $fetch<AddToCartResponse>('/api/cart/add', { 
         method: 'POST', 
-        body: { productId },
+        body: {
+          productId,
+          ...(parentProductId != null &&
+          Number(parentProductId) > 0 && { parentProductId: Number(parentProductId) }),
+        },
       });
       
       console.log('[useCart] Response from /api/cart/add:', res);
