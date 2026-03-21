@@ -2,6 +2,7 @@
 // Create PayPal order server-side (secret never exposed to browser)
 
 import { paypalCreateOrder, paypalGetAccessToken } from '../utils/paypal';
+import { paypalLogError, paypalLogEvent } from '../utils/paypal-log';
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
@@ -92,6 +93,15 @@ export default defineEventHandler(async (event) => {
       locale,
       landingPage,
     });
+    paypalLogEvent('create_order_ok', {
+      woocommerce_order_id: wcId,
+      paypal_order_id: order.id,
+      paypal_currency: currency,
+      paypal_amount: amountValue,
+      paypal_environment: env,
+      requested_currency: requestedCurrency,
+      shipping_preference: shippingPreference,
+    });
     return {
       id: order.id,
       woocommerce_order_id: wcId,
@@ -99,6 +109,10 @@ export default defineEventHandler(async (event) => {
       paypal_amount: amountValue,
     };
   } catch (e: any) {
+    paypalLogError('create_order_failed', e?.message || String(e), {
+      woocommerce_order_id: wcId,
+      paypal_environment: env,
+    });
     console.error('[paypal-create-order]', e?.message || e);
     throw createError({
       statusCode: 502,

@@ -100,3 +100,24 @@ DB_PASSWORD=
 
 - **WP_MEDIA_URL** ใช้เป็น base URL สำหรับรูปจาก WordPress (ถ้าไม่ตั้ง จะใช้ `WP_PROXY_PUBLIC_URL`)
 - อย่า commit ค่า **WP_BASIC_AUTH** / **WP_CONSUMER_*** ลง git; ใส่เฉพาะใน Environment ของ Dockploy
+
+---
+
+## 7. Log PayPal ใน Dokploy
+
+แอปส่ง log ไปที่ **stdout** ของ container — ใน Dokploy เปิด deployment → **Logs** จะเห็นแถว JSON ที่มี `"service":"yardsale_paypal"`.
+
+| ตัวแปร | ความหมาย |
+|--------|-----------|
+| `PAYPAL_LOG=1` | เปิด log เหตุการณ์ปกติ: `create_order_ok`, `capture_ok` (ยอด/สกุล/ออเดอร์ WC ฯลฯ) |
+| (ไม่ตั้ง) | ยังมี log **เตือน/ผิดพลาด** อยู่ (`level":"warn"` / `"error"`) เช่น capture ไม่สำเร็จ, `order-paid` ล้มเหลว, ไม่มี `OMISE_ORDER_PAID_SECRET` |
+
+ตัวอย่างใน Environment ของ Dokploy:
+
+```env
+PAYPAL_LOG=1
+```
+
+ค้นหาใน Logs: `yardsale_paypal` หรือ `create_order_ok` / `capture_ok`
+
+รายละเอียด implementation: `server/utils/paypal-log.ts`, เรียกจาก `server/api/paypal-create-order.post.ts` และ `paypal-capture-order.post.ts`

@@ -22,6 +22,9 @@ PAYPAL_CLIENT_SECRET=EL1tUJ...
 # sandbox | live
 PAYPAL_ENVIRONMENT=sandbox
 
+# Log JSON ไป stdout (Docker / Dokploy) — เหตุการณ์ create/capture สำเร็จ
+# PAYPAL_LOG=1
+
 # (ทางเลือก) ลด COMPLIANCE_VIOLATION / address verify — ค่าเริ่มต้น: sandbox = NO_SHIPPING, live = GET_FROM_FILE
 # PAYPAL_SHIPPING_PREFERENCE=NO_SHIPPING
 # PAYPAL_LOCALE=en-US
