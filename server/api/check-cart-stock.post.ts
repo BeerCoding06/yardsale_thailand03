@@ -3,136 +3,36 @@
 
 import * as wpUtils from '../utils/wp';
 import { isCartLineSalableBySnapshot } from '../utils/cart-line-salable';
-import { fetchYardsaleStockBatch } from '../utils/yardsale-stock';
-
-type Item = { product_id: number; variation_id?: number; quantity: number };
-
-type PendingLine = {
-  item: Item;
-  qty: number;
-  stockQuantity: number | null;
-  stockStatus: string;
-  name: string;
-  lineId: number;
-};
+import { fetchLiveStockLinesForCart, type CartStockItem } from '../utils/cart-live-stock';
 
 export default defineEventHandler(async (event) => {
   try {
-    const body = await readBody(event) as { items?: Item[] };
+    const body = await readBody(event) as { items?: CartStockItem[] };
     const items = body?.items;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return { valid: true, errors: [] };
     }
 
-    const errors: { product_id: number; variation_id?: number; message: string; name?: string }[] = [];
     const consumerKey = wpUtils.getWpConsumerKey();
     const consumerSecret = wpUtils.getWpConsumerSecret();
-
     if (!consumerKey || !consumerSecret) {
       return { valid: true, errors: [] };
     }
 
     const config = useRuntimeConfig();
-    /** Opt-in — ถ้าเปิดโดยไม่จำเป็นเมื่อ WC ลดสต็อกแล้ว จะทำให้สต็อกต่ำเกินจริงและบล็อก checkout */
-    const useSubtractPaid =
-      (config as { stockSubtractPaidOrders?: boolean }).stockSubtractPaidOrders === true;
+    const formula =
+      (config as { stockSubtractPaidOrders?: boolean }).stockSubtractPaidOrders === true
+        ? 'subtract_paid'
+        : 'wc_only';
 
-    const pending: PendingLine[] = [];
+    const { lines, errors: fetchErrors } = await fetchLiveStockLinesForCart(items, formula);
 
-    for (const item of items) {
-      const { product_id, variation_id, quantity } = item;
-      const qty = Math.max(0, Number(quantity) || 0);
-      if (qty < 1) continue;
+    const errors = [...fetchErrors];
 
-      try {
-        let stockQuantity: number | null = null;
-        let stockStatus: string = 'instock';
-        let name = '';
-
-        if (variation_id) {
-          const varUrl = wpUtils.buildWcApiUrl(`wc/v3/products/${product_id}/variations/${variation_id}`);
-          const varRes = await fetch(varUrl, { headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(5000) });
-          if (!varRes.ok) {
-            errors.push({ product_id, variation_id, message: 'ไม่พบรายการหรือสต็อก' });
-            continue;
-          }
-          const vari = await varRes.json();
-          name = vari.name || vari.sku || `#${variation_id}`;
-          stockStatus = (vari.stock_status || 'instock').toString().toLowerCase();
-          stockQuantity = vari.stock_quantity != null ? Number(vari.stock_quantity) : null;
-        } else {
-          const prodUrl = wpUtils.buildWcApiUrl(`wc/v3/products/${product_id}`);
-          const prodRes = await fetch(prodUrl, { headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(5000) });
-          if (!prodRes.ok) {
-            errors.push({ product_id, message: 'ไม่พบรายการหรือสต็อก' });
-            continue;
-          }
-          const prod = await prodRes.json();
-          name = prod.name || prod.sku || `#${product_id}`;
-          const pType = String(prod.type || '').toLowerCase();
-          if (pType === 'variable' && !variation_id) {
-            errors.push({
-              product_id,
-              name,
-              message:
-                'สินค้านี้มีตัวเลือก — ลบรายการในตะกร้าแล้วเปิดหน้าสินค้าเลือกตัวเลือกแล้วเพิ่มใหม่',
-            });
-            continue;
-          }
-          stockStatus = (prod.stock_status || 'instock').toString().toLowerCase();
-          stockQuantity = prod.stock_quantity != null ? Number(prod.stock_quantity) : null;
-        }
-
-        const lineId = variation_id ? Number(variation_id) : Number(product_id);
-        pending.push({ item, qty, stockQuantity, stockStatus, name, lineId });
-      } catch (e: any) {
-        errors.push({
-          product_id: item.product_id,
-          ...(item.variation_id && { variation_id: item.variation_id }),
-          message: e?.message || 'ตรวจสต็อกไม่ได้',
-        });
-      }
-    }
-
-    const lineIds = pending.map((p) => p.lineId);
-    /** เรียกปลั๊กอินเสมอ — wc_only หัก reserved; subtract_paid เมื่อเปิด NUXT_STOCK_SUBTRACT_PAID */
-    const stockMap = await fetchYardsaleStockBatch(
-      lineIds,
-      useSubtractPaid ? 'subtract_paid' : 'wc_only'
-    );
-
-    const debugCartStock = process.env.NUXT_DEBUG_CART_STOCK === 'true';
-
-    for (const row of pending) {
-      const { item, qty, name } = row;
-      const { product_id, variation_id } = item;
-
-      let stockQuantity = row.stockQuantity;
-      let stockStatus = row.stockStatus;
-      const adj = stockMap.get(row.lineId);
-      if (adj && adj.effective_quantity != null) {
-        stockQuantity = adj.effective_quantity;
-        stockStatus = adj.effective_status || stockStatus;
-      }
-
-      if (debugCartStock) {
-        console.log('[check-cart-stock]', {
-          lineId: row.lineId,
-          product_id,
-          variation_id,
-          qty,
-          wcRestQty: row.stockQuantity,
-          wcRestStatus: row.stockStatus,
-          yardsaleReserved: adj?.reserved_quantity,
-          yardsaleAvailable: adj?.available_quantity,
-          yardsaleEffectiveQty: adj?.effective_quantity,
-          yardsalePaidQty: adj?.paid_quantity,
-          usedQty: stockQuantity,
-          usedStatus: stockStatus,
-        });
-      }
-
+    for (const line of lines) {
+      const { product_id, variation_id, quantity, name, stockQuantity, stockStatus } = line;
+      const qty = Math.max(1, Number(quantity) || 1);
       const stNorm = (stockStatus || '').toLowerCase().replace(/\s/g, '');
       if (!isCartLineSalableBySnapshot(stockStatus, stockQuantity, qty)) {
         if (stockQuantity != null && qty > stockQuantity) {
