@@ -1511,6 +1511,14 @@ function yardsale_order_paid($request) {
     if ($order) {
         yardsale_log_order_stock_snapshot($order, 'order_paid AFTER payment_complete');
     }
+    // รองรับกรณี payment_complete ไม่เข้า path หลัก — ให้ WC ลดสต็อกตามจำนวนในออเดอร์ถ้ายังไม่ลด (idempotent ผ่าน _order_stock_reduced)
+    if ($order && function_exists('wc_maybe_reduce_stock_levels')) {
+        wc_maybe_reduce_stock_levels($order->get_id());
+        $order = wc_get_order($order_id);
+        if ($order) {
+            yardsale_log_order_stock_snapshot($order, 'order_paid AFTER wc_maybe_reduce_stock_levels');
+        }
+    }
     return array('success' => true, 'order_id' => $order_id, 'status' => $order ? $order->get_status() : '');
 }
 

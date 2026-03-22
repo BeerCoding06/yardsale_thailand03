@@ -44,11 +44,23 @@ function classifyWcError(status: number, body: string, parsed?: WooCommerceOrder
   }
 }
 
+export type WooCommerceMarkOrderPaidOptions = {
+  /** เช่น PayPal capture id — WC เก็บเป็น transaction id บนออเดอร์ */
+  transactionId?: string;
+};
+
 /**
  * PUT /wp-json/wc/v3/orders/{order_id}
- * Sets status to processing and marks order paid (WooCommerce records payment date / stock hooks).
+ * มาร์คออเดอร์ว่าชำระแล้ว — ส่งเฉพาะ `set_paid: true` (ไม่ส่ง `status: processing` พร้อมกัน)
+ *
+ * เหตุผล: ใน WooCommerce REST จะ `set_status` + `save` ก่อน แล้วค่อยเช็ก `set_paid` → ถ้าตั้งเป็น
+ * processing ก่อน `needs_payment()` จะเป็น false ทำให้ **ข้าม `payment_complete()`** → **ไม่ลดสต็อก**
+ * ตามจำนวนในออเดอร์ แม้ตั้ง WC ให้ลดสต็อกตอนชำระเงิน
  */
-export async function woocommercePutOrderProcessing(orderId: number): Promise<WooCommerceOrderUpdateResult> {
+export async function woocommercePutOrderProcessing(
+  orderId: number,
+  options?: WooCommerceMarkOrderPaidOptions
+): Promise<WooCommerceOrderUpdateResult> {
   if (!Number.isFinite(orderId) || orderId < 1) {
     return {
       ok: false,
@@ -76,6 +88,12 @@ export async function woocommercePutOrderProcessing(orderId: number): Promise<Wo
 
   const basic = Buffer.from(`${consumerKey}:${consumerSecret}`, 'utf8').toString('base64');
 
+  const body: Record<string, unknown> = { set_paid: true };
+  const tid = options?.transactionId?.trim();
+  if (tid) {
+    body.transaction_id = tid;
+  }
+
   let res: Response;
   try {
     res = await fetch(url, {
@@ -85,10 +103,7 @@ export async function woocommercePutOrderProcessing(orderId: number): Promise<Wo
         Accept: 'application/json',
         Authorization: `Basic ${basic}`,
       },
-      body: JSON.stringify({
-        status: 'processing',
-        set_paid: true,
-      }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(25000),
     });
   } catch (e: unknown) {

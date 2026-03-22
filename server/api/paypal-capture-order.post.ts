@@ -84,7 +84,9 @@ export default defineEventHandler(async (event) => {
 
     /** Primary: WooCommerce REST PUT (consumer key + secret). Fallback: yardsale/v1/order-paid + ORDER_PAID_SECRET */
     if (hasWcRestCreds) {
-      const wcRes = await woocommercePutOrderProcessing(woocommerceOrderId);
+      const wcRes = await woocommercePutOrderProcessing(woocommerceOrderId, {
+        transactionId: result.captureId ?? undefined,
+      });
       if (wcRes.ok) {
         paypalLogEvent('capture_ok', {
           paypal_order_id: result.paypalOrderId,

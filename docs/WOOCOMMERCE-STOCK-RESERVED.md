@@ -24,7 +24,7 @@ Controlled by **WooCommerce → Settings → Products → Inventory**:
 Yardsale flow:
 
 1. **`yardsale/v1/create-order`** creates order with status **`pending`** (unless overridden).
-2. After PayPal/Omise, Nuxt calls **`PUT wc/v3/orders/{id}`** (`set_paid: true`, `processing`) and/or **`yardsale/v1/order-paid`** → **`$order->payment_complete()`**.
+2. After PayPal/Omise, Nuxt calls **`PUT wc/v3/orders/{id}`** with **`set_paid: true` only** (อย่าส่ง `status: processing` พร้อมกัน — WC จะข้าม `payment_complete` และไม่ลดสต็อก) และ/หรือ **`yardsale/v1/order-paid`** → **`payment_complete()`** + `wc_maybe_reduce_stock_levels` สำรอง
 
 `payment_complete()` marks the order paid and runs WooCommerce’s normal stock logic. WC uses **`_order_stock_reduced`** on the order to avoid double reduction.
 
@@ -108,7 +108,7 @@ Better: fix in **Products → Edit** so extensions stay in sync.
 If the order stays **pending** after the customer paid:
 
 - Stock may stay **reserved** and behaviour depends on “reduce on placement” vs “reduce on payment”.
-- Ensure capture/webhook runs **`payment_complete()`** or **REST `set_paid: true` + `processing`**.
+- Ensure capture/webhook runs **`payment_complete()`** or **REST `set_paid: true` alone** (ไม่ใส่ `status: processing` ใน request เดียวกัน — ดูข้อ 2 ด้านบน).
 
 Plugin: `yardsale_order_paid` calls **`payment_complete()`**. See [PAYPAL-INTEGRATION.md](./PAYPAL-INTEGRATION.md).
 

@@ -2,7 +2,8 @@
 
 หลัง PayPal capture สำเร็จ `POST /api/paypal-capture-order` จะอัปเดตออเดอร์แบบนี้:
 
-1. **ลำดับแรก:** `PUT /wp-json/wc/v3/orders/{id}` พร้อม `{ "status": "processing", "set_paid": true }`  
+1. **ลำดับแรก:** `PUT /wp-json/wc/v3/orders/{id}` พร้อม `{ "set_paid": true }` (ทางเลือก: `"transaction_id": "..."`)  
+   - **ห้าม**ส่ง `"status":"processing"` พร้อม `set_paid` ใน request เดียว — WooCommerce จะบันทึกสถานะ processing ก่อน ทำให้ข้าม `payment_complete()` และ **ไม่ลดสต็อก**  
    - ต้องมี **`WP_CONSUMER_KEY`** + **`WP_CONSUMER_SECRET`** บน Nuxt (สิทธิ์ **Read/Write**)
    - Auth: **HTTP Basic** — `Authorization: Basic base64(consumer_key:consumer_secret)`
 2. **ถ้า REST ล้มเหลว** และมี **`ORDER_PAID_SECRET`:** เรียก `POST /wp-json/yardsale/v1/order-paid` (plugin) แทน
@@ -25,7 +26,7 @@ CS="cs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 curl -sS -X PUT "${SITE}/wp-json/wc/v3/orders/${ORDER_ID}" \
   -u "${CK}:${CS}" \
   -H "Content-Type: application/json" \
-  -d '{"status":"processing","set_paid":true}' \
+  -d '{"set_paid":true}' \
   -w "\nHTTP %{http_code}\n"
 ```
 
@@ -39,7 +40,7 @@ curl -sS -X PUT "${SITE}/wp-json/wc/v3/orders/${ORDER_ID}" \
 ```bash
 curl -sS -X PUT "${SITE}/wp-json/wc/v3/orders/${ORDER_ID}?consumer_key=${CK}&consumer_secret=${CS}" \
   -H "Content-Type: application/json" \
-  -d '{"status":"processing","set_paid":true}'
+  -d '{"set_paid":true}'
 ```
 
 ---
