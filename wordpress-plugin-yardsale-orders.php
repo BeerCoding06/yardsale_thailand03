@@ -1125,9 +1125,37 @@ function yardsale_sum_paid_qty_for_line($wc_line_id) {
 }
 
 /**
+ * รวมจำนวนที่ WooCommerce จองไว้สำหรับออเดอร์ค้าง (ตาราง wp_wc_reserved_stock)
+ *
+ * @param int $product_id Simple หรือ variation ID
+ * @return int
+ */
+function yardsale_get_reserved_stock_sum_for_product($product_id) {
+    global $wpdb;
+    $product_id = absint($product_id);
+    if ($product_id < 1) {
+        return 0;
+    }
+    $table = $wpdb->prefix . 'wc_reserved_stock';
+    $found = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
+    if ($found !== $table) {
+        return 0;
+    }
+    // phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $sum = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT COALESCE(SUM(stock_quantity), 0) FROM `{$table}` WHERE product_id = %d",
+            $product_id
+        )
+    );
+    // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    return (int) round((float) $sum);
+}
+
+/**
  * @param int         $wc_line_id Simple หรือ variation ID
  * @param string      $formula    subtract_paid | wc_only
- * @return array{line_id:int,paid_quantity:int,wc_stock_quantity:?int,effective_quantity:?int,effective_status:string}
+ * @return array{line_id:int,paid_quantity:int,wc_stock_quantity:?int,reserved_quantity:int,available_quantity:?int,effective_quantity:?int,effective_status:string}
  */
 function yardsale_build_stock_row_for_line($wc_line_id, $formula) {
     $wc_line_id = absint($wc_line_id);
@@ -1135,6 +1163,8 @@ function yardsale_build_stock_row_for_line($wc_line_id, $formula) {
         'line_id'             => $wc_line_id,
         'paid_quantity'       => 0,
         'wc_stock_quantity'   => null,
+        'reserved_quantity'     => 0,
+        'available_quantity'    => null,
         'effective_quantity'  => null,
         'effective_status'    => 'instock',
     );
@@ -1156,13 +1186,21 @@ function yardsale_build_stock_row_for_line($wc_line_id, $formula) {
     $wc_int = ($wc_q === null || $wc_q === '') ? 0 : (int) $wc_q;
     $row['wc_stock_quantity'] = $wc_int;
 
+    $reserved = yardsale_get_reserved_stock_sum_for_product($wc_line_id);
+    $row['reserved_quantity'] = (int) $reserved;
+    $available = max(0, $wc_int - (int) $reserved);
+    $row['available_quantity'] = $available;
+
     $formula = ($formula === 'subtract_paid') ? 'subtract_paid' : 'wc_only';
     $formula = apply_filters('yardsale_stock_effective_formula', $formula, $wc_line_id);
 
     if ($formula === 'subtract_paid') {
-        $eff = max(0, $wc_int - (int) $paid);
+        // โหมดขั้นสูง (เปิดด้วย NUXT_STOCK_SUBTRACT_PAID เท่านั้น): ไม่รวม reserved ที่นี่ — ผสานเองด้วย filter ถ้าจำเป็น
+        $eff = max(0, (int) $wc_int - (int) $paid);
+        $eff = (int) apply_filters('yardsale_stock_effective_quantity_subtract_paid', $eff, $wc_line_id, $wc_int, $paid, $reserved);
     } else {
-        $eff = max(0, $wc_int);
+        // มาตรฐาน: จำนวนที่ซื้อได้จริง ≈ ในคลัง − ที่จองใน wp_wc_reserved_stock (ออเดอร์ค้างชำระ)
+        $eff = (int) $available;
     }
     $row['effective_quantity'] = $eff;
     $row['effective_status'] = ($eff < 1) ? 'outofstock' : 'instock';
@@ -1652,7 +1690,8 @@ function yardsale_log_order_stock_snapshot($order, $label) {
         $manage = $p->managing_stock() ? 'yes' : 'no';
         $sq = $p->managing_stock() ? (string) $p->get_stock_quantity() : 'n/a';
         $ss = $p->get_stock_status();
-        error_log(sprintf('[yardsale_stock_debug]   line product_id=%d qty_ordered=%d managing=%s stock_qty=%s stock_status=%s', $pid, $qty, $manage, $sq, $ss));
+        $resv = yardsale_get_reserved_stock_sum_for_product($pid);
+        error_log(sprintf('[yardsale_stock_debug]   line product_id=%d qty_ordered=%d managing=%s stock_qty=%s stock_status=%s reserved_table_sum=%d', $pid, $qty, $manage, $sq, $ss, $resv));
     }
 }
 
@@ -1707,3 +1746,19 @@ function yardsale_register_stock_debug_hooks() {
     );
 }
 add_action('plugins_loaded', 'yardsale_register_stock_debug_hooks', 30);
+
+/**
+ * WooCommerce จะ cancel ออเดอร์ค้างชำระเมื่อเปิด Hold stock — ปรับความถี่รัน (นาที) ได้ที่ wp-config:
+ * define('YARDSALE_CANCEL_UNPAID_INTERVAL_MIN', 10);
+ */
+add_filter(
+    'woocommerce_cancel_unpaid_orders_interval_minutes',
+    function ($minutes) {
+        if (defined('YARDSALE_CANCEL_UNPAID_INTERVAL_MIN') && (int) YARDSALE_CANCEL_UNPAID_INTERVAL_MIN > 0) {
+            return (int) YARDSALE_CANCEL_UNPAID_INTERVAL_MIN;
+        }
+        return $minutes;
+    },
+    20,
+    1
+);

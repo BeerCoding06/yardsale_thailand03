@@ -83,6 +83,8 @@ export default defineNuxtConfig({
      * ตั้ง NUXT_STOCK_SUBTRACT_PAID=true เฉพาะเมื่อ WC ไม่ลดสต็อกแต่ต้องการหักจากยอดออเดอร์ที่ชำระแล้ว (ดู docs/STOCK-PAID-DEDUCTION.md)
      */
     stockSubtractPaidOrders: process.env.NUXT_STOCK_SUBTRACT_PAID === 'true',
+    /** ดึงสต็อกจากปลั๊กอิน (wc_only) ให้สอดคล้อง check-cart-stock รวม reserved — ปิด: NUXT_STOCK_MERGE_WORDPRESS=false */
+    stockMergeWordPress: process.env.NUXT_STOCK_MERGE_WORDPRESS !== 'false',
     public: {
       version: pkg.version,
       baseUrl: process.env.BASE_URL || 'https://www.yardsaleth.com',

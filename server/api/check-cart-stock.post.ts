@@ -96,9 +96,11 @@ export default defineEventHandler(async (event) => {
     }
 
     const lineIds = pending.map((p) => p.lineId);
-    const stockMap = useSubtractPaid
-      ? await fetchYardsaleStockBatch(lineIds, 'subtract_paid')
-      : new Map();
+    /** เรียกปลั๊กอินเสมอ — wc_only หัก reserved; subtract_paid เมื่อเปิด NUXT_STOCK_SUBTRACT_PAID */
+    const stockMap = await fetchYardsaleStockBatch(
+      lineIds,
+      useSubtractPaid ? 'subtract_paid' : 'wc_only'
+    );
 
     const debugCartStock = process.env.NUXT_DEBUG_CART_STOCK === 'true';
 
@@ -122,6 +124,8 @@ export default defineEventHandler(async (event) => {
           qty,
           wcRestQty: row.stockQuantity,
           wcRestStatus: row.stockStatus,
+          yardsaleReserved: adj?.reserved_quantity,
+          yardsaleAvailable: adj?.available_quantity,
           yardsaleEffectiveQty: adj?.effective_quantity,
           yardsalePaidQty: adj?.paid_quantity,
           usedQty: stockQuantity,

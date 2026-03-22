@@ -9,6 +9,10 @@ export type YardsaleStockRow = {
   line_id: number;
   paid_quantity: number;
   wc_stock_quantity: number | null;
+  /** จำนวนที่ WooCommerce จองใน wp_wc_reserved_stock */
+  reserved_quantity?: number;
+  /** wc_stock − reserved (ก่อน subtract_paid) */
+  available_quantity?: number | null;
   effective_quantity: number | null;
   effective_status: string;
 };

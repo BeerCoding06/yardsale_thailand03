@@ -2,6 +2,13 @@
 
 Use this when **admin shows stock remaining** (e.g. 4) but **checkout says unavailable** (as if 0).
 
+## Yardsale sync (โค้ดใน repo นี้)
+
+- **`POST /api/check-cart-stock`** เรียก **`yardsale/v1/product-stock-batch`** ทุกครั้ง (สูตร `wc_only` เป็นค่าเริ่มต้น)
+- โหมด **`wc_only`**: `effective_quantity = max(0, _stock − SUM(wp_wc_reserved_stock))` — ใกล้เคียงสิ่งที่ WooCommerce ใช้กันจองสต็อกขณะมีออเดอร์ **pending**
+- **`GET /api/product`**: ถ้าไม่ได้เปิด `NUXT_STOCK_SUBTRACT_PAID` จะ merge สต็อกจากปลั๊กอินแบบ `wc_only` เป็นค่าเริ่มต้น (`NUXT_STOCK_MERGE_WORDPRESS=false` เพื่อปิด)
+- **`NUXT_STOCK_SUBTRACT_PAID=true`**: โหมดขั้นสูง — ยังใช้ `effective = wc − paid` (ไม่รวม reserved ใน core; ปรับด้วย filter `yardsale_stock_effective_quantity_subtract_paid`)
+
 ---
 
 ## 1. When WooCommerce changes stock
@@ -107,7 +114,21 @@ Plugin: `yardsale_order_paid` calls **`payment_complete()`**. See [PAYPAL-INTEGR
 
 ---
 
-## 6. Debug logs (this project)
+## 6. ยกเลิกออเดอร์ค้างชำระ (WooCommerce)
+
+เมื่อตั้ง **Hold stock (minutes)** ใน WC ระบบจะ schedule **`woocommerce_cancel_unpaid_orders`** อยู่แล้ว
+
+ปรับความถี่รัน (นาที) ใน `wp-config.php`:
+
+```php
+define('YARDSALE_CANCEL_UNPAID_INTERVAL_MIN', 10);
+```
+
+ใช้ร่วมกับ **`woocommerce_cancel_unpaid_orders_interval_minutes`** (filter ในปลั๊กอิน Yardsale)
+
+---
+
+## 7. Debug logs (this project)
 
 ### WordPress (`wp-config.php`)
 
@@ -124,7 +145,7 @@ Then reproduce checkout. Watch `wp-content/debug.log` for:
 
 **Turn off** `YARDSALE_DEBUG_STOCK` in production when finished.
 
-### Nuxt (cart stock API)
+### Nuxt (ตะกร้า / product API)
 
 ```bash
 NUXT_DEBUG_CART_STOCK=true
@@ -134,7 +155,7 @@ Server logs will show per-line decisions from **`/api/check-cart-stock`**.
 
 ---
 
-## 7. Checklist (5 in stock → 1 sold → 4 left)
+## 8. Checklist (5 in stock → 1 sold → 4 left)
 
 - [ ] `_stock` for that SKU/variation is **4** in `wp_postmeta`.
 - [ ] `_stock_status` is **instock** (or empty with managed stock).

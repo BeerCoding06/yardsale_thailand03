@@ -44,14 +44,30 @@ function formatWcProductToOurShape(wc: any, productId: number): any {
   };
 }
 
-async function applySubtractPaidStockIfEnabled(
+type StockRuntime = {
+  stockSubtractPaidOrders?: boolean;
+  stockMergeWordPress?: boolean;
+};
+
+/**
+ * Overlay stock from Yardsale WP plugin:
+ * - subtract_paid: opt-in (NUXT_STOCK_SUBTRACT_PAID=true)
+ * - else wc_only: ค่าเริ่มต้น merge — รวมหัก reserved ให้ตรงกับ check-cart-stock (ปิดด้วย NUXT_STOCK_MERGE_WORDPRESS=false)
+ */
+async function applyYardsaleStockOverlay(
   data: { product?: any } | null,
   config: ReturnType<typeof useRuntimeConfig>
 ): Promise<void> {
-  /** Opt-in only — avoids double-deduction when WC already reduces stock on order/payment */
-  const enabled = (config as { stockSubtractPaidOrders?: boolean }).stockSubtractPaidOrders === true;
-  if (!enabled || !data?.product?.databaseId) return;
-  const info = await fetchYardsaleProductStockInfo(Number(data.product.databaseId), 'subtract_paid');
+  const c = config as StockRuntime;
+  if (!data?.product?.databaseId) return;
+  const id = Number(data.product.databaseId);
+  if (c.stockSubtractPaidOrders === true) {
+    const info = await fetchYardsaleProductStockInfo(id, 'subtract_paid');
+    mergeEffectiveStockIntoProduct(data.product, info);
+    return;
+  }
+  if (c.stockMergeWordPress === false) return;
+  const info = await fetchYardsaleProductStockInfo(id, 'wc_only');
   mergeEffectiveStockIntoProduct(data.product, info);
 }
 
@@ -98,7 +114,7 @@ export default cachedEventHandler(
           const fallback = await fetchProductByIdFallback(id!, config);
           if (fallback) {
             const out = rewriteWpUrlsInObject(fallback, wpBase, siteBase);
-            await applySubtractPaidStockIfEnabled(out, config);
+            await applyYardsaleStockOverlay(out, config);
             return out;
           }
         }
@@ -106,7 +122,7 @@ export default cachedEventHandler(
       }
       if (data?.product) {
         const out = rewriteWpUrlsInObject(data, wpBase, siteBase);
-        await applySubtractPaidStockIfEnabled(out, config);
+        await applyYardsaleStockOverlay(out, config);
         return out;
       }
     } catch (err: any) {
@@ -115,7 +131,7 @@ export default cachedEventHandler(
         const fallback = await fetchProductByIdFallback(id!, config);
         if (fallback) {
           const out = rewriteWpUrlsInObject(fallback, wpBase, siteBase);
-          await applySubtractPaidStockIfEnabled(out, config);
+          await applyYardsaleStockOverlay(out, config);
           return out;
         }
       }
@@ -127,7 +143,7 @@ export default cachedEventHandler(
       const fallback = await fetchProductByIdFallback(id!, config);
       if (fallback) {
         const out = rewriteWpUrlsInObject(fallback, wpBase, siteBase);
-        await applySubtractPaidStockIfEnabled(out, config);
+        await applyYardsaleStockOverlay(out, config);
         return out;
       }
     }
