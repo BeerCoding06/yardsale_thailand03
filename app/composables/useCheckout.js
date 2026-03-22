@@ -1,7 +1,7 @@
 import { isCartLineSalableBySnapshot } from '~/utils/cart-line-salable';
 
 export const useCheckout = () => {
-  const { cart } = useCart();
+  const { cart, getCartItemsForStockApi } = useCart();
   const { user, isAuthenticated } = useAuth();
   const { t } = useI18n();
   const router = useRouter();
@@ -105,23 +105,7 @@ export const useCheckout = () => {
     }
   };
 
-  /** สร้าง items สำหรับ check-cart-stock จาก cart (product_id = parent, variation_id = variation เมื่อเป็นตัวแปร) */
-  const getCartItemsForStockCheck = () => {
-    if (!cart.value || !cart.value.length) return [];
-    return cart.value.map((item) => {
-      const parentId = item.product?.node?.databaseId ?? item.product?.node?.id;
-      const variationId = item.variation?.node?.databaseId ?? item.variation?.node?.id;
-      const isVariation = item.variation?.node != null;
-      const product_id = isVariation ? Number(parentId) : Number(item.product?.node?.databaseId ?? item.product?.node?.id ?? 0);
-      return {
-        product_id: product_id || 0,
-        ...(isVariation && variationId != null && { variation_id: Number(variationId) }),
-        quantity: item.quantity || 1,
-      };
-    }).filter((i) => i.product_id > 0);
-  };
-
-  /** ตรวจสต็อกจากข้อมูลใน cart (client-side) ใช้ disable ปุ่ม — สอดคล้อง check-cart-stock (ดูจำนวนจริงแม้ WC ค้าง outofstock) */
+  /** ตรวจสต็อกจากข้อมูลใน cart (client-side) ใช้ disable ปุ่ม — หลังรีเฟรชจาก Checkout ควรตรงกับเซิร์ฟเวอร์ */
   const isCartStockValid = () => {
     for (const item of cart.value || []) {
       const node = item.variation?.node || item.product?.node || {};
@@ -150,7 +134,7 @@ export const useCheckout = () => {
       return;
     }
 
-    const items = getCartItemsForStockCheck();
+    const items = getCartItemsForStockApi();
     if (items.length > 0) {
       try {
         const res = await $fetch('/api/check-cart-stock', { method: 'POST', body: { items } });

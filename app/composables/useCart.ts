@@ -1,6 +1,8 @@
 // app/composables/useCart.ts
 import { push } from 'notivue';
 import { isCartLineSalableBySnapshot } from '~/utils/cart-line-salable';
+import { wcStatusToCartStockToken } from '~/utils/stock-status-format';
+import type { CartItem } from '~~/shared/types';
 
 export const useCart = () => {
   const { t } = useI18n();
@@ -220,6 +222,83 @@ export const useCart = () => {
     }
   };
 
+  const getCartItemsForStockApi = () => {
+    if (!cart.value || !cart.value.length) return [];
+    return cart.value
+      .map((item) => {
+        const parentId = item.product?.node?.databaseId ?? item.product?.node?.id;
+        const variationId = item.variation?.node?.databaseId ?? item.variation?.node?.id;
+        const isVariation = item.variation?.node != null;
+        const product_id = isVariation
+          ? Number(parentId)
+          : Number(item.product?.node?.databaseId ?? item.product?.node?.id ?? 0);
+        return {
+          product_id: product_id || 0,
+          ...(isVariation && variationId != null && { variation_id: Number(variationId) }),
+          quantity: item.quantity || 1,
+        };
+      })
+      .filter((i) => i.product_id > 0);
+  };
+
+  type RefreshLine = {
+    product_id: number;
+    variation_id?: number;
+    quantity: number;
+    name: string;
+    stockQuantity: number | null;
+    stockStatus: string;
+  };
+
+  /** รีเฟรชสต็อกจาก WC + ปลั๊กอิน แล้วบันทึกตะกร้า — ลดข้อความ out of stock จาก snapshot เก่า */
+  const refreshCartStockFromServer = async (): Promise<boolean> => {
+    if (!import.meta.client || !cart.value?.length) return true;
+    const items = getCartItemsForStockApi();
+    if (!items.length) return true;
+    try {
+      const res = await $fetch<{ ok: boolean; lines: RefreshLine[] }>('/api/refresh-cart-stock', {
+        method: 'POST',
+        body: { items },
+      });
+      if (res?.ok === false) return false;
+      if (!res?.lines?.length) return true;
+      const next = cart.value.map((item) => {
+        const parentId = Number(item.product?.node?.databaseId ?? item.product?.node?.id ?? 0);
+        const rawVid = item.variation?.node?.databaseId ?? item.variation?.node?.id;
+        const variationId =
+          rawVid != null && rawVid !== '' ? Number(rawVid) : undefined;
+        const isVariation = item.variation?.node != null;
+        const pid = isVariation ? parentId : Number(item.product?.node?.databaseId ?? item.product?.node?.id ?? 0);
+        const vid =
+          isVariation && variationId !== undefined && !Number.isNaN(variationId) ? variationId : undefined;
+        const line = res.lines.find(
+          (l) => l.product_id === pid && Number(l.variation_id ?? 0) === Number(vid ?? 0)
+        );
+        if (!line) return item;
+        const clone = JSON.parse(JSON.stringify(item)) as CartItem;
+        const statusToken = wcStatusToCartStockToken(line.stockStatus);
+        const sq =
+          line.stockQuantity !== null && line.stockQuantity !== undefined
+            ? Number(line.stockQuantity)
+            : null;
+        if (isVariation && clone.variation?.node) {
+          if (sq !== null) clone.variation.node.stockQuantity = sq;
+          clone.variation.node.stockStatus = statusToken;
+        }
+        if (!isVariation && clone.product?.node) {
+          if (sq !== null) clone.product.node.stockQuantity = sq;
+          clone.product.node.stockStatus = statusToken;
+        }
+        return clone;
+      });
+      updateCart(next);
+      return true;
+    } catch (e) {
+      console.warn('[useCart] refreshCartStockFromServer failed', e);
+      return false;
+    }
+  };
+
   const removeItem = async (key: string) => {
     const item = cart.value.find(i => i.key === key);
     if (!item) return;
@@ -300,5 +379,7 @@ export const useCart = () => {
     increment,
     decrement,
     removeItem,
+    getCartItemsForStockApi,
+    refreshCartStockFromServer,
   };
 };
