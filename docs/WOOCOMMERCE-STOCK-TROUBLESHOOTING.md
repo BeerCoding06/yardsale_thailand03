@@ -1,5 +1,12 @@
 # WooCommerce stock sync — troubleshooting (Nuxt + Yardsale)
 
+## รีเฟรชสต็อกตอนเปิดหน้า Checkout (Nuxt)
+
+- ตอนเข้าหน้า **Checkout** แอปจะเรียก **`POST /api/refresh-cart-stock`** แล้วอัปเดต `stockQuantity` / `stockStatus` ในรายการตะกร้า (localStorage) ให้ตรงกับ WooCommerce + ปลั๊กอิน (รวม reserved เมื่อใช้ `wc_only`)
+- ลดกรณีข้อความสีเหลือง “out of stock” จาก **snapshot เก่าตอนกดเพิ่มตะกร้า**
+
+---
+
 ## Symptom
 
 - **Inventory in wp-admin looks fine** (high `stock_quantity`, “In stock”).

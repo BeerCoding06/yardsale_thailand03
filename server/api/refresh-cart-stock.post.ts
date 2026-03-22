@@ -1,5 +1,5 @@
 // server/api/refresh-cart-stock.post.ts
-// คืนสต็อกล่าสุด — ใช้ตอนเปิดหน้า Checkout
+// คืนสต็อกล่าสุดต่อรายการตะกร้า — ใช้ตอนเปิดหน้า Checkout
 
 import { fetchLiveStockLinesForCart, type CartStockItem } from '../utils/cart-live-stock';
 

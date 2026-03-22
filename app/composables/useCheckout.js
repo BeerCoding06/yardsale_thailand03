@@ -105,7 +105,7 @@ export const useCheckout = () => {
     }
   };
 
-  /** ตรวจสต็อกจากข้อมูลใน cart (client-side) ใช้ disable ปุ่ม — หลังรีเฟรชจาก Checkout ควรตรงกับเซิร์ฟเวอร์ */
+  /** ตรวจสต็อกจาก cart (client-side) — หลังรีเฟรชที่ Checkout ควรตรงเซิร์ฟเวอร์; สอดคล้อง check-cart-stock */
   const isCartStockValid = () => {
     for (const item of cart.value || []) {
       const node = item.variation?.node || item.product?.node || {};

@@ -1,5 +1,5 @@
 // server/utils/cart-live-stock.ts
-// ดึง stock ล่าสุดจาก WC REST + ปลั๊กอิน Yardsale (ใช้ร่วม check-cart-stock / refresh-cart-stock)
+// ดึง stock ล่าสุดจาก WC REST + ปลั๊กอิน Yardsale (reserved / subtract_paid) — check-cart-stock / refresh-cart-stock
 
 import * as wpUtils from './wp';
 import { fetchYardsaleStockBatch, type StockFormula } from './yardsale-stock';
@@ -31,6 +31,9 @@ type PendingRow = {
   lineId: number;
 };
 
+/**
+ * คืนสต็อกล่าสุดต่อบรรทัด (refresh ตะกร้า / ตรวจ checkout)
+ */
 export async function fetchLiveStockLinesForCart(
   items: CartStockItem[],
   formula: StockFormula
@@ -126,6 +129,7 @@ export async function fetchLiveStockLinesForCart(
         lineId: row.lineId,
         product_id,
         variation_id,
+        wcRestQty: row.stockQuantity,
         effectiveQty: stockQuantity,
         reserved: adj?.reserved_quantity,
       });

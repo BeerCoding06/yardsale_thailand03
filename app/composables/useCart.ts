@@ -222,6 +222,7 @@ export const useCart = () => {
     }
   };
 
+  /** โครงเดียวกับ `/api/check-cart-stock` และ `/api/refresh-cart-stock` */
   const getCartItemsForStockApi = () => {
     if (!cart.value || !cart.value.length) return [];
     return cart.value
@@ -250,7 +251,10 @@ export const useCart = () => {
     stockStatus: string;
   };
 
-  /** รีเฟรชสต็อกจาก WC + ปลั๊กอิน แล้วบันทึกตะกร้า — ลดข้อความ out of stock จาก snapshot เก่า */
+  /**
+   * ดึงสต็อกล่าสุดจาก WC + ปลั๊กอิน แล้วเขียนลงตะกร้า (localStorage)
+   * เรียกตอนเปิด Checkout — ลดข้อความ out of stock จาก snapshot เก่า
+   */
   const refreshCartStockFromServer = async (): Promise<boolean> => {
     if (!import.meta.client || !cart.value?.length) return true;
     const items = getCartItemsForStockApi();
@@ -260,7 +264,10 @@ export const useCart = () => {
         method: 'POST',
         body: { items },
       });
-      if (res?.ok === false) return false;
+      if (res?.ok === false) {
+        console.warn('[useCart] refresh-cart-stock returned ok:false');
+        return false;
+      }
       if (!res?.lines?.length) return true;
       const next = cart.value.map((item) => {
         const parentId = Number(item.product?.node?.databaseId ?? item.product?.node?.id ?? 0);
