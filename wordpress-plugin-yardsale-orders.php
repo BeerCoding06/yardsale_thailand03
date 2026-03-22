@@ -1149,7 +1149,8 @@ function yardsale_get_reserved_stock_sum_for_product($product_id) {
         )
     );
     // phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-    return (int) round((float) $sum);
+    $out = (int) round((float) $sum);
+    return (int) apply_filters('yardsale_reserved_stock_sum_for_product', $out, $product_id);
 }
 
 /**
@@ -1762,3 +1763,135 @@ add_filter(
     20,
     1
 );
+
+// -----------------------------------------------------------------------------
+// Stock reduction policy (opt-in) + transients + payment_complete logging
+// ดู docs/WOOCOMMERCE-STOCK-REDUCTION-POLICY.md
+// -----------------------------------------------------------------------------
+
+/**
+ * เปิดใช้: wp-config.php
+ * define('YARDSALE_STOCK_REDUCE_ONLY_PROCESSING_COMPLETED', true);
+ * → WooCommerce จะลดสต็อกเฉพาะเมื่อออเดอร์อยู่ในสถานะที่อนุญาต (ค่าเริ่มต้น: processing, completed)
+ * ไม่ลดตอน pending / failed / cancelled / on-hold (ยกเว้นปรับด้วย filter)
+ *
+ * @return bool
+ */
+function yardsale_wc_stock_policy_enabled() {
+    return defined('YARDSALE_STOCK_REDUCE_ONLY_PROCESSING_COMPLETED') && YARDSALE_STOCK_REDUCE_ONLY_PROCESSING_COMPLETED;
+}
+
+/**
+ * @return string[]
+ */
+function yardsale_wc_reduce_allowed_order_statuses() {
+    $statuses = array('processing', 'completed');
+    if (defined('YARDSALE_STOCK_REDUCE_STATUSES') && is_string(YARDSALE_STOCK_REDUCE_STATUSES) && YARDSALE_STOCK_REDUCE_STATUSES !== '') {
+        $statuses = array_filter(array_map('trim', explode(',', YARDSALE_STOCK_REDUCE_STATUSES)));
+    }
+    return apply_filters('yardsale_wc_reduce_allowed_order_statuses', $statuses);
+}
+
+/**
+ * @param bool     $reduce
+ * @param WC_Order $order
+ * @return bool
+ */
+function yardsale_wc_can_reduce_order_stock($reduce, $order) {
+    if (! yardsale_wc_stock_policy_enabled()) {
+        return $reduce;
+    }
+    if (! $reduce) {
+        return false;
+    }
+    if (! is_a($order, 'WC_Order')) {
+        return $reduce;
+    }
+    $status = $order->get_status();
+    $allow  = yardsale_wc_reduce_allowed_order_statuses();
+    if (in_array($status, $allow, true)) {
+        return true;
+    }
+    if (yardsale_stock_debug_enabled()) {
+        error_log(sprintf('[yardsale_stock_policy] block reduce stock order_id=%d status=%s', (int) $order->get_id(), $status));
+    }
+    return false;
+}
+
+/**
+ * @param int $order_id
+ */
+function yardsale_wc_on_payment_complete_log($order_id) {
+    if (! yardsale_stock_debug_enabled()) {
+        return;
+    }
+    $order_id = (int) $order_id;
+    if ($order_id < 1 || ! function_exists('wc_get_order')) {
+        return;
+    }
+    $order = wc_get_order($order_id);
+    if (! $order) {
+        return;
+    }
+    error_log(sprintf('[yardsale_stock_policy] woocommerce_payment_complete order_id=%d status=%s', $order_id, $order->get_status()));
+    yardsale_log_order_stock_snapshot($order, 'woocommerce_payment_complete');
+}
+
+/**
+ * @param WC_Order $order
+ */
+function yardsale_wc_clear_line_item_transients($order) {
+    if (! is_a($order, 'WC_Order') || ! function_exists('wc_delete_product_transients')) {
+        return;
+    }
+    foreach ($order->get_items() as $item) {
+        if (! is_a($item, 'WC_Order_Item_Product')) {
+            continue;
+        }
+        $p = $item->get_product();
+        if (! $p) {
+            continue;
+        }
+        wc_delete_product_transients($p->get_id());
+        $parent = (int) $p->get_parent_id();
+        if ($parent > 0) {
+            wc_delete_product_transients($parent);
+        }
+    }
+}
+
+/**
+ * Register WooCommerce hooks after WC loads.
+ */
+function yardsale_wc_checkout_process_debug_cart() {
+    if (! function_exists('WC') || ! WC()->cart) {
+        return;
+    }
+    error_log('[yardsale_stock_debug] woocommerce_checkout_process cart items=' . WC()->cart->get_cart_contents_count());
+    foreach (WC()->cart->get_cart() as $cart_item) {
+        $p = isset($cart_item['data']) ? $cart_item['data'] : null;
+        if (is_a($p, 'WC_Product') && $p->managing_stock()) {
+            error_log(sprintf(
+                '[yardsale_stock_debug]   checkout cart product_id=%d cart_qty=%s stock_qty=%s status=%s',
+                (int) $p->get_id(),
+                isset($cart_item['quantity']) ? (string) $cart_item['quantity'] : '?',
+                (string) $p->get_stock_quantity(),
+                $p->get_stock_status()
+            ));
+        }
+    }
+}
+
+function yardsale_wc_register_stock_policy_hooks() {
+    if (! class_exists('WooCommerce')) {
+        return;
+    }
+    add_filter('woocommerce_can_reduce_order_stock', 'yardsale_wc_can_reduce_order_stock', 5, 2);
+    add_action('woocommerce_payment_complete', 'yardsale_wc_on_payment_complete_log', 5, 1);
+    add_action('woocommerce_reduce_order_stock', 'yardsale_wc_clear_line_item_transients', 100, 1);
+    add_action('woocommerce_restore_order_stock', 'yardsale_wc_clear_line_item_transients', 100, 1);
+    if (yardsale_stock_debug_enabled()) {
+        add_action('woocommerce_checkout_process', 'yardsale_wc_checkout_process_debug_cart', 1);
+    }
+}
+add_action('woocommerce_loaded', 'yardsale_wc_register_stock_policy_hooks');

@@ -131,4 +131,5 @@ Do **not** add custom code that sets product stock to **0** after each order unl
 
 - [STOCK-PAID-DEDUCTION.md](./STOCK-PAID-DEDUCTION.md) — when to enable `subtract_paid`  
 - [PAYPAL-INTEGRATION.md](./PAYPAL-INTEGRATION.md) — `order-paid` / `payment_complete()`  
-- [WOOCOMMERCE-STOCK-RESERVED.md](./WOOCOMMERCE-STOCK-RESERVED.md) — hold stock, `wp_wc_reserved_stock`, SQL, `YARDSALE_DEBUG_STOCK`
+- [WOOCOMMERCE-STOCK-RESERVED.md](./WOOCOMMERCE-STOCK-RESERVED.md) — hold stock, `wp_wc_reserved_stock`, SQL, `YARDSALE_DEBUG_STOCK`  
+- [WOOCOMMERCE-STOCK-REDUCTION-POLICY.md](./WOOCOMMERCE-STOCK-REDUCTION-POLICY.md) — ลดสต็อกเฉพาะ `processing`/`completed` (opt-in)
