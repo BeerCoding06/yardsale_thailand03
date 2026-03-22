@@ -146,6 +146,7 @@
     },
     "choose_payment": "Choose payment method",
     "quantity": "Quantity",
+    "refreshing_stock": "Updating stock from the shop…",
     "error": {
       "login_required": "Please login before checkout",
       "empty_cart": "Cart is empty",

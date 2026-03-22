@@ -12,7 +12,8 @@ const {
   isLoadingCustomerData,
   isCartStockValid,
 } = useCheckout();
-const { cart } = useCart();
+const { cart, refreshCartStockFromServer } = useCart();
+const { t } = useI18n();
 const { isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
 
@@ -32,11 +33,21 @@ const reactiveCart = computed(() => {
 
 // Client-side only state
 const isClient = ref(false);
+const isRefreshingStock = ref(false);
 
 // Load customer data when component mounts and user is authenticated
 onMounted(async () => {
   isClient.value = true;
   checkAuth();
+
+  if (cart.value?.length) {
+    isRefreshingStock.value = true;
+    try {
+      await refreshCartStockFromServer();
+    } finally {
+      isRefreshingStock.value = false;
+    }
+  }
 
   if (isAuthenticated.value) {
     await loadCustomerData();
@@ -192,6 +203,12 @@ watch(() => cart.value?.length, (newLength) => {
         >
           <p class="text-red-600 dark:text-red-400 text-sm">{{ error }}</p>
         </div>
+        <div
+          v-if="isRefreshingStock"
+          class="w-full mb-3 text-center text-sm text-neutral-600 dark:text-neutral-400"
+        >
+          {{ t('checkout.refreshing_stock') }}
+        </div>
         <!-- สต็อกไม่เพียงพอ (ปุ่มชำระจะถูก disable ด้วย) -->
         <div
           v-if="!isCartEmpty && !hasStockForPayment && !error"
@@ -341,7 +358,7 @@ watch(() => cart.value?.length, (newLength) => {
         </div>
         <button
           type="submit"
-          :disabled="checkoutStatus !== 'order' || isCartEmpty || !hasStockForPayment"
+          :disabled="checkoutStatus !== 'order' || isCartEmpty || !hasStockForPayment || isRefreshingStock"
           class="pay-button-bezel w-full h-12 leading-[50px] rounded-xl relative font-semibold text-white text-lg flex justify-center items-center bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Transition name="slide-up">
