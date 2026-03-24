@@ -44,14 +44,6 @@ services:
       - DB_PASSWORD=${DB_PASSWORD:-RootBeer06032534}
 
       # =================
-      # WordPress Configuration
-      # =================
-      - WP_BASE_URL=${WP_BASE_URL:-http://157.85.98.150:8080}
-      - WP_BASIC_AUTH=${WP_BASIC_AUTH:-}
-      - WP_CONSUMER_KEY=${WP_CONSUMER_KEY:-}
-      - WP_CONSUMER_SECRET=${WP_CONSUMER_SECRET:-}
-
-      # =================
       # Public URL (Traefik)
       # =================
       - BASE_URL=${BASE_URL:-http://www.yardsaleth.com}

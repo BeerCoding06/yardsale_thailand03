@@ -20,123 +20,16 @@ useSeoMeta({
   twitterSite: "@zhatlen",
   twitterCreator: "@zhatlen",
   twitterImage: ogImageLogo,
-  keywords: `${name}, ecommerce, nuxt, woocommerce`,
+  keywords: `${name}, ecommerce, nuxt`,
   viewport:
     "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover",
 });
-
-// Categories data for CarouselCategories (แสดงในทุกหน้า)
-const categoriesData = ref([]);
-
-onMounted(async () => {
-  try {
-    console.log("[app] Fetching categories from /api/categories?parent=0&hide_empty=false");
-    // Use hide_empty=false to show all categories even if they have no products
-    const response = await $fetch("/api/categories?parent=0&hide_empty=false");
-    console.log("[app] Categories response:", response);
-    console.log("[app] Response type:", typeof response);
-    console.log("[app] Has productCategories?", !!response?.productCategories);
-    console.log("[app] Has nodes?", !!response?.productCategories?.nodes);
-    console.log("[app] Nodes is array?", Array.isArray(response?.productCategories?.nodes));
-
-    // แสดง categories ทั้งหมดที่ดึงมา (ไม่ต้อง filter เพราะ API ดึงมาแล้ว)
-    if (response?.productCategories?.nodes && Array.isArray(response.productCategories.nodes)) {
-      const nodes = response.productCategories.nodes;
-      console.log("[app] Raw nodes:", nodes);
-      console.log("[app] Nodes length:", nodes.length);
-      
-      // Filter out categories with "No Category" name and ensure all categories have required fields
-      categoriesData.value = nodes
-        .filter((cat) => {
-          // Filter out categories with "No Category" name or empty name
-          const name = (cat.name || '').trim();
-          const lowerName = name.toLowerCase();
-          return name !== '' && 
-                 lowerName !== 'no category' && 
-                 lowerName !== 'uncategorized' &&
-                 lowerName !== 'uncategorised';
-        })
-        .map((cat, index) => {
-          const category = {
-            id: cat.id || cat.databaseId || index,
-            databaseId: cat.databaseId || cat.id || index,
-            name: cat.name || 'Unnamed Category',
-            slug: cat.slug || '',
-            description: cat.description || '',
-            image: cat.image || null,
-            parent: cat.parent || null,
-            count: cat.count || 0,
-            children: cat.children || { nodes: [] },
-            products: cat.products || { nodes: [] }
-          };
-          console.log(`[app] Category ${index}:`, category);
-          return category;
-        });
-      
-      console.log("[app] Loaded categories:", categoriesData.value.length);
-      
-      // Debug: log first category structure
-      if (categoriesData.value.length > 0) {
-        console.log("[app] First category:", categoriesData.value[0]);
-        console.log("[app] First category keys:", Object.keys(categoriesData.value[0]));
-      } else {
-        console.warn("[app] Categories array is empty");
-        // Show debug info if available
-        if (response.debug) {
-          console.warn("[app] Debug info:", response.debug);
-        }
-      }
-    } else {
-      categoriesData.value = [];
-      console.warn("[app] No categories in response");
-      
-      // Log error if present
-      if (response?.error) {
-        console.error("[app] Categories API error:", response.error);
-        if (response?.debug) {
-          console.error("[app] Debug info:", response.debug);
-        }
-      }
-      
-      console.warn("[app] Response structure:", {
-        hasProductCategories: !!response?.productCategories,
-        hasNodes: !!response?.productCategories?.nodes,
-        nodesType: typeof response?.productCategories?.nodes,
-        isArray: Array.isArray(response?.productCategories?.nodes),
-        debug: response?.debug,
-        error: response?.error,
-        fullResponse: response
-      });
-    }
-  } catch (error) {
-    console.error("[app] Error fetching categories:", error);
-    console.error("[app] Error details:", {
-      message: error?.message,
-      statusCode: error?.statusCode,
-      data: error?.data
-    });
-    categoriesData.value = [];
-  }
-});
-
-const categories = computed(() => categoriesData.value);
-
-// Debug: Watch categories changes
-watch(categories, (newCategories) => {
-  console.log('[app] Categories computed changed:', newCategories?.length || 0);
-  console.log('[app] Categories data:', newCategories);
-}, { deep: true, immediate: true });
 </script>
 
 <template>
-  <AppHeader />
-  <main class="pt-[90px] lg:pt-20 min-h-[calc(100vh-90px)]">
+  <NuxtLayout>
     <NuxtPage />
-  </main>
-  <AppFooter />
-  <ClientOnly>
-    <CarouselCategories :categories="categories" />
-  </ClientOnly>
+  </NuxtLayout>
   <Notivue v-slot="item">
     <Notification :item="item" :theme="materialTheme" />
   </Notivue>

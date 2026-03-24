@@ -18,6 +18,15 @@ const modules = [Navigation, Pagination, Thumbs];
 
 const route = useRoute();
 
+const {
+  hasRemoteApi,
+  endpoint,
+  unwrapYardsaleResponse,
+  mapApiProductRow,
+  isUuidString,
+  isStorefrontPublishedProduct,
+} = useStorefrontCatalog();
+
 // Parse slug + sku จาก [id] (รูปแบบ slug-sku เช่น my-product-12345)
 const idParam = computed(() => {
   const p = route.params.id;
@@ -43,10 +52,41 @@ const selectedVariation = ref(null);
 const isLoading = ref(true);
 
 async function fetchProduct() {
+  const routeId = String(idParam.value || "");
+  const rawQueryId = route.query.id;
+  const queryIdStr = String(
+    Array.isArray(rawQueryId) ? rawQueryId[0] : rawQueryId || ""
+  );
+  const apiProductId =
+    hasRemoteApi && isUuidString(routeId)
+      ? routeId
+      : hasRemoteApi && isUuidString(queryIdStr)
+        ? queryIdStr
+        : "";
+
+  if (apiProductId) {
+    isLoading.value = true;
+    try {
+      const raw = await $fetch(endpoint(`product/${apiProductId}`));
+      const data = unwrapYardsaleResponse(raw);
+      const p = data?.product ?? data;
+      const mapped = mapApiProductRow(p) || {};
+      productResult.value = isStorefrontPublishedProduct(mapped)
+        ? mapped
+        : {};
+    } catch (error) {
+      console.error("[product] Error fetching product (API):", error);
+      productResult.value = {};
+    } finally {
+      isLoading.value = false;
+    }
+    return;
+  }
+
   const s = slug.value;
   const k = sku.value;
-  const rawQueryId = route.query.id;
-  const queryId = Array.isArray(rawQueryId) ? rawQueryId[0] : rawQueryId;
+  const rawQueryId2 = route.query.id;
+  const queryId = Array.isArray(rawQueryId2) ? rawQueryId2[0] : rawQueryId2;
   const hasId = queryId && /^\d+$/.test(String(queryId));
   if (!hasId && !s && !k) {
     const rawId = idParam.value;
@@ -68,10 +108,11 @@ async function fetchProduct() {
       if (rawId && /^\d+$/.test(String(rawId))) query.id = Number(rawId);
       else if (!s && k && /^\d+$/.test(k)) query.id = Number(k);
     }
-    const data = await $fetch('/api/product', { query });
-    productResult.value = data?.product || {};
+    const data = await $fetch("/api/product", { query });
+    const prod = data?.product || {};
+    productResult.value = isStorefrontPublishedProduct(prod) ? prod : {};
   } catch (error) {
-    console.error('[product] Error fetching product:', error);
+    console.error("[product] Error fetching product:", error);
     productResult.value = {};
   } finally {
     isLoading.value = false;
@@ -83,7 +124,7 @@ onMounted(() => {
 });
 
 // Refetch เมื่อเปลี่ยน product (เปลี่ยน URL หรือ query.id)
-watch([slug, sku, () => route.query.id], () => {
+watch([slug, sku, () => route.query.id, idParam], () => {
   fetchProduct();
 });
 

@@ -8,6 +8,38 @@ definePageMeta({
 
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
+const { endpoint, hasRemoteApi } = useCmsApi();
+
+function cmsPath(rel: string) {
+  return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
+}
+
+function unwrapApi(res: any) {
+  if (res?.success === true && res.data != null && typeof res.data === "object") {
+    return res.data;
+  }
+  return res;
+}
+
+/** Express: listing_status + is_cancelled / price / created_at */
+function normalizeMyProduct(p: any) {
+  if (!p || typeof p !== "object") return p;
+  const cancelled = p.is_cancelled === true;
+  const ls = p.listing_status || "published";
+  let status: string;
+  if (cancelled) status = "cancelled";
+  else if (ls === "published") status = "publish";
+  else if (ls === "hidden") status = "hidden";
+  else status = "pending";
+  return {
+    ...p,
+    status: p.status ?? status,
+    regular_price: p.regular_price ?? p.price,
+    stock_quantity: p.stock_quantity ?? p.stock,
+    manage_stock: p.manage_stock ?? true,
+    date_created: p.date_created ?? p.created_at,
+  };
+}
 
 // Client-side only state to prevent hydration mismatch
 const isClient = ref(false);
@@ -18,8 +50,8 @@ const error = ref<string | null>(null);
 // Confirm modal state
 const showCancelModal = ref(false);
 const showRestoreModal = ref(false);
-const productToCancel = ref<number | null>(null);
-const productToRestore = ref<number | null>(null);
+const productToCancel = ref<string | number | null>(null);
+const productToRestore = ref<string | number | null>(null);
 const isCancelling = ref(false);
 const isRestoring = ref(false);
 
@@ -29,6 +61,10 @@ const { t } = useI18n();
 // Get product image URL from WooCommerce data
 const getProductImage = (product: any) => {
   if (!product) return null;
+
+  if (product.image_url && typeof product.image_url === "string") {
+    return product.image_url;
+  }
 
   // Try WooCommerce images array
   if (product.images && Array.isArray(product.images) && product.images.length > 0) {
@@ -72,17 +108,14 @@ const fetchProducts = async () => {
     }
 
     // เรียก API โดยส่งเฉพาะ JWT – ไม่ส่ง user_id เพื่อให้ดึงเฉพาะสินค้าของคนที่ login
-    console.log("[my-products] Calling /api/my-products with JWT token");
-    const response = await $fetch<{
-      success: boolean;
-      count: number;
-      products: any[];
-    }>('/api/my-products', {
+    console.log("[my-products] Calling my-products with JWT");
+    const raw = await $fetch(cmsPath("my-products"), {
       headers: {
-        'Authorization': `Bearer ${jwtToken}`
-      }
+        Authorization: `Bearer ${jwtToken}`,
+      },
     });
 
+    const response = unwrapApi(raw);
     console.log("[my-products] API response:", response);
     const requestedAsUserId = (response as any)?.requested_as_user_id;
     if (requestedAsUserId != null) {
@@ -93,25 +126,27 @@ const fetchProducts = async () => {
     }
 
     if (response && response.success !== false) {
-      // Handle both response formats
       if (Array.isArray(response)) {
-        // Direct array response
-        products.value = response;
+        products.value = response.map(normalizeMyProduct);
       } else if (response.products && Array.isArray(response.products)) {
-        // Object with products property
-        products.value = response.products;
+        products.value = response.products.map(normalizeMyProduct);
       } else {
         products.value = [];
         error.value = t('my_products.no_products_found');
       }
     } else {
       products.value = [];
-      error.value = response?.error || response?.message || t('my_products.no_products_found');
+      error.value =
+        (response as any)?.error?.message ||
+        (response as any)?.error ||
+        (response as any)?.message ||
+        t('my_products.no_products_found');
     }
   } catch (err) {
     console.error("[my-products] Error fetching products:", err);
     const errorObj = err as any;
     error.value =
+      errorObj?.data?.error?.message ||
       errorObj?.data?.message ||
       errorObj?.message ||
       t('my_products.load_error');
@@ -121,7 +156,7 @@ const fetchProducts = async () => {
 };
 
 // Open cancel product modal
-const openCancelModal = (productId: number) => {
+const openCancelModal = (productId: string | number) => {
   productToCancel.value = productId;
   showCancelModal.value = true;
 };
@@ -143,23 +178,31 @@ const cancelProduct = async () => {
 
   try {
     isCancelling.value = true;
-    const response = await $fetch<{
-      success?: boolean;
-      product?: { id: number; name: string; status: string };
-    }>("/api/cancel-product", {
+    const jwtToken = user.value?.token;
+    const cancelPath = hasRemoteApi ? "product/cancel" : "cancel-product";
+    const raw = await $fetch(cmsPath(cancelPath), {
       method: "POST",
-      body: {
-        product_id: productId,
-        user_id: user.value.id,
+      headers: {
+        ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
+        "Content-Type": "application/json",
       },
+      body: hasRemoteApi
+        ? { product_id: String(productId) }
+        : { product_id: productId, user_id: user.value.id },
     } as any);
 
+    const response = unwrapApi(raw);
     const ok = response?.product != null || response?.success === true;
     if (ok) {
-      const newStatus = response?.product?.status ?? "draft";
-      // อัปเดตสถานะในรายการ (สร้าง array ใหม่เพื่อให้ Vue อัปเดต UI)
+      const newStatus = response?.product?.status ?? "cancelled";
       products.value = products.value.map((p: any) =>
-        p.id === productId ? { ...p, status: newStatus } : p
+        p.id === productId || String(p.id) === String(productId)
+          ? {
+              ...p,
+              status: newStatus,
+              is_cancelled: response?.product?.is_cancelled ?? true,
+            }
+          : p
       );
       push.success(t('product.cancel_success'));
     } else {
@@ -180,7 +223,7 @@ const cancelProduct = async () => {
 };
 
 // Open restore product modal
-const openRestoreModal = (productId: number) => {
+const openRestoreModal = (productId: string | number) => {
   productToRestore.value = productId;
   showRestoreModal.value = true;
 };
@@ -202,23 +245,31 @@ const restoreProduct = async () => {
 
   try {
     isRestoring.value = true;
-    const response = await $fetch<{
-      success?: boolean;
-      product?: { id: number; name: string; status: string };
-    }>("/api/restore-product", {
+    const jwtToken = user.value?.token;
+    const restorePath = hasRemoteApi ? "product/restore" : "restore-product";
+    const raw = await $fetch(cmsPath(restorePath), {
       method: "POST",
-      body: {
-        product_id: productId,
-        user_id: user.value.id,
+      headers: {
+        ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
+        "Content-Type": "application/json",
       },
+      body: hasRemoteApi
+        ? { product_id: String(productId) }
+        : { product_id: productId, user_id: user.value.id },
     } as any);
 
+    const response = unwrapApi(raw);
     const ok = response?.product != null || response?.success === true;
     if (ok) {
-      const newStatus = response?.product?.status ?? "pending";
-      // อัปเดตสถานะในรายการ (สร้าง array ใหม่เพื่อให้ Vue อัปเดต UI)
+      const newStatus = response?.product?.status ?? "publish";
       products.value = products.value.map((p: any) =>
-        p.id === productId ? { ...p, status: newStatus } : p
+        p.id === productId || String(p.id) === String(productId)
+          ? {
+              ...p,
+              status: newStatus,
+              is_cancelled: response?.product?.is_cancelled ?? false,
+            }
+          : p
       );
       push.success(t('product.restore_success'));
     } else {
@@ -359,7 +410,7 @@ watch(isAuthenticated, (newVal: boolean) => {
                   :class="{
                     'bg-yellow-500 text-white': product.status === 'pending',
                     'bg-green-500 text-white': product.status === 'publish',
-                    'bg-gray-500 text-white': product.status === 'draft',
+                    'bg-neutral-600 text-white': product.status === 'hidden',
                     'bg-red-500 text-white': product.status === 'cancelled',
                   }"
                 >
@@ -368,8 +419,8 @@ watch(isAuthenticated, (newVal: boolean) => {
                       ? $t('my_products.status.pending')
                       : product.status === "publish"
                       ? $t('my_products.status.published')
-                      : product.status === "draft"
-                      ? $t('my_products.status.cancelled')
+                      : product.status === "hidden"
+                      ? $t('my_products.status.hidden')
                       : $t('my_products.status.cancelled')
                   }}
                 </div>
@@ -449,17 +500,14 @@ watch(isAuthenticated, (newVal: boolean) => {
                     {{ $t('my_products.edit') }}
                   </NuxtLink>
                   <button
-                    v-if="
-                      product.status === 'draft' ||
-                      product.status === 'cancelled'
-                    "
+                    v-if="product.status === 'cancelled'"
                     @click="openRestoreModal(product.id)"
                     class="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition"
                   >
                     {{ $t('product.restore') }}
                   </button>
                   <button
-                    v-else
+                    v-else-if="product.status !== 'hidden'"
                     @click="openCancelModal(product.id)"
                     class="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition"
                   >

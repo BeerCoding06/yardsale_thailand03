@@ -61,6 +61,14 @@ const hasFetched = ref(false);
 const tailEl = ref(null);
 const pageInfo = ref({ hasNextPage: true, endCursor: null });
 
+const {
+  hasRemoteApi,
+  endpoint,
+  unwrapYardsaleResponse,
+  mapApiProductRow,
+  isStorefrontPublishedProduct,
+} = useStorefrontCatalog();
+
 const variables = computed(() => ({
   search: route.query.q,
   order: route.query.orderby?.toUpperCase() || "DESC",
@@ -74,10 +82,32 @@ async function fetch() {
   isLoading.value = true;
 
   try {
+    if (hasRemoteApi) {
+      const raw = await $fetch(endpoint("products"), {
+        query: {
+          q: variables.value.search,
+          search: variables.value.search,
+          category: variables.value.category,
+        },
+      });
+      const data = unwrapYardsaleResponse(raw);
+      const rows = Array.isArray(data?.products) ? data.products : [];
+      const nodes = rows
+        .map((r) => mapApiProductRow(r))
+        .filter((n) => isStorefrontPublishedProduct(n));
+      productsData.value.push(...nodes);
+      pageInfo.value = { hasNextPage: false, endCursor: null };
+      hasFetched.value = true;
+      return;
+    }
+
     const response = await $fetch("/api/products", {
       query: variables.value,
     });
-    productsData.value.push(...response.products.nodes);
+    const nodes = (response.products?.nodes || []).filter((n) =>
+      isStorefrontPublishedProduct(n)
+    );
+    productsData.value.push(...nodes);
     pageInfo.value = response.products.pageInfo;
     hasFetched.value = true;
   } finally {

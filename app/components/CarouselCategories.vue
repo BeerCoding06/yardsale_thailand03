@@ -57,11 +57,17 @@ const colors = [
 ];
 
 const isCollapsed = ref(false); // เริ่มต้นเป็น false ให้ sidebar กางออก
+/** ค่า query.category — API จริงใช้ slug; mock เดิมใช้ชื่อ */
+function categoryQueryValue(cat) {
+  if (!cat || typeof cat !== "object") return String(cat || "");
+  return String(cat.slug || cat.name || "");
+}
 const setCategory = (category) => {
-  if (!isDragging.value && (route.query.category || "") !== category) {
+  const key = categoryQueryValue(category);
+  if (!isDragging.value && (route.query.category || "") !== key) {
     router.push({
       path: localePath('/'), // ใช้ localePath เพื่ออยู่ locale เดิม และให้ watch ใน index ทำงาน
-      query: category ? { category } : {},
+      query: key ? { category: key } : {},
     });
     isCollapsed.value = false;
   }
@@ -258,12 +264,12 @@ onBeforeUnmount(() => {
               <!-- Parent Category Button: คลิกแล้วกรอง product ตามหมวด + toggle เปิด/ปิดลูก -->
               <div
                 @click="
-                  setCategory(category.name);
+                  setCategory(category);
                   toggleCategory(category.id || category.databaseId);
                 "
                 :class="[
                   'card h-[50px] text-black transition cat-button-bezel flex items-center justify-between',
-                  route.query.category === category.name
+                  route.query.category === categoryQueryValue(category)
                     ? 'selected'
                     : getCategoryClass(i),
                 ]"
@@ -302,10 +308,10 @@ onBeforeUnmount(() => {
                 <div
                   v-for="child in category.children.nodes"
                   :key="child.id || child.databaseId || child.name"
-                  @click.stop="setCategory(child.name)"
+                  @click.stop="setCategory(child)"
                   :class="[
                     'card h-[40px] text-black transition cat-button-bezel flex items-center gap-2',
-                    route.query.category === child.name
+                    route.query.category === categoryQueryValue(child)
                       ? 'selected'
                       : 'bg-gray-100 dark:bg-gray-800',
                   ]"

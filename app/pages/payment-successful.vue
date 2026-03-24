@@ -10,7 +10,7 @@ const router = useRouter();
 const { t, locale } = useI18n();
 const loadingOrder = ref(false);
 
-// เมื่อกลับจาก Omise (return_uri) จะมี order_id ใน query แต่ไม่มี order ใน state – ให้โหลดออเดอร์
+// เมื่อเข้ามาจากหน้าชำระ จะมี order_id ใน query แต่ไม่มี order ใน state – ให้โหลดออเดอร์
 onMounted(async () => {
   const orderId = route.query.order_id;
   if (orderId && (!order.value || !order.value.id)) {

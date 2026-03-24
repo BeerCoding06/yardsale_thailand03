@@ -1,6 +1,17 @@
 // app/composables/useAuth.ts
 // Composable for managing user authentication state
 
+/** Express มักคืน { error: { message, code } }; ต้องดึงข้อความเป็น string ไม่ให้ UI ได้ [object Object] */
+function pickErrorMessage(source: unknown, fallback = "Login failed"): string {
+  if (source == null || source === "") return fallback;
+  if (typeof source === "string") return source;
+  if (typeof source === "object" && source !== null && "message" in source) {
+    const m = (source as { message?: unknown }).message;
+    if (typeof m === "string" && m.trim()) return m;
+  }
+  return fallback;
+}
+
 export const useAuth = () => {
   // Initialize user state as null to prevent hydration mismatch
   const user = useState<any>("user", () => null);
@@ -13,13 +24,15 @@ export const useAuth = () => {
   ) => {
     try {
       console.log("[useAuth] Attempting login for username:", username);
-      
+
+      const { endpoint } = useCmsApi();
       const response = await $fetch<{
         success: boolean;
         user?: any;
+        data?: { user?: any; token?: string };
         message?: string;
         error?: string;
-      }>("/api/login", {
+      }>(endpoint("login"), {
         method: "POST",
         body: {
           username,
@@ -30,18 +43,33 @@ export const useAuth = () => {
 
       console.log("[useAuth] Login response:", response);
       console.log("[useAuth] Response success:", response?.success);
-      console.log("[useAuth] Response has user:", !!response?.user);
+      const raw: any = response;
+      const mergedUser =
+        raw?.user ??
+        raw?.data?.user ??
+        (raw?.data && typeof raw.data === "object" && "email" in raw.data
+          ? raw.data
+          : null);
+      console.log("[useAuth] Response has user:", !!mergedUser);
 
-      if (response && response.success && response.user) {
-        user.value = response.user;
+      if (mergedUser && raw.success !== false) {
+        const token =
+          mergedUser.token ?? raw?.data?.token ?? raw?.token;
+        const normalized = token
+          ? { ...mergedUser, token }
+          : mergedUser;
+        user.value = normalized;
         if (import.meta.client) {
-          localStorage.setItem("user", JSON.stringify(response.user));
+          localStorage.setItem("user", JSON.stringify(normalized));
         }
         console.log("[useAuth] Login successful, user saved");
-        return { success: true, user: response.user };
+        return { success: true, user: normalized };
       }
-      
-      const errorMsg = response?.error || response?.message || "Login failed";
+
+      const errorMsg = pickErrorMessage(
+        response?.error ?? response?.message,
+        "Login failed"
+      );
       console.warn("[useAuth] Login failed:", errorMsg);
       if (response?.debug) {
         console.warn("[useAuth] Debug info:", response.debug);
@@ -61,14 +89,14 @@ export const useAuth = () => {
       
       // Extract error message from various possible locations
       let errorMessage = "Login failed";
-      if (error?.data?.error) {
-        errorMessage = error.data.error;
-      } else if (error?.data?.message) {
-        errorMessage = error.data.message;
+      if (error?.data?.error != null) {
+        errorMessage = pickErrorMessage(error.data.error);
+      } else if (error?.data?.message != null) {
+        errorMessage = pickErrorMessage(error.data.message);
       } else if (error?.message) {
-        errorMessage = error.message;
+        errorMessage = pickErrorMessage(error.message);
       } else if (error?.statusMessage) {
-        errorMessage = error.statusMessage;
+        errorMessage = pickErrorMessage(error.statusMessage);
       }
       
       return {
@@ -121,11 +149,20 @@ export const useAuth = () => {
     const id = userId ?? user.value?.id ?? user.value?.ID;
     if (!id) return null;
     try {
-      const data = await $fetch<{ success?: boolean; user?: any }>("/api/me", {
-        query: { user_id: id },
-      });
-      if (data?.user) {
-        const merged = { ...user.value, ...data.user };
+      const { endpoint } = useCmsApi();
+      const jwt = user.value?.token;
+      const data = await $fetch<{ success?: boolean; user?: any; data?: { user?: any } }>(
+        endpoint("me"),
+        {
+          query: { user_id: id },
+          headers: jwt
+            ? { Authorization: `Bearer ${jwt}` }
+            : undefined,
+        }
+      );
+      const nextUser = data?.user ?? data?.data?.user;
+      if (nextUser) {
+        const merged = { ...user.value, ...nextUser };
         user.value = merged;
         if (import.meta.client) {
           localStorage.setItem("user", JSON.stringify(merged));

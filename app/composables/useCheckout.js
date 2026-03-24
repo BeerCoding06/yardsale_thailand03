@@ -21,7 +21,7 @@ export const useCheckout = () => {
   const checkoutStatus = ref('order');
   const error = ref(null);
   const isLoadingCustomerData = ref(false);
-  const paymentMethod = ref('cod'); // 'cod' | 'promptpay' | 'credit_card'
+  const paymentMethod = ref('cod');
   const showPaymentChoiceModal = ref(false);
 
   // Store customer billing data from profile
@@ -117,7 +117,7 @@ export const useCheckout = () => {
     return true;
   };
 
-  /** กดปุ่มชำระเงิน: validate + ตรวจสต็อก (API) แล้วเปิด modal เลือกวิธีชำระ */
+  /** กดปุ่มชำระเงิน: validate + ตรวจสต็อก (API) แล้วสร้างออเดอร์ทันที */
   const handleCheckout = async () => {
     if (!isAuthenticated.value || !user.value) {
       error.value = 'กรุณาเข้าสู่ระบบก่อนสั่งซื้อ';
@@ -149,12 +149,12 @@ export const useCheckout = () => {
     }
 
     error.value = null;
-    showPaymentChoiceModal.value = true;
+    await executeCheckout('cod');
   };
 
-  /** เลือกวิธีชำระจาก modal แล้วสร้างออเดอร์และ redirect ตามวิธีที่เลือก */
+  /** สร้างออเดอร์และ redirect ไปหน้า success */
   const executeCheckout = async (method) => {
-    if (!['promptpay', 'credit_card', 'paypal'].includes(method)) return;
+    if (method !== 'cod') return;
     paymentMethod.value = method;
     showPaymentChoiceModal.value = false;
     checkoutStatus.value = 'processing';
@@ -195,16 +195,7 @@ export const useCheckout = () => {
       }
 
       const customerId = user.value.id || user.value.ID;
-      const isPromptPay = method === 'promptpay';
-      const isCreditCard = method === 'credit_card';
-      const isPayPal = method === 'paypal';
-      const paymentTitle = isPromptPay
-        ? t('checkout.payment_title.promptpay')
-        : isCreditCard
-          ? t('checkout.payment_title.credit_card')
-          : isPayPal
-            ? t('checkout.payment_title.paypal')
-            : t('checkout.payment_title.cod');
+      const paymentTitle = t('checkout.payment_title.cod');
       const checkoutData = {
         customer_id: customerId,
         billing: {
@@ -235,44 +226,10 @@ export const useCheckout = () => {
 
       const orderData = res.order;
       order.value = orderData;
-      const amountThb = Number(orderData.total) || line_items.reduce((s, i) => s + (Number(i.price) || 0) * (i.quantity || 1), 0);
-
-      if (isPromptPay && orderData?.id) {
-        const chargeRes = await $fetch('/api/omise-create-charge', {
-          method: 'POST',
-          body: {
-            order_id: orderData.id,
-            amount_thb: amountThb,
-            return_uri: typeof window !== 'undefined' ? `${window.location.origin}/payment-successful?order_id=${orderData.id}` : undefined,
-          },
-        });
-        const hasQr = chargeRes?.qr_image_uri || chargeRes?.scannable_code;
-        if (import.meta.client) {
-          cart.value = [];
-          localStorage.setItem('cart', JSON.stringify(cart.value));
-          const params = new URLSearchParams({ order_id: orderData.id, amount: amountThb });
-          if (chargeRes?.qr_image_uri) params.set('qr_uri', chargeRes.qr_image_uri);
-          if (chargeRes?.scannable_code) params.set('code', chargeRes.scannable_code);
-          if (chargeRes?.authorize_uri) params.set('authorize_uri', chargeRes.authorize_uri);
-          await router.push(`/payment-promptpay?${params.toString()}`);
-          return;
-        }
-        error.value = chargeRes?.message || t('checkout.error.promptpay_link_failed');
-        checkoutStatus.value = 'order';
-        return;
-      }
-
-      if (isCreditCard && orderData?.id) {
+      if (orderData?.id) {
         cart.value = [];
         if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
-        await router.push(`/payment-creditcard?order_id=${orderData.id}&amount=${amountThb}`);
-        return;
-      }
-
-      if (isPayPal && orderData?.id) {
-        cart.value = [];
-        if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
-        await router.push(`/payment-paypal?order_id=${orderData.id}&amount=${amountThb}`);
+        await router.push(`/payment-successful?order_id=${orderData.id}`);
         return;
       }
 

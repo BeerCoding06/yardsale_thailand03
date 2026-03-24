@@ -11,7 +11,16 @@ const cartModal = ref(false);
 const profileModal = ref(false);
 const { cart } = useCart();
 const { user, isAuthenticated, logout, checkAuth } = useAuth();
+const { isAdmin } = useAdminRole();
 const localePath = useLocalePath();
+const {
+  hasRemoteApi,
+  endpoint,
+  unwrapYardsaleResponse,
+  mapApiProductRow,
+  storefrontProductPath,
+  isStorefrontPublishedProduct,
+} = useStorefrontCatalog();
 
 // Client-side only state to prevent hydration mismatch
 const isClient = ref(false);
@@ -87,24 +96,38 @@ async function fetch() {
       return;
     }
     
-    const response = await $fetch("/api/search", {
-      query: { search: query },
-    }).catch((err) => {
-      console.error('[AppHeader] Search fetch error:', err);
-      throw err;
-    });
-    
-    // Handle different response formats
+    const response = hasRemoteApi
+      ? unwrapYardsaleResponse(
+          await $fetch(endpoint("search"), {
+            query: { q: query, search: query },
+          }).catch((err) => {
+            console.error("[AppHeader] Search fetch error:", err);
+            throw err;
+          })
+        )
+      : await $fetch("/api/search", {
+          query: { search: query },
+        }).catch((err) => {
+          console.error("[AppHeader] Search fetch error:", err);
+          throw err;
+        });
+
+    let nodes = [];
     if (response?.products?.nodes) {
-      searchResults.value = response.products.nodes;
+      nodes = response.products.nodes;
     } else if (Array.isArray(response?.products)) {
-      searchResults.value = response.products;
+      nodes = response.products;
     } else if (Array.isArray(response)) {
-      searchResults.value = response;
+      nodes = response;
     } else {
-      console.warn('[AppHeader] Unexpected search response format:', response);
-      searchResults.value = [];
+      console.warn("[AppHeader] Unexpected search response format:", response);
     }
+    const mapped = hasRemoteApi
+      ? nodes.map((r) => mapApiProductRow(r))
+      : nodes;
+    searchResults.value = mapped.filter((n) =>
+      isStorefrontPublishedProduct(n)
+    );
   } catch (error) {
     console.error('[AppHeader] Search error:', error);
     searchResults.value = [];
@@ -386,13 +409,9 @@ const totalQuantity = computed(() =>
           >
             <NuxtLink
               @click="suggestionMenu = false"
-              :to="
-                localePath(
-                  `/product/${product.slug}-${(product.sku || '').split('-')[0] || product.slug}`
-                )
-              "
+              :to="localePath(storefrontProductPath(product))"
               v-for="(product, i) in searchResults"
-              :key="`${product.sku || product.slug || i}-${i}`"
+              :key="`${product.id || product.sku || product.slug || i}-${i}`"
               class="group select-none"
             >
               <div class="cursor-pointer transition ease-[ease] duration-300">
@@ -541,6 +560,15 @@ const totalQuantity = computed(() =>
             >
               <UIcon name="i-heroicons-user" class="w-5 h-5" />
               <span class="font-medium">{{ $t("auth.profile") }}</span>
+            </NuxtLink>
+            <NuxtLink
+              v-if="isAdmin"
+              :to="localePath('/admin')"
+              @click="profileModal = false"
+              class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white"
+            >
+              <UIcon name="i-heroicons-cog-6-tooth" class="w-5 h-5" />
+              <span class="font-medium">{{ $t("auth.admin_cms") }}</span>
             </NuxtLink>
             <NuxtLink
               :to="localePath('/create-product')"

@@ -5,6 +5,10 @@ node_modules/
 
 # Nuxt - Build cache and output (ignored to speed up builds)
 .nuxt/
+.nuxt-local/
+.yardsale-nuxt/
+.vite-cache/
+.wrangler-logs/
 .output/
 dist/
 !.dist/

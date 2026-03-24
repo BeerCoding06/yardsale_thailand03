@@ -1,20 +1,20 @@
 // nuxt.config.ts
 import pkg from "./package.json";
 
-// Check if we're generating static site or building for Docker
-const isStaticGeneration = process.env.NUXT_GENERATE === 'true' || process.argv.includes('generate');
-const isDockerBuild = process.env.DOCKER_BUILD === 'true';
-
 export default defineNuxtConfig({
-  devtools: { enabled: true },
+  /**
+   * ไม่ใช่ `.nuxt` (มักชน Docker root) และไม่ใส่ใน node_modules — พอร์ต Vite `#build/*` กับ pnpm จะพัง
+   * ถ้า EACCES: sudo chown -R "$(whoami)" .yardsale-nuxt
+   */
+  buildDir: ".yardsale-nuxt",
+  ssr: false,
+  devtools: { enabled: false },
 
   modules: [
     "@vueuse/nuxt",
     "@nuxt/ui",
     "@nuxt/image",
     "notivue/nuxt",
-    // Only include NuxtHub if not generating static site and not building for Docker
-    ...(isStaticGeneration || isDockerBuild ? [] : ["@nuxthub/core"]),
     "@nuxtjs/i18n",
   ],
 
@@ -43,13 +43,6 @@ export default defineNuxtConfig({
     ],
   },
 
-  // Only configure hub if not generating static site and not building for Docker
-  ...(isStaticGeneration || isDockerBuild ? {} : {
-    hub: {
-      cache: true,
-    },
-  }),
-
   notivue: {
     position: "top-center",
     limit: 3,
@@ -64,34 +57,13 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     baseUrl: process.env.BASE_URL || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000" : "http://www.yardsaleth.com"),
-    // WordPress/CMS - can be set via .env file
-    wpBaseUrl: process.env.WP_BASE_URL || 'https://cms.yardsaleth.com',
-    wpProxyPublicUrl: process.env.WP_PROXY_PUBLIC_URL || 'https://cms.yardsaleth.com',
-    wpMediaUrl: process.env.WP_MEDIA_URL || process.env.WP_PROXY_PUBLIC_URL || 'https://cms.yardsaleth.com',
-    wpBasicAuth: process.env.WP_BASIC_AUTH || '',
-    wpConsumerKey: process.env.WP_CONSUMER_KEY || '',
-    wpConsumerSecret: process.env.WP_CONSUMER_SECRET || '',
-    omiseSecretKey: process.env.OMISE_SECRET_KEY || '',
-    omisePublicKey: process.env.OMISE_PUBLIC_KEY || '',
-    omiseWebhookSecret: process.env.OMISE_WEBHOOK_SECRET || '',
-    /** เรียก WordPress `order-paid` หลัง PayPal — ตั้ง `ORDER_PAID_SECRET`; fallback build-time: `OMISE_ORDER_PAID_SECRET` (ชื่อเก่า) */
-    orderPaidSecret: process.env.ORDER_PAID_SECRET || process.env.OMISE_ORDER_PAID_SECRET || '',
-    paypalClientSecret: process.env.PAYPAL_CLIENT_SECRET || '',
-    paypalEnvironment: process.env.PAYPAL_ENVIRONMENT || 'sandbox',
-    /**
-     * ค่าเริ่มต้น: false — เชื่อ stock_quantity / stock_status จาก WooCommerce โดยตรง (มาตรฐานเมื่อ WC ลดสต็อกตอนสร้างออเดอร์หรือชำระเงิน)
-     * ตั้ง NUXT_STOCK_SUBTRACT_PAID=true เฉพาะเมื่อ WC ไม่ลดสต็อกแต่ต้องการหักจากยอดออเดอร์ที่ชำระแล้ว (ดู docs/STOCK-PAID-DEDUCTION.md)
-     */
-    stockSubtractPaidOrders: process.env.NUXT_STOCK_SUBTRACT_PAID === 'true',
-    /** ดึงสต็อกจากปลั๊กอิน (wc_only) ให้สอดคล้อง check-cart-stock รวม reserved — ปิด: NUXT_STOCK_MERGE_WORDPRESS=false */
-    stockMergeWordPress: process.env.NUXT_STOCK_MERGE_WORDPRESS !== 'false',
     public: {
       version: pkg.version,
       baseUrl: process.env.BASE_URL || 'https://www.yardsaleth.com',
-      paypalClientId: process.env.NUXT_PUBLIC_PAYPAL_CLIENT_ID || process.env.PAYPAL_CLIENT_ID || '',
-      /** ต้องตรงกับสกุลใน PayPal SDK + order บน server (ค่าเริ่ม USD ตาม SDK URL มาตรฐาน) */
-      paypalCheckoutCurrency:
-        process.env.NUXT_PUBLIC_PAYPAL_CHECKOUT_CURRENCY || 'USD',
+      /** Yardsale Express API base (e.g. http://localhost:4000/api) — ว่าง = ใช้ mock /api ในเบราว์เซอร์ */
+      cmsApiBase: process.env.NUXT_PUBLIC_CMS_API_BASE || "",
+      /** โหลดรูปสินค้าแบบ path สัมพัทธ์ (/uploads/...) เมื่อ cmsApiBase เป็น /yardsale-api */
+      yardsaleBackendOrigin: process.env.NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN || "",
     },
   },
 
@@ -112,8 +84,7 @@ export default defineNuxtConfig({
     "/login": { ssr: true, prerender: false },
     "/register-user": { ssr: true, prerender: false },
     "/payment-successful": { prerender: false, ssr: false }, // Client-side only
-    "/payment-promptpay": { prerender: false, ssr: false }, // Client-side only
-    "/payment-paypal": { prerender: false, ssr: false },
+    "/admin/**": { prerender: false, ssr: false },
   },
 
   nitro: {
@@ -128,4 +99,19 @@ export default defineNuxtConfig({
   },
 
   compatibilityDate: "2024-08-03",
+
+  vite: {
+    /** หลีกเลี่ยง `node_modules/.cache` ที่อาจเป็น root-owned จาก Docker */
+    cacheDir: ".vite-cache",
+    server: {
+      /** Dev: NUXT_PUBLIC_CMS_API_BASE=/yardsale-api → เบราว์เซอร์ยิงพอร์ตเดียวกับ Nuxt แล้วโยงไป Express (เลี่ยง CORS / Failed to fetch) */
+      proxy: {
+        "/yardsale-api": {
+          target: process.env.NUXT_YARDSALE_PROXY_TARGET || "http://127.0.0.1:4000",
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/yardsale-api/, "/api"),
+        },
+      },
+    },
+  },
 });

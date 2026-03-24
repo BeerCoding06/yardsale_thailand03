@@ -23,10 +23,13 @@ useSeoMeta({
   twitterImage: ogImageLogo,
 });
 
+const { hasRemoteApi, endpoint, unwrapYardsaleResponse } = useStorefrontCatalog();
+
 onMounted(async () => {
   try {
-    // ดึงเฉพาะ parent categories (parent=0) - หมวดหมู่หลักเท่านั้น
-    const response = await $fetch("/api/categories?parent=0");
+    const response = hasRemoteApi
+      ? unwrapYardsaleResponse(await $fetch(endpoint("categories")))
+      : await $fetch("/api/categories?parent=0");
     console.log("[categories] Categories response:", response);
 
     // API already returns categories with parent=0, so use them directly
@@ -77,7 +80,7 @@ const categories = computed(() => categoriesData.value);
       <NuxtLink
         v-for="category in categories"
         :key="category.id"
-        :to="localePath(`/?category=${encodeURIComponent(category.name)}`)"
+        :to="localePath(`/?category=${encodeURIComponent(category.slug || category.name || '')}`)"
         class="w-full max-w-[444px] p-3 lg:p-2"
       >
         <div class="pb-[75%] relative overflow-hidden">

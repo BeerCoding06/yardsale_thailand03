@@ -177,15 +177,10 @@ const fetchOrders = async () => {
       return;
     }
 
-    // Get WordPress base URL from runtime config
-    const config = useRuntimeConfig();
-    const wpBaseUrl = config.public.wpBaseUrl || 'http://157.85.98.150:8080';
-    
-    // Call WordPress custom endpoint directly with JWT token
-    const ordersData = await $fetch(`${wpBaseUrl}/wp-json/yardsale/v1/seller-orders`, {
+    const ordersData = await $fetch('/api/seller-orders', {
       headers: {
-        'Authorization': `Bearer ${jwtToken}`
-      }
+        Authorization: `Bearer ${jwtToken}`,
+      },
     });
     
     if (ordersData && ordersData.success !== false) {

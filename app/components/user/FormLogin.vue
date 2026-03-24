@@ -74,7 +74,11 @@ const handleSubmit = async (e) => {
       // ไปหน้า profile ทันที เพื่อดึงข้อมูล user แสดง
       await navigateTo("/profile");
     } else {
-      throw new Error(result.error || "Login failed");
+      const msg =
+        typeof result.error === "string"
+          ? result.error
+          : result.error?.message || "Login failed";
+      throw new Error(msg);
     }
   } catch (error) {
     console.error("[Form] Login error:", error);

@@ -38,54 +38,32 @@ const { t } = useI18n();
 // Reactive map to store product images by product_id
 const productImages = ref(new Map());
 
-// Fetch product image from WordPress REST API /wp/v2/product/{id}
-const fetchProductImageFromWP = async (productId) => {
+// ดึงรูปจากแคตตาล็อกจำลอง (Nuxt API)
+const fetchProductImageFromCatalog = async (productId) => {
   if (!productId || productImages.value.has(productId)) {
     return productImages.value.get(productId) || null;
   }
 
   try {
-    // Use WordPress REST API endpoint
-    const wpProduct = await $fetch(`/wordpress/wp-json/wp/v2/product/${productId}`, {
-      query: {
-        _embed: true, // Include embedded media
-      },
-    });
-    
-    // Try to get image from featured_media or _embedded
-    let imageUrl = null;
-
-    // Check _embedded['wp:featuredmedia']
-    if (wpProduct?._embedded?.['wp:featuredmedia']?.[0]?.source_url) {
-      imageUrl = wpProduct._embedded['wp:featuredmedia'][0].source_url;
-    } else if (wpProduct?._embedded?.['wp:featuredmedia']?.[0]?.media_details?.sizes?.full?.source_url) {
-      imageUrl = wpProduct._embedded['wp:featuredmedia'][0].media_details.sizes.full.source_url;
-    } else if (wpProduct?.featured_media) {
-      // If featured_media ID exists, fetch media details
-      try {
-        const mediaId = wpProduct.featured_media;
-        const media = await $fetch(`/wordpress/wp-json/wp/v2/media/${mediaId}`);
-        imageUrl = media?.source_url || media?.media_details?.sizes?.full?.source_url;
-      } catch (e) {
-        console.error(`[my-orders] Error fetching media ${wpProduct.featured_media}:`, e);
-      }
-    }
-
+    const data = await $fetch('/api/product', { query: { id: productId } });
+    const imageUrl =
+      data?.product?.image?.sourceUrl ||
+      data?.product?.galleryImages?.nodes?.[0]?.sourceUrl ||
+      null;
     if (imageUrl) {
       productImages.value.set(productId, imageUrl);
-      // Force reactivity update by creating a new Map instance
       const newMap = new Map(productImages.value);
       productImages.value = newMap;
       return imageUrl;
     }
   } catch (error) {
-    console.error(`[my-orders] Error fetching product image from WP API for product_id ${productId}:`, error);
+    console.error(`[my-orders] Error fetching product image for product_id ${productId}:`, error);
   }
 
   return null;
 };
 
-// Get item image URL (prioritize WooCommerce data, then WordPress REST API)
+// Get item image URL (ข้อมูลออเดอร์ หรือแคตตาล็อกจำลอง)
 const getItemImage = (item) => {
   if (!item) return null;
   
@@ -121,7 +99,7 @@ const getItemImage = (item) => {
 
   // If no image found and has product id, try to fetch from WordPress REST API (async)
   if (item.product_id && !productImages.value.has(item.product_id)) {
-    fetchProductImageFromWP(item.product_id).catch(() => {
+    fetchProductImageFromCatalog(item.product_id).catch(() => {
       // Silently fail
     });
   }
@@ -326,7 +304,7 @@ const fetchOrders = async () => {
 
     // Fetch images from WordPress REST API (in background, don't wait)
     Array.from(productIds).forEach(productId => {
-      fetchProductImageFromWP(productId).catch(() => {
+      fetchProductImageFromCatalog(productId).catch(() => {
         // Silently fail
       });
     });

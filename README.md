@@ -1,62 +1,42 @@
 # Yardsale Thailand
 
-Nuxt3 e-commerce application with direct MySQL database access.
+Nuxt 3 storefront — **ไม่มี WordPress/WooCommerce** แล้ว สินค้าและหมวดหมู่เป็นข้อมูลจำลองใน `server/utils/mock-catalog.ts`
 
 ## Tech Stack
 
-- Nuxt 3
-- Vue 3
-- MySQL (direct database access)
-- TypeScript
+- Nuxt 3, Vue 3, TypeScript
+- Nitro API routes (`/api/*`) อ่านข้อมูลจำลอง (ไม่เรียก CMS ภายนอก)
 
 ## Setup
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Copy environment file
 cp env.example .env
-
-# Edit .env file with your configuration
-# nano .env
-
-# Development
 pnpm dev
-
-# Build
-pnpm build
-
-# Production
-pnpm preview
 ```
 
-## Environment Variables
+แก้รายการสินค้า/รูป/ราคาได้ที่ **`server/utils/mock-catalog.ts`**
 
-### Database Configuration
-- `DB_HOST` - Database host (default: 157.85.98.150:3306)
-- `DB_NAME` - Database name (default: nuxtcommerce_db)
-- `DB_USER` - Database user (default: root)
-- `DB_PASSWORD` - Database password
+## ฟีเจอร์ที่ปิด (ไม่มี backend)
 
-### WordPress Configuration
-- `WP_BASE_URL` - WordPress base URL (default: http://157.85.98.150:8080)
-- `WP_BASIC_AUTH` - WordPress Basic Auth (base64 encoded username:password)
-- `WP_CONSUMER_KEY` - WooCommerce Consumer Key (optional)
-- `WP_CONSUMER_SECRET` - WooCommerce Consumer Secret (optional)
+- สร้าง/แก้ไขสินค้า, อัปโหลดรูป, โปรไฟล์จริงบนเซิร์ฟเวอร์ → API คืน `501`
+- ล็อกอิน/สมัคร → จำลองในเบราว์เซอร์เท่านั้น (ไม่บันทึกผู้ใช้)
+- ออเดอร์ → สร้างได้แบบจำลอง; รายการออเดอร์ใน `/my-orders` ว่าง
+- PayPal capture สำเร็จแล้วไม่อัปเดต WooCommerce (ไม่มี WC ในโปรเจกต์)
 
-### Application Configuration
-- `BASE_URL` - Base URL for the application
+## Environment
 
-## WordPress API Endpoints
+ดู `env.example` — หลัก ๆ แค่ `BASE_URL` และค่า PayPal/Omise ถ้าใช้
 
-All WordPress API endpoints use the `WP_BASE_URL` from `.env` file. You can override it by setting the environment variable.
+## แก้ `EACCES` / ลบ `.nuxt-local` ไม่ได้
 
-### Available Endpoints:
-- `/api/wp-products` - Fetch products from WordPress REST API (`/wp-json/wp/v2/product`)
-- `/api/wp-categories` - Fetch product categories from WordPress REST API (`/wp-json/wp/v2/product_cat`)
-- `/api/wp-tags` - Fetch product tags from WordPress REST API (`/wp-json/wp/v2/product_tag`)
-- `/api/wp-brands` - Fetch product brands from WordPress REST API (`/wp-json/wp/v2/product_brand`)
-- `/api/create-user` - Create WordPress user
-- `/api/check-email` - Check if email exists in WordPress
-- `/api/upload-image` - Upload image to WordPress media library
+ถ้าเคยรัน Docker ด้วย root ไฟล์ใน `.nuxt*` อาจเป็นเจ้าของ root — คืนสิทธิ์แล้วลบโฟลเดอร์เก่า:
+
+```bash
+sudo chown -R "$(whoami):staff" .nuxt .nuxt-local .yardsale-nuxt node_modules/.cache .vite-cache 2>/dev/null
+rm -rf .nuxt-local
+pnpm exec nuxt prepare
+pnpm dev
+```
+
+Build ของ Nuxt อยู่ที่ **`.yardsale-nuxt`** (ไม่ใช่ `.nuxt`) — `pnpm dev` จะรัน `nuxt prepare` ก่อนอัตโนมัติ (`predev`) เพื่อให้มี `#build/route-rules.mjs` ครบ

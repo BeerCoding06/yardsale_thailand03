@@ -1,6 +1,7 @@
 <!--app/components/ProductCard.vue-->
 <script setup>
 const localePath = useLocalePath();
+const { isUuidString, storefrontProductPath } = useStorefrontCatalog();
 
 defineProps({
   products: {
@@ -9,12 +10,19 @@ defineProps({
   },
 });
 
-// ลิงก์ไปหน้ารายละเอียด product ถ้ามี id ส่ง ?id= เพื่อให้ API ดึงด้วย ID (แม่นยำกว่า slug/sku)
 function productLink(product) {
-  const path = `/product/${product.slug}-${product.sku?.split?.('-')[0] || ''}`;
   const id = product.databaseId ?? product.id;
+  if (product.__fromApi || isUuidString(String(id))) {
+    return localePath(storefrontProductPath(product));
+  }
+  const path = `/product/${product.slug}-${product.sku?.split?.('-')[0] || ''}`;
   const query = id ? { id: String(id) } : {};
-  return localePath(path) + (Object.keys(query).length ? '?' + new URLSearchParams(query).toString() : '');
+  return (
+    localePath(path) +
+    (Object.keys(query).length
+      ? "?" + new URLSearchParams(query).toString()
+      : "")
+  );
 }
 </script>
 

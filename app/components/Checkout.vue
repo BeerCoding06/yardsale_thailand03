@@ -5,9 +5,6 @@ const {
   checkoutStatus,
   error,
   handleCheckout,
-  executeCheckout,
-  closePaymentChoiceModal,
-  showPaymentChoiceModal,
   loadCustomerData,
   isLoadingCustomerData,
   isCartStockValid,
@@ -386,57 +383,11 @@ watch(() => cart.value?.length, (newLength) => {
             </div>
           </Transition>
         </button>
-        <div
-          class="text-xs font-medium p-4 flex gap-1 items-end text-neutral-400 dark:text-neutral-600"
-        >
+        <div class="text-xs font-medium p-4 flex gap-1 items-end text-neutral-400 dark:text-neutral-600">
           <UIcon name="i-iconamoon-lock-fill" size="18" />
-          <div>{{ $t("checkout.pay.secure", { method: "Omise / PayPal" }) }}</div>
+          <div>{{ $t("checkout.pay.secure", { method: "YardSale Checkout" }) }}</div>
         </div>
       </form>
-
-      <!-- Modal เลือกวิธีชำระ: PromptPay / บัตรเครดิต / PayPal -->
-      <ClientOnly>
-        <UModal v-model="showPaymentChoiceModal" :ui="{ width: 'w-full sm:max-w-md' }">
-          <div class="p-6">
-            <h3 class="text-lg font-bold text-black dark:text-white mb-4">
-              {{ $t('checkout.choose_payment') }}
-            </h3>
-            <div class="space-y-3">
-              <button
-                type="button"
-                class="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 hover:border-alizarin-crimson-500 dark:hover:border-alizarin-crimson-500 bg-white dark:bg-black/20 transition text-left"
-                @click="executeCheckout('promptpay')"
-              >
-                <UIcon name="i-heroicons-qr-code" class="w-6 h-6 text-alizarin-crimson-600 dark:text-alizarin-crimson-400" />
-                <span class="font-semibold text-black dark:text-white">{{ $t('checkout.pay.promptpay') }}</span>
-              </button>
-              <button
-                type="button"
-                class="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 hover:border-alizarin-crimson-500 dark:hover:border-alizarin-crimson-500 bg-white dark:bg-black/20 transition text-left"
-                @click="executeCheckout('credit_card')"
-              >
-                <UIcon name="i-heroicons-credit-card" class="w-6 h-6 text-alizarin-crimson-600 dark:text-alizarin-crimson-400" />
-                <span class="font-semibold text-black dark:text-white">{{ $t('checkout.pay.credit_card') }}</span>
-              </button>
-              <button
-                type="button"
-                class="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-neutral-200 dark:border-neutral-700 hover:border-[#0070ba] dark:hover:border-[#009cde] bg-white dark:bg-black/20 transition text-left"
-                @click="executeCheckout('paypal')"
-              >
-                <UIcon name="i-simple-icons-paypal" class="w-6 h-6 shrink-0 text-[#00457C] dark:text-[#009cde]" />
-                <span class="font-semibold text-black dark:text-white">{{ $t('checkout.pay.paypal') }}</span>
-              </button>
-            </div>
-            <button
-              type="button"
-              class="mt-4 w-full py-2 text-sm text-neutral-500 dark:text-neutral-400 hover:text-black dark:hover:text-white"
-              @click="closePaymentChoiceModal"
-            >
-              {{ $t('general.cancel') }}
-            </button>
-          </div>
-        </UModal>
-      </ClientOnly>
       <template #fallback>
         <div class="flex flex-col items-center justify-center p-6 h-[500px] overflow-y-auto">
           <p class="text-sm text-neutral-600 dark:text-neutral-400">

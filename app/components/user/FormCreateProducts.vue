@@ -4,6 +4,109 @@
 const { user, isAuthenticated } = useAuth();
 const { t } = useI18n();
 const router = useRouter();
+const localePath = useLocalePath();
+const { endpoint, hasRemoteApi } = useCmsApi();
+const { resolveMediaUrl } = useStorefrontCatalog();
+
+const props = defineProps({
+  /** โหมดแก้ไข (Yardsale API): โหลด GET product/:id แล้วส่ง update-product */
+  productIdForEdit: { type: String, default: "" },
+  /** แอดมิน CMS: แสดงสถานะเผยแพร่ + หลังบันทึกไป /admin/products */
+  adminEdit: { type: Boolean, default: false },
+});
+
+const isEditMode = computed(() =>
+  Boolean(props.productIdForEdit && String(props.productIdForEdit).trim())
+);
+
+const loadedApiProduct = ref(null);
+const isLoadingEditProduct = ref(false);
+
+function cmsPath(rel) {
+  return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
+}
+
+/** Express ห่อ { success, data }; mock / เก่า อาจเป็นรูปแบบราบ */
+function unwrapApiPayload(res) {
+  if (res && typeof res === "object" && res.success === true && res.data != null) {
+    return res.data;
+  }
+  return res;
+}
+
+function applyApiProductToForm(p) {
+  if (!p || typeof p !== "object") return;
+  form.value.name = p.name || "";
+  form.value.description = p.description || "";
+  form.value.short_description = "";
+  form.value.regular_price =
+    p.price != null && p.price !== "" ? String(Number(p.price)) : "";
+  form.value.sale_price = "";
+  form.value.manage_stock = true;
+  form.value.stock_quantity =
+    p.stock != null && p.stock !== "" ? Math.max(0, Number(p.stock)) : 0;
+  form.value.type = "simple";
+  form.value.tags = [];
+  selectedTags.value = [];
+
+  if (p.category_id) {
+    const cid = String(p.category_id);
+    selectedCategoryIds.value = [cid];
+    form.value.categories = [{ id: p.category_id }];
+  } else {
+    selectedCategoryIds.value = [];
+    form.value.categories = [];
+  }
+
+  const rawImg = p.image_url || "";
+  if (rawImg) {
+    const src = resolveMediaUrl(rawImg) || rawImg;
+    uploadedImages.value = [{ src, file: null }];
+    form.value.images = [{ src }];
+  } else {
+    uploadedImages.value = [];
+    form.value.images = [];
+  }
+
+  if (props.adminEdit) {
+    const ls = p.listing_status;
+    form.value.listing_status =
+      ls === "published" || ls === "hidden" || ls === "pending_review"
+        ? ls
+        : "pending_review";
+  }
+}
+
+function syncQuillEditorsFromForm() {
+  const desc = form.value.description || "";
+  if (descriptionEditorInstance.value && window.Quill) {
+    const q = descriptionEditorInstance.value;
+    if (String(desc).trim()) {
+      try {
+        const delta = q.clipboard.convert({ html: desc });
+        q.setContents(delta, "silent");
+      } catch {
+        q.setText("");
+      }
+    } else {
+      q.setText("");
+    }
+  }
+  const short = form.value.short_description || "";
+  if (shortDescriptionEditorInstance.value && window.Quill) {
+    const q = shortDescriptionEditorInstance.value;
+    if (String(short).trim()) {
+      try {
+        const delta = q.clipboard.convert({ html: short });
+        q.setContents(delta, "silent");
+      } catch {
+        q.setText("");
+      }
+    } else {
+      q.setText("");
+    }
+  }
+}
 
 // Form data
 const form = ref({
@@ -18,6 +121,8 @@ const form = ref({
   categories: [],
   tags: [],
   images: [],
+  /** ใช้เมื่อ adminEdit + แก้ไขสินค้า */
+  listing_status: "pending_review",
 });
 
 // UI state
@@ -231,11 +336,15 @@ onMounted(async () => {
 
   try {
     // Fetch categories for form select (wp-categories ใช้ WooCommerce API; fallback ไป /api/categories)
-    console.log("[Form] Fetching categories from /api/wp-categories...");
+    console.log("[Form] Fetching categories (wp-categories)...");
     try {
-      let categoriesData = await $fetch("/api/wp-categories").catch(() => null);
+      let categoriesData = await $fetch(cmsPath("wp-categories")).catch(() => null);
+      categoriesData = unwrapApiPayload(categoriesData);
       if (!categoriesData || (Array.isArray(categoriesData) && categoriesData.length === 0)) {
-        const fallback = await $fetch("/api/categories", { query: { parent: 0, hide_empty: false } }).catch(() => null);
+        const fallbackRaw = await $fetch(cmsPath("categories"), {
+          query: { parent: 0, hide_empty: false },
+        }).catch(() => null);
+        const fallback = unwrapApiPayload(fallbackRaw);
         if (fallback?.productCategories?.nodes) {
           categoriesData = fallback.productCategories.nodes;
         }
@@ -267,17 +376,49 @@ onMounted(async () => {
     // CarouselCategories ถูกย้ายไปที่ app.vue แล้ว เพื่อแสดงในทุกหน้า
 
     // Fetch tags
-    console.log("[Form] Fetching tags from /api/wp-tags...");
+    console.log("[Form] Fetching tags (wp-tags)...");
     try {
-      const tagsData = await $fetch("/api/wp-tags").catch((err) => {
+      const tagsRaw = await $fetch(cmsPath("wp-tags")).catch((err) => {
         console.warn("[Form] Tags API error:", err);
-        return [];
+        return null;
       });
-      tags.value = Array.isArray(tagsData) && tagsData ? tagsData : [];
+      const tagsData = unwrapApiPayload(tagsRaw);
+      const nodes = tagsData?.productTags?.nodes;
+      tags.value = Array.isArray(nodes) ? nodes : Array.isArray(tagsData) ? tagsData : [];
       console.log("[Form] Loaded tags:", tags.value.length);
     } catch (error) {
       console.warn("[Form] Error loading tags:", error);
       tags.value = [];
+    }
+
+    if (isEditMode.value && hasRemoteApi) {
+      isLoadingEditProduct.value = true;
+      try {
+        const token = user.value?.token;
+        const id = String(props.productIdForEdit).trim();
+        const raw = await $fetch(cmsPath(`product/${id}`), {
+          ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+        });
+        const data = unwrapApiPayload(raw);
+        const p = data?.product ?? data;
+        if (!p || typeof p !== "object") {
+          throw new Error(t("create_product.edit_load_empty"));
+        }
+        loadedApiProduct.value = p;
+        applyApiProductToForm(p);
+      } catch (err) {
+        console.error("[Form] Edit load product:", err);
+        loadedApiProduct.value = null;
+        message.value = {
+          type: "error",
+          text:
+            err?.data?.message ||
+            err?.message ||
+            t("create_product.edit_load_error"),
+        };
+      } finally {
+        isLoadingEditProduct.value = false;
+      }
     }
 
     // Wait for Select2 to load, then initialize
@@ -291,6 +432,26 @@ onMounted(async () => {
     await nextTick();
     initQuillEditor();
     initShortDescriptionEditor();
+
+    await nextTick();
+    syncQuillEditorsFromForm();
+    await nextTick();
+    if (
+      selectedCategoryIds.value.length > 0 &&
+      categorySelect.value &&
+      window.jQuery
+    ) {
+      const $ = window.jQuery;
+      if ($(categorySelect.value).hasClass("select2-hidden-accessible")) {
+        $(categorySelect.value).val(selectedCategoryIds.value).trigger("change");
+      }
+    }
+    if (selectedTags.value.length > 0 && tagsSelect.value && window.jQuery) {
+      const $ = window.jQuery;
+      if ($(tagsSelect.value).hasClass("select2-hidden-accessible")) {
+        $(tagsSelect.value).val(selectedTags.value).trigger("change");
+      }
+    }
   } catch (error) {
     console.error("[Form] Error loading data:", error);
     message.value = {
@@ -328,7 +489,12 @@ watch(selectedCategoryIds, (ids) => {
   }
 
   const arr = Array.isArray(ids) ? ids : [];
-  form.value.categories = arr.map((id) => ({ id: Number(id) }));
+  form.value.categories = arr.map((id) => {
+    const s = String(id);
+    const n = Number(s);
+    const isNumericId = Number.isFinite(n) && s === String(n);
+    return { id: isNumericId ? n : s };
+  });
   if (form.value.categories.length > 0) errors.value.category = "";
 }, { deep: true });
 
@@ -722,9 +888,15 @@ const handleDrop = (e) => {
 const removeImage = (index) => {
   uploadedImages.value.splice(index, 1);
   form.value.images.splice(index, 1);
-  // Show error if no images left
   if (uploadedImages.value.length === 0) {
-    errors.value.images = t('create_product.please_select_images');
+    const canUseServerImage =
+      hasRemoteApi &&
+      isEditMode.value &&
+      loadedApiProduct.value &&
+      loadedApiProduct.value.image_url;
+    errors.value.images = canUseServerImage
+      ? ""
+      : t("create_product.please_select_images");
   }
 };
 
@@ -760,8 +932,14 @@ const handleSubmit = async (e) => {
     hasErrors = true;
   }
 
-  // Validate images
-  if (!uploadedImages.value || uploadedImages.value.length === 0) {
+  // Validate images (แก้ไข CMS: ยังใช้รูปเดิมจากเซิร์ฟเวอร์ได้)
+  const hasImageRows = uploadedImages.value && uploadedImages.value.length > 0;
+  const editKeepsServerImage =
+    hasRemoteApi &&
+    isEditMode.value &&
+    loadedApiProduct.value &&
+    loadedApiProduct.value.image_url;
+  if (!hasImageRows && !editKeepsServerImage) {
     errors.value.images = t('create_product.please_select_images');
     hasErrors = true;
   }
@@ -782,7 +960,7 @@ const handleSubmit = async (e) => {
   // Validate sale price (must be less than regular price)
   if (form.value.sale_price && form.value.regular_price) {
     if (Number(form.value.sale_price) >= Number(form.value.regular_price)) {
-      errors.value.sale_price = "ราคาขายต้องต่ำกว่าราคาปกติ";
+      errors.value.sale_price = t('create_product.sale_price_must_be_lower');
       hasErrors = true;
     }
   }
@@ -804,7 +982,143 @@ const handleSubmit = async (e) => {
   isSubmitting.value = true;
 
   try {
-    // Prepare payload
+    const tokenEarly = user.value?.token;
+
+    /** Express + PostgreSQL: body ตาม createProductSchema + อัปโหลดฟิลด์ `image` */
+    if (hasRemoteApi) {
+      const reg = Number(form.value.regular_price);
+      const saleRaw =
+        form.value.sale_price !== "" && form.value.sale_price != null
+          ? Number(form.value.sale_price)
+          : NaN;
+      const price =
+        Number.isFinite(saleRaw) && saleRaw > 0 ? saleRaw : reg;
+      const stock = form.value.manage_stock
+        ? Math.max(0, Number(form.value.stock_quantity) || 0)
+        : 0;
+
+      let imageUrl = null;
+      if (uploadedImages.value && uploadedImages.value.length > 0) {
+        for (const img of uploadedImages.value) {
+          if (img?.file) {
+            try {
+              const fd = new FormData();
+              fd.append("image", img.file);
+              const uploadResult = await $fetch(cmsPath("upload-image"), {
+                method: "POST",
+                body: fd,
+                ...(tokenEarly
+                  ? { headers: { Authorization: `Bearer ${tokenEarly}` } }
+                  : {}),
+              });
+              const ur = unwrapApiPayload(uploadResult);
+              const url = ur?.image?.sourceUrl || uploadResult?.image?.sourceUrl;
+              if (url) {
+                imageUrl = url;
+                break;
+              }
+            } catch (uploadError) {
+              console.error("[Form] Failed to upload image:", uploadError);
+              message.value = {
+                type: "error",
+                text: `${t("create_product.cannot_upload_image")}: ${
+                  uploadError?.message || t("create_product.unknown_error")
+                }`,
+              };
+              isSubmitting.value = false;
+              return;
+            }
+          } else if (
+            img?.src &&
+            (img.src.startsWith("http://") || img.src.startsWith("https://"))
+          ) {
+            imageUrl = img.src;
+            break;
+          }
+        }
+      }
+
+      if (!imageUrl && isEditMode.value && loadedApiProduct.value?.image_url) {
+        imageUrl = loadedApiProduct.value.image_url;
+      }
+
+      if (!imageUrl) {
+        message.value = {
+          type: "error",
+          text: t("create_product.cannot_upload_image"),
+        };
+        isSubmitting.value = false;
+        return;
+      }
+
+      const firstCat = form.value.categories[0];
+      const category_id =
+        firstCat && firstCat.id != null && String(firstCat.id).trim() !== ""
+          ? String(firstCat.id)
+          : undefined;
+
+      if (isEditMode.value) {
+        const cmsBody = {
+          product_id: String(props.productIdForEdit).trim(),
+          name: form.value.name.trim(),
+          description: form.value.description || "",
+          price,
+          stock,
+          ...(category_id ? { category_id } : {}),
+          image_url: imageUrl,
+          ...(props.adminEdit
+            ? { listing_status: form.value.listing_status }
+            : {}),
+        };
+
+        await $fetch(cmsPath("update-product"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(tokenEarly ? { Authorization: `Bearer ${tokenEarly}` } : {}),
+          },
+          body: cmsBody,
+        });
+
+        message.value = {
+          type: "success",
+          text: t("create_product.update_success"),
+        };
+        if (props.adminEdit) {
+          setTimeout(() => navigateTo(localePath("/admin/products")), 1500);
+        } else {
+          setTimeout(() => router.push("/my-products"), 1500);
+        }
+        return;
+      }
+
+      const cmsBody = {
+        name: form.value.name.trim(),
+        description: form.value.description || "",
+        price,
+        stock,
+        ...(category_id ? { category_id } : {}),
+        image_url: imageUrl,
+      };
+
+      await $fetch(cmsPath("create-product"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(tokenEarly ? { Authorization: `Bearer ${tokenEarly}` } : {}),
+        },
+        body: cmsBody,
+      });
+
+      message.value = {
+        type: "success",
+        text: t("create_product.create_success"),
+      };
+      setTimeout(() => router.push("/my-products"), 1500);
+      return;
+    }
+
+    // Prepare payload (mock / WordPress)
     const payload = {
       name: form.value.name,
       type: form.value.type || "simple", // Use simple product type
@@ -962,7 +1276,9 @@ const handleSubmit = async (e) => {
       text:
         (error.data && error.data.error) ||
         error.message ||
-        t('create_product.create_error'),
+        (isEditMode.value
+          ? t("create_product.update_error")
+          : t("create_product.create_error")),
     };
   } finally {
     isSubmitting.value = false;
@@ -973,8 +1289,24 @@ const handleSubmit = async (e) => {
 <template>
   <div>
     <div class="max-w-4xl mx-auto p-6">
+      <div
+        v-if="isEditMode && isLoadingEditProduct"
+        class="flex items-center justify-center py-24 text-neutral-500 dark:text-neutral-400"
+      >
+        <span class="flex items-center gap-2">
+          <UIcon name="i-svg-spinners-90-ring-with-bg" class="w-6 h-6" />
+          {{ $t('create_product.loading_edit_product') }}
+        </span>
+      </div>
+      <template v-else>
       <h1 class="text-3xl font-bold mb-6 text-black dark:text-white">
-        {{ $t('create_product.title') }}
+        {{
+          adminEdit && isEditMode
+            ? $t('admin.products.edit_title')
+            : isEditMode
+              ? $t('create_product.edit_title')
+              : $t('create_product.title')
+        }}
       </h1>
 
       <form @submit.prevent="handleSubmit" class="space-y-6">
@@ -1131,6 +1463,27 @@ const handleSubmit = async (e) => {
               <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                 {{ $t('create_product.tags_hint') }}
               </p>
+            </div>
+
+            <div v-if="adminEdit && isEditMode" class="md:col-span-2">
+              <label
+                class="block text-sm font-medium mb-2 text-black dark:text-white"
+                >{{ $t('admin.products.form_listing_status') }}</label
+              >
+              <select
+                v-model="form.listing_status"
+                class="w-full px-4 py-3 rounded-xl border-2 bg-white/80 dark:bg-black/20 text-black dark:text-white border-neutral-200 dark:border-neutral-700 focus:outline-none focus:border-black dark:focus:border-white"
+              >
+                <option value="pending_review">
+                  {{ $t('admin.products.listing_pending_review') }}
+                </option>
+                <option value="published">
+                  {{ $t('admin.products.listing_published') }}
+                </option>
+                <option value="hidden">
+                  {{ $t('admin.products.listing_hidden') }}
+                </option>
+              </select>
             </div>
 
           </div>
@@ -1306,17 +1659,26 @@ const handleSubmit = async (e) => {
         <div class="flex gap-4">
           <button
             type="submit"
-            :disabled="isSubmitting"
+            :disabled="isSubmitting || (isEditMode && isLoadingEditProduct)"
             class="flex-1 px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
           >
-            <span v-if="!isSubmitting">{{ $t('create_product.create_button') }}</span>
+            <span v-if="!isSubmitting">{{
+              isEditMode
+                ? $t('create_product.update_button')
+                : $t('create_product.create_button')
+            }}</span>
             <span v-else class="flex items-center justify-center gap-2">
               <UIcon name="i-svg-spinners-90-ring-with-bg" class="w-5 h-5" />
-              {{ $t('create_product.creating') }}
+              {{
+                isEditMode
+                  ? $t('create_product.updating')
+                  : $t('create_product.creating')
+              }}
             </span>
           </button>
         </div>
       </form>
+      </template>
     </div>
   </div>
 </template>

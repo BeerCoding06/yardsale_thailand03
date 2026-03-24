@@ -1,0 +1,138 @@
+/**
+ * แมปสินค้าจาก Yardsale Express (PostgreSQL) → รูปแบบใกล้เคียง WooCommerce ที่ UI เดิมใช้
+ */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isUuidString(s: string | undefined | null): boolean {
+  return !!s && UUID_RE.test(String(s));
+}
+
+export function unwrapYardsaleResponse(res: unknown): any {
+  const r = res as { success?: boolean; data?: unknown } | null;
+  if (r && typeof r === "object" && r.success === true && r.data != null) {
+    return r.data;
+  }
+  return res;
+}
+
+/**
+ * หน้าร้าน (ลิสต์ / รายละเอียด / ค้นหา): แสดงเฉพาะสินค้าที่ listing_status เผยแพร่
+ * ไม่มีฟิลด์ = legacy หรือ mock WooCommerce → ถือว่าแสดงได้
+ */
+export function isStorefrontPublishedProduct(
+  product: Record<string, unknown> | null | undefined
+): boolean {
+  if (!product || typeof product !== "object") return false;
+  const ls = product.listing_status;
+  if (ls === undefined || ls === null || ls === "") return true;
+  return ls === "published";
+}
+
+export function useStorefrontCatalog() {
+  const config = useRuntimeConfig();
+  const { endpoint, hasRemoteApi } = useCmsApi();
+
+  function backendOrigin(): string {
+    const raw = String(
+      (config.public as { cmsApiBase?: string }).cmsApiBase || ""
+    ).trim();
+    if (/^https?:\/\//i.test(raw)) {
+      return raw.replace(/\/api\/?$/i, "").replace(/\/$/, "") || "";
+    }
+    const explicit = String(
+      (config.public as { yardsaleBackendOrigin?: string })
+        .yardsaleBackendOrigin || ""
+    ).trim();
+    if (explicit) return explicit.replace(/\/$/, "");
+    return "http://127.0.0.1:4000";
+  }
+
+  function resolveMediaUrl(url: string | null | undefined): string | undefined {
+    if (!url) return undefined;
+    if (/^https?:\/\//i.test(url)) return url;
+    if (url.startsWith("/")) return `${backendOrigin()}${url}`;
+    return url;
+  }
+
+  function slugifyName(name: string): string {
+    const s = String(name || "item").trim().toLowerCase();
+    const out = s
+      .replace(/[^a-z0-9\u0E00-\u0E7F]+/gi, "-")
+      .replace(/^-+|-+$/g, "");
+    return out || "item";
+  }
+
+  function mapApiProductRow(row: Record<string, unknown> | null | undefined) {
+    if (!row || typeof row !== "object") return row;
+    const id = row.id as string;
+    const img = resolveMediaUrl((row.image_url as string) || null);
+    const priceNum = Number(row.price);
+    const priceStr = Number.isFinite(priceNum) ? priceNum.toFixed(2) : "0";
+    const stock = Number(row.stock);
+    const stockOk = Number.isFinite(stock) && stock > 0;
+    const cancelled = row.is_cancelled === true;
+
+    return {
+      ...row,
+      id,
+      databaseId: id,
+      sku: `YS-${String(id).replace(/-/g, "").slice(0, 12)}`,
+      slug: slugifyName(String(row.name || "item")),
+      name: row.name,
+      description: row.description || "",
+      regularPrice: priceStr,
+      salePrice: null as string | null,
+      stockQuantity: Number.isFinite(stock) ? stock : 0,
+      stockStatus:
+        !cancelled && stockOk ? "IN_STOCK" : "OUT_OF_STOCK",
+      status: cancelled ? "cancelled" : "publish",
+      image: img ? { sourceUrl: img } : undefined,
+      galleryImages: img ? { nodes: [{ sourceUrl: img }] } : { nodes: [] },
+      productTypes: { nodes: [] as unknown[] },
+      variations: { nodes: [] as unknown[] },
+      related: { nodes: [] as unknown[] },
+      allPaStyle: { nodes: [] as unknown[] },
+      allPaColor: { nodes: [] as unknown[] },
+      productCategories: {
+        nodes: row.category_name
+          ? [
+              {
+                name: row.category_name,
+                slug: row.category_slug || "",
+              },
+            ]
+          : [],
+      },
+      __fromApi: true,
+    };
+  }
+
+  /** path ภายในเว็บ (ยังไม่ผ่าน localePath) */
+  function storefrontProductPath(product: {
+    __fromApi?: boolean;
+    databaseId?: string;
+    id?: string;
+    slug?: string;
+    sku?: string;
+  }): string {
+    const id = product?.databaseId ?? product?.id;
+    if (product?.__fromApi || isUuidString(String(id))) {
+      return `/product/${id}`;
+    }
+    const skuPart = (product?.sku || "").split("-")[0] || product?.slug || "";
+    return `/product/${product?.slug}-${skuPart}`;
+  }
+
+  return {
+    hasRemoteApi,
+    endpoint,
+    unwrapYardsaleResponse,
+    resolveMediaUrl,
+    mapApiProductRow,
+    backendOrigin,
+    isUuidString,
+    storefrontProductPath,
+    isStorefrontPublishedProduct,
+  };
+}

@@ -9,6 +9,7 @@ definePageMeta({
 const route = useRoute();
 const { isAuthenticated, user, checkAuth } = useAuth();
 const router = useRouter();
+const { hasRemoteApi } = useCmsApi();
 
 // Client-side only state
 const isClient = ref(false);
@@ -85,6 +86,11 @@ onMounted(async () => {
 
   isChecking.value = false;
 
+  if (hasRemoteApi) {
+    isLoadingProduct.value = false;
+    return;
+  }
+
   await fetchProduct();
 });
 
@@ -99,7 +105,7 @@ watch(isAuthenticated, (newVal) => {
 <template>
   <div class="min-h-screen bg-neutral-50 dark:bg-black">
     <ClientOnly>
-      <template v-if="isChecking || isLoadingProduct">
+      <template v-if="isChecking || (!hasRemoteApi && isLoadingProduct)">
         <div class="flex items-center justify-center min-h-screen">
           <div class="text-center">
             <p class="text-neutral-500 dark:text-neutral-400">
@@ -109,7 +115,7 @@ watch(isAuthenticated, (newVal) => {
           </div>
         </div>
       </template>
-      <template v-else-if="error">
+      <template v-else-if="!hasRemoteApi && error">
         <div class="max-w-4xl mx-auto p-6">
           <div
             class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 text-center"
@@ -123,6 +129,11 @@ watch(isAuthenticated, (newVal) => {
             </NuxtLink>
           </div>
         </div>
+      </template>
+      <template
+        v-else-if="isAuthenticated && user && hasRemoteApi && productId"
+      >
+        <UserFormCreateProducts :product-id-for-edit="String(productId)" />
       </template>
       <template v-else-if="isAuthenticated && user && product">
         <UserFormEditProducts :product="product" :product-id="productId" />
