@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useCmsApi } from "#imports";
+
 definePageMeta({
   layout: "admin",
   middleware: "admin",

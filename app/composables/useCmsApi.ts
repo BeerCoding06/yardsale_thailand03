@@ -4,24 +4,19 @@
  * - Dev แนะนำ: /yardsale-api — ผ่าน Vite proxy → 127.0.0.1:4000/api (same-origin กับ Nuxt)
  * path ที่ส่งเข้าไม่ต้องมี /api ซ้ำ
  */
+import { useRuntimeConfig } from "nuxt/app";
+import {
+  cmsEndpointFromPublic,
+  hasRemoteCmsApi,
+} from "~/utils/cmsApiEndpoint";
+
 export function useCmsApi() {
   const config = useRuntimeConfig();
-  const rawBase = (config.public as { cmsApiBase?: string }).cmsApiBase?.trim() || "";
-  const base = rawBase.replace(/\/$/, "");
+  const pub = config.public as { cmsApiBase?: string; baseUrl?: string };
 
   function endpoint(path: string): string {
-    const p = path.replace(/^\//, "");
-    if (!base) return `/api/${p}`;
-
-    if (base.startsWith("/")) {
-      const origin = import.meta.client
-        ? window.location.origin
-        : String(config.public.baseUrl || "http://localhost:3000").replace(/\/$/, "");
-      return `${origin}${base}/${p}`;
-    }
-
-    return `${base}/${p}`;
+    return cmsEndpointFromPublic(pub, path, import.meta.client);
   }
 
-  return { endpoint, hasRemoteApi: !!base };
+  return { endpoint, hasRemoteApi: hasRemoteCmsApi(pub) };
 }

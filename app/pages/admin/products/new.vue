@@ -10,7 +10,7 @@ const localePath = useLocalePath();
 const { adminFetch } = useAdminFetch();
 const { push } = useNotivue();
 
-const form = ref({
+const productForm = ref({
   name: "",
   description: "",
   price: "" as string | number,
@@ -27,9 +27,9 @@ const form = ref({
 const isSubmitting = ref(false);
 
 async function submit() {
-  const name = String(form.value.name || "").trim();
-  const price = Number(form.value.price);
-  const stock = Number(form.value.stock);
+  const name = String(productForm.value.name || "").trim();
+  const price = Number(productForm.value.price);
+  const stock = Number(productForm.value.stock);
   if (!name || Number.isNaN(price) || price <= 0) {
     push.error(t("admin.products.validation_create"));
     return;
@@ -38,17 +38,17 @@ async function submit() {
   try {
     const body: Record<string, unknown> = {
       name,
-      description: String(form.value.description || ""),
+      description: String(productForm.value.description || ""),
       price,
       stock: Number.isFinite(stock) && stock >= 0 ? stock : 0,
     };
-    const cid = String(form.value.category_id || "").trim();
+    const cid = String(productForm.value.category_id || "").trim();
     if (cid) body.category_id = cid;
-    const img = String(form.value.image_url || "").trim();
+    const img = String(productForm.value.image_url || "").trim();
     if (img) body.image_url = img;
-    const sid = String(form.value.seller_id || "").trim();
+    const sid = String(productForm.value.seller_id || "").trim();
     if (sid) body.seller_id = sid;
-    body.listing_status = form.value.listing_status;
+    body.listing_status = productForm.value.listing_status;
 
     await adminFetch("create-product", {
       method: "POST",
@@ -83,33 +83,33 @@ async function submit() {
     <UCard>
       <form class="space-y-4" @submit.prevent="submit">
         <UFormGroup :label="t('admin.products.form_name')" required>
-          <UInput v-model="form.name" />
+          <UInput v-model="productForm.name" />
         </UFormGroup>
         <UFormGroup :label="t('admin.products.form_description')">
           <textarea
-            v-model="form.description"
+            v-model="productForm.description"
             rows="3"
             class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-neutral-950 px-3 py-2 text-sm text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-alizarin-crimson-500"
           />
         </UFormGroup>
         <UFormGroup :label="t('admin.products.form_price')" required>
-          <UInput v-model="form.price" type="number" step="0.01" min="0" />
+          <UInput v-model="productForm.price" type="number" step="0.01" min="0" />
         </UFormGroup>
         <UFormGroup :label="t('admin.products.form_stock')">
-          <UInput v-model="form.stock" type="number" min="0" />
+          <UInput v-model="productForm.stock" type="number" min="0" />
         </UFormGroup>
         <UFormGroup :label="t('admin.products.form_image_url')">
-          <UInput v-model="form.image_url" type="url" />
+          <UInput v-model="productForm.image_url" type="url" />
         </UFormGroup>
         <UFormGroup :label="t('admin.products.form_category_id')">
-          <UInput v-model="form.category_id" placeholder="UUID (optional)" />
+          <UInput v-model="productForm.category_id" placeholder="UUID (optional)" />
         </UFormGroup>
         <UFormGroup :label="t('admin.products.form_seller_id')">
-          <UInput v-model="form.seller_id" placeholder="UUID (optional)" />
+          <UInput v-model="productForm.seller_id" placeholder="UUID (optional)" />
         </UFormGroup>
         <UFormGroup :label="t('admin.products.form_listing_status')">
           <select
-            v-model="form.listing_status"
+            v-model="productForm.listing_status"
             class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-neutral-950 px-3 py-2 text-sm text-neutral-900 dark:text-white"
           >
             <option value="pending_review">

@@ -1,5 +1,7 @@
 <!--app/components/user/FormCreateProducts.vue-->
 <script setup>
+import { useCmsApi } from "#imports";
+
 // Authentication
 const { user, isAuthenticated } = useAuth();
 const { t } = useI18n();
@@ -36,41 +38,41 @@ function unwrapApiPayload(res) {
 
 function applyApiProductToForm(p) {
   if (!p || typeof p !== "object") return;
-  form.value.name = p.name || "";
-  form.value.description = p.description || "";
-  form.value.short_description = "";
-  form.value.regular_price =
+  productForm.value.name = p.name || "";
+  productForm.value.description = p.description || "";
+  productForm.value.short_description = "";
+  productForm.value.regular_price =
     p.price != null && p.price !== "" ? String(Number(p.price)) : "";
-  form.value.sale_price = "";
-  form.value.manage_stock = true;
-  form.value.stock_quantity =
+  productForm.value.sale_price = "";
+  productForm.value.manage_stock = true;
+  productForm.value.stock_quantity =
     p.stock != null && p.stock !== "" ? Math.max(0, Number(p.stock)) : 0;
-  form.value.type = "simple";
-  form.value.tags = [];
+  productForm.value.type = "simple";
+  productForm.value.tags = [];
   selectedTags.value = [];
 
   if (p.category_id) {
     const cid = String(p.category_id);
     selectedCategoryIds.value = [cid];
-    form.value.categories = [{ id: p.category_id }];
+    productForm.value.categories = [{ id: p.category_id }];
   } else {
     selectedCategoryIds.value = [];
-    form.value.categories = [];
+    productForm.value.categories = [];
   }
 
   const rawImg = p.image_url || "";
   if (rawImg) {
     const src = resolveMediaUrl(rawImg) || rawImg;
     uploadedImages.value = [{ src, file: null }];
-    form.value.images = [{ src }];
+    productForm.value.images = [{ src }];
   } else {
     uploadedImages.value = [];
-    form.value.images = [];
+    productForm.value.images = [];
   }
 
   if (props.adminEdit) {
     const ls = p.listing_status;
-    form.value.listing_status =
+    productForm.value.listing_status =
       ls === "published" || ls === "hidden" || ls === "pending_review"
         ? ls
         : "pending_review";
@@ -78,7 +80,7 @@ function applyApiProductToForm(p) {
 }
 
 function syncQuillEditorsFromForm() {
-  const desc = form.value.description || "";
+  const desc = productForm.value.description || "";
   if (descriptionEditorInstance.value && window.Quill) {
     const q = descriptionEditorInstance.value;
     if (String(desc).trim()) {
@@ -92,7 +94,7 @@ function syncQuillEditorsFromForm() {
       q.setText("");
     }
   }
-  const short = form.value.short_description || "";
+  const short = productForm.value.short_description || "";
   if (shortDescriptionEditorInstance.value && window.Quill) {
     const q = shortDescriptionEditorInstance.value;
     if (String(short).trim()) {
@@ -109,7 +111,7 @@ function syncQuillEditorsFromForm() {
 }
 
 // Form data
-const form = ref({
+const productForm = ref({
   type: "simple",
   name: "",
   regular_price: "",
@@ -324,7 +326,7 @@ const initTagsSelect2 = () => {
     $(tagsSelect.value).on("change", function () {
       const selectedValues = $(this).val() || [];
       selectedTags.value = selectedValues.map((v) => Number(v));
-      form.value.tags = selectedValues.map((v) => ({ id: Number(v) }));
+      productForm.value.tags = selectedValues.map((v) => ({ id: Number(v) }));
     });
   }
 };
@@ -489,13 +491,13 @@ watch(selectedCategoryIds, (ids) => {
   }
 
   const arr = Array.isArray(ids) ? ids : [];
-  form.value.categories = arr.map((id) => {
+  productForm.value.categories = arr.map((id) => {
     const s = String(id);
     const n = Number(s);
     const isNumericId = Number.isFinite(n) && s === String(n);
     return { id: isNumericId ? n : s };
   });
-  if (form.value.categories.length > 0) errors.value.category = "";
+  if (productForm.value.categories.length > 0) errors.value.category = "";
 }, { deep: true });
 
 // Watch errors.category to update Select2 error class
@@ -602,8 +604,8 @@ const initQuillEditor = () => {
       const cleaned = cleanHTML(html);
       
       // Only update if cleaned HTML is different
-      if (cleaned !== form.value.description) {
-        form.value.description = cleaned;
+      if (cleaned !== productForm.value.description) {
+        productForm.value.description = cleaned;
         if (cleaned && cleaned.trim()) {
           errors.value.description = "";
         }
@@ -706,8 +708,8 @@ const initShortDescriptionEditor = () => {
       const cleaned = cleanHTMLShort(html);
       
       // Only update if cleaned HTML is different
-      if (cleaned !== form.value.short_description) {
-        form.value.short_description = cleaned;
+      if (cleaned !== productForm.value.short_description) {
+        productForm.value.short_description = cleaned;
       }
     };
     
@@ -753,7 +755,7 @@ onBeforeUnmount(() => {
 
 // Watch form fields for real-time validation
 watch(
-  () => form.value.name,
+  () => productForm.value.name,
   (newVal) => {
     if (newVal && newVal.trim()) {
       errors.value.name = "";
@@ -762,14 +764,14 @@ watch(
 );
 
 watch(
-  () => form.value.regular_price,
+  () => productForm.value.regular_price,
   (newVal) => {
     if (newVal && Number(newVal) > 0) {
       errors.value.regular_price = "";
       // Also validate sale_price when regular_price changes
       if (
-        form.value.sale_price &&
-        Number(form.value.sale_price) >= Number(newVal)
+        productForm.value.sale_price &&
+        Number(productForm.value.sale_price) >= Number(newVal)
       ) {
         errors.value.sale_price = t('create_product.sale_price_must_be_lower');
       } else {
@@ -780,10 +782,10 @@ watch(
 );
 
 watch(
-  () => form.value.sale_price,
+  () => productForm.value.sale_price,
   (newVal) => {
-    if (newVal && form.value.regular_price) {
-      if (Number(newVal) >= Number(form.value.regular_price)) {
+    if (newVal && productForm.value.regular_price) {
+      if (Number(newVal) >= Number(productForm.value.regular_price)) {
         errors.value.sale_price = t('create_product.sale_price_must_be_lower');
       } else {
         errors.value.sale_price = "";
@@ -795,9 +797,9 @@ watch(
 );
 
 watch(
-  () => form.value.stock_quantity,
+  () => productForm.value.stock_quantity,
   (newVal) => {
-    if (form.value.manage_stock) {
+    if (productForm.value.manage_stock) {
       if (newVal && Number(newVal) > 0) {
         errors.value.stock_quantity = "";
       }
@@ -808,24 +810,24 @@ watch(
 );
 
 watch(
-  () => form.value.manage_stock,
+  () => productForm.value.manage_stock,
   (newVal) => {
     if (!newVal) {
       // Set default to 1 if manage_stock is enabled
-      if (form.value.manage_stock) {
-        form.value.stock_quantity = 1;
+      if (productForm.value.manage_stock) {
+        productForm.value.stock_quantity = 1;
       }
       errors.value.stock_quantity = "";
-    } else if (form.value.manage_stock && form.value.stock_quantity <= 0) {
+    } else if (productForm.value.manage_stock && productForm.value.stock_quantity <= 0) {
       // Set default to 1 if value is <= 0
-      form.value.stock_quantity = 1;
+      productForm.value.stock_quantity = 1;
       errors.value.stock_quantity = "";
     }
   }
 );
 
 watch(
-  () => form.value.description,
+  () => productForm.value.description,
   (newVal) => {
     if (newVal && newVal.trim()) {
       errors.value.description = "";
@@ -860,7 +862,7 @@ const handleFileSelect = (files) => {
       reader.onload = (e) => {
         const src = e.target && e.target.result;
         uploadedImages.value.push({ src, file });
-        form.value.images.push({ src });
+        productForm.value.images.push({ src });
       };
       reader.readAsDataURL(file);
     }
@@ -887,7 +889,7 @@ const handleDrop = (e) => {
 // Remove image
 const removeImage = (index) => {
   uploadedImages.value.splice(index, 1);
-  form.value.images.splice(index, 1);
+  productForm.value.images.splice(index, 1);
   if (uploadedImages.value.length === 0) {
     const canUseServerImage =
       hasRemoteApi &&
@@ -909,25 +911,25 @@ const handleSubmit = async (e) => {
   let hasErrors = false;
 
   // Validate name
-  if (!form.value.name || !form.value.name.trim()) {
+  if (!productForm.value.name || !productForm.value.name.trim()) {
     errors.value.name = t('create_product.please_enter_name');
     hasErrors = true;
   }
 
   // Validate regular_price
-  if (!form.value.regular_price || Number(form.value.regular_price) <= 0) {
+  if (!productForm.value.regular_price || Number(productForm.value.regular_price) <= 0) {
     errors.value.regular_price = t('create_product.please_enter_regular_price');
     hasErrors = true;
   }
 
   // Validate category
-  if (!form.value.categories.length) {
+  if (!productForm.value.categories.length) {
     errors.value.category = t('create_product.please_select_category');
     hasErrors = true;
   }
 
   // Validate description
-  if (!form.value.description || !form.value.description.trim()) {
+  if (!productForm.value.description || !productForm.value.description.trim()) {
     errors.value.description = t('create_product.please_enter_description');
     hasErrors = true;
   }
@@ -946,20 +948,20 @@ const handleSubmit = async (e) => {
 
   // Validate stock quantity (must be greater than 0 if manage_stock is enabled)
   // Set default to 1 if not provided or invalid
-  if (form.value.manage_stock) {
+  if (productForm.value.manage_stock) {
     if (
-      !form.value.stock_quantity ||
-      form.value.stock_quantity === "" ||
-      Number(form.value.stock_quantity) <= 0
+      !productForm.value.stock_quantity ||
+      productForm.value.stock_quantity === "" ||
+      Number(productForm.value.stock_quantity) <= 0
     ) {
       // Set default value to 1 if not provided or invalid
-      form.value.stock_quantity = 1;
+      productForm.value.stock_quantity = 1;
     }
   }
 
   // Validate sale price (must be less than regular price)
-  if (form.value.sale_price && form.value.regular_price) {
-    if (Number(form.value.sale_price) >= Number(form.value.regular_price)) {
+  if (productForm.value.sale_price && productForm.value.regular_price) {
+    if (Number(productForm.value.sale_price) >= Number(productForm.value.regular_price)) {
       errors.value.sale_price = t('create_product.sale_price_must_be_lower');
       hasErrors = true;
     }
@@ -986,15 +988,15 @@ const handleSubmit = async (e) => {
 
     /** Express + PostgreSQL: body ตาม createProductSchema + อัปโหลดฟิลด์ `image` */
     if (hasRemoteApi) {
-      const reg = Number(form.value.regular_price);
+      const reg = Number(productForm.value.regular_price);
       const saleRaw =
-        form.value.sale_price !== "" && form.value.sale_price != null
-          ? Number(form.value.sale_price)
+        productForm.value.sale_price !== "" && productForm.value.sale_price != null
+          ? Number(productForm.value.sale_price)
           : NaN;
       const price =
         Number.isFinite(saleRaw) && saleRaw > 0 ? saleRaw : reg;
-      const stock = form.value.manage_stock
-        ? Math.max(0, Number(form.value.stock_quantity) || 0)
+      const stock = productForm.value.manage_stock
+        ? Math.max(0, Number(productForm.value.stock_quantity) || 0)
         : 0;
 
       let imageUrl = null;
@@ -1028,12 +1030,16 @@ const handleSubmit = async (e) => {
               isSubmitting.value = false;
               return;
             }
-          } else if (
-            img?.src &&
-            (img.src.startsWith("http://") || img.src.startsWith("https://"))
-          ) {
-            imageUrl = img.src;
-            break;
+          } else if (img?.src) {
+            const s = String(img.src);
+            if (
+              s.startsWith("http://") ||
+              s.startsWith("https://") ||
+              s.startsWith("/")
+            ) {
+              imageUrl = s;
+              break;
+            }
           }
         }
       }
@@ -1051,24 +1057,27 @@ const handleSubmit = async (e) => {
         return;
       }
 
-      const firstCat = form.value.categories[0];
+      const firstCat = productForm.value.categories[0];
       const category_id =
         firstCat && firstCat.id != null && String(firstCat.id).trim() !== ""
           ? String(firstCat.id)
           : undefined;
 
       if (isEditMode.value) {
+        const ls = productForm.value.listing_status;
+        const listingForApi =
+          ls === "published" || ls === "hidden" || ls === "pending_review"
+            ? ls
+            : "pending_review";
         const cmsBody = {
           product_id: String(props.productIdForEdit).trim(),
-          name: form.value.name.trim(),
-          description: form.value.description || "",
+          name: productForm.value.name.trim(),
+          description: productForm.value.description || "",
           price,
           stock,
           ...(category_id ? { category_id } : {}),
           image_url: imageUrl,
-          ...(props.adminEdit
-            ? { listing_status: form.value.listing_status }
-            : {}),
+          ...(props.adminEdit ? { listing_status: listingForApi } : {}),
         };
 
         await $fetch(cmsPath("update-product"), {
@@ -1093,8 +1102,8 @@ const handleSubmit = async (e) => {
       }
 
       const cmsBody = {
-        name: form.value.name.trim(),
-        description: form.value.description || "",
+        name: productForm.value.name.trim(),
+        description: productForm.value.description || "",
         price,
         stock,
         ...(category_id ? { category_id } : {}),
@@ -1120,24 +1129,24 @@ const handleSubmit = async (e) => {
 
     // Prepare payload (mock / WordPress)
     const payload = {
-      name: form.value.name,
-      type: form.value.type || "simple", // Use simple product type
-      regular_price: String(form.value.regular_price),
-      sale_price: (form.value.sale_price !== '' && form.value.sale_price != null)
-        ? String(form.value.sale_price)
+      name: productForm.value.name,
+      type: productForm.value.type || "simple", // Use simple product type
+      regular_price: String(productForm.value.regular_price),
+      sale_price: (productForm.value.sale_price !== '' && productForm.value.sale_price != null)
+        ? String(productForm.value.sale_price)
         : undefined,
-      description: form.value.description || undefined,
-      short_description: form.value.short_description || undefined,
-      manage_stock: form.value.manage_stock,
-      stock_quantity: form.value.stock_quantity,
+      description: productForm.value.description || undefined,
+      short_description: productForm.value.short_description || undefined,
+      manage_stock: productForm.value.manage_stock,
+      stock_quantity: productForm.value.stock_quantity,
       status: "pending",
-      categories: form.value.categories,
-      tags: form.value.tags.length > 0 ? form.value.tags : undefined,
+      categories: productForm.value.categories,
+      tags: productForm.value.tags.length > 0 ? productForm.value.tags : undefined,
       post_author: user.value.id, // Add logged-in user ID as post_author
     };
 
     // Upload images to WordPress media library first
-    console.log("[Form] Original form.value.images:", form.value.images);
+    console.log("[Form] Original productForm.value.images:", productForm.value.images);
     console.log("[Form] uploadedImages:", uploadedImages.value);
 
     if (uploadedImages.value && uploadedImages.value.length > 0) {
@@ -1201,9 +1210,9 @@ const handleSubmit = async (e) => {
       } else {
         console.warn("[Form] No images were uploaded successfully");
       }
-    } else if (form.value.images && form.value.images.length > 0) {
-      // Fallback: use form.value.images if uploadedImages is empty (already URLs)
-      const processedImages = form.value.images
+    } else if (productForm.value.images && productForm.value.images.length > 0) {
+      // Fallback: use productForm.value.images if uploadedImages is empty (already URLs)
+      const processedImages = productForm.value.images
         .map((img) => {
           if (typeof img === "string") {
             if (img.startsWith("http://") || img.startsWith("https://")) {
@@ -1227,7 +1236,7 @@ const handleSubmit = async (e) => {
       if (processedImages.length > 0) {
         payload.images = processedImages;
         console.log(
-          "[Form] Adding images from form.value.images:",
+          "[Form] Adding images from productForm.value.images:",
           payload.images
         );
       }
@@ -1325,7 +1334,7 @@ const handleSubmit = async (e) => {
                 >{{ $t('create_product.product_name') }} *</label
               >
               <input
-                v-model="form.name"
+                v-model="productForm.name"
                 type="text"
                 required
                 :class="[
@@ -1350,7 +1359,7 @@ const handleSubmit = async (e) => {
                 >{{ $t('create_product.regular_price') }} *</label
               >
               <input
-                v-model.number="form.regular_price"
+                v-model.number="productForm.regular_price"
                 type="number"
                 step="0.01"
                 required
@@ -1377,13 +1386,13 @@ const handleSubmit = async (e) => {
                 >{{ $t('create_product.sale_price') }}</label
               >
               <input
-                v-model.number="form.sale_price"
+                v-model.number="productForm.sale_price"
                 type="number"
                 step="0.01"
                 min="0"
                 :max="
-                  form.regular_price
-                    ? Number(form.regular_price) - 0.01
+                  productForm.regular_price
+                    ? Number(productForm.regular_price) - 0.01
                     : undefined
                 "
                 :class="[
@@ -1471,7 +1480,7 @@ const handleSubmit = async (e) => {
                 >{{ $t('admin.products.form_listing_status') }}</label
               >
               <select
-                v-model="form.listing_status"
+                v-model="productForm.listing_status"
                 class="w-full px-4 py-3 rounded-xl border-2 bg-white/80 dark:bg-black/20 text-black dark:text-white border-neutral-200 dark:border-neutral-700 focus:outline-none focus:border-black dark:focus:border-white"
               >
                 <option value="pending_review">
@@ -1533,7 +1542,7 @@ const handleSubmit = async (e) => {
           <div class="space-y-4">
             <label class="flex items-center gap-3 cursor-pointer">
               <input
-                v-model="form.manage_stock"
+                v-model="productForm.manage_stock"
                 type="checkbox"
                 class="w-5 h-5 rounded border-2 border-black dark:border-white text-black dark:text-white focus:ring-2 focus:ring-black dark:focus:ring-white"
               />
@@ -1542,13 +1551,13 @@ const handleSubmit = async (e) => {
               >
             </label>
 
-            <div v-if="form.manage_stock">
+            <div v-if="productForm.manage_stock">
               <label
                 class="block text-sm font-medium mb-2 text-black dark:text-white"
                 >{{ $t('create_product.stock_quantity') }} *</label
               >
               <input
-                v-model.number="form.stock_quantity"
+                v-model.number="productForm.stock_quantity"
                 type="number"
                 min="1"
                 required

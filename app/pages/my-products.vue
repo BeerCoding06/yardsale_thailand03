@@ -1,5 +1,7 @@
 <!--app/pages/my-products.vue-->
 <script setup lang="ts">
+import { useCmsApi } from "#imports";
+
 // แสดงเฉพาะสินค้าของ user ที่ login (API ใช้ JWT เท่านั้น ไม่ส่ง user_id – เซิร์ฟเวอร์ดึงจาก token)
 definePageMeta({
   middleware: "auth",

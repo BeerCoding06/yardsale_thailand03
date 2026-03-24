@@ -172,8 +172,16 @@ onMounted(() => load());
               :key="row.id"
               class="border-b border-neutral-100 dark:border-neutral-800"
             >
-              <td class="py-3 pr-3 font-medium text-neutral-900 dark:text-white">
-                {{ row.name }}
+              <td class="py-3 pr-3 text-neutral-900 dark:text-white">
+                <div class="flex flex-col gap-1">
+                  <span class="font-medium">{{ row.name }}</span>
+                  <span
+                    v-if="row.is_cancelled"
+                    class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200 w-fit"
+                  >
+                    {{ t("admin.products.status_cancelled") }}
+                  </span>
+                </div>
               </td>
               <td class="py-3 pr-3 text-right tabular-nums">
                 {{ row.price }}
@@ -202,12 +210,6 @@ onMounted(() => load());
                       {{ t("admin.products.listing_hidden") }}
                     </option>
                   </select>
-                  <span
-                    v-if="row.is_cancelled"
-                    class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200 w-fit"
-                  >
-                    {{ t("admin.products.status_cancelled") }}
-                  </span>
                 </div>
               </td>
               <td class="py-3 text-right whitespace-nowrap space-x-2">

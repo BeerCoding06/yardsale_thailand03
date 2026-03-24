@@ -1,6 +1,12 @@
 /**
  * แมปสินค้าจาก Yardsale Express (PostgreSQL) → รูปแบบใกล้เคียง WooCommerce ที่ UI เดิมใช้
  */
+import { useRuntimeConfig } from "nuxt/app";
+import {
+  cmsEndpointFromPublic,
+  hasRemoteCmsApi,
+} from "~/utils/cmsApiEndpoint";
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -31,7 +37,11 @@ export function isStorefrontPublishedProduct(
 
 export function useStorefrontCatalog() {
   const config = useRuntimeConfig();
-  const { endpoint, hasRemoteApi } = useCmsApi();
+  const pub = config.public as { cmsApiBase?: string; baseUrl?: string };
+  const hasRemoteApi = hasRemoteCmsApi(pub);
+  function endpoint(path: string): string {
+    return cmsEndpointFromPublic(pub, path, import.meta.client);
+  }
 
   function backendOrigin(): string {
     const raw = String(

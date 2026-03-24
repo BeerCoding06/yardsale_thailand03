@@ -1,6 +1,8 @@
 // app/composables/useAuth.ts
 // Composable for managing user authentication state
 
+import { useCmsApi } from "./useCmsApi";
+
 /** Express มักคืน { error: { message, code } }; ต้องดึงข้อความเป็น string ไม่ให้ UI ได้ [object Object] */
 function pickErrorMessage(source: unknown, fallback = "Login failed"): string {
   if (source == null || source === "") return fallback;

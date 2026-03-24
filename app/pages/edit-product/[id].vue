@@ -1,5 +1,7 @@
 <!--app/pages/edit-product/[id].vue-->
 <script setup>
+import { useCmsApi } from "#imports";
+
 // Page for editing products - requires authentication
 definePageMeta({
   middleware: "auth",
