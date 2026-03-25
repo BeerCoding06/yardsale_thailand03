@@ -16,6 +16,18 @@ const cards = computed(() => [
     icon: "i-heroicons-cube",
   },
   {
+    to: localePath("/admin/categories"),
+    title: t("admin.nav.categories"),
+    desc: t("admin.dashboard.categories_desc"),
+    icon: "i-heroicons-tag",
+  },
+  {
+    to: localePath("/admin/tags"),
+    title: t("admin.nav.tags"),
+    desc: t("admin.dashboard.tags_desc"),
+    icon: "i-heroicons-hashtag",
+  },
+  {
     to: localePath("/admin/users"),
     title: t("admin.nav.users"),
     desc: t("admin.dashboard.users_desc"),

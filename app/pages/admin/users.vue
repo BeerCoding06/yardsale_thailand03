@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { push } from "notivue";
+
 definePageMeta({
   layout: "admin",
   middleware: "admin",
@@ -8,7 +10,6 @@ definePageMeta({
 const { t } = useI18n();
 const { checkAuth } = useAuth();
 const { adminFetch } = useAdminFetch();
-const { push } = useNotivue();
 
 const form = ref({
   email: "",

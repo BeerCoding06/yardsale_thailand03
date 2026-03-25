@@ -1,8 +1,10 @@
 import { isCartLineSalableBySnapshot } from '~/utils/cart-line-salable';
+import { unwrapYardsaleResponse } from '~/utils/cmsApiEndpoint';
 
 export const useCheckout = () => {
   const { cart, getCartItemsForStockApi } = useCart();
   const { user, isAuthenticated } = useAuth();
+  const { hasRemoteApi, endpoint } = useStorefrontCatalog();
   const { t } = useI18n();
   const router = useRouter();
   const order = useState('order', () => {});
@@ -137,10 +139,29 @@ export const useCheckout = () => {
     const items = getCartItemsForStockApi();
     if (items.length > 0) {
       try {
-        const res = await $fetch('/api/check-cart-stock', { method: 'POST', body: { items } });
-        if (!res.valid && res.errors?.length) {
-          error.value = res.errors[0].message + (res.errors[0].name ? ` (${res.errors[0].name})` : '');
-          return;
+        const jwtToken = user.value?.token;
+        if (hasRemoteApi) {
+          const raw = await $fetch(endpoint('check-cart-stock'), {
+            method: 'POST',
+            body: { items },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
+            },
+          });
+          const inner = unwrapYardsaleResponse(raw) ?? raw;
+          if (inner?.valid === false && inner.errors?.length) {
+            const er = inner.errors[0];
+            error.value =
+              (er?.message || '') + (er?.name ? ` (${er.name})` : '');
+            return;
+          }
+        } else {
+          const res = await $fetch('/api/check-cart-stock', { method: 'POST', body: { items } });
+          if (!res.valid && res.errors?.length) {
+            error.value = res.errors[0].message + (res.errors[0].name ? ` (${res.errors[0].name})` : '');
+            return;
+          }
         }
       } catch (e) {
         error.value = t('checkout.error.stock_check_failed');
@@ -168,27 +189,37 @@ export const useCheckout = () => {
         return Number.isFinite(n) ? n : 0;
       };
 
-      const line_items = cart.value.map(item => {
-        const variationNode = item.variation?.node;
-        const productNode = item.product?.node;
-        const node = variationNode || productNode || {};
-        const hasVariation = Boolean(variationNode?.databaseId || variationNode?.id);
-        const parentId = Number(productNode?.databaseId ?? productNode?.id ?? 0);
-        const varId = Number(variationNode?.databaseId ?? variationNode?.id ?? 0);
-        const wcProductId = hasVariation && parentId > 0 ? parentId : Number(node.databaseId ?? node.id ?? 0);
-        const regularPrice = parsePrice(node.regularPrice);
-        const salePrice = parsePrice(node.salePrice);
-        const price = salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
-        const line = {
-          product_id: wcProductId || 0,
-          quantity: item.quantity || 1,
-          price: price,
-        };
-        if (hasVariation && varId > 0) {
-          line.variation_id = varId;
-        }
-        return line;
-      }).filter(item => item.product_id > 0);
+      let line_items;
+      if (hasRemoteApi) {
+        line_items = cart.value
+          .map((item) => ({
+            product_id: String(item.product?.node?.databaseId ?? item.product?.node?.id ?? ''),
+            quantity: item.quantity || 1,
+          }))
+          .filter((x) => x.product_id.length > 0);
+      } else {
+        line_items = cart.value.map(item => {
+          const variationNode = item.variation?.node;
+          const productNode = item.product?.node;
+          const node = variationNode || productNode || {};
+          const hasVariation = Boolean(variationNode?.databaseId || variationNode?.id);
+          const parentId = Number(productNode?.databaseId ?? productNode?.id ?? 0);
+          const varId = Number(variationNode?.databaseId ?? variationNode?.id ?? 0);
+          const wcProductId = hasVariation && parentId > 0 ? parentId : Number(node.databaseId ?? node.id ?? 0);
+          const regularPrice = parsePrice(node.regularPrice);
+          const salePrice = parsePrice(node.salePrice);
+          const price = salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
+          const line = {
+            product_id: wcProductId || 0,
+            quantity: item.quantity || 1,
+            price: price,
+          };
+          if (hasVariation && varId > 0) {
+            line.variation_id = varId;
+          }
+          return line;
+        }).filter(item => item.product_id > 0);
+      }
 
       if (line_items.length === 0) {
         throw new Error(t('checkout.error.no_valid_items'));
@@ -218,15 +249,35 @@ export const useCheckout = () => {
       };
 
       const jwtToken = user.value?.token;
-      const res = await $fetch('/api/create-order', {
-        method: 'POST',
-        body: checkoutData,
-        ...(jwtToken ? { headers: { Authorization: `Bearer ${jwtToken}` } } : {}),
-      });
-
-      const orderData = res.order;
-      order.value = orderData;
+      let orderData;
+      if (hasRemoteApi) {
+        const raw = await $fetch(endpoint('create-order'), {
+          method: 'POST',
+          body: { line_items },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
+          },
+        });
+        const inner = unwrapYardsaleResponse(raw) ?? raw;
+        orderData = inner?.order;
+      } else {
+        const res = await $fetch('/api/create-order', {
+          method: 'POST',
+          body: checkoutData,
+          ...(jwtToken ? { headers: { Authorization: `Bearer ${jwtToken}` } } : {}),
+        });
+        orderData = res.order;
+      }
       if (orderData?.id) {
+        order.value = {
+          ...orderData,
+          number:
+            orderData.number ||
+            String(orderData.id).replace(/-/g, '').slice(0, 12),
+          total: String(orderData.total_price ?? orderData.total ?? 0),
+          date_created: orderData.created_at ?? orderData.date_created,
+        };
         cart.value = [];
         if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
         await router.push(`/payment-successful?order_id=${orderData.id}`);
@@ -236,7 +287,12 @@ export const useCheckout = () => {
       checkoutStatus.value = 'order';
     } catch (err) {
       console.error('[useCheckout] Error:', err);
-      error.value = err?.data?.error || err?.message || t('checkout.error.create_order_failed');
+      const em =
+        err?.data?.error?.message ||
+        err?.data?.message ||
+        err?.data?.error ||
+        err?.message;
+      error.value = em || t('checkout.error.create_order_failed');
       checkoutStatus.value = 'order';
     }
   };

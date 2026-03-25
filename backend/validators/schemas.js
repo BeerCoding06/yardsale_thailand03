@@ -88,7 +88,12 @@ export const paymentMockBodySchema = Joi.object({
 export const createProductSchema = Joi.object({
   name: Joi.string().trim().min(1).required(),
   description: Joi.string().allow('').default(''),
-  price: Joi.number().precision(2).positive().required(),
+  /** ราคาที่ลูกค้าจ่าย (legacy) — ใช้คู่กับ regular_price / sale_price ได้ */
+  price: Joi.number().precision(2).positive().optional(),
+  regular_price: Joi.number().precision(2).positive().optional(),
+  sale_price: Joi.alternatives()
+    .try(Joi.number().precision(2).positive(), Joi.valid(null, ''))
+    .optional(),
   stock: Joi.number().integer().min(0).default(0),
   category_id: uuid.allow(null, '').optional(),
   image_url: Joi.alternatives()
@@ -102,13 +107,22 @@ export const createProductSchema = Joi.object({
   seller_id: uuid.optional(),
   /** Admin only: initial listing status (seller/user → always pending_review on server) */
   listing_status: productListingStatus,
-});
+  tag_ids: Joi.array().items(uuid).max(100).optional(),
+})
+  .or('price', 'regular_price')
+  .messages({
+    'object.missing': 'price or regular_price is required',
+  });
 
 export const updateProductSchema = Joi.object({
   product_id: uuid.required(),
   name: Joi.string().trim().min(1).optional(),
   description: Joi.string().allow('').optional(),
   price: Joi.number().precision(2).positive().optional(),
+  regular_price: Joi.number().precision(2).positive().optional(),
+  sale_price: Joi.alternatives()
+    .try(Joi.number().precision(2).positive(), Joi.valid(null, ''))
+    .optional(),
   stock: Joi.number().integer().min(0).optional(),
   category_id: uuid.allow(null, '').optional(),
   image_url: Joi.alternatives()
@@ -120,19 +134,75 @@ export const updateProductSchema = Joi.object({
     .optional(),
   /** Admin only: publish / hide from storefront */
   listing_status: productListingStatus,
+  tag_ids: Joi.array().items(uuid).max(100).optional(),
 })
   .or(
     'name',
     'description',
     'price',
+    'regular_price',
+    'sale_price',
     'stock',
     'category_id',
     'image_url',
-    'listing_status'
+    'listing_status',
+    'tag_ids'
   )
   .messages({
     'object.missing': 'at least one field to update is required',
   });
+
+export const createCategorySchema = Joi.object({
+  name: Joi.string().trim().min(1).max(200).required(),
+  slug: Joi.string().trim().lowercase().max(200).allow('', null).optional(),
+  image_url: Joi.alternatives()
+    .try(
+      Joi.string().uri({ scheme: ['http', 'https'] }),
+      Joi.string().pattern(/^\//)
+    )
+    .allow('', null)
+    .optional(),
+});
+
+export const updateCategorySchema = Joi.object({
+  category_id: uuid.required(),
+  name: Joi.string().trim().min(1).max(200).optional(),
+  slug: Joi.string().trim().lowercase().max(200).allow('', null).optional(),
+  image_url: Joi.alternatives()
+    .try(
+      Joi.string().uri({ scheme: ['http', 'https'] }),
+      Joi.string().pattern(/^\//)
+    )
+    .allow(null, '')
+    .optional(),
+})
+  .or('name', 'slug', 'image_url')
+  .messages({
+    'object.missing': 'at least one of name, slug, image_url is required',
+  });
+
+export const deleteCategorySchema = Joi.object({
+  category_id: uuid.required(),
+});
+
+export const createTagSchema = Joi.object({
+  name: Joi.string().trim().min(1).max(200).required(),
+  slug: Joi.string().trim().lowercase().max(200).allow('', null).optional(),
+});
+
+export const updateTagSchema = Joi.object({
+  tag_id: uuid.required(),
+  name: Joi.string().trim().min(1).max(200).optional(),
+  slug: Joi.string().trim().lowercase().max(200).allow('', null).optional(),
+})
+  .or('name', 'slug')
+  .messages({
+    'object.missing': 'at least one of name, slug is required',
+  });
+
+export const deleteTagSchema = Joi.object({
+  tag_id: uuid.required(),
+});
 
 export const productActionSchema = Joi.object({
   product_id: uuid.required(),

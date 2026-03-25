@@ -14,11 +14,18 @@ import {
   createProductSchema,
   updateProductSchema,
   productActionSchema,
+  createCategorySchema,
+  updateCategorySchema,
+  deleteCategorySchema,
+  createTagSchema,
+  updateTagSchema,
+  deleteTagSchema,
 } from '../validators/schemas.js';
 import { uploadImage } from '../middlewares/upload.js';
 import * as authController from '../controllers/auth.controller.js';
 import * as productController from '../controllers/product.controller.js';
 import * as categoryController from '../controllers/category.controller.js';
+import * as tagController from '../controllers/tag.controller.js';
 import * as cartController from '../controllers/cart.controller.js';
 import * as orderController from '../controllers/order.controller.js';
 import * as paymentController from '../controllers/payment.controller.js';
@@ -45,6 +52,49 @@ router.get('/wp-post', productController.wpPost);
 router.get('/categories', categoryController.categories);
 router.get('/wp-categories', categoryController.wpCategories);
 router.get('/wp-tags', categoryController.wpTags);
+router.get('/tags', tagController.listTags);
+router.post(
+  '/create-tag',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(createTagSchema),
+  tagController.createTag
+);
+router.post(
+  '/update-tag',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(updateTagSchema),
+  tagController.updateTag
+);
+router.post(
+  '/delete-tag',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(deleteTagSchema),
+  tagController.deleteTag
+);
+router.post(
+  '/create-category',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(createCategorySchema),
+  categoryController.createCategory
+);
+router.post(
+  '/update-category',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(updateCategorySchema),
+  categoryController.updateCategory
+);
+router.post(
+  '/delete-category',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(deleteCategorySchema),
+  categoryController.deleteCategory
+);
 
 router.post('/cart/add', authMiddleware, validate(cartAddSchema), cartController.add);
 router.post('/cart/update', authMiddleware, validate(cartUpdateSchema), cartController.update);

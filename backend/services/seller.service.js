@@ -2,11 +2,15 @@ import { AppError } from '../utils/AppError.js';
 import { pool } from '../models/db.js';
 import * as productModel from '../models/product.model.js';
 import * as userModel from '../models/user.model.js';
+import {
+  mergeProductPricesForUpdate,
+  normalizeProductPricesForCreate,
+} from '../utils/productPrices.js';
 
-export async function myProducts(userId, role) {
+export async function myProducts(userId, role, { ownOnly = false } = {}) {
   const client = await pool.connect();
   try {
-    if (role === 'admin') {
+    if (role === 'admin' && !ownOnly) {
       const products = await productModel.listAllProducts(client);
       return { products, count: products.length };
     }
@@ -28,15 +32,22 @@ export async function createProduct(sellerId, body, role) {
     }
     const listing_status =
       role === 'admin' && body.listing_status ? body.listing_status : 'pending_review';
+    const np = normalizeProductPricesForCreate(body);
+    const tag_ids = Array.isArray(body.tag_ids)
+      ? body.tag_ids.map((id) => String(id).trim()).filter(Boolean)
+      : [];
     const row = await productModel.createProduct(client, {
       seller_id: ownerId,
       category_id: body.category_id && body.category_id !== '' ? body.category_id : null,
       name: body.name,
       description: body.description,
-      price: body.price,
+      price: np.price,
+      regular_price: np.regular_price,
+      sale_price: np.sale_price,
       stock: body.stock,
       image_url: body.image_url || null,
       listing_status,
+      tag_ids,
     });
     return { product: row };
   } finally {
@@ -50,10 +61,29 @@ export async function updateProduct(userId, role, body) {
   try {
     const { product_id, ...rest } = body;
     if (!isAdmin) delete rest.listing_status;
+
+    const hasPriceKeys =
+      rest.price !== undefined ||
+      rest.regular_price !== undefined ||
+      Object.prototype.hasOwnProperty.call(rest, 'sale_price');
+
+    let patch = { ...rest };
+    if (hasPriceKeys) {
+      const current = await productModel.getProductRowForPriceMerge(
+        client,
+        product_id,
+        userId,
+        isAdmin
+      );
+      if (!current) throw new AppError('Product not found or not yours', 404, 'NOT_FOUND');
+      const merged = mergeProductPricesForUpdate(rest, current);
+      patch = { ...rest, ...merged };
+    }
+
     const row = await productModel.updateProduct(
       client,
       product_id,
-      rest,
+      patch,
       userId,
       isAdmin
     );

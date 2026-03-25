@@ -41,15 +41,29 @@ function applyApiProductToForm(p) {
   productForm.value.name = p.name || "";
   productForm.value.description = p.description || "";
   productForm.value.short_description = "";
+  const regBase =
+    p.regular_price != null && p.regular_price !== ""
+      ? Number(p.regular_price)
+      : Number(p.price);
+  const saleNum =
+    p.sale_price != null && p.sale_price !== "" ? Number(p.sale_price) : NaN;
   productForm.value.regular_price =
-    p.price != null && p.price !== "" ? String(Number(p.price)) : "";
-  productForm.value.sale_price = "";
+    Number.isFinite(regBase) && regBase > 0 ? String(regBase) : "";
+  productForm.value.sale_price =
+    Number.isFinite(saleNum) && saleNum > 0 && saleNum < regBase
+      ? String(saleNum)
+      : "";
   productForm.value.manage_stock = true;
   productForm.value.stock_quantity =
     p.stock != null && p.stock !== "" ? Math.max(0, Number(p.stock)) : 0;
   productForm.value.type = "simple";
-  productForm.value.tags = [];
-  selectedTags.value = [];
+  const rawTags = Array.isArray(p.tags) ? p.tags : [];
+  productForm.value.tags = rawTags
+    .map((t) => ({
+      id: String(t.id ?? t.databaseId ?? "").trim(),
+    }))
+    .filter((x) => x.id);
+  selectedTags.value = productForm.value.tags.map((t) => t.id);
 
   if (p.category_id) {
     const cid = String(p.category_id);
@@ -309,7 +323,7 @@ const initTagsSelect2 = () => {
 
     $(tagsSelect.value).select2({
       placeholder: t('create_product.select_tags'),
-      allowClear: false,
+      allowClear: true,
       multiple: true,
       width: "100%",
       language: {
@@ -322,11 +336,12 @@ const initTagsSelect2 = () => {
       },
     });
 
-    // Handle Select2 change event
-    $(tagsSelect.value).on("change", function () {
-      const selectedValues = $(this).val() || [];
-      selectedTags.value = selectedValues.map((v) => Number(v));
-      productForm.value.tags = selectedValues.map((v) => ({ id: Number(v) }));
+    $(tagsSelect.value).off("change.yardsaleTags");
+    $(tagsSelect.value).on("change.yardsaleTags", function () {
+      const raw = $(this).val();
+      const selectedValues = Array.isArray(raw) ? raw : raw ? [raw] : [];
+      selectedTags.value = selectedValues.map((v) => String(v));
+      productForm.value.tags = selectedValues.map((v) => ({ id: String(v) }));
     });
   }
 };
@@ -474,6 +489,30 @@ watch(
       nextTick(() => {
         waitForSelect2().then(() => {
           initSelect2();
+        });
+      });
+    }
+  },
+  { deep: true }
+);
+
+watch(
+  () => tags.value,
+  () => {
+    if (tags.value.length > 0) {
+      nextTick(() => {
+        waitForSelect2().then(() => {
+          initTagsSelect2();
+          if (
+            selectedTags.value.length > 0 &&
+            tagsSelect.value &&
+            window.jQuery
+          ) {
+            const $ = window.jQuery;
+            if ($(tagsSelect.value).hasClass("select2-hidden-accessible")) {
+              $(tagsSelect.value).val(selectedTags.value).trigger("change");
+            }
+          }
         });
       });
     }
@@ -1063,6 +1102,10 @@ const handleSubmit = async (e) => {
           ? String(firstCat.id)
           : undefined;
 
+      const tag_ids = productForm.value.tags
+        .map((x) => String(x?.id ?? "").trim())
+        .filter(Boolean);
+
       if (isEditMode.value) {
         const ls = productForm.value.listing_status;
         const listingForApi =
@@ -1074,7 +1117,10 @@ const handleSubmit = async (e) => {
           name: productForm.value.name.trim(),
           description: productForm.value.description || "",
           price,
+          regular_price: reg,
+          sale_price: Number.isFinite(saleRaw) && saleRaw > 0 && saleRaw < reg ? saleRaw : null,
           stock,
+          tag_ids,
           ...(category_id ? { category_id } : {}),
           image_url: imageUrl,
           ...(props.adminEdit ? { listing_status: listingForApi } : {}),
@@ -1105,7 +1151,10 @@ const handleSubmit = async (e) => {
         name: productForm.value.name.trim(),
         description: productForm.value.description || "",
         price,
+        regular_price: reg,
+        sale_price: Number.isFinite(saleRaw) && saleRaw > 0 && saleRaw < reg ? saleRaw : null,
         stock,
+        tag_ids,
         ...(category_id ? { category_id } : {}),
         image_url: imageUrl,
       };
@@ -1465,7 +1514,11 @@ const handleSubmit = async (e) => {
                   'border-neutral-200 dark:border-neutral-700 focus:border-black dark:focus:border-white hover:border-neutral-300 dark:hover:border-neutral-600',
                 ]"
               >
-                <option v-for="tag in tags" :key="tag.id" :value="tag.id">
+                <option
+                  v-for="tag in tags"
+                  :key="String(tag.id ?? tag.databaseId ?? '')"
+                  :value="String(tag.id ?? tag.databaseId ?? '')"
+                >
                   {{ tag.name }}
                 </option>
               </select>

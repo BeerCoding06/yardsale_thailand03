@@ -299,7 +299,46 @@ export default defineNuxtPlugin(() => {
         },
       };
     }
-    if (p === "/api/cart/add" || p === "/api/cart/update") return { success: true };
+    if (p === "/api/cart/add" && (opts?.method === "POST" || opts?.method === "post")) {
+      const pid = Number(body?.productId);
+      let prod = products.find((x) => x.databaseId === pid);
+      if (!prod && body?.productId != null) {
+        prod = mockCmsProducts.find(
+          (x) => String(x.id) === String(body.productId)
+        ) as AnyObj | undefined;
+      }
+      if (!prod) {
+        return {
+          addToCart: {
+            cartItem: {
+              key: `missing-${body?.productId}`,
+              quantity: 1,
+              product: {
+                node: {
+                  databaseId: pid || 0,
+                  name: "Unknown",
+                  regularPrice: "0",
+                  salePrice: null,
+                  stockQuantity: 0,
+                  stockStatus: "OUT_OF_STOCK",
+                },
+              },
+            },
+          },
+        };
+      }
+      const idKey = prod.databaseId ?? prod.id ?? pid;
+      return {
+        addToCart: {
+          cartItem: {
+            key: `mock-${idKey}`,
+            quantity: 1,
+            product: { node: { ...prod } },
+          },
+        },
+      };
+    }
+    if (p === "/api/cart/update") return { success: true };
     if (p === "/api/refresh-cart-stock") {
       const items = Array.isArray(body?.items) ? body.items : [];
       const lines = items.map((i: AnyObj) => {
@@ -354,11 +393,21 @@ export default defineNuxtPlugin(() => {
     if (p === "/api/my-products") {
       const token = mockBearerToken(opts);
       const isAdmin = token === "demo-admin-token";
-      if (isAdmin) {
+      const ownOnly =
+        query.get("own_only") === "1" || query.get("own_only") === "true";
+      if (isAdmin && !ownOnly) {
         return {
           success: true,
           count: mockCmsProducts.length,
           products: mockCmsProducts.map((x) => ({ ...x })),
+        };
+      }
+      if (ownOnly && isAdmin) {
+        const mine = mockCmsProducts.filter((x) => x.seller_id === MOCK_SELLER);
+        return {
+          success: true,
+          count: mine.length,
+          products: mine.map((x) => ({ ...x })),
         };
       }
       return { success: true, count: 0, products: [] };

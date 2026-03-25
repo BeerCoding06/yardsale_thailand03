@@ -23,7 +23,8 @@ useSeoMeta({
   twitterImage: ogImageLogo,
 });
 
-const { hasRemoteApi, endpoint, unwrapYardsaleResponse } = useStorefrontCatalog();
+const { hasRemoteApi, endpoint, unwrapYardsaleResponse, resolveMediaUrl } =
+  useStorefrontCatalog();
 
 onMounted(async () => {
   try {
@@ -35,8 +36,18 @@ onMounted(async () => {
     // API already returns categories with parent=0, so use them directly
     // Since we're querying with parent=0, all returned categories should be parent categories
     if (response?.productCategories?.nodes) {
-      // Simply use all categories returned (they're already filtered by parent=0 in the API)
-      categoriesData.value = response.productCategories.nodes;
+      const nodes = response.productCategories.nodes;
+      categoriesData.value = nodes.map((cat) => {
+        const rawSrc = cat.image?.sourceUrl;
+        const resolved =
+          rawSrc && hasRemoteApi
+            ? resolveMediaUrl(rawSrc) ?? rawSrc
+            : rawSrc;
+        return {
+          ...cat,
+          image: resolved ? { sourceUrl: resolved } : cat.image,
+        };
+      });
       
       console.log(
         "[categories] Total categories from API:",

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { push } from "notivue";
+
 definePageMeta({
   layout: "admin",
   middleware: "admin",
@@ -8,7 +10,6 @@ definePageMeta({
 const { t } = useI18n();
 const localePath = useLocalePath();
 const { adminFetch } = useAdminFetch();
-const { push } = useNotivue();
 
 const isLoading = ref(true);
 const products = ref<any[]>([]);
@@ -27,7 +28,10 @@ async function load() {
         : Array.isArray(raw?.data?.data?.products)
           ? raw.data.data.products
           : [];
-    products.value = list;
+    products.value = list.map((p) => ({
+      ...p,
+      listing_status: normalizeListingStatus(p),
+    }));
   } catch (e: any) {
     error.value =
       e?.data?.error?.message || e?.data?.message || e?.message || "Error";
@@ -70,35 +74,86 @@ async function restoreProduct(id: string) {
 
 const updatingListingId = ref<string | null>(null);
 
-function listingStatusValue(row: any): "pending_review" | "published" | "hidden" {
-  const s = row?.listing_status;
-  if (s === "published" || s === "hidden" || s === "pending_review") return s;
+/** ให้ทุกแถวมี listing_status ตรงกับ value ของ <option> — รองรับ string จาก DB / select ที่อาจมีช่องว่างหรือตัวพิมพ์ */
+function normalizeListingStatus(input: any): "pending_review" | "published" | "hidden" {
+  const raw =
+    input != null &&
+    typeof input === "object" &&
+    !Array.isArray(input) &&
+    "listing_status" in input
+      ? (input as { listing_status?: unknown }).listing_status
+      : input;
+  const s =
+    typeof raw === "string"
+      ? raw.trim().toLowerCase()
+      : String(raw ?? "")
+          .trim()
+          .toLowerCase();
+  if (s === "published") return "published";
+  if (s === "hidden") return "hidden";
+  if (s === "pending_review" || s === "pending-review" || s === "pending review")
+    return "pending_review";
   return "pending_review";
 }
 
-async function updateListingStatus(row: any, next: string) {
+function listingStatusValue(row: any): "pending_review" | "published" | "hidden" {
+  return normalizeListingStatus(row);
+}
+
+function buildFullUpdateBody(row: any, listing_status: string) {
+  const id = String(row?.id || "");
+  const name = String(row?.name || "").trim();
+  const price = Number(row?.price);
+  if (!id || !name || !Number.isFinite(price) || price <= 0) return null;
+  const stock = Math.max(0, Number(row?.stock) || 0);
+  const cid = row?.category_id;
+  const category_id =
+    cid != null && String(cid).trim() !== "" ? String(cid) : null;
+  const img = row?.image_url;
+  const image_url =
+    img != null && String(img).trim() !== "" ? String(img).trim() : null;
+  const regular_for_api = Number(row?.regular_price ?? row?.price);
+  const regular_price =
+    Number.isFinite(regular_for_api) && regular_for_api > 0
+      ? regular_for_api
+      : price;
+  return {
+    product_id: id,
+    listing_status,
+    name,
+    description: String(row?.description ?? ""),
+    price,
+    regular_price,
+    stock,
+    category_id,
+    image_url,
+  };
+}
+
+async function persistListingStatus(row: any, next: string, prev: string) {
   const id = String(row?.id || "");
   if (!id) return;
   const allowed = ["pending_review", "published", "hidden"] as const;
   if (!allowed.includes(next as (typeof allowed)[number])) return;
-  const prev = listingStatusValue(row);
   if (prev === next) return;
 
   updatingListingId.value = id;
-  row.listing_status = next;
   try {
+    const full = buildFullUpdateBody(row, next);
     await adminFetch("update-product", {
       method: "POST",
-      body: { product_id: id, listing_status: next },
+      body: full ?? { product_id: id, listing_status: next },
     });
     push.success(t("admin.products.listing_status_saved"));
+    await load();
   } catch (e: any) {
     row.listing_status = prev;
-    push.error(
+    const msg =
       e?.data?.error?.message ||
-        e?.message ||
-        t("admin.products.listing_status_save_failed")
-    );
+      e?.data?.message ||
+      e?.message ||
+      t("admin.products.listing_status_save_failed");
+    push.error(msg);
   } finally {
     updatingListingId.value = null;
   }
@@ -107,7 +162,29 @@ async function updateListingStatus(row: any, next: string) {
 function onListingStatusChange(row: any, e: Event) {
   const el = e.target as HTMLSelectElement | null;
   if (!el) return;
-  updateListingStatus(row, el.value);
+  const next = normalizeListingStatus(el.value);
+  const prev = listingStatusValue(row);
+  if (prev === next) return;
+  row.listing_status = next;
+  void persistListingStatus(row, next, prev);
+}
+
+/** สีของกล่อง select ตามสถานะที่เลือกอยู่ (ค่าที่ “active”) */
+function listingStatusSelectClass(row: any): string {
+  const base =
+    "w-full max-w-[14rem] rounded-md border px-2 py-1.5 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-neutral-950 disabled:opacity-50 disabled:cursor-not-allowed";
+  if (row?.is_cancelled) {
+    return `${base} border-neutral-300 bg-neutral-100 text-neutral-500 dark:border-neutral-600 dark:bg-neutral-900 dark:text-neutral-500`;
+  }
+  switch (listingStatusValue(row)) {
+    case "published":
+      return `${base} border-emerald-500/70 bg-emerald-50 text-emerald-950 ring-1 ring-emerald-500/30 focus-visible:ring-emerald-500/40 dark:border-emerald-500/50 dark:bg-emerald-950/40 dark:text-emerald-100 dark:ring-emerald-500/25 dark:focus-visible:ring-emerald-500/30`;
+    case "hidden":
+      return `${base} border-neutral-400 bg-neutral-100 text-neutral-900 ring-1 ring-neutral-400/40 focus-visible:ring-neutral-400/50 dark:border-neutral-500 dark:bg-neutral-900 dark:text-neutral-100 dark:ring-neutral-500/30 dark:focus-visible:ring-neutral-500/40`;
+    case "pending_review":
+    default:
+      return `${base} border-amber-500/70 bg-amber-50 text-amber-950 ring-1 ring-amber-500/30 focus-visible:ring-amber-500/40 dark:border-amber-500/50 dark:bg-amber-950/35 dark:text-amber-100 dark:ring-amber-500/25 dark:focus-visible:ring-amber-500/30`;
+  }
 }
 
 onMounted(() => load());
@@ -192,11 +269,12 @@ onMounted(() => load());
               <td class="py-3 pr-3">
                 <div class="flex flex-col gap-2 min-w-[11rem]">
                   <select
-                    :value="listingStatusValue(row)"
+                    :key="`${row.id}-${row.listing_status}`"
+                    :value="row.listing_status"
                     :disabled="
                       updatingListingId === row.id || row.is_cancelled
                     "
-                    class="w-full max-w-[14rem] rounded-md border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-2 py-1.5 text-xs text-neutral-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    :class="listingStatusSelectClass(row)"
                     :aria-label="t('admin.products.form_listing_status')"
                     @change="onListingStatusChange(row, $event)"
                   >

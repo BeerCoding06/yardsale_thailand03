@@ -35,8 +35,20 @@ CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   slug TEXT NOT NULL UNIQUE,
+  image_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+/* ฐานเก่าที่สร้าง categories ก่อนมี image_url — ต้อง ALTER (รันซ้ำได้) */
+DO $ensure_cat_img$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'categories' AND column_name = 'image_url'
+  ) THEN
+    ALTER TABLE public.categories ADD COLUMN image_url TEXT;
+  END IF;
+END $ensure_cat_img$;
 
 CREATE TABLE IF NOT EXISTS tags (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -52,6 +64,8 @@ CREATE TABLE IF NOT EXISTS products (
   name TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   price NUMERIC(12, 2) NOT NULL CHECK (price >= 0),
+  regular_price NUMERIC(12, 2),
+  sale_price NUMERIC(12, 2),
   stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
   image_url TEXT,
   is_cancelled BOOLEAN NOT NULL DEFAULT false,
@@ -59,13 +73,7 @@ CREATE TABLE IF NOT EXISTS products (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_products_category ON products (category_id);
-CREATE INDEX IF NOT EXISTS idx_products_seller ON products (seller_id);
-CREATE INDEX IF NOT EXISTS idx_products_cancelled ON products (is_cancelled);
-CREATE INDEX IF NOT EXISTS idx_products_listing_status ON products (listing_status);
-CREATE INDEX IF NOT EXISTS idx_products_name_search ON products (name);
-
-/** ตาราง products มีอยู่แล้วจากรุ่นเก่า: เพิ่มคอลัมน์ listing_status (รันซ้ำได้) */
+/* ตาราง products เก่า (ก่อนมี listing_status): เพิ่มคอลัมน์ก่อนสร้าง index — รันซ้ำได้ */
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -78,6 +86,40 @@ BEGIN
       ALTER COLUMN listing_status SET DEFAULT 'pending_review';
   END IF;
 END $$;
+
+/* products เก่า: เพิ่มราคาเต็ม / ลดราคา (รันซ้ำได้) */
+DO $ensure_prod_prices$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'regular_price'
+  ) THEN
+    ALTER TABLE public.products ADD COLUMN regular_price NUMERIC(12, 2);
+    ALTER TABLE public.products ADD COLUMN sale_price NUMERIC(12, 2);
+    UPDATE public.products SET regular_price = price WHERE regular_price IS NULL;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'sale_price'
+  ) THEN
+    ALTER TABLE public.products ADD COLUMN sale_price NUMERIC(12, 2);
+  END IF;
+END $ensure_prod_prices$;
+
+CREATE INDEX IF NOT EXISTS idx_products_category ON products (category_id);
+CREATE INDEX IF NOT EXISTS idx_products_seller ON products (seller_id);
+CREATE INDEX IF NOT EXISTS idx_products_cancelled ON products (is_cancelled);
+CREATE INDEX IF NOT EXISTS idx_products_listing_status ON products (listing_status);
+CREATE INDEX IF NOT EXISTS idx_products_name_search ON products (name);
+
+/* เชื่อมสินค้า–แท็ก (รันซ้ำได้) */
+CREATE TABLE IF NOT EXISTS product_tags (
+  product_id UUID NOT NULL REFERENCES products (id) ON DELETE CASCADE,
+  tag_id UUID NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
+  PRIMARY KEY (product_id, tag_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_tags_tag_id ON product_tags (tag_id);
 
 CREATE TABLE IF NOT EXISTS carts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

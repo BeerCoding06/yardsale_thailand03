@@ -8,6 +8,18 @@ definePageMeta({
 
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
+const { endpoint, hasRemoteApi } = useCmsApi();
+
+function cmsPath(rel) {
+  return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
+}
+
+function unwrapApi(res) {
+  if (res?.success === true && res.data != null && typeof res.data === "object") {
+    return res.data;
+  }
+  return res;
+}
 
 // Client-side only state
 const isClient = ref(false);
@@ -264,31 +276,33 @@ const fetchOrders = async () => {
     isLoading.value = true;
     error.value = null;
 
-    // Get JWT token from user object (stored during login)
     const jwtToken = user.value?.token;
-    
-    console.log("[my-orders] User:", user.value);
-    console.log("[my-orders] JWT Token:", jwtToken ? `${jwtToken.substring(0, 20)}...` : 'missing');
-    
+
     if (!jwtToken) {
-      console.error("[my-orders] JWT token missing. User object:", user.value);
       error.value = t('order.login_required') + ' (JWT token missing. Please login again.)';
       isLoading.value = false;
       return;
     }
 
-    // เรียก API โดยส่งเฉพาะ JWT – ไม่ส่ง customer_id เพื่อให้ดึงเฉพาะออเดอร์ของคนที่ login
-    console.log("[my-orders] Calling /api/my-orders-jwt with JWT token");
-    const ordersData = await $fetch('/api/my-orders-jwt', {
+    // เรียก Yardsale GET /my-orders (หรือ /api/my-orders ตอน mock) — user จาก JWT เท่านั้น
+    const raw = await $fetch(cmsPath("my-orders"), {
       headers: {
-        'Authorization': `Bearer ${jwtToken}`
-      }
+        Authorization: `Bearer ${jwtToken}`,
+      },
     });
-    
-    console.log("[my-orders] Orders API response:", ordersData);
+    const body = unwrapApi(raw);
+    let list = Array.isArray(body?.orders)
+      ? body.orders
+      : Array.isArray(body?.data?.orders)
+        ? body.data.orders
+        : [];
 
-    orders.value = Array.isArray(ordersData.orders) ? ordersData.orders : [];
-    console.log("[my-orders] Loaded orders:", orders.value.length);
+    const uid = user.value?.id ?? user.value?.ID;
+    if (uid != null && uid !== "") {
+      list = list.filter((o) => String(o?.user_id ?? o?.userId) === String(uid));
+    }
+
+    orders.value = list;
 
     // Fetch product images from WordPress REST API for line items without images (in background)
     const productIds = new Set();
@@ -376,17 +390,18 @@ const cancelOrder = async () => {
     cancellingOrderId.value = orderId;
     cancelMessage.value = null;
 
-    const customerId = user.value.id || user.value.ID;
+    const response = unwrapApi(
+      await $fetch(cmsPath("cancel-order"), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${user.value?.token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: { order_id: orderId },
+      })
+    );
 
-    const response = await $fetch("/api/cancel-order", {
-      method: "POST",
-      body: {
-        order_id: orderId,
-        customer_id: customerId,
-      },
-    });
-
-    if (response.success) {
+    if (response?.success !== false && (response?.success === true || response?.order != null)) {
       cancelMessage.value = {
         type: "success",
         text: t('order.cancel_success'),

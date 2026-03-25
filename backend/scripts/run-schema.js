@@ -23,6 +23,18 @@ async function main() {
   await client.connect();
   try {
     await client.query(sql);
+    /* บังคับรันอีกครั้ง — บางทีไฟล์ยาวหลาย statement ทำให้บล็อก DO ไม่ถูก apply; ฐานเก่าจะได้คอลัมน์ image_url */
+    await client.query(`
+DO $ensure_cat_img$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'categories' AND column_name = 'image_url'
+  ) THEN
+    ALTER TABLE public.categories ADD COLUMN image_url TEXT;
+  END IF;
+END $ensure_cat_img$;
+`);
     console.log('Schema applied (idempotent — safe to re-run).');
   } finally {
     await client.end();

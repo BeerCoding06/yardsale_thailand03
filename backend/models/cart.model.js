@@ -10,7 +10,7 @@ export async function getOrCreateCart(client, userId) {
 
 export async function getCartItems(client, cartId) {
   const r = await client.query(
-    `SELECT ci.product_id, ci.quantity, p.name, p.price, p.stock, p.is_cancelled
+    `SELECT ci.product_id, ci.quantity, p.name, p.price, p.stock, p.is_cancelled, p.image_url
      FROM cart_items ci
      JOIN products p ON p.id = ci.product_id
      WHERE ci.cart_id = $1`,

@@ -1,5 +1,6 @@
 <!--app/pages/my-products.vue-->
 <script setup lang="ts">
+import { push } from "notivue";
 import { useCmsApi } from "#imports";
 
 // แสดงเฉพาะสินค้าของ user ที่ login (API ใช้ JWT เท่านั้น ไม่ส่ง user_id – เซิร์ฟเวอร์ดึงจาก token)
@@ -11,6 +12,7 @@ definePageMeta({
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
 const { endpoint, hasRemoteApi } = useCmsApi();
+const { resolveMediaUrl } = useStorefrontCatalog();
 
 function cmsPath(rel: string) {
   return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
@@ -57,7 +59,6 @@ const productToRestore = ref<string | number | null>(null);
 const isCancelling = ref(false);
 const isRestoring = ref(false);
 
-const { push } = useNotivue();
 const { t } = useI18n();
 
 // Get product image URL from WooCommerce data
@@ -88,6 +89,14 @@ const getProductImage = (product: any) => {
   return null;
 };
 
+/** รูปจาก API มักเป็น `/uploads/...` — ต้องใช้ origin ของ backend ไม่ใช่พอร์ต Nuxt */
+function productImageDisplayUrl(product: any): string | null {
+  const raw = getProductImage(product);
+  if (!raw || typeof raw !== "string") return null;
+  if (hasRemoteApi) return resolveMediaUrl(raw) ?? raw;
+  return raw;
+}
+
 // Fetch user's products
 const fetchProducts = async () => {
   if (!user.value || !user.value.id) {
@@ -109,9 +118,11 @@ const fetchProducts = async () => {
       return;
     }
 
-    // เรียก API โดยส่งเฉพาะ JWT – ไม่ส่ง user_id เพื่อให้ดึงเฉพาะสินค้าของคนที่ login
-    console.log("[my-products] Calling my-products with JWT");
-    const raw = await $fetch(cmsPath("my-products"), {
+    // หน้าร้าน: own_only=1 — แม้ role admin ก็เห็นเฉพาะสินค้าของบัญชีนี้ (รายการทั้งระบบใช้แอดมิน /admin/products)
+    const base = cmsPath("my-products");
+    const sep = base.includes("?") ? "&" : "?";
+    const url = `${base}${sep}own_only=1`;
+    const raw = await $fetch(url, {
       headers: {
         Authorization: `Bearer ${jwtToken}`,
       },
@@ -391,8 +402,8 @@ watch(isAuthenticated, (newVal: boolean) => {
                 class="relative aspect-square bg-neutral-100 dark:bg-neutral-900"
               >
                 <NuxtImg
-                  v-if="getProductImage(product)"
-                  :src="getProductImage(product)"
+                  v-if="productImageDisplayUrl(product)"
+                  :src="productImageDisplayUrl(product) ?? ''"
                   :alt="product.name"
                   class="w-full h-[300px] object-cover"
                   loading="lazy"

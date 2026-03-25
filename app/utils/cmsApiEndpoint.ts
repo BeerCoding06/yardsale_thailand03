@@ -10,6 +10,15 @@ export function hasRemoteCmsApi(publicCfg: PublicCmsConfig): boolean {
   return !!(String(publicCfg.cmsApiBase || "").trim());
 }
 
+/** แกะ `{ success, data }` จาก Express sendSuccess */
+export function unwrapYardsaleResponse(res: unknown): unknown {
+  const r = res as { success?: boolean; data?: unknown } | null;
+  if (r && typeof r === "object" && r.success === true && r.data != null) {
+    return r.data;
+  }
+  return res;
+}
+
 export function cmsEndpointFromPublic(
   publicCfg: PublicCmsConfig,
   path: string,

@@ -191,7 +191,7 @@ const initTagsSelect2 = () => {
 
     $(tagsSelect.value).select2({
       placeholder: "เลือกป้ายกำกับสินค้า",
-      allowClear: false,
+      allowClear: true,
       multiple: true,
       width: "100%",
       language: {
@@ -204,11 +204,12 @@ const initTagsSelect2 = () => {
       },
     });
 
-    // Handle Select2 change event
-    $(tagsSelect.value).on("change", function () {
-      const selectedValues = $(this).val() || [];
-      selectedTags.value = selectedValues.map((v) => Number(v));
-      form.value.tags = selectedValues.map((v) => ({ id: Number(v) }));
+    $(tagsSelect.value).off("change.yardsaleTags");
+    $(tagsSelect.value).on("change.yardsaleTags", function () {
+      const raw = $(this).val();
+      const selectedValues = Array.isArray(raw) ? raw : raw ? [raw] : [];
+      selectedTags.value = selectedValues.map((v) => String(v));
+      form.value.tags = selectedValues.map((v) => ({ id: String(v) }));
     });
   }
 };
@@ -450,10 +451,22 @@ const loadProductData = () => {
     selectedCategoryIds.value = [];
   }
 
-  // Load tags
-  if (prod.tags && Array.isArray(prod.tags) && prod.tags.length > 0) {
-    form.value.tags = prod.tags.map((tag) => ({ id: tag.id || tag }));
-    selectedTags.value = prod.tags.map((tag) => tag.id || tag);
+  const fromTagIds =
+    Array.isArray(prod.tag_ids) && prod.tag_ids.length
+      ? prod.tag_ids.map((id) => ({ id: String(id).trim() })).filter((t) => t.id)
+      : [];
+  const fromTags =
+    prod.tags && Array.isArray(prod.tags) && prod.tags.length
+      ? prod.tags
+          .map((tag) => ({
+            id: String(tag.id ?? tag.databaseId ?? tag ?? "").trim(),
+          }))
+          .filter((t) => t.id)
+      : [];
+  const tagPick = fromTags.length ? fromTags : fromTagIds;
+  if (tagPick.length) {
+    form.value.tags = tagPick;
+    selectedTags.value = tagPick.map((t) => t.id);
   }
 
   // Load images
@@ -513,11 +526,17 @@ onMounted(async () => {
     // Fetch tags
     console.log("[Form] Fetching tags from /api/wp-tags...");
     try {
-      const tagsData = await $fetch("/api/wp-tags").catch((err) => {
+      const tagsRaw = await $fetch("/api/wp-tags").catch((err) => {
         console.warn("[Form] Tags API error:", err);
-        return [];
+        return null;
       });
-      tags.value = Array.isArray(tagsData) && tagsData ? tagsData : [];
+      const inner = tagsRaw?.data ?? tagsRaw;
+      const nodes = inner?.productTags?.nodes;
+      tags.value = Array.isArray(nodes)
+        ? nodes
+        : Array.isArray(tagsRaw)
+          ? tagsRaw
+          : [];
       console.log("[Form] Loaded tags:", tags.value.length);
     } catch (error) {
       console.warn("[Form] Error loading tags:", error);
@@ -576,6 +595,30 @@ watch(
       nextTick(() => {
         waitForSelect2().then(() => {
           initSelect2();
+        });
+      });
+    }
+  },
+  { deep: true }
+);
+
+watch(
+  () => tags.value,
+  () => {
+    if (tags.value.length > 0) {
+      nextTick(() => {
+        waitForSelect2().then(() => {
+          initTagsSelect2();
+          if (
+            selectedTags.value.length > 0 &&
+            tagsSelect.value &&
+            window.jQuery
+          ) {
+            const $ = window.jQuery;
+            if ($(tagsSelect.value).hasClass("select2-hidden-accessible")) {
+              $(tagsSelect.value).val(selectedTags.value).trigger("change");
+            }
+          }
         });
       });
     }
@@ -1442,7 +1485,11 @@ const handleSubmit = async (e) => {
                   'border-neutral-200 dark:border-neutral-700 focus:border-black dark:focus:border-white hover:border-neutral-300 dark:hover:border-neutral-600',
                 ]"
               >
-                <option v-for="tag in tags" :key="tag.id" :value="tag.id">
+                <option
+                  v-for="tag in tags"
+                  :key="String(tag.id ?? tag.databaseId ?? '')"
+                  :value="String(tag.id ?? tag.databaseId ?? '')"
+                >
                   {{ tag.name }}
                 </option>
               </select>

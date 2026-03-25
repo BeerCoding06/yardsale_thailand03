@@ -5,6 +5,7 @@ import { useRuntimeConfig } from "nuxt/app";
 import {
   cmsEndpointFromPublic,
   hasRemoteCmsApi,
+  unwrapYardsaleResponse as unwrapYardsaleData,
 } from "~/utils/cmsApiEndpoint";
 
 const UUID_RE =
@@ -15,11 +16,7 @@ export function isUuidString(s: string | undefined | null): boolean {
 }
 
 export function unwrapYardsaleResponse(res: unknown): any {
-  const r = res as { success?: boolean; data?: unknown } | null;
-  if (r && typeof r === "object" && r.success === true && r.data != null) {
-    return r.data;
-  }
-  return res;
+  return unwrapYardsaleData(res);
 }
 
 /**
@@ -79,6 +76,20 @@ export function useStorefrontCatalog() {
     const img = resolveMediaUrl((row.image_url as string) || null);
     const priceNum = Number(row.price);
     const priceStr = Number.isFinite(priceNum) ? priceNum.toFixed(2) : "0";
+    const regularNum = Number(row.regular_price ?? row.price);
+    const saleCandidate =
+      row.sale_price != null && row.sale_price !== ""
+        ? Number(row.sale_price)
+        : NaN;
+    const hasSale =
+      Number.isFinite(saleCandidate) &&
+      saleCandidate > 0 &&
+      Number.isFinite(regularNum) &&
+      saleCandidate < regularNum;
+    const regularPriceStr = Number.isFinite(regularNum)
+      ? regularNum.toFixed(2)
+      : priceStr;
+    const salePriceStr = hasSale ? saleCandidate.toFixed(2) : null;
     const stock = Number(row.stock);
     const stockOk = Number.isFinite(stock) && stock > 0;
     const cancelled = row.is_cancelled === true;
@@ -91,8 +102,8 @@ export function useStorefrontCatalog() {
       slug: slugifyName(String(row.name || "item")),
       name: row.name,
       description: row.description || "",
-      regularPrice: priceStr,
-      salePrice: null as string | null,
+      regularPrice: regularPriceStr,
+      salePrice: salePriceStr as string | null,
       stockQuantity: Number.isFinite(stock) ? stock : 0,
       stockStatus:
         !cancelled && stockOk ? "IN_STOCK" : "OUT_OF_STOCK",

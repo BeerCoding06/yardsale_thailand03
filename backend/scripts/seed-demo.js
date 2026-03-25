@@ -67,6 +67,11 @@ async function main() {
     const cat = (await client.query(`SELECT id FROM categories WHERE slug = 'general' LIMIT 1`)).rows[0];
     const categoryId = cat?.id || null;
 
+    await client.query(
+      `INSERT INTO tags (name, slug) VALUES ('มือสอง', 'used'), ('Sale', 'sale')
+       ON CONFLICT (slug) DO NOTHING`
+    );
+
     const count = (await client.query(`SELECT COUNT(*)::int AS c FROM products WHERE seller_id = $1`, [seller.id]))
       .rows[0].c;
     if (count > 0) {
@@ -75,10 +80,10 @@ async function main() {
     }
 
     await client.query(
-      `INSERT INTO products (seller_id, category_id, name, description, price, stock, image_url, listing_status)
+      `INSERT INTO products (seller_id, category_id, name, description, price, regular_price, sale_price, stock, image_url, listing_status)
        VALUES
-         ($1, $2, 'Demo T-Shirt', 'Cotton tee', 29.99, 50, NULL, 'published'::product_listing_status),
-         ($1, $2, 'Demo Mug', 'Ceramic', 12.00, 100, NULL, 'published'::product_listing_status)`,
+         ($1, $2, 'Demo T-Shirt', 'Cotton tee', 29.99, 29.99, NULL, 50, NULL, 'published'::product_listing_status),
+         ($1, $2, 'Demo Mug', 'Ceramic', 12.00, 12.00, NULL, 100, NULL, 'published'::product_listing_status)`,
       [seller.id, categoryId]
     );
     console.log('Inserted 2 demo products.');

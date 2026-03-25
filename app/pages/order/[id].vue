@@ -5,10 +5,13 @@ definePageMeta({
   ssr: false,
 });
 
+import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
+
 const route = useRoute();
 const router = useRouter();
 const { user, isAuthenticated, checkAuth } = useAuth();
 const { t, locale } = useI18n();
+const { hasRemoteApi, endpoint } = useStorefrontCatalog();
 
 const orderId = computed(() => route.params.id);
 const isClient = ref(false);
@@ -69,18 +72,40 @@ const fetchOrder = async () => {
     isLoading.value = true;
     error.value = null;
 
-    const customerId = user.value.id || user.value.ID;
-    const queryParams = new URLSearchParams({
-      order_id: String(orderId.value),
-      ...(customerId ? { customer_id: String(customerId) } : {}),
-    });
-
-    const orderData = await $fetch(`/api/get-order?${queryParams.toString()}`);
-
-    if (orderData.success && orderData.order) {
-      order.value = orderData.order;
+    if (hasRemoteApi) {
+      const id = encodeURIComponent(String(orderId.value));
+      const raw = await $fetch(endpoint(`get-order/${id}`), {
+        headers: {
+          ...(user.value?.token
+            ? { Authorization: `Bearer ${user.value.token}` }
+            : {}),
+        },
+      });
+      const inner = unwrapYardsaleResponse(raw) ?? raw;
+      const o = inner?.order;
+      if (o) {
+        order.value = {
+          ...o,
+          total: String(o.total_price ?? o.total ?? 0),
+          date_created: o.created_at ?? o.date_created,
+        };
+      } else {
+        error.value = t("order.order_not_found");
+      }
     } else {
-      error.value = t('order.order_not_found');
+      const customerId = user.value.id || user.value.ID;
+      const queryParams = new URLSearchParams({
+        order_id: String(orderId.value),
+        ...(customerId ? { customer_id: String(customerId) } : {}),
+      });
+
+      const orderData = await $fetch(`/api/get-order?${queryParams.toString()}`);
+
+      if (orderData.success && orderData.order) {
+        order.value = orderData.order;
+      } else {
+        error.value = t("order.order_not_found");
+      }
     }
   } catch (err) {
     console.error("[order-detail] Error fetching order:", err);

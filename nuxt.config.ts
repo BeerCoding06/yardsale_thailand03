@@ -100,6 +100,14 @@ export default defineNuxtConfig({
 
   compatibilityDate: "2024-08-03",
 
+  /** รูปจาก Express (/uploads/...) ต้องเป็น URL เต็ม + อนุญาตโดเมน — ไม่งั้น IPX หาไฟล์ที่พอร์ต 3000 แล้ว 404 */
+  image: {
+    domains: (process.env.NUXT_IMAGE_DOMAINS || "127.0.0.1,localhost")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  },
+
   vite: {
     /** หลีกเลี่ยง `node_modules/.cache` ที่อาจเป็น root-owned จาก Docker */
     cacheDir: ".vite-cache",
@@ -110,6 +118,11 @@ export default defineNuxtConfig({
           target: process.env.NUXT_YARDSALE_PROXY_TARGET || "http://127.0.0.1:4000",
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/yardsale-api/, "/api"),
+        },
+        /** dev: เปิด /uploads/... บนพอร์ตเดียวกับ Nuxt (รูปโดยตรงแบบไม่ผ่าน IPX) */
+        "/uploads": {
+          target: process.env.NUXT_YARDSALE_PROXY_TARGET || "http://127.0.0.1:4000",
+          changeOrigin: true,
         },
       },
     },

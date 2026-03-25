@@ -1,8 +1,7 @@
-/** null = ยังไม่เช็ก; รันครั้งแรกแล้ว cache (DB เก่ายังไม่มี listing_status ก็ไม่พัง) */
-let cachedListingStatusColumn = null;
+import { AppError } from '../utils/AppError.js';
 
+/** เช็กทุกครั้ง — ไม่ cache เพื่อให้หลังรัน migration ไม่ต้องรีสตาร์ท API */
 async function hasListingStatusColumn(client) {
-  if (cachedListingStatusColumn !== null) return cachedListingStatusColumn;
   try {
     const r = await client.query(
       `SELECT EXISTS (
@@ -12,23 +11,91 @@ async function hasListingStatusColumn(client) {
           AND column_name = 'listing_status'
       ) AS ok`
     );
-    cachedListingStatusColumn = r.rows[0]?.ok === true;
+    return r.rows[0]?.ok === true;
   } catch {
-    cachedListingStatusColumn = false;
+    return false;
   }
-  return cachedListingStatusColumn;
 }
 
-function baseSelectColumns() {
-  return `
-    p.id, p.name, p.description, p.price, p.stock, p.category_id, p.seller_id,
+async function hasProductPriceBreakdown(client) {
+  try {
+    const r = await client.query(
+      `SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'products'
+          AND column_name = 'regular_price'
+      ) AS ok`
+    );
+    return r.rows[0]?.ok === true;
+  } catch {
+    return false;
+  }
+}
+
+async function hasProductTagsTable(client) {
+  try {
+    const r = await client.query(
+      `SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = current_schema()
+          AND table_name = 'product_tags'
+      ) AS ok`
+    );
+    return r.rows[0]?.ok === true;
+  } catch {
+    return false;
+  }
+}
+
+/** แทนที่ความสัมพันธ์แท็กทั้งหมดของสินค้า (เฉพาะ tag_id ที่มีในตาราง tags) */
+export async function replaceProductTags(client, productId, tagIds) {
+  if (!(await hasProductTagsTable(client))) return;
+  const ids = [...new Set((tagIds || []).map((id) => String(id).trim()).filter(Boolean))];
+  await client.query('DELETE FROM product_tags WHERE product_id = $1', [productId]);
+  if (!ids.length) return;
+  await client.query(
+    `INSERT INTO product_tags (product_id, tag_id)
+     SELECT $1::uuid, t.id
+     FROM tags t
+     WHERE t.id = ANY($2::uuid[])`,
+    [productId, ids]
+  );
+}
+
+export async function attachTagsToProductRow(client, row) {
+  if (!row) return;
+  if (!(await hasProductTagsTable(client))) {
+    row.tags = [];
+    row.tag_ids = [];
+    return;
+  }
+  const r = await client.query(
+    `SELECT t.id, t.name, t.slug
+     FROM tags t
+     INNER JOIN product_tags pt ON pt.tag_id = t.id
+     WHERE pt.product_id = $1
+     ORDER BY t.name`,
+    [row.id]
+  );
+  row.tags = r.rows;
+  row.tag_ids = r.rows.map((x) => x.id);
+}
+
+async function joinProductSelectColumns(client) {
+  const hasLs = await hasListingStatusColumn(client);
+  const hasPb = await hasProductPriceBreakdown(client);
+  const priceCols = hasPb
+    ? `p.price, p.regular_price, p.sale_price,`
+    : `p.price,`;
+  if (hasLs) {
+    return `
+    p.id, p.name, p.description, ${priceCols} p.stock, p.category_id, p.seller_id,
     p.image_url, p.is_cancelled, p.listing_status, p.created_at,
     c.name AS category_name, c.slug AS category_slug`;
-}
-
-function baseSelectColumnsLegacy() {
+  }
   return `
-    p.id, p.name, p.description, p.price, p.stock, p.category_id, p.seller_id,
+    p.id, p.name, p.description, ${priceCols} p.stock, p.category_id, p.seller_id,
     p.image_url, p.is_cancelled, p.created_at,
     c.name AS category_name, c.slug AS category_slug`;
 }
@@ -49,7 +116,7 @@ export async function listProducts(
   { search, categoryId, categorySlug, publicOnly = true } = {}
 ) {
   const hasLs = await hasListingStatusColumn(client);
-  const cols = hasLs ? baseSelectColumns() : baseSelectColumnsLegacy();
+  const cols = await joinProductSelectColumns(client);
   let baseWhere;
   if (hasLs) {
     baseWhere = publicOnly ? sqlPublicProductWhere() : ` WHERE p.is_cancelled = false`;
@@ -81,7 +148,7 @@ export async function getProductById(
   { includeCancelled = false, requirePublished = true, viewerSellerId = null } = {}
 ) {
   const hasLs = await hasListingStatusColumn(client);
-  const cols = hasLs ? baseSelectColumns() : baseSelectColumnsLegacy();
+  const cols = await joinProductSelectColumns(client);
   let sql = `SELECT ${cols} ${baseProductFrom()} WHERE p.id = $1`;
   const params = [id];
   if (!includeCancelled) sql += ' AND p.is_cancelled = false';
@@ -100,19 +167,22 @@ export async function getProductById(
   if (row && !hasLs) {
     row.listing_status = 'published';
   }
+  if (row) await attachTagsToProductRow(client, row);
   return row;
 }
 
 export async function getProductForPurchase(client, productId) {
   const hasLs = await hasListingStatusColumn(client);
-  const cols = hasLs ? baseSelectColumns() : baseSelectColumnsLegacy();
+  const cols = await joinProductSelectColumns(client);
   const whereLs = hasLs ? ` AND p.listing_status = 'published'` : '';
   const r = await client.query(
     `SELECT ${cols} ${baseProductFrom()}
      WHERE p.id = $1 AND p.is_cancelled = false${whereLs}`,
     [productId]
   );
-  return r.rows[0] || null;
+  const prow = r.rows[0] || null;
+  if (prow) await attachTagsToProductRow(client, prow);
+  return prow;
 }
 
 export async function lockProductsForUpdate(client, productIds) {
@@ -141,13 +211,57 @@ export async function incrementProductStock(client, productId, qty) {
   await client.query(`UPDATE products SET stock = stock + $2 WHERE id = $1`, [productId, qty]);
 }
 
+async function returningProductColumns(client) {
+  const hasLs = await hasListingStatusColumn(client);
+  const hasPb = await hasProductPriceBreakdown(client);
+  let base =
+    'id, name, description, price, stock, category_id, seller_id, image_url, is_cancelled';
+  if (hasPb) base += ', regular_price, sale_price';
+  if (hasLs) base += ', listing_status';
+  base += ', created_at';
+  return base;
+}
+
+async function finalizeNewProduct(client, created, tagIds) {
+  if (!created) return null;
+  await replaceProductTags(client, created.id, Array.isArray(tagIds) ? tagIds : []);
+  await attachTagsToProductRow(client, created);
+  return created;
+}
+
 export async function createProduct(client, row) {
   const hasLs = await hasListingStatusColumn(client);
+  const hasPb = await hasProductPriceBreakdown(client);
+  const ret = await returningProductColumns(client);
+  const rp = row.regular_price ?? row.price;
+  const sp =
+    row.sale_price != null && row.sale_price !== '' ? row.sale_price : null;
+
   if (hasLs) {
+    if (hasPb) {
+      const r = await client.query(
+        `INSERT INTO products (seller_id, category_id, name, description, price, regular_price, sale_price, stock, image_url, listing_status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::product_listing_status, 'pending_review'::product_listing_status))
+         RETURNING ${ret}`,
+        [
+          row.seller_id,
+          row.category_id || null,
+          row.name,
+          row.description || '',
+          row.price,
+          rp,
+          sp,
+          row.stock ?? 0,
+          row.image_url || null,
+          row.listing_status || null,
+        ]
+      );
+      return finalizeNewProduct(client, r.rows[0], row.tag_ids);
+    }
     const r = await client.query(
       `INSERT INTO products (seller_id, category_id, name, description, price, stock, image_url, listing_status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::product_listing_status, 'pending_review'::product_listing_status))
-       RETURNING id, name, description, price, stock, category_id, seller_id, image_url, is_cancelled, listing_status, created_at`,
+       RETURNING ${ret}`,
       [
         row.seller_id,
         row.category_id || null,
@@ -159,12 +273,31 @@ export async function createProduct(client, row) {
         row.listing_status || null,
       ]
     );
-    return r.rows[0];
+    return finalizeNewProduct(client, r.rows[0], row.tag_ids);
+  }
+  if (hasPb) {
+    const r = await client.query(
+      `INSERT INTO products (seller_id, category_id, name, description, price, regular_price, sale_price, stock, image_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING ${ret}`,
+      [
+        row.seller_id,
+        row.category_id || null,
+        row.name,
+        row.description || '',
+        row.price,
+        rp,
+        sp,
+        row.stock ?? 0,
+        row.image_url || null,
+      ]
+    );
+    return finalizeNewProduct(client, r.rows[0], row.tag_ids);
   }
   const r = await client.query(
     `INSERT INTO products (seller_id, category_id, name, description, price, stock, image_url)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING id, name, description, price, stock, category_id, seller_id, image_url, is_cancelled, created_at`,
+     RETURNING ${ret}`,
     [
       row.seller_id,
       row.category_id || null,
@@ -175,14 +308,16 @@ export async function createProduct(client, row) {
       row.image_url || null,
     ]
   );
-  return r.rows[0];
+  return finalizeNewProduct(client, r.rows[0], row.tag_ids);
 }
 
 export async function listProductsBySeller(client, sellerId) {
   const hasLs = await hasListingStatusColumn(client);
+  const hasPb = await hasProductPriceBreakdown(client);
+  const priceCols = hasPb ? 'price, regular_price, sale_price,' : 'price,';
   const lsCol = hasLs ? ', listing_status' : '';
   const r = await client.query(
-    `SELECT id, name, description, price, stock, category_id, seller_id, image_url, is_cancelled${lsCol}, created_at
+    `SELECT id, name, description, ${priceCols} stock, category_id, seller_id, image_url, is_cancelled${lsCol}, created_at
      FROM products WHERE seller_id = $1 ORDER BY created_at DESC`,
     [sellerId]
   );
@@ -191,60 +326,121 @@ export async function listProductsBySeller(client, sellerId) {
 
 export async function listAllProducts(client) {
   const hasLs = await hasListingStatusColumn(client);
+  const hasPb = await hasProductPriceBreakdown(client);
+  const priceCols = hasPb ? 'price, regular_price, sale_price,' : 'price,';
   const lsCol = hasLs ? ', listing_status' : '';
   const r = await client.query(
-    `SELECT id, name, description, price, stock, category_id, seller_id, image_url, is_cancelled${lsCol}, created_at
+    `SELECT id, name, description, ${priceCols} stock, category_id, seller_id, image_url, is_cancelled${lsCol}, created_at
      FROM products ORDER BY created_at DESC`
   );
   return r.rows;
 }
 
+/** สำหรับ merge ราคาตอน update — เช็กเจ้าของสินค้า */
+export async function getProductRowForPriceMerge(client, productId, sellerId, isAdmin) {
+  const hasPb = await hasProductPriceBreakdown(client);
+  const cols = hasPb
+    ? 'id, price, regular_price, sale_price, seller_id'
+    : 'id, price, seller_id';
+  let sql = `SELECT ${cols} FROM products WHERE id = $1 AND is_cancelled = false`;
+  const params = [productId];
+  if (!isAdmin) {
+    params.push(sellerId);
+    sql += ` AND seller_id = $2`;
+  }
+  const r = await client.query(sql, params);
+  return r.rows[0] || null;
+}
+
 export async function updateProduct(client, productId, body, sellerId, isAdmin) {
   const hasLs = await hasListingStatusColumn(client);
+  const hasPb = await hasProductPriceBreakdown(client);
+  if (!hasLs && isAdmin && body.listing_status !== undefined) {
+    throw new AppError(
+      'Cannot set listing_status: database has no products.listing_status column. Run backend/db/schema.sql (ALTER that adds listing_status) or npm run db:schema in backend.',
+      400,
+      'LISTING_STATUS_UNAVAILABLE'
+    );
+  }
+
+  const tagIdsExplicit = Object.prototype.hasOwnProperty.call(body, 'tag_ids');
+  const tagPayload = tagIdsExplicit ? (Array.isArray(body.tag_ids) ? body.tag_ids : []) : null;
+  const sqlBody = { ...body };
+  delete sqlBody.tag_ids;
+
   const sets = [];
   const params = [];
   let n = 1;
-  if (body.name !== undefined) {
+  if (sqlBody.name !== undefined) {
     sets.push(`name = $${n++}`);
-    params.push(body.name);
+    params.push(sqlBody.name);
   }
-  if (body.description !== undefined) {
+  if (sqlBody.description !== undefined) {
     sets.push(`description = $${n++}`);
-    params.push(body.description);
+    params.push(sqlBody.description);
   }
-  if (body.price !== undefined) {
+  if (sqlBody.price !== undefined) {
     sets.push(`price = $${n++}`);
-    params.push(body.price);
+    params.push(sqlBody.price);
   }
-  if (body.stock !== undefined) {
+  if (hasPb && sqlBody.regular_price !== undefined) {
+    sets.push(`regular_price = $${n++}`);
+    params.push(sqlBody.regular_price);
+  }
+  if (hasPb && Object.prototype.hasOwnProperty.call(sqlBody, 'sale_price')) {
+    sets.push(`sale_price = $${n++}`);
+    params.push(sqlBody.sale_price);
+  }
+  if (sqlBody.stock !== undefined) {
     sets.push(`stock = $${n++}`);
-    params.push(body.stock);
+    params.push(sqlBody.stock);
   }
-  if (body.category_id !== undefined) {
+  if (sqlBody.category_id !== undefined) {
     sets.push(`category_id = $${n++}`);
-    params.push(body.category_id && body.category_id !== '' ? body.category_id : null);
+    params.push(sqlBody.category_id && sqlBody.category_id !== '' ? sqlBody.category_id : null);
   }
-  if (body.image_url !== undefined) {
+  if (sqlBody.image_url !== undefined) {
     sets.push(`image_url = $${n++}`);
-    params.push(body.image_url || null);
+    params.push(sqlBody.image_url || null);
   }
-  if (hasLs && body.listing_status !== undefined && isAdmin) {
+  if (hasLs && sqlBody.listing_status !== undefined && isAdmin) {
     sets.push(`listing_status = $${n++}`);
-    params.push(body.listing_status);
+    params.push(sqlBody.listing_status);
   }
-  if (!sets.length) return null;
-  params.push(productId);
-  let sql = `UPDATE products SET ${sets.join(', ')} WHERE id = $${n}`;
-  if (!isAdmin) {
-    params.push(sellerId);
-    sql += ` AND seller_id = $${n + 1}`;
+
+  if (sets.length) {
+    params.push(productId);
+    let sql = `UPDATE products SET ${sets.join(', ')} WHERE id = $${n}`;
+    if (!isAdmin) {
+      params.push(sellerId);
+      sql += ` AND seller_id = $${n + 1}`;
+    }
+    const ret = await returningProductColumns(client);
+    sql += ` RETURNING ${ret}`;
+    const r = await client.query(sql, params);
+    if (!r.rows[0]) return null;
+  } else if (tagPayload === null) {
+    return null;
+  } else {
+    const chkParams = [productId];
+    let chkSql = `SELECT 1 FROM products WHERE id = $1 AND is_cancelled = false`;
+    if (!isAdmin) {
+      chkParams.push(sellerId);
+      chkSql += ` AND seller_id = $2`;
+    }
+    const chk = await client.query(chkSql, chkParams);
+    if (!chk.rows[0]) return null;
   }
-  const ret = hasLs
-    ? `id, name, description, price, stock, category_id, seller_id, image_url, is_cancelled, listing_status, created_at`
-    : `id, name, description, price, stock, category_id, seller_id, image_url, is_cancelled, created_at`;
-  sql += ` RETURNING ${ret}`;
-  const r = await client.query(sql, params);
-  return r.rows[0] || null;
+
+  if (tagPayload !== null) {
+    await replaceProductTags(client, productId, tagPayload);
+  }
+
+  return getProductById(client, productId, {
+    includeCancelled: false,
+    requirePublished: false,
+    viewerSellerId: null,
+  });
 }
 
 export async function setProductCancelled(client, productId, sellerId, cancelled) {

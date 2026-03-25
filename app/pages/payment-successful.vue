@@ -1,5 +1,7 @@
 <!--app/pages/payment-successful.vue-->
 <script setup>
+import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
+
 definePageMeta({
   ssr: false, // Disable SSR to prevent hydration mismatches
 });
@@ -9,6 +11,8 @@ const { order } = useCheckout();
 const router = useRouter();
 const { t, locale } = useI18n();
 const loadingOrder = ref(false);
+const { hasRemoteApi, endpoint } = useStorefrontCatalog();
+const { user } = useAuth();
 
 // เมื่อเข้ามาจากหน้าชำระ จะมี order_id ใน query แต่ไม่มี order ใน state – ให้โหลดออเดอร์
 onMounted(async () => {
@@ -16,9 +20,32 @@ onMounted(async () => {
   if (orderId && (!order.value || !order.value.id)) {
     loadingOrder.value = true;
     try {
-      const data = await $fetch('/api/get-order', { query: { order_id: orderId } });
-      if (data?.order) {
-        order.value = data.order;
+      if (hasRemoteApi) {
+        const id = encodeURIComponent(String(orderId));
+        const raw = await $fetch(endpoint(`get-order/${id}`), {
+          headers: {
+            ...(user.value?.token
+              ? { Authorization: `Bearer ${user.value.token}` }
+              : {}),
+          },
+        });
+        const inner = unwrapYardsaleResponse(raw) ?? raw;
+        const o = inner?.order;
+        if (o) {
+          order.value = {
+            ...o,
+            number:
+              o.number ||
+              String(o.id).replace(/-/g, '').slice(0, 12),
+            total: String(o.total_price ?? o.total ?? 0),
+            date_created: o.created_at ?? o.date_created,
+          };
+        }
+      } else {
+        const data = await $fetch('/api/get-order', { query: { order_id: orderId } });
+        if (data?.order) {
+          order.value = data.order;
+        }
       }
     } catch (e) {
       console.warn('[payment-successful] Failed to fetch order:', e);

@@ -15,12 +15,24 @@ export function useAdminFetch() {
 
   async function adminFetch<T>(path: string, opts?: Record<string, unknown>) {
     const o = opts || {};
-    const headers = {
+    const method = String(o.method || "GET").toUpperCase();
+    const headers: Record<string, string> = {
       ...authHeaders(),
       ...(typeof o.headers === "object" && o.headers !== null
         ? (o.headers as Record<string, string>)
         : {}),
     };
+    const body = o.body;
+    if (
+      (method === "POST" || method === "PUT" || method === "PATCH") &&
+      body != null &&
+      typeof body === "object" &&
+      !(body instanceof FormData)
+    ) {
+      if (!headers["Content-Type"] && !headers["content-type"]) {
+        headers["Content-Type"] = "application/json";
+      }
+    }
     return $fetch<T>(endpoint(path), { ...o, headers });
   }
 

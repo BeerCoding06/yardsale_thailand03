@@ -9,7 +9,10 @@ function userRole(req) {
 }
 
 export const myProducts = asyncHandler(async (req, res) => {
-  const data = await sellerService.myProducts(req.user.id, userRole(req));
+  const q = req.query?.own_only;
+  const ownOnly =
+    q === '1' || q === 'true' || (Array.isArray(q) && (q[0] === '1' || q[0] === 'true'));
+  const data = await sellerService.myProducts(req.user.id, userRole(req), { ownOnly });
   sendSuccess(res, { success: true, ...data });
 });
 

@@ -8,6 +8,8 @@ const links = computed(() => {
   const users = localePath("/admin/users");
   const orders = localePath("/admin/orders");
   const prods = localePath("/admin/products");
+  const cats = localePath("/admin/categories");
+  const tagz = localePath("/admin/tags");
   const p = route.path.replace(/\/$/, "") || "/";
   const n = (s: string) => s.replace(/\/$/, "") || "/";
   return [
@@ -22,6 +24,18 @@ const links = computed(() => {
       label: t("admin.nav.products"),
       icon: "i-heroicons-cube",
       active: n(p) === n(prods) || p.startsWith(n(prods) + "/"),
+    },
+    {
+      to: cats,
+      label: t("admin.nav.categories"),
+      icon: "i-heroicons-tag",
+      active: n(p) === n(cats),
+    },
+    {
+      to: tagz,
+      label: t("admin.nav.tags"),
+      icon: "i-heroicons-hashtag",
+      active: n(p) === n(tagz),
     },
     {
       to: users,
