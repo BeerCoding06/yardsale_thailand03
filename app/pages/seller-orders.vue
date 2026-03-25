@@ -7,6 +7,8 @@ definePageMeta({
 
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
+const { endpoint, hasRemoteApi } = useCmsApi();
+const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
 
 const isClient = ref(false);
 const isLoading = ref(true);
@@ -28,131 +30,97 @@ const formatDate = (dateString) => {
 
 const { t } = useI18n();
 
-// Format order status
-const getStatusText = (status) => {
-  const statusMap = {
-    pending: t('order.pending'),
-    processing: t('order.processing_status'),
-    on_hold: t('order.on_hold'),
-    completed: t('order.completed'),
-    cancelled: t('order.cancelled'),
-    refunded: t('order.refunded'),
-    failed: t('order.failed'),
-  };
-  return statusMap[status] || status;
-};
+function cmsPath(rel) {
+  return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
+}
 
-const getStatusColor = (status) => {
-  const colorMap = {
-    pending:
-      "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200",
-    processing:
-      "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200",
-    on_hold:
-      "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200",
-    completed:
-      "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200",
-    cancelled: "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200",
-    refunded:
-      "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200",
-    failed: "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200",
-  };
+function unwrapApi(res) {
+  if (res?.success === true && res.data != null && typeof res.data === "object") {
+    return res.data;
+  }
+  return res;
+}
+
+function normalizeStatusKey(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/-/g, "_");
+}
+
+function orderPaid(order) {
+  return order.is_paid === true || normalizeStatusKey(order.status) === "paid";
+}
+
+function orderPaymentTerminated(order) {
+  const s = normalizeStatusKey(order.status);
   return (
-    colorMap[status] ||
-    "bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
+    s === "cancelled" ||
+    s === "canceled" ||
+    s === "failed" ||
+    s === "payment_failed"
   );
-};
+}
 
-// Get payment status text
-const getPaymentStatusText = (paymentStatus) => {
-  const statusMap = {
-    paid: t('order.paid'),
-    pending: t('order.pending'),
-    processing: t('order.processing_status'),
-    on_hold: t('order.on_hold'),
-    failed: t('order.failed'),
-    refunded: t('order.refunded'),
-    cancelled: t('order.cancelled'),
-  };
-  return statusMap[paymentStatus] || paymentStatus;
-};
+/** แถวจาก Express: buyer_email / buyer_name, status ฯลฯ */
+function normalizeSellerOrderRow(row) {
+  if (!row || typeof row !== "object") return row;
+  const o = { ...row };
+  o.date_created = o.date_created ?? o.created_at;
+  o.total = o.total ?? o.total_price;
+  o.seller_total = o.seller_total ?? o.total_price ?? o.total;
+  if (o.is_paid == null) o.is_paid = normalizeStatusKey(o.status) === "paid";
+  if (!o.billing && (o.buyer_email || o.buyer_name)) {
+    const name = String(o.buyer_name || "").trim();
+    const parts = name ? name.split(/\s+/) : [];
+    o.billing = {
+      email: o.buyer_email || "",
+      first_name: parts[0] || name || "",
+      last_name: parts.length > 1 ? parts.slice(1).join(" ") : "",
+      phone: o.buyer_phone || "",
+    };
+  }
+  return o;
+}
 
-// Get payment status color
-const getPaymentStatusColor = (paymentStatus) => {
-  const colorMap = {
-    paid: "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200",
-    pending: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200",
-    processing: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200",
-    on_hold: "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200",
-    failed: "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200",
-    refunded: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200",
-    cancelled: "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200",
-  };
-  return (
-    colorMap[paymentStatus] ||
-    "bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
-  );
-};
-
-// Get payment progress steps
+// Get payment progress steps (Yardsale: pending | paid | canceled | payment_failed + Woo-style)
 const getPaymentSteps = (order) => {
-  const steps = [
+  const paid = orderPaid(order);
+  const term = orderPaymentTerminated(order);
+  const step2 = term ? "cancelled" : paid ? "completed" : "current";
+  const step34 = term ? "cancelled" : paid ? "completed" : "pending";
+
+  return [
     {
       id: 1,
-      label: t('payment_steps.ordered'),
+      label: t("payment_steps.ordered"),
       status: "completed",
       icon: "i-heroicons-shopping-bag",
     },
     {
       id: 2,
-      label: t('payment_steps.pending'),
-      status: order.is_paid
-        ? "completed"
-        : order.status === "pending"
-        ? "current"
-        : "pending",
+      label: t("payment_steps.pending"),
+      status: step2,
       icon: "i-heroicons-clock",
     },
     {
       id: 3,
-      label: t('payment_steps.processing'),
-      status: order.is_paid
-        ? order.status === "processing" || order.status === "completed"
-          ? "completed"
-          : "current"
-        : "pending",
+      label: t("payment_steps.processing"),
+      status: step34,
       icon: "i-heroicons-magnifying-glass",
     },
     {
       id: 4,
-      label: t('payment_steps.completed'),
-      status:
-        order.status === "completed"
-          ? "completed"
-          : order.is_paid && order.status === "processing"
-          ? "current"
-          : "pending",
+      label: t("payment_steps.completed"),
+      status: step34,
       icon: "i-heroicons-check-circle",
     },
   ];
-
-  // Handle cancelled/failed status
-  if (order.status === "cancelled" || order.status === "failed") {
-    steps.forEach((step) => {
-      if (step.id > 1) step.status = "cancelled";
-    });
-  }
-
-  return steps;
 };
 
-// Get current step number
 const getCurrentStep = (order) => {
-  if (order.status === "cancelled" || order.status === "failed") return 0;
-  if (order.status === "completed") return 4;
-  if (order.is_paid && order.status === "processing") return 3;
-  if (order.is_paid) return 2;
-  if (order.status === "pending") return 1;
+  if (orderPaymentTerminated(order)) return 0;
+  if (orderPaid(order)) return 4;
+  if (normalizeStatusKey(order.status) === "pending") return 2;
   return 1;
 };
 
@@ -177,17 +145,23 @@ const fetchOrders = async () => {
       return;
     }
 
-    const ordersData = await $fetch('/api/seller-orders', {
+    const raw = await $fetch(cmsPath("seller-orders"), {
       headers: {
         Authorization: `Bearer ${jwtToken}`,
       },
     });
-    
-    if (ordersData && ordersData.success !== false) {
-      orders.value = Array.isArray(ordersData.orders) ? ordersData.orders : [];
-    } else {
-      error.value = ordersData?.error || ordersData?.message || t('seller_orders.error_loading');
+    const body = unwrapApi(raw);
+    const list = Array.isArray(body?.orders)
+      ? body.orders
+      : Array.isArray(body?.data?.orders)
+        ? body.data.orders
+        : [];
+
+    if (body && body.success === false) {
+      error.value = body?.error?.message || body?.message || t("seller_orders.error_loading");
       orders.value = [];
+    } else {
+      orders.value = list.map(normalizeSellerOrderRow);
     }
   } catch (err) {
     console.error("[seller-orders] Error fetching orders:", err);
@@ -301,23 +275,20 @@ onMounted(async () => {
                       >
                         {{ $t('order.order_id') }}{{ order.number || order.id }}
                       </h3>
-                      <!-- Payment Status Badge -->
-                      <span
-                        v-if="order.payment_status"
-                        :class="[
-                          'px-3 py-1 rounded-full text-xs font-semibold',
-                          getPaymentStatusColor(order.payment_status),
-                        ]"
-                      >
-                        {{ getPaymentStatusText(order.payment_status) }}
-                      </span>
-                      <!-- Paid Badge -->
-                      <span
-                        v-if="order.is_paid"
-                        class="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200"
-                      >
-                        {{ $t('order.paid') }}
-                      </span>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span
+                          class="text-xs font-medium text-neutral-500 dark:text-neutral-400"
+                          >{{ $t('order.payment_status_customer') }}</span
+                        >
+                        <span
+                          :class="[
+                            'px-3 py-1 rounded-full text-xs font-semibold',
+                            paymentColorClass(order),
+                          ]"
+                        >
+                          {{ paymentLabel(order) }}
+                        </span>
+                      </div>
                     </div>
 
                     <!-- Customer Information Card -->
@@ -362,23 +333,22 @@ onMounted(async () => {
                           <span class="font-semibold">{{ $t('order.transaction_id') }}:</span>
                           <span class="ml-2 font-mono text-xs">{{ order.transaction_id }}</span>
                         </p>
-                        <!-- Payment Status -->
                         <p class="text-neutral-700 dark:text-neutral-300">
-                          <span class="font-semibold">{{ $t('order.payment_status') }}:</span>
-                          <span class="ml-2">
+                          <span class="font-semibold">{{ $t('order.payment_status_customer') }}:</span>
+                          <span class="ml-2 inline-flex items-center gap-2 flex-wrap">
                             <span
                               :class="[
                                 'px-2 py-1 rounded text-xs font-semibold',
-                                getPaymentStatusColor(order.payment_status || 'pending'),
+                                paymentColorClass(order),
                               ]"
                             >
-                              {{ getPaymentStatusText(order.payment_status || 'pending') }}
+                              {{ paymentLabel(order) }}
                             </span>
                             <span
-                              v-if="order.is_paid"
-                              class="ml-2 text-xs text-green-600 dark:text-green-400"
+                              v-if="order.slip_image_url"
+                              class="text-xs text-neutral-500 dark:text-neutral-400"
                             >
-                              ✓ {{ $t('order.paid') }}
+                              {{ $t('seller_orders.slip_uploaded') }}
                             </span>
                           </span>
                         </p>
@@ -408,12 +378,11 @@ onMounted(async () => {
                             <div
                               :class="[
                                 'h-full transition-all duration-500',
-                                order.status === 'cancelled' ||
-                                order.status === 'failed'
+                                orderPaymentTerminated(order)
                                   ? 'bg-red-500 w-0'
-                                  : order.status === 'completed'
+                                  : normalizeStatusKey(order.status) === 'completed'
                                   ? 'bg-green-500 w-full'
-                                  : order.is_paid
+                                  : orderPaid(order)
                                   ? 'bg-blue-500'
                                   : 'bg-yellow-500',
                               ]"

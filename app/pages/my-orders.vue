@@ -8,6 +8,8 @@ definePageMeta({
 
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
+const { paymentLabel, paymentColorClass, canCancelByPaymentRules } =
+  useCustomerPaymentStatus();
 const { endpoint, hasRemoteApi } = useCmsApi();
 
 function cmsPath(rel) {
@@ -124,41 +126,6 @@ const getCancelButtonText = (orderId) => {
   return cancellingOrderId.value === orderId
     ? t("cancelling")
     : t("cancel_order");
-};
-
-// Format order status
-const getStatusText = (status) => {
-  const statusMap = {
-    pending: t('order.pending'),
-    processing: t('order.processing_status'),
-    on_hold: t('order.on_hold'),
-    completed: t('order.completed'),
-    cancelled: t('order.cancelled'),
-    refunded: t('order.refunded'),
-    failed: t('order.failed'),
-  };
-  return statusMap[status] || status;
-};
-
-const getStatusColor = (status) => {
-  const colorMap = {
-    pending:
-      "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200",
-    processing:
-      "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200",
-    on_hold:
-      "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200",
-    completed:
-      "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200",
-    cancelled: "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200",
-    refunded:
-      "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200",
-    failed: "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200",
-  };
-  return (
-    colorMap[status] ||
-    "bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
-  );
 };
 
 // Format shipping status
@@ -440,11 +407,7 @@ const cancelOrder = async () => {
   }
 };
 
-// Check if order can be cancelled
-const canCancelOrder = (order) => {
-  const cancellableStatuses = ['pending', 'processing', 'on-hold'];
-  return cancellableStatuses.includes(order.status);
-};
+const canCancelOrder = (order) => canCancelByPaymentRules(order);
 </script>
 
 <template>
@@ -536,20 +499,26 @@ const canCancelOrder = (order) => {
                   class="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
                 >
                   <div class="flex-1">
-                    <div class="flex items-center gap-4 mb-2">
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-2">
                       <h3
                         class="text-lg font-semibold text-black dark:text-white"
                       >
                         {{ $t('order.order_id') }}{{ order.number || order.id }}
                       </h3>
-                      <span
-                        :class="[
-                          'px-3 py-1 rounded-full text-xs font-semibold',
-                          getStatusColor(order.status),
-                        ]"
-                      >
-                        {{ getStatusText(order.status) }}
-                      </span>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span
+                          class="text-xs font-medium text-neutral-500 dark:text-neutral-400"
+                          >{{ $t('order.payment_status_customer') }}</span
+                        >
+                        <span
+                          :class="[
+                            'px-3 py-1 rounded-full text-xs font-semibold',
+                            paymentColorClass(order),
+                          ]"
+                        >
+                          {{ paymentLabel(order) }}
+                        </span>
+                      </div>
                     </div>
                     <p
                       class="text-sm text-neutral-600 dark:text-neutral-400 mb-2"

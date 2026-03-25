@@ -177,11 +177,50 @@ watchEffect(() => {
       attributes: { nodes: [] }
     };
   } else if (sortedVariations.value.length > 0) {
-    const variationInStock = sortedVariations.value.find(
-      (variation) => variation.stockStatus === "IN_STOCK"
-    );
-    selectedVariation.value = variationInStock ? variationInStock : sortedVariations.value[0];
+    const salable = (v) =>
+      v &&
+      v.stockStatus !== 'OUT_OF_STOCK' &&
+      !(
+        v.stockQuantity != null &&
+        v.stockQuantity !== '' &&
+        Number.isFinite(Number(v.stockQuantity)) &&
+        Number(v.stockQuantity) < 1
+      );
+    selectedVariation.value =
+      sortedVariations.value.find((v) => salable(v)) || sortedVariations.value[0];
   }
+});
+
+/** สต็อก &lt; 1 หรือหมด → ไม่ให้ใส่ตะกร้า */
+const addToCartStockNode = computed(() => {
+  if (isSimpleProduct.value) return product.value;
+  return selectedVariation.value;
+});
+
+const variationUnsalable = (variation) => {
+  if (!variation) return true;
+  if (variation.stockStatus === 'OUT_OF_STOCK') return true;
+  const q = variation.stockQuantity;
+  if (q != null && q !== '' && Number.isFinite(Number(q)) && Number(q) < 1) {
+    return true;
+  }
+  return false;
+};
+
+const canAddToCart = computed(() => {
+  if (isCancelled.value) return false;
+  const node = addToCartStockNode.value;
+  if (!node || !product.value?.name) return false;
+  const st = String(node.stockStatus ?? '')
+    .toUpperCase()
+    .replace(/\s+/g, '_');
+  if (st === 'OUT_OF_STOCK' || st === 'OUTOFSTOCK') return false;
+  const qRaw = node.stockQuantity;
+  if (qRaw != null && qRaw !== '') {
+    const q = Number(qRaw);
+    if (Number.isFinite(q) && q < 1) return false;
+  }
+  return true;
 });
 
 const { handleAddToCart, addToCartButtonStatus } = useCart();
@@ -376,9 +415,7 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
                   v-for="variation in sortedVariations"
                   :key="variation.databaseId"
                   :class="[
-                    variation && variation.stockStatus === 'OUT_OF_STOCK'
-                      ? 'disabled'
-                      : '',
+                    variation && variationUnsalable(variation) ? 'disabled' : '',
                     selectedVariation &&
                     selectedVariation.databaseId === variation.databaseId
                       ? 'selected-varitaion'
@@ -390,9 +427,7 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
                     class="hidden"
                     name="variation"
                     :value="variation"
-                    :disabled="
-                      variation && variation.stockStatus === 'OUT_OF_STOCK'
-                    "
+                    :disabled="variation && variationUnsalable(variation)"
                     v-model="selectedVariation"
                   />
                   <span
@@ -444,12 +479,16 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
                     isSimpleProduct ? undefined : product.databaseId
                   )
                 "
-                :disabled="addToCartButtonStatus !== 'add'"
+                :disabled="!canAddToCart || addToCartButtonStatus !== 'add'"
                 class="button-bezel w-full h-12 rounded-md relative tracking-wide font-semibold text-white text-sm flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Transition name="slide-up">
                   <div v-if="addToCartButtonStatus === 'add'" class="absolute">
-                    {{ $t("cart.add_to_cart") }}
+                    {{
+                      canAddToCart
+                        ? $t("cart.add_to_cart")
+                        : $t("cart.out_of_stock")
+                    }}
                   </div>
                   <UIcon
                     v-else-if="addToCartButtonStatus === 'loading'"

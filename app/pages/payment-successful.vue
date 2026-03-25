@@ -13,6 +13,7 @@ const { t, locale } = useI18n();
 const loadingOrder = ref(false);
 const { hasRemoteApi, endpoint } = useStorefrontCatalog();
 const { user } = useAuth();
+const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
 
 // เมื่อเข้ามาจากหน้าชำระ จะมี order_id ใน query แต่ไม่มี order ใน state – ให้โหลดออเดอร์
 onMounted(async () => {
@@ -71,22 +72,6 @@ const formattedDate = computed(() => {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date);
-});
-
-const orderStatusLabel = computed(() => {
-  const s = order.value?.status;
-  if (!s) return '';
-  const map = {
-    pending: 'order.pending',
-    processing: 'order.processing_status',
-    completed: 'order.completed',
-    cancelled: 'order.cancelled',
-    refunded: 'order.refunded',
-    failed: 'order.failed',
-    'on-hold': 'order.on_hold',
-  };
-  const key = map[s];
-  return key ? t(key) : s;
 });
 
 const paymentMethodDisplay = computed(() =>
@@ -153,23 +138,17 @@ const formattedTotal = computed(() => {
               }}</span>
             </div>
 
-            <div class="flex justify-between items-center">
-              <span class="text-neutral-600 dark:text-neutral-400"
-                >{{ $t('payment_success.status_label') }}</span
+            <div class="flex justify-between items-center gap-3">
+              <span class="text-neutral-600 dark:text-neutral-400 shrink-0"
+                >{{ $t('order.payment_status_customer') }}</span
               >
               <span
                 :class="[
-                  'font-semibold px-3 py-1 rounded-full text-sm',
-                  order.status === 'pending'
-                    ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200'
-                    : order.status === 'processing'
-                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200'
-                    : order.status === 'completed'
-                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'
-                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200',
+                  'font-semibold px-3 py-1 rounded-full text-sm shrink-0',
+                  paymentColorClass(order),
                 ]"
               >
-                {{ orderStatusLabel }}
+                {{ paymentLabel(order) }}
               </span>
             </div>
 

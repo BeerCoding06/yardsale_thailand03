@@ -12,6 +12,7 @@ const router = useRouter();
 const { user, isAuthenticated, checkAuth } = useAuth();
 const { t, locale } = useI18n();
 const { hasRemoteApi, endpoint } = useStorefrontCatalog();
+const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
 
 const orderId = computed(() => route.params.id);
 const isClient = ref(false);
@@ -30,34 +31,6 @@ const formatDate = (dateString) => {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
-};
-
-// Format order status
-const getStatusText = (status) => {
-  const statusMap = {
-    pending: t('order.pending'),
-    processing: t('order.processing_status'),
-    on_hold: t('order.on_hold'),
-    'on-hold': t('order.on_hold'),
-    completed: t('order.completed'),
-    cancelled: t('order.cancelled'),
-    refunded: t('order.refunded'),
-    failed: t('order.failed'),
-  };
-  return statusMap[status] || status;
-};
-
-const getStatusColor = (status) => {
-  const colorMap = {
-    pending: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200",
-    processing: "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200",
-    on_hold: "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200",
-    completed: "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200",
-    cancelled: "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200",
-    refunded: "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200",
-    failed: "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200",
-  };
-  return colorMap[status] || "bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200";
 };
 
 // Fetch order details
@@ -212,17 +185,17 @@ onMounted(async () => {
                 }}</span>
               </div>
 
-              <div class="flex justify-between items-center">
-                <span class="text-neutral-600 dark:text-neutral-400"
-                  >{{ $t('order.order_status') }}:</span
+              <div class="flex justify-between items-center gap-3">
+                <span class="text-neutral-600 dark:text-neutral-400 shrink-0"
+                  >{{ $t('order.payment_status_customer') }}</span
                 >
                 <span
                   :class="[
-                    'px-3 py-1 rounded-full text-sm font-semibold',
-                    getStatusColor(order.status),
+                    'px-3 py-1 rounded-full text-sm font-semibold shrink-0',
+                    paymentColorClass(order),
                   ]"
                 >
-                  {{ getStatusText(order.status) }}
+                  {{ paymentLabel(order) }}
                 </span>
               </div>
 

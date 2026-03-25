@@ -18,12 +18,14 @@ export const myOrders = asyncHandler(async (req, res) => {
   sendSuccess(res, { success: true, orders: data.orders });
 });
 
+/** user = ลูกค้าที่ขายของได้ (seller_id = ตัวเอง) — เหมือน GET /my-products */
 export const sellerOrders = asyncHandler(async (req, res) => {
-  if (req.user.role !== 'seller' && req.user.role !== 'admin') {
+  const role = req.user.role;
+  if (!['user', 'seller', 'admin'].includes(role)) {
     throw new AppError('Seller access required', 403, 'FORBIDDEN');
   }
   const data =
-    req.user.role === 'admin'
+    role === 'admin'
       ? await orderService.listAllOrdersAdmin()
       : await orderService.listSellerOrders(req.user.id);
   sendSuccess(res, { success: true, orders: data.orders });

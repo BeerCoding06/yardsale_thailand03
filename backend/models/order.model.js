@@ -62,10 +62,12 @@ export async function listOrdersForUser(client, userId) {
 /** Orders that include at least one line item sold by sellerId */
 export async function listOrdersForSeller(client, sellerId) {
   const r = await client.query(
-    `SELECT DISTINCT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at
+    `SELECT DISTINCT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
+            u.email AS buyer_email, u.name AS buyer_name
      FROM orders o
      JOIN order_items oi ON oi.order_id = o.id
      JOIN products p ON p.id = oi.product_id
+     LEFT JOIN users u ON u.id = o.user_id
      WHERE p.seller_id = $1
      ORDER BY o.created_at DESC`,
     [sellerId]
