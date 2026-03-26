@@ -79,9 +79,6 @@ ENV NUXT_PORT=3000
 COPY --from=builder /app/.output ./.output
 COPY --from=builder /app/package.json ./package.json
 
-# Copy PHP scripts (needed for PHP CLI execution)
-COPY --from=builder /app/server/api/php ./server/api/php
-
 # Set proper permissions
 RUN chown -R node:node /app && \
     chmod -R 755 /app
