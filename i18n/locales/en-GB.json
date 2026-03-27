@@ -161,7 +161,35 @@
       "promptpay": "Bank transfer",
       "credit_card": "Credit / debit card",
       "paypal": "Online payment",
-      "cod": "Cash on delivery"
+      "cod": "Cash on delivery",
+      "bank_transfer": "Bank transfer (slip verification)"
+    },
+    "payment_method": {
+      "cod": "Cash on delivery",
+      "bank_transfer": "Bank transfer — upload payment slip"
+    },
+    "payment_slip": {
+      "title": "Upload payment slip",
+      "subtitle": "Order #{n} · Amount ฿{amount}",
+      "instructions": "Transfer the exact amount shown, then upload a clear photo of your slip (or paste a public image URL). We verify the slip with SlipOK before confirming payment.",
+      "amount_label": "Amount to pay",
+      "file_label": "Slip image",
+      "file_hint": "JPG, PNG, WebP or PDF",
+      "optional_url": "Or paste slip image URL (optional)",
+      "url_placeholder": "https://…",
+      "upload_btn": "Submit and verify slip",
+      "uploading": "Verifying slip…",
+      "back_home": "Back to home",
+      "errors": {
+        "generic": "Payment could not be confirmed. Please try again.",
+        "FILE_REQUIRED": "Please upload a slip image or enter an image URL.",
+        "SLIP_INVALID": "This slip could not be verified. Check the amount and image.",
+        "SLIPOK_NOT_CONFIGURED": "Slip verification is not configured on the server.",
+        "FORBIDDEN": "You cannot pay for this order.",
+        "NOT_FOUND": "Order not found.",
+        "UPLOAD_ERROR": "File upload failed. Try a smaller image or another format.",
+        "VALIDATION_ERROR": "Invalid request. Check order and slip fields."
+      }
     }
   },
   "general": {

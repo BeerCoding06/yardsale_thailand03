@@ -1,15 +1,12 @@
 /**
- * Dev / same-origin: โยง /yardsale-api/* → Express (พอร์ต 4000)
- * เพราะ request บางกรณีไป Nitro ก่อน Vite proxy — ไม่มี route เดิมจึง 500
+ * Production / Nitro: โยง /yardsale-api/* → Express
+ * ใช้ proxyRequest เพื่อส่ง multipart (อัปโหลดสลิป) — ห้าม readBody + $fetch
  */
 import {
   defineEventHandler,
   getRequestURL,
   getRouterParam,
-  getHeader,
-  readBody,
-  setResponseStatus,
-  setHeader,
+  proxyRequest,
 } from "h3";
 
 export default defineEventHandler(async (event) => {
@@ -25,32 +22,11 @@ export default defineEventHandler(async (event) => {
   const reqUrl = getRequestURL(event);
   const url = `${base}${reqUrl.search || ""}`;
 
-  const method = event.method || "GET";
-  const headers: Record<string, string> = {};
-  const ct = getHeader(event, "content-type");
-  if (ct) headers["content-type"] = ct;
-  const auth = getHeader(event, "authorization");
-  if (auth) headers.authorization = auth;
-
-  let body: unknown;
-  if (!["GET", "HEAD"].includes(method)) {
-    try {
-      body = await readBody(event);
-    } catch {
-      body = undefined;
-    }
-  }
-
   try {
-    return await $fetch(url, { method, headers, body });
+    return await proxyRequest(event, url);
   } catch (err: any) {
-    const status = Number(err?.statusCode || err?.status || err?.response?.status) || 502;
-    const data = err?.data ?? err?.response?._data;
-    setResponseStatus(event, status);
-    setHeader(event, "content-type", "application/json");
-    if (data && typeof data === "object") {
-      return data;
-    }
+    const status =
+      Number(err?.statusCode || err?.status || err?.response?.status) || 502;
     return {
       success: false,
       error: {

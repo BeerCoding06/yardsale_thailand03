@@ -8,6 +8,7 @@ const {
   loadCustomerData,
   isLoadingCustomerData,
   isCartStockValid,
+  paymentMethod,
 } = useCheckout();
 const { cart, refreshCartStockFromServer } = useCart();
 const { t } = useI18n();
@@ -337,6 +338,34 @@ watch(() => cart.value?.length, (newLength) => {
             />
           </div>
         </div>
+        <div class="w-full mb-4 space-y-2">
+          <p class="text-sm font-semibold text-black dark:text-white px-1">
+            {{ $t('checkout.choose_payment') }}
+          </p>
+          <label
+            class="flex items-center gap-3 p-3 rounded-2xl border-2 border-black/10 dark:border-white/15 cursor-pointer hover:border-black/20 dark:hover:border-white/25 transition"
+          >
+            <input
+              v-model="paymentMethod"
+              type="radio"
+              value="cod"
+              class="accent-alizarin-crimson-600 w-4 h-4"
+            />
+            <span class="text-sm text-black dark:text-white">{{ $t('checkout.payment_method.cod') }}</span>
+          </label>
+          <label
+            class="flex items-center gap-3 p-3 rounded-2xl border-2 border-black/10 dark:border-white/15 cursor-pointer hover:border-black/20 dark:hover:border-white/25 transition"
+          >
+            <input
+              v-model="paymentMethod"
+              type="radio"
+              value="bank_transfer"
+              class="accent-alizarin-crimson-600 w-4 h-4"
+            />
+            <span class="text-sm text-black dark:text-white">{{ $t('checkout.payment_method.bank_transfer') }}</span>
+          </label>
+        </div>
+
         <div
           :key="`checkout-summary-${cartTotal}-${totalQuantity}`"
           class="text-sm font-semibold p-4 text-neutral-600 dark:text-neutral-400"

@@ -7,6 +7,7 @@ export const useCheckout = () => {
   const { hasRemoteApi, endpoint } = useStorefrontCatalog();
   const { t } = useI18n();
   const router = useRouter();
+  const localePath = useLocalePath();
   const order = useState('order', () => {});
   const userDetails = useState('userDetails', () => ({
     email: '',
@@ -25,6 +26,29 @@ export const useCheckout = () => {
   const isLoadingCustomerData = ref(false);
   const paymentMethod = ref('cod');
   const showPaymentChoiceModal = ref(false);
+
+  /** อัปโหลดสลิป → POST /api/payment/mock (multipart หรือ slip_url) */
+  const submitBankSlip = async ({ orderId, amount, file, slipUrl }) => {
+    const jwtToken = user.value?.token;
+    const fd = new FormData();
+    fd.append('order_id', String(orderId));
+    if (amount != null && amount !== '') {
+      fd.append('amount', String(amount));
+    }
+    if (file) {
+      fd.append('slip_image', file);
+    }
+    if (slipUrl && String(slipUrl).trim()) {
+      fd.append('slip_url', String(slipUrl).trim());
+    }
+    const url = hasRemoteApi ? endpoint('payment/mock') : '/api/payment/mock';
+    const raw = await $fetch(url, {
+      method: 'POST',
+      body: fd,
+      headers: jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {},
+    });
+    return unwrapYardsaleResponse(raw) ?? raw;
+  };
 
   // Store customer billing data from profile
   const customerBillingData = ref(null);
@@ -170,12 +194,12 @@ export const useCheckout = () => {
     }
 
     error.value = null;
-    await executeCheckout('cod');
+    await executeCheckout(paymentMethod.value);
   };
 
-  /** สร้างออเดอร์และ redirect ไปหน้า success */
+  /** สร้างออเดอร์ — COD ไป success; โอนเงินไปหน้าอัปโหลดสลิป */
   const executeCheckout = async (method) => {
-    if (method !== 'cod') return;
+    if (method !== 'cod' && method !== 'bank_transfer') return;
     paymentMethod.value = method;
     showPaymentChoiceModal.value = false;
     checkoutStatus.value = 'processing';
@@ -226,7 +250,10 @@ export const useCheckout = () => {
       }
 
       const customerId = user.value.id || user.value.ID;
-      const paymentTitle = t('checkout.payment_title.cod');
+      const paymentTitle =
+        method === 'cod'
+          ? t('checkout.payment_title.cod')
+          : t('checkout.payment_title.bank_transfer');
       const checkoutData = {
         customer_id: customerId,
         billing: {
@@ -270,6 +297,25 @@ export const useCheckout = () => {
         orderData = res.order;
       }
       if (orderData?.id) {
+        /** ยอดโอน: จาก API จริง หรือคำนวณจากตะกร้าก่อนล้าง (mock ไม่มี total_price) */
+        let slipAmount = '';
+        if (method === 'bank_transfer') {
+          if (hasRemoteApi) {
+            slipAmount = String(orderData.total_price ?? orderData.total ?? '');
+          } else {
+            let sum = 0;
+            for (const item of cart.value || []) {
+              const node = item.variation?.node || item.product?.node || {};
+              const regularPrice = parsePrice(node.regularPrice);
+              const salePrice = parsePrice(node.salePrice);
+              const price =
+                salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
+              sum += price * (item.quantity || 1);
+            }
+            slipAmount = sum.toFixed(2);
+          }
+        }
+
         order.value = {
           ...orderData,
           number:
@@ -280,7 +326,24 @@ export const useCheckout = () => {
         };
         cart.value = [];
         if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
-        await router.push(`/payment-successful?order_id=${orderData.id}`);
+        if (method === 'cod') {
+          await router.push(
+            localePath({
+              path: '/payment-successful',
+              query: { order_id: String(orderData.id) },
+            })
+          );
+        } else {
+          await router.push(
+            localePath({
+              path: '/checkout/payment',
+              query: {
+                order_id: String(orderData.id),
+                amount: slipAmount,
+              },
+            })
+          );
+        }
         return;
       }
 
@@ -315,5 +378,6 @@ export const useCheckout = () => {
     customerBillingData: readonly(customerBillingData),
     paymentMethod,
     isCartStockValid,
+    submitBankSlip,
   };
 };

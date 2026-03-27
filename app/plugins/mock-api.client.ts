@@ -89,12 +89,18 @@ function filterProducts(search?: string, category?: string) {
   return out;
 }
 
+/** ออเดอร์ที่ชำระสลิปแล้ว (mock) — ให้ get-order แสดงสถานะ paid */
+const mockPaidOrderIds = new Set<string>();
+
 function pickOrder(orderId: number) {
+  const id = String(orderId);
+  const paid = mockPaidOrderIds.has(id);
   return {
     id: orderId,
     number: String(orderId),
-    status: "processing",
+    status: paid ? "paid" : "pending",
     total: "0",
+    total_price: "0",
     line_items: [],
   };
 }
@@ -402,6 +408,28 @@ export default defineNuxtPlugin(() => {
     if (p === "/api/create-order") {
       const id = Math.floor(Date.now() / 1000);
       return { success: true, order: { id, number: String(id), status: "pending", total: String(body?.total || 0) } };
+    }
+    if (p === "/api/payment/mock" && (opts?.method === "POST" || opts?.method === "post")) {
+      const b = opts?.body;
+      let orderId = "";
+      if (b instanceof FormData) {
+        orderId = String(b.get("order_id") || "");
+      } else if (b && typeof b === "object") {
+        orderId = String((b as AnyObj).order_id || "");
+      }
+      if (orderId) mockPaidOrderIds.add(orderId);
+      return {
+        success: true,
+        data: {
+          success: true,
+          order: {
+            id: orderId,
+            status: "paid",
+            total_price: 0,
+          },
+          paid: true,
+        },
+      };
     }
     if (p === "/api/get-order") {
       const orderId = Number(query.get("order_id") || query.get("id") || 1);
