@@ -323,7 +323,7 @@ const submitLabel = computed(() => {
       </div>
 
       <template v-else>
-        <!-- ฟอร์มผู้สั่งซื้อ — สั่งใหม่จากตะกร้า หรือกลับมาอัปโหลดสลิป (อ่านอย่างเดียว) -->
+        <!-- ฟอร์มผู้สั่งซื้อ — สั่งใหม่จากตะกร้า หรือกลับมาอัปโหลดสลิป (โหลดจากบัญชี แก้ไขได้) -->
         <div
           v-if="showBuyerForm"
           class="mb-6 p-4 rounded-2xl bg-white/90 dark:bg-black/40 border-2 border-neutral-200 dark:border-neutral-700"
@@ -337,13 +337,12 @@ const submitLabel = computed(() => {
           >
             {{ $t('checkout.payment_slip.billing_resume_note') }}
           </p>
-          <div class="grid grid-cols-2 gap-3 billing" :class="{ 'billing-readonly': isResumePay }">
+          <div class="grid grid-cols-2 gap-3 billing">
             <div class="col-span-full">
               <input
                 v-model="userDetails.email"
                 required
                 type="email"
-                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.email')"
               />
             </div>
@@ -352,7 +351,6 @@ const submitLabel = computed(() => {
                 v-model="userDetails.firstName"
                 required
                 type="text"
-                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.first_name')"
               />
             </div>
@@ -361,7 +359,6 @@ const submitLabel = computed(() => {
                 v-model="userDetails.lastName"
                 required
                 type="text"
-                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.last_name')"
               />
             </div>
@@ -370,7 +367,6 @@ const submitLabel = computed(() => {
                 v-model="userDetails.phone"
                 required
                 type="tel"
-                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.phone')"
               />
             </div>
@@ -379,7 +375,6 @@ const submitLabel = computed(() => {
                 v-model="userDetails.city"
                 required
                 type="text"
-                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.city')"
               />
             </div>
@@ -388,7 +383,6 @@ const submitLabel = computed(() => {
                 v-model="userDetails.address1"
                 required
                 rows="2"
-                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.address')"
               />
             </div>
@@ -396,7 +390,6 @@ const submitLabel = computed(() => {
               <input
                 v-model="userDetails.address2"
                 type="text"
-                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.address2')"
               />
             </div>
@@ -404,7 +397,6 @@ const submitLabel = computed(() => {
               <input
                 v-model="userDetails.state"
                 type="text"
-                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.state')"
               />
             </div>
@@ -412,7 +404,6 @@ const submitLabel = computed(() => {
               <input
                 v-model="userDetails.postcode"
                 type="text"
-                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.postcode')"
               />
             </div>
@@ -621,11 +612,6 @@ select:-webkit-autofill {
 .billing input,
 .billing textarea {
   @apply block bg-white/80 dark:bg-black/20 dark:border-white/20 w-full shadow font-semibold border-2 border-transparent transition hover:border-black dark:hover:border-white rounded-2xl py-3 px-4 text-black dark:text-white placeholder:text-neutral-400 text-sm leading-6 focus-visible:outline-none focus-visible:border-black focus-visible:dark:border-white;
-}
-
-.billing-readonly input:read-only,
-.billing-readonly textarea:read-only {
-  @apply opacity-90 cursor-default bg-neutral-100/90 dark:bg-neutral-900/50 hover:border-transparent dark:hover:border-transparent;
 }
 
 textarea {

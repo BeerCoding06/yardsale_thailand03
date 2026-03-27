@@ -203,7 +203,7 @@
       "verify_success_body": "Your slip was verified and your payment has been confirmed.",
       "outcome_hint": "After you submit your slip, the verification result appears below (Thai or English, matching your site language).",
       "billing_title": "Buyer details",
-      "billing_resume_note": "Shown from your account for reference — update shipping address in your profile if needed. Order details cannot be changed on this page.",
+      "billing_resume_note": "Prefilled from your account — you can edit below (changes here do not update the saved order record).",
       "method_label": "Payment method",
       "cart_total_preview": "Order total (from cart)",
       "submit_place_order_cod": "Place order",
