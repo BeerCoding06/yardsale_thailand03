@@ -19,7 +19,8 @@ export default defineNuxtConfig({
   ],
 
   i18n: {
-    defaultLocale: "en",
+    defaultLocale: "th",
+    /** คีย์ที่ไม่มีใน th-TH จะดึงจาก en */
     fallbackLocale: "en",
     strategy: "prefix_except_default",
     langDir: "locales",
@@ -30,8 +31,8 @@ export default defineNuxtConfig({
       alwaysRedirect: false, // Don't always redirect - preserve current route
     },
     locales: [
-      { code: "en", iso: "en-GB", file: "en-GB.json", name: "🇬🇧 English" },
       { code: "th", iso: "th-TH", file: "th-TH.json", name: "🇹🇭 ไทย" },
+      { code: "en", iso: "en-GB", file: "en-GB.json", name: "🇬🇧 English" },
       {
         code: "nb",
         iso: "nb-NO",

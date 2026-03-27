@@ -4,9 +4,32 @@ const { site } = useAppConfig();
 const { name, description } = site;
 const config = useRuntimeConfig();
 const ogImageLogo = `${config.public?.baseUrl || 'https://www.yardsaleth.com'}/logo.svg`;
+const { locale } = useI18n();
+
+const htmlLang = computed(() => {
+  const m: Record<string, string> = {
+    th: "th",
+    en: "en",
+    nb: "nb",
+    nl: "nl",
+    de: "de",
+  };
+  return m[locale.value] || "th";
+});
+
+const ogLocaleTag = computed(() => {
+  const m: Record<string, string> = {
+    th: "th_TH",
+    en: "en_GB",
+    nb: "nb_NO",
+    nl: "nl_NL",
+    de: "de_DE",
+  };
+  return m[locale.value] || "th_TH";
+});
 
 useHead({
-  htmlAttrs: { lang: "en" },
+  htmlAttrs: { lang: htmlLang },
   titleTemplate: (chunk?: string) => (chunk ? `${chunk} - ${name}` : name),
 });
 
@@ -14,7 +37,7 @@ useSeoMeta({
   description,
   ogType: "website",
   ogSiteName: name,
-  ogLocale: "en_US",
+  ogLocale: ogLocaleTag,
   ogImage: ogImageLogo,
   twitterCard: "summary_large_image",
   twitterSite: "@zhatlen",
