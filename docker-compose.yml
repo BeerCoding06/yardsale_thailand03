@@ -65,9 +65,10 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-https://yardsaleth.com,https://www.yardsaleth.com}
     volumes:
       - yardsale_uploads:/app/uploads
-    # เปิดเฉพาะบน host loopback — ให้ Caddy (container) reverse_proxy มาที่ 172.17.0.1:4000 หรือ host.docker.internal:4000
+    # ต้อง publish 0.0.0.0:4000 เพื่อให้ Caddy (container) ยิงมาที่ 172.17.0.1:4000 ได้ — ถ้าใช้ 127.0.0.1:4000 อย่างเดียว bridge จะ connection refused
+    # กัน port scan ได้ด้วย firewall บน VPS (อนุญาตแค่ Cloudflare / IP คุณถ้าต้องการ)
     ports:
-      - "127.0.0.1:4000:4000"
+      - "4000:4000"
     healthcheck:
       test:
         [
