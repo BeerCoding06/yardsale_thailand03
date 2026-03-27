@@ -35,6 +35,9 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
     volumes:
       - yardsale_uploads:/app/uploads
+    # สำหรับ host ที่มี Caddy จับ :443 — reverse_proxy มา 127.0.0.1:4000 (จาก container ใช้ 172.17.0.1 หรือ host.docker.internal)
+    ports:
+      - "127.0.0.1:4000:4000"
     healthcheck:
       test:
         [

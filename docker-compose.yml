@@ -2,18 +2,24 @@
 # เครือข่าย traefik ของ Dokploy (สร้างบน host แล้ว: dokploy-network)
 #
 # โดเมน:
-#   Frontend — https://yardsaleth.com  (www → redirect มา apex)
-#   Backend  — https://api.yardsaleth.com
+#   Frontend — https://yardsaleth.com (Traefik labels บน service app; www → apex)
+#   Backend  — https://api.yardsaleth.com ผ่าน Caddy บน host (ไม่ใช้ Traefik สำหรับ API)
+#
+# API + Caddy: บนเซิร์ฟเวอร์ที่ Caddy จับ :443 อยู่แล้ว — backend publish ที่ 127.0.0.1:4000
+# ให้เพิ่มใน Caddyfile แล้ว reload:
+#   api.yardsaleth.com {
+#       reverse_proxy 172.17.0.1:4000
+#   }
+# ถ้า reverse_proxy ไม่ถึง host ให้ใส่ใน compose ของ Caddy: extra_hosts: ["host.docker.internal:host-gateway"]
+# แล้วใช้ reverse_proxy host.docker.internal:4000
+# ลบโดเมน api.yardsaleth.com ออกจาก Domains ใน Dokploy (กันชน TLS กับ Caddy)
 #
 # ตั้งค่าใน Dokploy / .env ก่อน build:
 #   POSTGRES_PASSWORD, JWT_SECRET, CORS_ORIGINS (คั่นด้วย comma)
 #   BASE_URL, NUXT_PUBLIC_CMS_API_BASE, NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN, NUXT_IMAGE_DOMAINS
 #   DB_PASSWORD ถ้า Nuxt build ต้องคุย MySQL ภายนอก
 #
-# Traefik: ใช้ cert resolver ชื่อ letsencrypt (ค่าเริ่มต้นของ Dokploy)
-# ถ้า Dokploy ใช้ชื่ออื่น แก้ tls.certresolver ในทุก label ให้ตรง
-#
-# โดเมนใน UI Dokploy: ถ้าใช้ labels ด้านล่างครบแล้ว ไม่ต้องเพิ่มโดเมนซ้ำ (กันชน config)
+# Traefik (เฉพาะ app): cert resolver ชื่อ letsencrypt — ถ้า Dokploy ใช้ชื่ออื่น แก้ labels ของ app
 
 services:
   postgres:
@@ -54,6 +60,9 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-https://yardsaleth.com,https://www.yardsaleth.com}
     volumes:
       - yardsale_uploads:/app/uploads
+    # เปิดเฉพาะบน host loopback — ให้ Caddy (container) reverse_proxy มาที่ 172.17.0.1:4000 หรือ host.docker.internal:4000
+    ports:
+      - "127.0.0.1:4000:4000"
     healthcheck:
       test:
         [
@@ -63,14 +72,6 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=dokploy-network"
-      - "traefik.http.routers.yardsaleth-api.rule=Host(`api.yardsaleth.com`)"
-      - "traefik.http.routers.yardsaleth-api.entrypoints=websecure"
-      - "traefik.http.routers.yardsaleth-api.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.yardsaleth-api.service=yardsaleth-api"
-      - "traefik.http.services.yardsaleth-api.loadbalancer.server.port=4000"
 
   app:
     build:
