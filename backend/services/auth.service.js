@@ -63,7 +63,10 @@ export async function login({ login, password }) {
   }
 }
 
-export async function createUser({ email, password, name, role: rawRole }) {
+export async function createUser(
+  { email, password, name, role: rawRole, account_status: rawStatus },
+  { allowStatusField = false } = {}
+) {
   const client = await pool.connect();
   try {
     let role = rawRole || 'user';
@@ -75,7 +78,8 @@ export async function createUser({ email, password, name, role: rawRole }) {
     let accountStatus = 'public';
     if (
       allowStatusField &&
-      rawStatus &&
+      rawStatus != null &&
+      String(rawStatus).trim() !== '' &&
       ['public', 'pending', 'block'].includes(String(rawStatus))
     ) {
       accountStatus = String(rawStatus);
