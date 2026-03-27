@@ -34,6 +34,10 @@ ARG DB_HOST=157.85.98.150:3306
 ARG DB_NAME=nuxtcommerce_db
 ARG DB_USER=root
 ARG BASE_URL=http://localhost:3000
+# ฝังใน client bundle ตอน build — ต้องเป็น URL ที่เบราว์เซอร์เข้าถึงได้ (โดเมน API จริง)
+ARG NUXT_PUBLIC_CMS_API_BASE=
+ARG NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN=
+ARG NUXT_IMAGE_DOMAINS=
 
 # Build the application (disable NuxtHub for Docker)
 ENV DOCKER_BUILD=true
@@ -44,6 +48,9 @@ ENV DB_HOST=${DB_HOST}
 ENV DB_NAME=${DB_NAME}
 ENV DB_USER=${DB_USER}
 ENV BASE_URL=${BASE_URL}
+ENV NUXT_PUBLIC_CMS_API_BASE=${NUXT_PUBLIC_CMS_API_BASE}
+ENV NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN=${NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN}
+ENV NUXT_IMAGE_DOMAINS=${NUXT_IMAGE_DOMAINS}
 # Note: DB_PASSWORD should be set via docker-compose.yml or runtime environment, not in Dockerfile
 
 # Prepare build environment (generate types; may fail if app not fully copied yet)

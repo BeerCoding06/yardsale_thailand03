@@ -1,62 +1,130 @@
-# Docker Compose for Dokploy (https://dokploy.com)
-# ผูกโดเมน www.yardsaleth.com ใน Dokploy หรือใช้ labels ด้านล่าง
+# Dokploy: deploy ไฟล์นี้ไฟล์เดียว — PostgreSQL + Express API + Nuxt
+# เครือข่าย traefik ของ Dokploy (สร้างบน host แล้ว: dokploy-network)
+#
+# ตั้งค่าใน Dokploy / .env ก่อน build:
+#   POSTGRES_PASSWORD, JWT_SECRET, CORS_ORIGINS (คั่นด้วย comma)
+#   BASE_URL, NUXT_PUBLIC_CMS_API_BASE, NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN, NUXT_IMAGE_DOMAINS
+#   DB_PASSWORD ถ้า Nuxt build ต้องคุย MySQL ภายนอก
+#
+# Traefik: ใช้ cert resolver ชื่อ letsencrypt (ค่าเริ่มต้นของ Dokploy)
+# ถ้า Dokploy ใช้ชื่ออื่น แก้ tls.certresolver ในทุก label ให้ตรง
+#
+# โดเมนใน UI Dokploy: ถ้าใช้ labels ด้านล่างครบแล้ว ไม่ต้องเพิ่มโดเมนซ้ำ (กันชน config)
+
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks:
+      - dokploy-network
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-yardsale}
+      POSTGRES_USER: ${POSTGRES_USER:-yardsale}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - yardsale_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - dokploy-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-yardsale}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-yardsale}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      UPLOAD_DIR: ${UPLOAD_DIR:-./uploads}
+      PUBLIC_UPLOAD_BASE: ${PUBLIC_UPLOAD_BASE:-/uploads}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://www.yardsaleth.com,https://yardsaleth.com}
+    volumes:
+      - yardsale_uploads:/app/uploads
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:4000/api/products').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.yardsaleth-api.rule=Host(`api.yardsaleth.com`)"
+      - "traefik.http.routers.yardsaleth-api.entrypoints=websecure"
+      - "traefik.http.routers.yardsaleth-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.yardsaleth-api.service=yardsaleth-api"
+      - "traefik.http.services.yardsaleth-api.loadbalancer.server.port=4000"
+
   app:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    # ไม่ต้อง expose port ถ้าใช้แค่ Traefik (Dokploy route ผ่าน domain)
-    ports:
-      - "3000:3000"
-
+      args:
+        DB_HOST: ${DB_HOST:-157.85.98.150:3306}
+        DB_NAME: ${DB_NAME:-nuxtcommerce_db}
+        DB_USER: ${DB_USER:-root}
+        BASE_URL: ${BASE_URL:-https://www.yardsaleth.com}
+        NUXT_PUBLIC_CMS_API_BASE: ${NUXT_PUBLIC_CMS_API_BASE:-https://api.yardsaleth.com/api}
+        NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN: ${NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN:-https://api.yardsaleth.com}
+        NUXT_IMAGE_DOMAINS: ${NUXT_IMAGE_DOMAINS:-api.yardsaleth.com,www.yardsaleth.com}
+    restart: unless-stopped
     networks:
       - dokploy-network
-
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NUXT_HOST: 0.0.0.0
+      NUXT_PORT: 3000
+      BASE_URL: ${BASE_URL:-https://www.yardsaleth.com}
+      DB_HOST: ${DB_HOST:-157.85.98.150:3306}
+      DB_NAME: ${DB_NAME:-nuxtcommerce_db}
+      DB_USER: ${DB_USER:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
     labels:
-      # ให้ Traefik ของ Dokploy ใช้ network นี้
-      - "traefik.docker.network=dokploy-network"
       - "traefik.enable=true"
-      # หลัก: https://www.yardsaleth.com -> Nuxt port 3000, HTTPS + Let's Encrypt
+      - "traefik.docker.network=dokploy-network"
       - "traefik.http.routers.yardsaleth-app.rule=Host(`www.yardsaleth.com`)"
       - "traefik.http.routers.yardsaleth-app.entrypoints=websecure"
       - "traefik.http.routers.yardsaleth-app.tls.certresolver=letsencrypt"
       - "traefik.http.routers.yardsaleth-app.service=yardsaleth-app"
       - "traefik.http.services.yardsaleth-app.loadbalancer.server.port=3000"
-      # redirect yardsaleth.com -> https://www.yardsaleth.com
       - "traefik.http.routers.yardsaleth-redirect.rule=Host(`yardsaleth.com`)"
       - "traefik.http.routers.yardsaleth-redirect.entrypoints=websecure"
       - "traefik.http.routers.yardsaleth-redirect.tls.certresolver=letsencrypt"
       - "traefik.http.routers.yardsaleth-redirect.service=yardsaleth-app"
-      - "traefik.http.routers.yardsaleth-redirect.middlewares=redirect-to-www"
-      - "traefik.http.middlewares.redirect-to-www.redirectregex.permanent=true"
-      - "traefik.http.middlewares.redirect-to-www.redirectregex.regex=^https?://yardsaleth.com/(.*)"
-      - "traefik.http.middlewares.redirect-to-www.redirectregex.replacement=https://www.yardsaleth.com/$${1}"
-
-    env_file:
-      - .env
-    environment:
-      # =================
-      # Database (External MySQL)
-      # =================
-      - DB_HOST=${DB_HOST:-157.85.98.150:3306}
-      - DB_NAME=${DB_NAME:-nuxtcommerce_db}
-      - DB_USER=${DB_USER:-root}
-      - DB_PASSWORD=${DB_PASSWORD:-RootBeer06032534}
-
-      # =================
-      # Public URL (Traefik)
-      # =================
-      - BASE_URL=${BASE_URL:-http://www.yardsaleth.com}
-
-      # =================
-      # Internal
-      # =================
-      - INTERNAL_BASE_URL=${INTERNAL_BASE_URL:-http://127.0.0.1:80}
-
-    volumes:
-      # Mount project root
-      - .:/app
+      - "traefik.http.routers.yardsaleth-redirect.middlewares=yardsaleth-redirect-to-www"
+      - "traefik.http.middlewares.yardsaleth-redirect-to-www.redirectregex.permanent=true"
+      - "traefik.http.middlewares.yardsaleth-redirect-to-www.redirectregex.regex=^https?://yardsaleth.com/(.*)"
+      - "traefik.http.middlewares.yardsaleth-redirect-to-www.redirectregex.replacement=https://www.yardsaleth.com/$${1}"
 
 networks:
   dokploy-network:
     external: true
+
+volumes:
+  yardsale_postgres_data:
+  yardsale_uploads:
