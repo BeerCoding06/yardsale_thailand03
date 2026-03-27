@@ -130,6 +130,7 @@ router.post('/payment/mock', authMiddleware, (req, res, next) => {
   }
   next();
 }, paymentController.mockPayment);
+router.get('/payment/slipok/quota', authMiddleware, paymentController.slipokQuota);
 
 /** user = ลูกค้าทั่วไป สร้างขายได้เหมือน seller (seller_id = ตัวเอง); admin ยังมองทั้งระบบ */
 router.get('/my-products', authMiddleware, requireRoles('user', 'seller', 'admin'), sellerController.myProducts);

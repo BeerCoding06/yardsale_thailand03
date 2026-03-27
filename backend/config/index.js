@@ -12,4 +12,10 @@ export const config = {
   },
   uploadDir: process.env.UPLOAD_DIR || './uploads',
   publicUploadBase: process.env.PUBLIC_UPLOAD_BASE || '/uploads',
+  slipok: {
+    branchId: process.env.SLIPOK_BRANCH_ID || '',
+    apiKey: process.env.SLIPOK_API_KEY || '',
+    apiBase: process.env.SLIPOK_API_BASE || 'https://api.slipok.com',
+    defaultLog: process.env.SLIPOK_LOG_DEFAULT || 'true',
+  },
 };

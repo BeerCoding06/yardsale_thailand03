@@ -96,6 +96,12 @@ export const paymentMockBodySchema = Joi.object({
   simulate_failure: Joi.alternatives()
     .try(Joi.boolean(), Joi.string().valid('true', 'false', '1', '0'))
     .default('false'),
+  amount: Joi.alternatives().try(Joi.number().positive(), Joi.valid(null, '')),
+  slip_data: Joi.string().trim().allow('', null).optional(),
+  slip_url: Joi.string().uri({ scheme: ['http', 'https'] }).allow('', null).optional(),
+  log: Joi.alternatives()
+    .try(Joi.boolean(), Joi.string().valid('true', 'false', '1', '0'))
+    .optional(),
 }).unknown(true);
 
 export const createProductSchema = Joi.object({

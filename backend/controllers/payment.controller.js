@@ -16,3 +16,8 @@ export const mockPayment = asyncHandler(async (req, res) => {
   const data = await paymentService.mockPayment(req.user.id, value, req.file);
   sendSuccess(res, { success: true, ...data });
 });
+
+export const slipokQuota = asyncHandler(async (_req, res) => {
+  const data = await paymentService.getSlipokQuota();
+  sendSuccess(res, { success: true, ...data });
+});
