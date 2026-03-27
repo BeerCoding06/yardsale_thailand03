@@ -146,20 +146,14 @@ export const useCheckout = () => {
     return true;
   };
 
-  /** กดปุ่มชำระเงิน: validate + ตรวจสต็อก (API) แล้วสร้างออเดอร์ทันที */
-  const handleCheckout = async () => {
+  /** ตรวจสต็อก + ไปหน้า payment (ฟอร์มผู้สั่งซื้ออยู่ที่นั่น) */
+  const proceedToPaymentPage = async () => {
     if (!isAuthenticated.value || !user.value) {
       error.value = 'กรุณาเข้าสู่ระบบก่อนสั่งซื้อ';
       return;
     }
     if (!cart.value || cart.value.length === 0) {
       error.value = 'ตะกร้าสินค้าว่างเปล่า';
-      return;
-    }
-    if (!userDetails.value.email || !userDetails.value.firstName ||
-        !userDetails.value.lastName || !userDetails.value.phone ||
-        !userDetails.value.address1 || !userDetails.value.city) {
-      error.value = t('checkout.error.incomplete_data');
       return;
     }
 
@@ -197,12 +191,20 @@ export const useCheckout = () => {
     }
 
     error.value = null;
-    await executeCheckout(paymentMethod.value);
+    await router.push(
+      localePath({
+        path: '/checkout/payment',
+        query: { method: paymentMethod.value },
+      })
+    );
   };
 
-  /** สร้างออเดอร์ — COD ไป success; โอนเงินไปหน้าอัปโหลดสลิป */
-  const executeCheckout = async (method) => {
-    if (method !== 'cod' && method !== 'bank_transfer') return;
+  /**
+   * สร้างออเดอร์จากตะกร้า (ไม่ navigate) — ใช้หน้า payment หลังกรอกฟอร์มผู้สั่งซื้อ
+   * @returns {Promise<object|null>} order row หรือ null เมื่อล้มเหลว
+   */
+  const createOrderFromCart = async (method) => {
+    if (method !== 'cod' && method !== 'bank_transfer') return null;
     paymentMethod.value = method;
     showPaymentChoiceModal.value = false;
     checkoutStatus.value = 'processing';
@@ -329,28 +331,12 @@ export const useCheckout = () => {
         };
         cart.value = [];
         if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
-        if (method === 'cod') {
-          await router.push(
-            localePath({
-              path: '/payment-successful',
-              query: { order_id: String(orderData.id) },
-            })
-          );
-        } else {
-          await router.push(
-            localePath({
-              path: '/checkout/payment',
-              query: {
-                order_id: String(orderData.id),
-                amount: slipAmount,
-              },
-            })
-          );
-        }
-        return;
+        checkoutStatus.value = 'order';
+        return orderData;
       }
 
       checkoutStatus.value = 'order';
+      return null;
     } catch (err) {
       console.error('[useCheckout] Error:', err);
       const em =
@@ -360,6 +346,37 @@ export const useCheckout = () => {
         err?.message;
       error.value = em || t('checkout.error.create_order_failed');
       checkoutStatus.value = 'order';
+      return null;
+    }
+  };
+
+  /** สร้างออเดอร์แล้วไปหน้าถัดไป (ใช้น้อย — flow หลักไปผ่านหน้า payment) */
+  const executeCheckout = async (method) => {
+    const orderData = await createOrderFromCart(method);
+    if (!orderData?.id) return;
+
+    const slipAmount =
+      method === 'bank_transfer'
+        ? String(orderData.total_price ?? orderData.total ?? '')
+        : '';
+
+    if (method === 'cod') {
+      await router.push(
+        localePath({
+          path: '/payment-successful',
+          query: { order_id: String(orderData.id) },
+        })
+      );
+    } else {
+      await router.push(
+        localePath({
+          path: '/checkout/payment',
+          query: {
+            order_id: String(orderData.id),
+            amount: slipAmount,
+          },
+        })
+      );
     }
   };
 
@@ -372,7 +389,8 @@ export const useCheckout = () => {
     userDetails,
     checkoutStatus,
     error,
-    handleCheckout,
+    proceedToPaymentPage,
+    createOrderFromCart,
     executeCheckout,
     closePaymentChoiceModal,
     showPaymentChoiceModal,
