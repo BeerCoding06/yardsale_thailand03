@@ -82,6 +82,14 @@ export function useStorefrontCatalog() {
     if (!row || typeof row !== "object") return row;
     const id = row.id as string;
     const img = resolveMediaUrl((row.image_url as string) || null);
+    const rawGallery = Array.isArray(row.image_urls) ? row.image_urls : [];
+    const galleryNodes = rawGallery
+      .map((u) => resolveMediaUrl(String(u || '').trim()))
+      .filter(Boolean)
+      .map((sourceUrl) => ({ sourceUrl }));
+    if (img && !galleryNodes.some((x) => x.sourceUrl === img)) {
+      galleryNodes.unshift({ sourceUrl: img });
+    }
     const priceNum = Number(row.price);
     const priceStr = Number.isFinite(priceNum) ? priceNum.toFixed(2) : "0";
     const regularNum = Number(row.regular_price ?? row.price);
@@ -116,8 +124,8 @@ export function useStorefrontCatalog() {
       stockStatus:
         !cancelled && stockOk ? "IN_STOCK" : "OUT_OF_STOCK",
       status: cancelled ? "cancelled" : "publish",
-      image: img ? { sourceUrl: img } : undefined,
-      galleryImages: img ? { nodes: [{ sourceUrl: img }] } : { nodes: [] },
+      image: img ? { sourceUrl: img } : galleryNodes[0],
+      galleryImages: { nodes: galleryNodes },
       productTypes: { nodes: [] as unknown[] },
       variations: { nodes: [] as unknown[] },
       related: { nodes: [] as unknown[] },

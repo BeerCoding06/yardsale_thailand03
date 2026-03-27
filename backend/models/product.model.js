@@ -33,6 +33,22 @@ async function hasProductPriceBreakdown(client) {
   }
 }
 
+async function hasProductImageUrlsColumn(client) {
+  try {
+    const r = await client.query(
+      `SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'products'
+          AND column_name = 'image_urls'
+      ) AS ok`
+    );
+    return r.rows[0]?.ok === true;
+  } catch {
+    return false;
+  }
+}
+
 async function hasProductTagsTable(client) {
   try {
     const r = await client.query(
@@ -85,18 +101,20 @@ export async function attachTagsToProductRow(client, row) {
 async function joinProductSelectColumns(client) {
   const hasLs = await hasListingStatusColumn(client);
   const hasPb = await hasProductPriceBreakdown(client);
+  const hasImgs = await hasProductImageUrlsColumn(client);
   const priceCols = hasPb
     ? `p.price, p.regular_price, p.sale_price,`
     : `p.price,`;
+  const imgCols = hasImgs ? `p.image_url, p.image_urls,` : `p.image_url,`;
   if (hasLs) {
     return `
     p.id, p.name, p.description, ${priceCols} p.stock, p.category_id, p.seller_id,
-    p.image_url, p.is_cancelled, p.listing_status, p.created_at,
+    ${imgCols} p.is_cancelled, p.listing_status, p.created_at,
     c.name AS category_name, c.slug AS category_slug`;
   }
   return `
     p.id, p.name, p.description, ${priceCols} p.stock, p.category_id, p.seller_id,
-    p.image_url, p.is_cancelled, p.created_at,
+    ${imgCols} p.is_cancelled, p.created_at,
     c.name AS category_name, c.slug AS category_slug`;
 }
 
@@ -214,8 +232,10 @@ export async function incrementProductStock(client, productId, qty) {
 async function returningProductColumns(client) {
   const hasLs = await hasListingStatusColumn(client);
   const hasPb = await hasProductPriceBreakdown(client);
+  const hasImgs = await hasProductImageUrlsColumn(client);
   let base =
     'id, name, description, price, stock, category_id, seller_id, image_url, is_cancelled';
+  if (hasImgs) base += ', image_urls';
   if (hasPb) base += ', regular_price, sale_price';
   if (hasLs) base += ', listing_status';
   base += ', created_at';
@@ -232,13 +252,39 @@ async function finalizeNewProduct(client, created, tagIds) {
 export async function createProduct(client, row) {
   const hasLs = await hasListingStatusColumn(client);
   const hasPb = await hasProductPriceBreakdown(client);
+  const hasImgs = await hasProductImageUrlsColumn(client);
   const ret = await returningProductColumns(client);
   const rp = row.regular_price ?? row.price;
   const sp =
     row.sale_price != null && row.sale_price !== '' ? row.sale_price : null;
+  const imageUrls = Array.isArray(row.image_urls)
+    ? row.image_urls.map((u) => String(u || '').trim()).filter(Boolean)
+    : [];
+  const primaryImage = row.image_url || imageUrls[0] || null;
 
   if (hasLs) {
     if (hasPb) {
+      if (hasImgs) {
+        const r = await client.query(
+          `INSERT INTO products (seller_id, category_id, name, description, price, regular_price, sale_price, stock, image_url, image_urls, listing_status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text[], COALESCE($11::product_listing_status, 'pending_review'::product_listing_status))
+           RETURNING ${ret}`,
+          [
+            row.seller_id,
+            row.category_id || null,
+            row.name,
+            row.description || '',
+            row.price,
+            rp,
+            sp,
+            row.stock ?? 0,
+            primaryImage,
+            imageUrls.length ? imageUrls : null,
+            row.listing_status || null,
+          ]
+        );
+        return finalizeNewProduct(client, r.rows[0], row.tag_ids);
+      }
       const r = await client.query(
         `INSERT INTO products (seller_id, category_id, name, description, price, regular_price, sale_price, stock, image_url, listing_status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::product_listing_status, 'pending_review'::product_listing_status))
@@ -252,7 +298,26 @@ export async function createProduct(client, row) {
           rp,
           sp,
           row.stock ?? 0,
-          row.image_url || null,
+          primaryImage,
+          row.listing_status || null,
+        ]
+      );
+      return finalizeNewProduct(client, r.rows[0], row.tag_ids);
+    }
+    if (hasImgs) {
+      const r = await client.query(
+        `INSERT INTO products (seller_id, category_id, name, description, price, stock, image_url, image_urls, listing_status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text[], COALESCE($9::product_listing_status, 'pending_review'::product_listing_status))
+         RETURNING ${ret}`,
+        [
+          row.seller_id,
+          row.category_id || null,
+          row.name,
+          row.description || '',
+          row.price,
+          row.stock ?? 0,
+          primaryImage,
+          imageUrls.length ? imageUrls : null,
           row.listing_status || null,
         ]
       );
@@ -269,13 +334,33 @@ export async function createProduct(client, row) {
         row.description || '',
         row.price,
         row.stock ?? 0,
-        row.image_url || null,
+        primaryImage,
         row.listing_status || null,
       ]
     );
     return finalizeNewProduct(client, r.rows[0], row.tag_ids);
   }
   if (hasPb) {
+    if (hasImgs) {
+      const r = await client.query(
+        `INSERT INTO products (seller_id, category_id, name, description, price, regular_price, sale_price, stock, image_url, image_urls)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text[])
+         RETURNING ${ret}`,
+        [
+          row.seller_id,
+          row.category_id || null,
+          row.name,
+          row.description || '',
+          row.price,
+          rp,
+          sp,
+          row.stock ?? 0,
+          primaryImage,
+          imageUrls.length ? imageUrls : null,
+        ]
+      );
+      return finalizeNewProduct(client, r.rows[0], row.tag_ids);
+    }
     const r = await client.query(
       `INSERT INTO products (seller_id, category_id, name, description, price, regular_price, sale_price, stock, image_url)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -289,7 +374,25 @@ export async function createProduct(client, row) {
         rp,
         sp,
         row.stock ?? 0,
-        row.image_url || null,
+        primaryImage,
+      ]
+    );
+    return finalizeNewProduct(client, r.rows[0], row.tag_ids);
+  }
+  if (hasImgs) {
+    const r = await client.query(
+      `INSERT INTO products (seller_id, category_id, name, description, price, stock, image_url, image_urls)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text[])
+       RETURNING ${ret}`,
+      [
+        row.seller_id,
+        row.category_id || null,
+        row.name,
+        row.description || '',
+        row.price,
+        row.stock ?? 0,
+        primaryImage,
+        imageUrls.length ? imageUrls : null,
       ]
     );
     return finalizeNewProduct(client, r.rows[0], row.tag_ids);
@@ -305,7 +408,7 @@ export async function createProduct(client, row) {
       row.description || '',
       row.price,
       row.stock ?? 0,
-      row.image_url || null,
+      primaryImage,
     ]
   );
   return finalizeNewProduct(client, r.rows[0], row.tag_ids);
@@ -314,10 +417,12 @@ export async function createProduct(client, row) {
 export async function listProductsBySeller(client, sellerId) {
   const hasLs = await hasListingStatusColumn(client);
   const hasPb = await hasProductPriceBreakdown(client);
+  const hasImgs = await hasProductImageUrlsColumn(client);
   const priceCols = hasPb ? 'price, regular_price, sale_price,' : 'price,';
+  const imgCols = hasImgs ? 'image_url, image_urls,' : 'image_url,';
   const lsCol = hasLs ? ', listing_status' : '';
   const r = await client.query(
-    `SELECT id, name, description, ${priceCols} stock, category_id, seller_id, image_url, is_cancelled${lsCol}, created_at
+    `SELECT id, name, description, ${priceCols} stock, category_id, seller_id, ${imgCols} is_cancelled${lsCol}, created_at
      FROM products WHERE seller_id = $1 ORDER BY created_at DESC`,
     [sellerId]
   );
@@ -327,10 +432,12 @@ export async function listProductsBySeller(client, sellerId) {
 export async function listAllProducts(client) {
   const hasLs = await hasListingStatusColumn(client);
   const hasPb = await hasProductPriceBreakdown(client);
+  const hasImgs = await hasProductImageUrlsColumn(client);
   const priceCols = hasPb ? 'price, regular_price, sale_price,' : 'price,';
+  const imgCols = hasImgs ? 'image_url, image_urls,' : 'image_url,';
   const lsCol = hasLs ? ', listing_status' : '';
   const r = await client.query(
-    `SELECT id, name, description, ${priceCols} stock, category_id, seller_id, image_url, is_cancelled${lsCol}, created_at
+    `SELECT id, name, description, ${priceCols} stock, category_id, seller_id, ${imgCols} is_cancelled${lsCol}, created_at
      FROM products ORDER BY created_at DESC`
   );
   return r.rows;
@@ -355,6 +462,7 @@ export async function getProductRowForPriceMerge(client, productId, sellerId, is
 export async function updateProduct(client, productId, body, sellerId, isAdmin) {
   const hasLs = await hasListingStatusColumn(client);
   const hasPb = await hasProductPriceBreakdown(client);
+  const hasImgs = await hasProductImageUrlsColumn(client);
   if (!hasLs && isAdmin && body.listing_status !== undefined) {
     throw new AppError(
       'Cannot set listing_status: database has no products.listing_status column. Run backend/db/schema.sql (ALTER that adds listing_status) or npm run db:schema in backend.',
@@ -402,6 +510,17 @@ export async function updateProduct(client, productId, body, sellerId, isAdmin) 
   if (sqlBody.image_url !== undefined) {
     sets.push(`image_url = $${n++}`);
     params.push(sqlBody.image_url || null);
+  }
+  if (hasImgs && sqlBody.image_urls !== undefined) {
+    const imageUrls = Array.isArray(sqlBody.image_urls)
+      ? sqlBody.image_urls.map((u) => String(u || '').trim()).filter(Boolean)
+      : [];
+    sets.push(`image_urls = $${n++}::text[]`);
+    params.push(imageUrls.length ? imageUrls : null);
+    if (sqlBody.image_url === undefined) {
+      sets.push(`image_url = $${n++}`);
+      params.push(imageUrls[0] || null);
+    }
   }
   if (hasLs && sqlBody.listing_status !== undefined && isAdmin) {
     sets.push(`listing_status = $${n++}`);

@@ -116,6 +116,15 @@ export const createProductSchema = Joi.object({
     )
     .allow('', null)
     .optional(),
+  image_urls: Joi.array()
+    .items(
+      Joi.alternatives().try(
+        Joi.string().uri({ scheme: ['http', 'https'] }),
+        Joi.string().pattern(/^\//)
+      )
+    )
+    .max(10)
+    .optional(),
   /** Admin only: assign product to this seller user */
   seller_id: uuid.optional(),
   /** Admin only: initial listing status (seller/user → always pending_review on server) */
@@ -145,6 +154,15 @@ export const updateProductSchema = Joi.object({
     )
     .allow('', null)
     .optional(),
+  image_urls: Joi.array()
+    .items(
+      Joi.alternatives().try(
+        Joi.string().uri({ scheme: ['http', 'https'] }),
+        Joi.string().pattern(/^\//)
+      )
+    )
+    .max(10)
+    .optional(),
   /** Admin only: publish / hide from storefront */
   listing_status: productListingStatus,
   tag_ids: Joi.array().items(uuid).max(100).optional(),
@@ -158,6 +176,7 @@ export const updateProductSchema = Joi.object({
     'stock',
     'category_id',
     'image_url',
+    'image_urls',
     'listing_status',
     'tag_ids'
   )

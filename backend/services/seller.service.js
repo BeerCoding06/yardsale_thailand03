@@ -36,6 +36,10 @@ export async function createProduct(sellerId, body, role) {
     const tag_ids = Array.isArray(body.tag_ids)
       ? body.tag_ids.map((id) => String(id).trim()).filter(Boolean)
       : [];
+    const imageUrls = Array.isArray(body.image_urls)
+      ? body.image_urls.map((u) => String(u || '').trim()).filter(Boolean)
+      : [];
+    const imageUrl = body.image_url || imageUrls[0] || null;
     const row = await productModel.createProduct(client, {
       seller_id: ownerId,
       category_id: body.category_id && body.category_id !== '' ? body.category_id : null,
@@ -45,7 +49,8 @@ export async function createProduct(sellerId, body, role) {
       regular_price: np.regular_price,
       sale_price: np.sale_price,
       stock: body.stock,
-      image_url: body.image_url || null,
+      image_url: imageUrl,
+      image_urls: imageUrls,
       listing_status,
       tag_ids,
     });

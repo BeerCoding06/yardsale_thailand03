@@ -91,11 +91,18 @@ function applyApiProductToForm(p) {
     productForm.value.categories = [];
   }
 
-  const rawImg = p.image_url || "";
-  if (rawImg) {
-    const src = resolveMediaUrl(rawImg) || rawImg;
-    uploadedImages.value = [{ src, file: null }];
-    productForm.value.images = [{ src }];
+  const galleryList = Array.isArray(p.image_urls)
+    ? p.image_urls
+    : p.image_url
+      ? [p.image_url]
+      : [];
+  const normalized = galleryList
+    .map((u) => String(u || "").trim())
+    .filter(Boolean)
+    .map((u) => resolveMediaUrl(u) || u);
+  if (normalized.length) {
+    uploadedImages.value = normalized.map((src) => ({ src, file: null }));
+    productForm.value.images = normalized.map((src) => ({ src }));
   } else {
     uploadedImages.value = [];
     productForm.value.images = [];
@@ -997,11 +1004,13 @@ const handleSubmit = async (e) => {
     hasRemoteApi &&
     isEditMode.value &&
     loadedApiProduct.value &&
-    loadedApiProduct.value.image_url &&
+    (
+      loadedApiProduct.value.image_url ||
+      (Array.isArray(loadedApiProduct.value.image_urls) &&
+        loadedApiProduct.value.image_urls.length > 0)
+    ) &&
     !imageUserCleared.value;
-  const editAllowsNoImageRow =
-    hasRemoteApi && isEditMode.value && imageUserCleared.value;
-  if (!hasImageRows && !editKeepsServerImage && !editAllowsNoImageRow) {
+  if (!hasImageRows && !editKeepsServerImage) {
     errors.value.images = t('create_product.please_select_images');
     hasErrors = true;
   }
@@ -1059,7 +1068,7 @@ const handleSubmit = async (e) => {
         ? Math.max(0, Number(productForm.value.stock_quantity) || 0)
         : 0;
 
-      let imageUrl = null;
+      const imageUrls = [];
       if (uploadedImages.value && uploadedImages.value.length > 0) {
         for (const img of uploadedImages.value) {
           if (img?.file) {
@@ -1076,8 +1085,7 @@ const handleSubmit = async (e) => {
               const ur = unwrapApiPayload(uploadResult);
               const url = ur?.image?.sourceUrl || uploadResult?.image?.sourceUrl;
               if (url) {
-                imageUrl = url;
-                break;
+                imageUrls.push(url);
               }
             } catch (uploadError) {
               console.error("[Form] Failed to upload image:", uploadError);
@@ -1101,27 +1109,22 @@ const handleSubmit = async (e) => {
               s.startsWith("https://") ||
               s.startsWith("/")
             ) {
-              imageUrl = s;
-              break;
+              imageUrls.push(s);
             }
           }
         }
       }
 
-      if (
-        !imageUrl &&
-        isEditMode.value &&
-        loadedApiProduct.value?.image_url &&
-        !imageUserCleared.value
-      ) {
-        imageUrl = loadedApiProduct.value.image_url;
+      if (!imageUrls.length && isEditMode.value && !imageUserCleared.value) {
+        const existing = Array.isArray(loadedApiProduct.value?.image_urls)
+          ? loadedApiProduct.value.image_urls
+          : loadedApiProduct.value?.image_url
+            ? [loadedApiProduct.value.image_url]
+            : [];
+        imageUrls.push(...existing);
       }
 
-      const hasNewUploadFile = uploadedImages.value?.some((x) => x?.file);
-      if (
-        !imageUrl &&
-        !(isEditMode.value && imageUserCleared.value && !hasNewUploadFile)
-      ) {
+      if (!imageUrls.length) {
         message.value = {
           type: "error",
           text: t("create_product.cannot_upload_image"),
@@ -1156,7 +1159,10 @@ const handleSubmit = async (e) => {
           stock,
           tag_ids,
           ...(category_id ? { category_id } : {}),
-          image_url: imageUrl,
+          image_url: normalizeImageUrlForApi(imageUrls[0]),
+          image_urls: imageUrls
+            .map((u) => normalizeImageUrlForApi(u))
+            .filter(Boolean),
           ...(props.adminEdit ? { listing_status: listingForApi } : {}),
         };
 
@@ -1190,7 +1196,10 @@ const handleSubmit = async (e) => {
         stock,
         tag_ids,
         ...(category_id ? { category_id } : {}),
-        image_url: normalizeImageUrlForApi(imageUrl),
+        image_url: normalizeImageUrlForApi(imageUrls[0]),
+        image_urls: imageUrls
+          .map((u) => normalizeImageUrlForApi(u))
+          .filter(Boolean),
       };
 
       await $fetch(cmsPath("create-product"), {

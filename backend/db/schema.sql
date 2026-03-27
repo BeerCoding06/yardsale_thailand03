@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS products (
   sale_price NUMERIC(12, 2),
   stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
   image_url TEXT,
+  image_urls TEXT[],
   is_cancelled BOOLEAN NOT NULL DEFAULT false,
   listing_status product_listing_status NOT NULL DEFAULT 'pending_review',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -123,6 +124,23 @@ BEGIN
     ALTER TABLE public.products ADD COLUMN sale_price NUMERIC(12, 2);
   END IF;
 END $ensure_prod_prices$;
+
+/* products เก่า: รองรับหลายรูป (text[]) */
+DO $ensure_prod_image_urls$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'image_urls'
+  ) THEN
+    ALTER TABLE public.products ADD COLUMN image_urls TEXT[];
+    UPDATE public.products
+    SET image_urls = CASE
+      WHEN image_url IS NULL OR image_url = '' THEN NULL
+      ELSE ARRAY[image_url]
+    END
+    WHERE image_urls IS NULL;
+  END IF;
+END $ensure_prod_image_urls$;
 
 CREATE INDEX IF NOT EXISTS idx_products_category ON products (category_id);
 CREATE INDEX IF NOT EXISTS idx_products_seller ON products (seller_id);
