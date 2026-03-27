@@ -69,6 +69,11 @@ export default defineNuxtConfig({
       /** รูป Thai QR / PromptPay บนหน้าโอน — ค่าเริ่มต้นไฟล์ใน public/images */
       promptpayQrImageUrl:
         process.env.NUXT_PUBLIC_PROMPTPAY_QR_URL || "/images/promptpay-qr.png",
+      /** เลขพร้อมเพย์ / เลขนิติบุคคล (ไม่มีช่องว่าง) — ถ้ามีจะสร้าง QR แบบไดนามิกแทนรูปคงที่ */
+      promptpayId: process.env.NUXT_PUBLIC_PROMPTPAY_ID || "",
+      /** true = ฝังยอดชำระใน QR ตามยอดบนหน้า payment (ถ้าอ่านยอดได้) */
+      promptpayQrIncludeAmount:
+        process.env.NUXT_PUBLIC_PROMPTPAY_QR_INCLUDE_AMOUNT === "true",
     },
   },
 

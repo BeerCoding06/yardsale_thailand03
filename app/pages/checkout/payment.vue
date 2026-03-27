@@ -1,5 +1,6 @@
 <script setup>
 import { push } from 'notivue';
+import { buildPromptPayQrDataUrl } from "~/utils/promptpayDynamicQr";
 
 definePageMeta({
   ssr: false,
@@ -41,10 +42,18 @@ const methodForOrder = computed(() => {
   return 'bank_transfer';
 });
 
-const qrSrc = computed(() => {
+/** รูป QR สำรองเมื่อไม่ได้ตั้ง NUXT_PUBLIC_PROMPTPAY_ID หรือสร้าง QR ไม่สำเร็จ */
+const fallbackQrSrc = computed(() => {
   const u = String(config.public.promptpayQrImageUrl || '').trim();
   return u || '/images/promptpay-qr.png';
 });
+
+const effectivePromptPayId = computed(() =>
+  String(config.public.promptpayId || "").trim()
+);
+
+const qrDataUrl = ref(null);
+const qrGenerating = ref(false);
 
 const bankTransferDisplay = computed(() => {
   const fromEnv = String(config.public.storeBankTransferInfo || '').trim();
@@ -82,6 +91,41 @@ const displayAmount = computed(() => {
   return cartTotal.value;
 });
 
+async function refreshPromptPayQr() {
+  const id = effectivePromptPayId.value;
+  if (!id) {
+    qrDataUrl.value = null;
+    qrGenerating.value = false;
+    return;
+  }
+  qrGenerating.value = true;
+  try {
+    let amount;
+    if (config.public.promptpayQrIncludeAmount) {
+      const n = parseFloat(String(displayAmount.value || "").replace(/[^0-9.]/g, ""));
+      if (Number.isFinite(n) && n > 0) amount = n;
+    }
+    qrDataUrl.value = await buildPromptPayQrDataUrl(
+      id,
+      amount != null ? { amount } : undefined
+    );
+  } finally {
+    qrGenerating.value = false;
+  }
+}
+
+watch(
+  () => [
+    effectivePromptPayId.value,
+    config.public.promptpayQrIncludeAmount,
+    displayAmount.value,
+  ],
+  () => {
+    refreshPromptPayQr();
+  },
+  { immediate: true }
+);
+
 onMounted(async () => {
   checkAuth();
   if (!isAuthenticated.value) {
@@ -114,7 +158,9 @@ async function copyToClipboard(text) {
 }
 
 function copyPromptPay() {
-  copyToClipboard(t('checkout.payment_slip.promptpay_number'));
+  const id =
+    effectivePromptPayId.value || t("checkout.payment_slip.promptpay_number");
+  copyToClipboard(id);
 }
 
 function copyBankDetails() {
@@ -441,10 +487,18 @@ const submitLabel = computed(() => {
 
           <div class="flex flex-col items-center mb-4">
             <div
-              class="rounded-2xl overflow-hidden bg-white p-3 shadow-lg border border-neutral-200 dark:border-neutral-600 max-w-[min(100%,280px)] w-full"
+              class="rounded-2xl overflow-hidden bg-white p-3 shadow-lg border border-neutral-200 dark:border-neutral-600 max-w-[min(100%,280px)] w-full min-h-[280px] flex items-center justify-center"
             >
+              <UIcon
+                v-if="effectivePromptPayId && qrGenerating"
+                name="i-svg-spinners-90-ring-with-bg"
+                class="w-12 h-12 text-neutral-400"
+              />
               <img
-                :src="qrSrc"
+                v-else
+                :src="
+                  effectivePromptPayId && qrDataUrl ? qrDataUrl : fallbackQrSrc
+                "
                 :alt="$t('checkout.payment_slip.qr_alt')"
                 class="w-full h-auto object-contain"
                 width="280"
