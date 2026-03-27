@@ -1,6 +1,10 @@
 # Dokploy: deploy ไฟล์นี้ไฟล์เดียว — PostgreSQL + Express API + Nuxt
 # เครือข่าย traefik ของ Dokploy (สร้างบน host แล้ว: dokploy-network)
 #
+# โดเมน:
+#   Frontend — https://yardsaleth.com  (www → redirect มา apex)
+#   Backend  — https://api.yardsaleth.com
+#
 # ตั้งค่าใน Dokploy / .env ก่อน build:
 #   POSTGRES_PASSWORD, JWT_SECRET, CORS_ORIGINS (คั่นด้วย comma)
 #   BASE_URL, NUXT_PUBLIC_CMS_API_BASE, NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN, NUXT_IMAGE_DOMAINS
@@ -47,7 +51,7 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       UPLOAD_DIR: ${UPLOAD_DIR:-./uploads}
       PUBLIC_UPLOAD_BASE: ${PUBLIC_UPLOAD_BASE:-/uploads}
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://www.yardsaleth.com,https://yardsaleth.com}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://yardsaleth.com,https://www.yardsaleth.com}
     volumes:
       - yardsale_uploads:/app/uploads
     healthcheck:
@@ -76,10 +80,10 @@ services:
         DB_HOST: ${DB_HOST:-157.85.98.150:3306}
         DB_NAME: ${DB_NAME:-nuxtcommerce_db}
         DB_USER: ${DB_USER:-root}
-        BASE_URL: ${BASE_URL:-https://www.yardsaleth.com}
+        BASE_URL: ${BASE_URL:-https://yardsaleth.com}
         NUXT_PUBLIC_CMS_API_BASE: ${NUXT_PUBLIC_CMS_API_BASE:-https://api.yardsaleth.com/api}
         NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN: ${NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN:-https://api.yardsaleth.com}
-        NUXT_IMAGE_DOMAINS: ${NUXT_IMAGE_DOMAINS:-api.yardsaleth.com,www.yardsaleth.com}
+        NUXT_IMAGE_DOMAINS: ${NUXT_IMAGE_DOMAINS:-api.yardsaleth.com,yardsaleth.com,www.yardsaleth.com}
     restart: unless-stopped
     networks:
       - dokploy-network
@@ -90,7 +94,7 @@ services:
       NODE_ENV: production
       NUXT_HOST: 0.0.0.0
       NUXT_PORT: 3000
-      BASE_URL: ${BASE_URL:-https://www.yardsaleth.com}
+      BASE_URL: ${BASE_URL:-https://yardsaleth.com}
       DB_HOST: ${DB_HOST:-157.85.98.150:3306}
       DB_NAME: ${DB_NAME:-nuxtcommerce_db}
       DB_USER: ${DB_USER:-root}
@@ -107,19 +111,21 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=dokploy-network"
-      - "traefik.http.routers.yardsaleth-app.rule=Host(`www.yardsaleth.com`)"
+      # เว็บหลัก — apex
+      - "traefik.http.routers.yardsaleth-app.rule=Host(`yardsaleth.com`)"
       - "traefik.http.routers.yardsaleth-app.entrypoints=websecure"
       - "traefik.http.routers.yardsaleth-app.tls.certresolver=letsencrypt"
       - "traefik.http.routers.yardsaleth-app.service=yardsaleth-app"
       - "traefik.http.services.yardsaleth-app.loadbalancer.server.port=3000"
-      - "traefik.http.routers.yardsaleth-redirect.rule=Host(`yardsaleth.com`)"
-      - "traefik.http.routers.yardsaleth-redirect.entrypoints=websecure"
-      - "traefik.http.routers.yardsaleth-redirect.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.yardsaleth-redirect.service=yardsaleth-app"
-      - "traefik.http.routers.yardsaleth-redirect.middlewares=yardsaleth-redirect-to-www"
-      - "traefik.http.middlewares.yardsaleth-redirect-to-www.redirectregex.permanent=true"
-      - "traefik.http.middlewares.yardsaleth-redirect-to-www.redirectregex.regex=^https?://yardsaleth.com/(.*)"
-      - "traefik.http.middlewares.yardsaleth-redirect-to-www.redirectregex.replacement=https://www.yardsaleth.com/$${1}"
+      # www → https://yardsaleth.com/...
+      - "traefik.http.routers.yardsaleth-www.rule=Host(`www.yardsaleth.com`)"
+      - "traefik.http.routers.yardsaleth-www.entrypoints=websecure"
+      - "traefik.http.routers.yardsaleth-www.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.yardsaleth-www.middlewares=yardsaleth-www-to-apex"
+      - "traefik.http.routers.yardsaleth-www.service=yardsaleth-app"
+      - "traefik.http.middlewares.yardsaleth-www-to-apex.redirectregex.permanent=true"
+      - "traefik.http.middlewares.yardsaleth-www-to-apex.redirectregex.regex=^https?://www\\.yardsaleth\\.com/(.*)"
+      - "traefik.http.middlewares.yardsaleth-www-to-apex.redirectregex.replacement=https://yardsaleth.com/$${1}"
 
 networks:
   dokploy-network:
