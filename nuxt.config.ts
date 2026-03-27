@@ -66,6 +66,9 @@ export default defineNuxtConfig({
       yardsaleBackendOrigin: process.env.NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN || "",
       /** หน้าโอนเงิน: ข้อความเลขบัญชีร้าน (หลายบรรทัดได้) — ว่าง = ใช้ข้อความจาก i18n */
       storeBankTransferInfo: process.env.NUXT_PUBLIC_STORE_BANK_TRANSFER_INFO || "",
+      /** รูป Thai QR / PromptPay บนหน้าโอน — ค่าเริ่มต้นไฟล์ใน public/images */
+      promptpayQrImageUrl:
+        process.env.NUXT_PUBLIC_PROMPTPAY_QR_URL || "/images/promptpay-qr.png",
     },
   },
 

@@ -1,4 +1,6 @@
 <script setup>
+import { push } from 'notivue';
+
 definePageMeta({
   ssr: false,
 });
@@ -14,11 +16,34 @@ const config = useRuntimeConfig();
 const orderId = computed(() => String(route.query.order_id || ''));
 const amount = computed(() => String(route.query.amount || ''));
 
+/** รูป Thai QR — override ได้ด้วย NUXT_PUBLIC_PROMPTPAY_QR_URL */
+const qrSrc = computed(() => {
+  const u = String(config.public.promptpayQrImageUrl || '').trim();
+  return u || '/images/promptpay-qr.png';
+});
+
 /** เลขบัญชีร้าน: env ครอบ i18n (หลายบรรทัด) */
 const bankTransferDisplay = computed(() => {
   const fromEnv = String(config.public.storeBankTransferInfo || '').trim();
   return fromEnv || t('checkout.payment_slip.bank_account_default');
 });
+
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    push.success(t('checkout.payment_slip.copied'));
+  } catch {
+    push.error(t('checkout.payment_slip.copy_failed'));
+  }
+}
+
+function copyPromptPay() {
+  copyToClipboard(t('checkout.payment_slip.promptpay_number'));
+}
+
+function copyBankDetails() {
+  copyToClipboard(bankTransferDisplay.value);
+}
 
 const slipFile = ref(null);
 const slipUrl = ref('');
@@ -123,13 +148,52 @@ async function onSubmit() {
       </div>
 
       <div
-        class="mb-6 p-4 rounded-2xl bg-white/90 dark:bg-black/40 border-2 border-neutral-200 dark:border-neutral-700"
+        class="mb-6 p-4 sm:p-5 rounded-2xl bg-white/90 dark:bg-black/40 border-2 border-neutral-200 dark:border-neutral-700"
       >
-        <h2 class="text-sm font-semibold text-black dark:text-white mb-2">
+        <h2 class="text-sm font-semibold text-black dark:text-white mb-4">
           {{ $t('checkout.payment_slip.bank_section_title') }}
         </h2>
+
+        <div class="flex flex-col items-center mb-4">
+          <div
+            class="rounded-2xl overflow-hidden bg-white p-3 shadow-lg border border-neutral-200 dark:border-neutral-600 max-w-[min(100%,280px)] w-full"
+          >
+            <img
+              :src="qrSrc"
+              :alt="$t('checkout.payment_slip.qr_alt')"
+              class="w-full h-auto object-contain"
+              width="280"
+              height="280"
+              loading="eager"
+              decoding="async"
+            />
+          </div>
+          <p
+            class="mt-3 text-sm font-medium text-teal-700 dark:text-teal-400 text-center px-2"
+          >
+            {{ $t('checkout.payment_slip.qr_caption') }}
+          </p>
+        </div>
+
+        <div class="flex flex-wrap gap-2 justify-center mb-4">
+          <button
+            type="button"
+            class="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition"
+            @click="copyPromptPay"
+          >
+            {{ $t('checkout.payment_slip.copy_promptpay') }}
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold bg-neutral-200 dark:bg-neutral-700 text-black dark:text-white hover:bg-neutral-300 dark:hover:bg-neutral-600 transition"
+            @click="copyBankDetails"
+          >
+            {{ $t('checkout.payment_slip.copy_bank_details') }}
+          </button>
+        </div>
+
         <pre
-          class="whitespace-pre-wrap break-words text-sm text-neutral-800 dark:text-neutral-200 font-sans"
+          class="whitespace-pre-wrap break-words text-sm text-neutral-800 dark:text-neutral-200 font-sans bg-neutral-50 dark:bg-black/30 rounded-xl p-3 border border-neutral-200/80 dark:border-neutral-600"
         >{{ bankTransferDisplay }}</pre>
       </div>
 
