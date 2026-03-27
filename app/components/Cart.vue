@@ -46,7 +46,7 @@ onMounted(() => {
               :key="product.key"
               class="flex bg-black/5 dark:bg-white/10 m-3 p-3 gap-3 rounded-3xl items-center group relative max-md:pr-9"
             >
-              <NuxtImg
+              <StorefrontImg
                 :src="(product.variation?.node?.image?.sourceUrl || product.product?.node?.image?.sourceUrl) || ''"
                 class="w-24 h-28 object-cover shadow-md rounded-2xl"
               />

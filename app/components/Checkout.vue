@@ -228,7 +228,7 @@ watch(() => cart.value?.length, (newLength) => {
               :key="item.key"
               class="flex items-center gap-2 p-2 bg-white/50 dark:bg-black/20 rounded-lg"
             >
-              <NuxtImg
+              <StorefrontImg
                 :src="(item.variation?.node?.image?.sourceUrl || item.product?.node?.image?.sourceUrl) || ''"
                 class="w-12 h-12 object-cover rounded-lg"
               />

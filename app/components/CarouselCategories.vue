@@ -275,7 +275,7 @@ onBeforeUnmount(() => {
                 ]"
               >
                 <div class="flex items-center gap-2">
-                  <NuxtImg
+                  <StorefrontImg
                     v-if="category.image?.sourceUrl"
                     :alt="category.name"
                     loading="lazy"
@@ -316,7 +316,7 @@ onBeforeUnmount(() => {
                       : 'bg-gray-100 dark:bg-gray-800',
                   ]"
                 >
-                  <NuxtImg
+                  <StorefrontImg
                     v-if="child.image?.sourceUrl"
                     :alt="child.name"
                     loading="lazy"

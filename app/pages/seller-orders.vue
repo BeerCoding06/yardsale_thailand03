@@ -518,7 +518,7 @@ onMounted(async () => {
                         >
                           <!-- Product Image -->
                           <div class="flex-shrink-0">
-                            <NuxtImg
+                            <StorefrontImg
                               v-if="item.image?.src || item.image"
                               :src="item.image?.src || item.image"
                               :alt="item.name"

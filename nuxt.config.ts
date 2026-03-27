@@ -100,7 +100,10 @@ export default defineNuxtConfig({
 
   compatibilityDate: "2024-08-03",
 
-  /** รูปจาก Express (/uploads/...) ต้องเป็น URL เต็ม + อนุญาตโดเมน — ไม่งั้น IPX หาไฟล์ที่พอร์ต 3000 แล้ว 404 */
+  /**
+   * IPX (/_ipx/) ดึงรูปโดเมนภายนอกฝั่งเซิร์ฟเวอร์ — Cloudflare/bot มักทำให้ 500
+   * รูป https:// ในแอปใช้คอมโพเนนต์ StorefrontImg (แท็ก img ตรง ๆ) แทน NuxtImg
+   */
   image: {
     domains: (process.env.NUXT_IMAGE_DOMAINS || "127.0.0.1,localhost")
       .split(",")

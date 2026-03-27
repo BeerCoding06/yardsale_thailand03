@@ -798,7 +798,7 @@ const canCancelOrder = (order) => canCancelByPaymentRules(order);
                       :key="index"
                       class="flex items-center gap-3 text-sm"
                     >
-                      <NuxtImg
+                      <StorefrontImg
                         v-if="getItemImage(item)"
                         :src="getItemImage(item)"
                         :alt="item.name || $t('common.product')"

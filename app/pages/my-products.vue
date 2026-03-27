@@ -401,7 +401,7 @@ watch(isAuthenticated, (newVal: boolean) => {
               <div
                 class="relative aspect-square bg-neutral-100 dark:bg-neutral-900"
               >
-                <NuxtImg
+                <StorefrontImg
                   v-if="productImageDisplayUrl(product)"
                   :src="productImageDisplayUrl(product) ?? ''"
                   :alt="product.name"

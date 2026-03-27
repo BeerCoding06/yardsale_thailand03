@@ -242,7 +242,7 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
         <swiper-slide
           class="cursor-pointer rounded-xl overflow-hidden border-2 border-white dark:border-black"
         >
-          <NuxtImg
+          <StorefrontImg
             :alt="product.name"
             class="h-full w-full border-2 border-white bg-neutral-200 dark:bg-neutral-800 dark:border-black rounded-[10px]"
             :src="product.image?.sourceUrl"
@@ -253,7 +253,7 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
           v-for="(node, i) in product.galleryImages?.nodes"
           :key="i"
         >
-          <NuxtImg
+          <StorefrontImg
             :alt="product.name"
             class="h-full w-full border-2 border-white bg-neutral-200 dark:bg-neutral-800 dark:border-black rounded-[10px]"
             :src="node.sourceUrl"
@@ -281,7 +281,7 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
           class="lg:w-[530px] lg:h-[530px] xl:w-[600px] xl:h-[600px] lg:rounded-2xl"
         >
           <swiper-slide @click="isOpenImageSliderModal = true">
-            <NuxtImg
+            <StorefrontImg
               :alt="product.name"
               class="h-full w-full bg-neutral-200 dark:bg-neutral-800 object-cover"
               :src="product.image?.sourceUrl"
@@ -292,7 +292,7 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
             v-for="(node, i) in product.galleryImages?.nodes"
             :key="i"
           >
-            <NuxtImg
+            <StorefrontImg
               :alt="product.name"
               class="h-full w-full bg-neutral-200 dark:bg-neutral-800 object-cover"
               :src="node.sourceUrl"
@@ -360,7 +360,7 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
                         : 'border-[#9b9b9b] dark:border-[#8c8c8c]',
                     ]"
                   >
-                    <NuxtImg
+                    <StorefrontImg
                       :alt="vars.allPaColor.nodes[0].name"
                       :src="vars.image.sourceUrl"
                       :title="vars.allPaColor.nodes[0].name"
