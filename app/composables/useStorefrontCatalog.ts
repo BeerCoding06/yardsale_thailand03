@@ -52,6 +52,14 @@ export function useStorefrontCatalog() {
         .yardsaleBackendOrigin || ""
     ).trim();
     if (explicit) return explicit.replace(/\/$/, "");
+    /** cmsApiBase แบบ `/yardsale-api` — รูป `/uploads` มักโยงผ่าน proxy ที่โฮสต์เดียวกับ Nuxt */
+    if (
+      import.meta.client &&
+      typeof window !== "undefined" &&
+      raw.startsWith("/")
+    ) {
+      return window.location.origin;
+    }
     return "http://127.0.0.1:4000";
   }
 

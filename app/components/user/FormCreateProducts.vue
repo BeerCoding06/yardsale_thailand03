@@ -23,6 +23,8 @@ const isEditMode = computed(() =>
 
 const loadedApiProduct = ref(null);
 const isLoadingEditProduct = ref(false);
+/** โหมดแก้ไข: ผู้ใช้ลบรูปในฟอร์มแล้ว — ต้องส่ง image_url: null ไม่ดึงรูปเดิมจากเซิร์ฟเวอร์ */
+const imageUserCleared = ref(false);
 
 function cmsPath(rel) {
   return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
@@ -34,6 +36,21 @@ function unwrapApiPayload(res) {
     return res.data;
   }
   return res;
+}
+
+/** เก็บใน API เป็น path /uploads/... — ตัดโฮสต์ออกจาก URL เต็ม */
+function normalizeImageUrlForApi(url) {
+  if (url == null || url === "") return null;
+  const s = String(url).trim();
+  if (s.startsWith("/")) return s;
+  if (s.startsWith("data:")) return null;
+  try {
+    const u = new URL(s);
+    if (u.pathname.startsWith("/uploads")) return `${u.pathname}${u.search || ""}`;
+    return s;
+  } catch {
+    return s;
+  }
 }
 
 function applyApiProductToForm(p) {
@@ -900,6 +917,7 @@ const handleFileSelect = (files) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const src = e.target && e.target.result;
+        imageUserCleared.value = false;
         uploadedImages.value.push({ src, file });
         productForm.value.images.push({ src });
       };
@@ -979,8 +997,11 @@ const handleSubmit = async (e) => {
     hasRemoteApi &&
     isEditMode.value &&
     loadedApiProduct.value &&
-    loadedApiProduct.value.image_url;
-  if (!hasImageRows && !editKeepsServerImage) {
+    loadedApiProduct.value.image_url &&
+    !imageUserCleared.value;
+  const editAllowsNoImageRow =
+    hasRemoteApi && isEditMode.value && imageUserCleared.value;
+  if (!hasImageRows && !editKeepsServerImage && !editAllowsNoImageRow) {
     errors.value.images = t('create_product.please_select_images');
     hasErrors = true;
   }
@@ -1071,6 +1092,10 @@ const handleSubmit = async (e) => {
             }
           } else if (img?.src) {
             const s = String(img.src);
+            if (s.startsWith("data:")) {
+              /* รูปใหม่ใช้สาขา img.file + upload เท่านั้น — ไม่ส่ง data: ไป API */
+              continue;
+            }
             if (
               s.startsWith("http://") ||
               s.startsWith("https://") ||
@@ -1083,11 +1108,20 @@ const handleSubmit = async (e) => {
         }
       }
 
-      if (!imageUrl && isEditMode.value && loadedApiProduct.value?.image_url) {
+      if (
+        !imageUrl &&
+        isEditMode.value &&
+        loadedApiProduct.value?.image_url &&
+        !imageUserCleared.value
+      ) {
         imageUrl = loadedApiProduct.value.image_url;
       }
 
-      if (!imageUrl) {
+      const hasNewUploadFile = uploadedImages.value?.some((x) => x?.file);
+      if (
+        !imageUrl &&
+        !(isEditMode.value && imageUserCleared.value && !hasNewUploadFile)
+      ) {
         message.value = {
           type: "error",
           text: t("create_product.cannot_upload_image"),
@@ -1156,7 +1190,7 @@ const handleSubmit = async (e) => {
         stock,
         tag_ids,
         ...(category_id ? { category_id } : {}),
-        image_url: imageUrl,
+        image_url: normalizeImageUrlForApi(imageUrl),
       };
 
       await $fetch(cmsPath("create-product"), {
