@@ -171,8 +171,13 @@
     "payment_slip": {
       "title": "อัปโหลดสลิปโอนเงิน",
       "subtitle": "คำสั่งซื้อ #{n} · ยอด ฿{amount}",
-      "instructions": "โอนยอดตามที่แสดง แล้วอัปโหลดรูปสลิปให้ชัดเจน (หรือวาง URL รูปสลิป) ระบบจะตรวจสอบสลิปผ่าน SlipOK ก่อนยืนยันการชำระเงิน",
+      "instructions": "โอนยอดเข้าบัญชีร้านด้านล่าง แล้วส่งหลักฐานสลิป (ข้อมูล QR / รูป / URL) ระบบจะตรวจสอบผ่าน SlipOK ก่อนยืนยันการชำระเงิน",
+      "bank_section_title": "บัญชีรับโอนร้าน",
+      "bank_account_default": "ธนาคาร: (ระบุชื่อธนาคาร)\nชื่อบัญชี: YardSale Thailand\nเลขที่บัญชี: 000-0-00000-0\n\nแก้ข้อความในไฟล์ภาษา หรือตั้งค่า NUXT_PUBLIC_STORE_BANK_TRANSFER_INFO",
       "amount_label": "ยอดที่ต้องโอน",
+      "slip_data_label": "ข้อมูล QR / สลิป (SlipOK)",
+      "slip_data_placeholder": "วางข้อมูลจาก SlipOK หรือสตริง QR (ถ้าใช้โหมด data)",
+      "slip_data_hint": "ถ้าใช้การตรวจแบบ data ของ SlipOK ให้วาง payload ที่นี่ หรืออัปโหลดรูปสลิป / ใส่ URL ด้านล่าง",
       "file_label": "รูปสลิป",
       "file_hint": "JPG, PNG, WebP หรือ PDF",
       "optional_url": "หรือวาง URL รูปสลิป (ถ้ามี)",
@@ -182,6 +187,7 @@
       "back_home": "กลับหน้าแรก",
       "errors": {
         "generic": "ยืนยันการชำระเงินไม่สำเร็จ กรุณาลองอีกครั้ง",
+        "PAYMENT_PROOF_REQUIRED": "กรุณาวางข้อมูล QR/สลิป อัปโหลดรูป หรือใส่ URL รูป",
         "FILE_REQUIRED": "กรุณาอัปโหลดรูปสลิปหรือใส่ URL รูป",
         "SLIP_INVALID": "ตรวจสอบสลิปไม่ผ่าน กรุณาตรวจสอบยอดและรูป",
         "SLIPOK_NOT_CONFIGURED": "เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า SlipOK",

@@ -18,7 +18,7 @@
 #   POSTGRES_PASSWORD และ JWT_SECRET ต้องมีค่า — ใส่เป็นสองแถว แยก Key / Value
 #   ถ้า Dokploy ยัง error เรื่อง missing variable ให้เช็กว่าใส่ในแอป Compose ตัวนี้ ไม่ใช่แค่ Project
 #   CORS_ORIGINS, BASE_URL, NUXT_* ฯลฯ
-#   BASE_URL, NUXT_PUBLIC_CMS_API_BASE, NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN, NUXT_IMAGE_DOMAINS
+#   BASE_URL, NUXT_PUBLIC_CMS_API_BASE, NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN, NUXT_PUBLIC_STORE_BANK_TRANSFER_INFO (ข้อความเลขบัญชีหน้าโอน), NUXT_IMAGE_DOMAINS
 #   DB_PASSWORD ถ้า Nuxt build ต้องคุย MySQL ภายนอก
 #
 # Traefik (เฉพาะ app): cert resolver ชื่อ letsencrypt — ถ้า Dokploy ใช้ชื่ออื่น แก้ labels ของ app
@@ -94,6 +94,7 @@ services:
         BASE_URL: ${BASE_URL:-https://yardsaleth.com}
         NUXT_PUBLIC_CMS_API_BASE: ${NUXT_PUBLIC_CMS_API_BASE:-https://api.yardsaleth.com/api}
         NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN: ${NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN:-https://api.yardsaleth.com}
+        NUXT_PUBLIC_STORE_BANK_TRANSFER_INFO: ${NUXT_PUBLIC_STORE_BANK_TRANSFER_INFO:-}
         NUXT_IMAGE_DOMAINS: ${NUXT_IMAGE_DOMAINS:-api.yardsaleth.com,yardsaleth.com,www.yardsaleth.com}
     restart: unless-stopped
     networks:

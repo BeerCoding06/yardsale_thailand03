@@ -9,12 +9,20 @@ const { t } = useI18n();
 const localePath = useLocalePath();
 const { submitBankSlip, order } = useCheckout();
 const { isAuthenticated, checkAuth } = useAuth();
+const config = useRuntimeConfig();
 
 const orderId = computed(() => String(route.query.order_id || ''));
 const amount = computed(() => String(route.query.amount || ''));
 
+/** เลขบัญชีร้าน: env ครอบ i18n (หลายบรรทัด) */
+const bankTransferDisplay = computed(() => {
+  const fromEnv = String(config.public.storeBankTransferInfo || '').trim();
+  return fromEnv || t('checkout.payment_slip.bank_account_default');
+});
+
 const slipFile = ref(null);
 const slipUrl = ref('');
+const slipData = ref('');
 const error = ref(null);
 const submitting = ref(false);
 
@@ -49,8 +57,11 @@ function slipErrorMessage(err) {
 
 async function onSubmit() {
   error.value = null;
-  if (!slipFile.value && !String(slipUrl.value || '').trim()) {
-    error.value = t('checkout.payment_slip.errors.FILE_REQUIRED');
+  const hasFile = !!slipFile.value;
+  const hasUrl = !!String(slipUrl.value || '').trim();
+  const hasData = !!String(slipData.value || '').trim();
+  if (!hasFile && !hasUrl && !hasData) {
+    error.value = t('checkout.payment_slip.errors.PAYMENT_PROOF_REQUIRED');
     return;
   }
   submitting.value = true;
@@ -60,6 +71,7 @@ async function onSubmit() {
       amount: amount.value,
       file: slipFile.value || undefined,
       slipUrl: slipUrl.value,
+      slipData: slipData.value,
     });
     const paid = res?.paid === true;
     if (paid) {
@@ -105,9 +117,20 @@ async function onSubmit() {
       </p>
 
       <div
-        class="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-sm text-amber-900 dark:text-amber-100"
+        class="mb-4 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-sm text-amber-900 dark:text-amber-100"
       >
         {{ $t('checkout.payment_slip.instructions') }}
+      </div>
+
+      <div
+        class="mb-6 p-4 rounded-2xl bg-white/90 dark:bg-black/40 border-2 border-neutral-200 dark:border-neutral-700"
+      >
+        <h2 class="text-sm font-semibold text-black dark:text-white mb-2">
+          {{ $t('checkout.payment_slip.bank_section_title') }}
+        </h2>
+        <pre
+          class="whitespace-pre-wrap break-words text-sm text-neutral-800 dark:text-neutral-200 font-sans"
+        >{{ bankTransferDisplay }}</pre>
       </div>
 
       <form class="space-y-4" @submit.prevent="onSubmit">
@@ -124,6 +147,21 @@ async function onSubmit() {
           </label>
           <p class="text-lg font-semibold text-alizarin-crimson-600 dark:text-alizarin-crimson-400">
             ฿{{ amount || '—' }}
+          </p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-black dark:text-white mb-1">
+            {{ $t('checkout.payment_slip.slip_data_label') }}
+          </label>
+          <textarea
+            v-model="slipData"
+            rows="4"
+            class="w-full rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-black/30 px-4 py-3 text-black dark:text-white text-sm font-mono leading-relaxed"
+            :placeholder="$t('checkout.payment_slip.slip_data_placeholder')"
+          />
+          <p class="mt-1 text-xs text-neutral-500">
+            {{ $t('checkout.payment_slip.slip_data_hint') }}
           </p>
         </div>
 

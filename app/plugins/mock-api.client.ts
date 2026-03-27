@@ -412,10 +412,29 @@ export default defineNuxtPlugin(() => {
     if (p === "/api/payment/mock" && (opts?.method === "POST" || opts?.method === "post")) {
       const b = opts?.body;
       let orderId = "";
+      let hasProof = false;
       if (b instanceof FormData) {
         orderId = String(b.get("order_id") || "");
+        const slipData = String(b.get("slip_data") || "").trim();
+        const slipUrl = String(b.get("slip_url") || "").trim();
+        const slipFile = b.get("slip_image");
+        hasProof = !!(slipData || slipUrl || (slipFile && typeof slipFile !== "string"));
       } else if (b && typeof b === "object") {
-        orderId = String((b as AnyObj).order_id || "");
+        const bo = b as AnyObj;
+        orderId = String(bo.order_id || "");
+        hasProof = !!(
+          String(bo.slip_data || "").trim() ||
+          String(bo.slip_url || "").trim()
+        );
+      }
+      if (orderId && !hasProof) {
+        return {
+          success: false,
+          error: {
+            message: "Provide slip_data, slip_url, or slip_image",
+            code: "PAYMENT_PROOF_REQUIRED",
+          },
+        };
       }
       if (orderId) mockPaidOrderIds.add(orderId);
       return {

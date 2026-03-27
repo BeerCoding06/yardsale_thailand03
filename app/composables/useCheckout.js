@@ -27,13 +27,16 @@ export const useCheckout = () => {
   const paymentMethod = ref('cod');
   const showPaymentChoiceModal = ref(false);
 
-  /** อัปโหลดสลิป → POST /api/payment/mock (multipart หรือ slip_url) */
-  const submitBankSlip = async ({ orderId, amount, file, slipUrl }) => {
+  /** อัปโหลดสลิป → POST /api/payment/mock (multipart / slip_url / slip_data) */
+  const submitBankSlip = async ({ orderId, amount, file, slipUrl, slipData }) => {
     const jwtToken = user.value?.token;
     const fd = new FormData();
     fd.append('order_id', String(orderId));
     if (amount != null && amount !== '') {
       fd.append('amount', String(amount));
+    }
+    if (slipData && String(slipData).trim()) {
+      fd.append('slip_data', String(slipData).trim());
     }
     if (file) {
       fd.append('slip_image', file);

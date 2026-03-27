@@ -64,6 +64,8 @@ export default defineNuxtConfig({
       cmsApiBase: process.env.NUXT_PUBLIC_CMS_API_BASE || "",
       /** โหลดรูปสินค้าแบบ path สัมพัทธ์ (/uploads/...) เมื่อ cmsApiBase เป็น /yardsale-api */
       yardsaleBackendOrigin: process.env.NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN || "",
+      /** หน้าโอนเงิน: ข้อความเลขบัญชีร้าน (หลายบรรทัดได้) — ว่าง = ใช้ข้อความจาก i18n */
+      storeBankTransferInfo: process.env.NUXT_PUBLIC_STORE_BANK_TRANSFER_INFO || "",
     },
   },
 
