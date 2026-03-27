@@ -95,12 +95,22 @@ const mockPaidOrderIds = new Set<string>();
 function pickOrder(orderId: number) {
   const id = String(orderId);
   const paid = mockPaidOrderIds.has(id);
+  const created = new Date(Date.now() - 86400000 * 2).toISOString();
+  const tracking = paid ? `KEX${orderId}TH` : "";
   return {
     id: orderId,
     number: String(orderId),
     status: paid ? "paid" : "pending",
     total: "0",
     total_price: "0",
+    date_created: created,
+    shipping_status: paid ? "shipped" : "preparing",
+    tracking_number: tracking,
+    courier_name: "Kerry Express",
+    courier_logo_url: "",
+    courier_tracking_url: paid
+      ? `https://th.kerryexpress.com/th/track/?track=${encodeURIComponent(tracking)}`
+      : "",
     line_items: [],
   };
 }

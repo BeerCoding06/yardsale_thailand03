@@ -438,7 +438,28 @@
     "payment_method_unknown": "Payment method",
     "payment_method_cod": "Cash on delivery",
     "line_items_title": "Order items",
-    "price_times_qty": "฿{price} × {qty}"
+    "price_times_qty": "฿{price} × {qty}",
+    "shipment_section_title": "Shipment timeline",
+    "track_order": "Track Order",
+    "notification_status_updated": "Order status was updated.",
+    "notification_shipped": "Your order has been shipped 🚚",
+    "shipment_timeline": {
+      "placed": "Order Placed",
+      "packed": "Packed",
+      "shipped": "Shipped",
+      "out_for_delivery": "Out for Delivery",
+      "delivered": "Delivered"
+    },
+    "tracking_modal": {
+      "title": "Track shipment",
+      "courier_label": "Courier",
+      "courier_placeholder": "Courier",
+      "live_status": "Latest status",
+      "updated_at": "Last update: {time}",
+      "open_courier": "Track on courier website",
+      "close": "Close",
+      "status_unknown": "Unknown"
+    }
   },
   "shipping": {
     "pending": "Pending Shipping",

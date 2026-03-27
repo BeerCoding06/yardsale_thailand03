@@ -6,6 +6,11 @@ definePageMeta({
 });
 
 import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
+import {
+  buildShipmentTimelineSteps,
+  getShipmentActiveStepIndex,
+  orderShipmentFingerprint,
+} from "~/utils/shipmentTimeline";
 
 const route = useRoute();
 const router = useRouter();
@@ -13,12 +18,54 @@ const { user, isAuthenticated, checkAuth } = useAuth();
 const { t, locale } = useI18n();
 const { hasRemoteApi, endpoint } = useStorefrontCatalog();
 const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
+const { notify } = useNotification();
 
 const orderId = computed(() => route.params.id);
 const isClient = ref(false);
 const isLoading = ref(true);
 const order = ref(null);
 const error = ref(null);
+const showTrackingModal = ref(false);
+
+const timelineSteps = computed(() =>
+  order.value ? buildShipmentTimelineSteps(order.value) : []
+);
+
+const showShipmentTimeline = computed(() => {
+  if (!order.value) return false;
+  return getShipmentActiveStepIndex(order.value) >= 0;
+});
+
+/** แสดงปุ่มติดตามเมื่อมีเลขพัสดุ หรือขั้นตอนถึงขนส่งแล้ว */
+const canOpenTracking = computed(() => {
+  if (!order.value) return false;
+  if (getShipmentActiveStepIndex(order.value) < 0) return false;
+  const o = order.value;
+  if (String(o.tracking_number || o.trackingNumber || "").trim()) return true;
+  return getShipmentActiveStepIndex(o) >= 2;
+});
+
+function notifyShipmentFingerprintChange() {
+  const o = order.value;
+  if (!o) return;
+  const id = String(o.id ?? orderId.value);
+  const fp = orderShipmentFingerprint(o);
+  const key = `yardsale-order-fp-${id}`;
+  try {
+    const prev = sessionStorage.getItem(key);
+    if (prev && prev !== fp) {
+      const ship = String(o.shipping_status || "").toLowerCase();
+      if (ship === "shipped" && !prev.includes("shipped")) {
+        notify(t("order.notification_shipped"), "success");
+      } else {
+        notify(t("order.notification_status_updated"), "info");
+      }
+    }
+    sessionStorage.setItem(key, fp);
+  } catch {
+    /* ignore */
+  }
+}
 
 // Format order date (follows current UI locale)
 const formatDate = (dateString) => {
@@ -62,6 +109,7 @@ const fetchOrder = async () => {
           total: String(o.total_price ?? o.total ?? 0),
           date_created: o.created_at ?? o.date_created,
         };
+        notifyShipmentFingerprintChange();
       } else {
         error.value = t("order.order_not_found");
       }
@@ -76,6 +124,7 @@ const fetchOrder = async () => {
 
       if (orderData.success && orderData.order) {
         order.value = orderData.order;
+        notifyShipmentFingerprintChange();
       } else {
         error.value = t("order.order_not_found");
       }
@@ -222,6 +271,30 @@ onMounted(async () => {
               </div>
             </div>
           </div>
+
+          <!-- Shipment timeline + track -->
+          <div
+            v-if="showShipmentTimeline"
+            class="bg-white/80 dark:bg-black/20 rounded-2xl p-6 shadow-lg border-2 border-neutral-200 dark:border-neutral-800 mb-6"
+          >
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-4">
+              <h2 class="text-xl font-semibold text-black dark:text-white">
+                {{ $t('order.shipment_section_title') }}
+              </h2>
+              <button
+                v-if="canOpenTracking"
+                type="button"
+                class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+                @click="showTrackingModal = true"
+              >
+                <UIcon name="i-heroicons-map" class="h-5 w-5" />
+                {{ $t('order.track_order') }}
+              </button>
+            </div>
+            <ShipmentTimeline :steps="timelineSteps" />
+          </div>
+
+          <OrderTrackingModal v-model="showTrackingModal" :order="order" />
 
           <!-- Billing Address Card -->
           <div

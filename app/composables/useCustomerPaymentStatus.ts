@@ -51,19 +51,13 @@ export function useCustomerPaymentStatus() {
     return map[key];
   }
 
-  /** ยกเลิกได้เมื่อ backend ยังไม่ canceled และสถานะยังไม่ปิดการชำระแบบถาวร */
+  /** ยกเลิกได้เฉพาะเมื่อยังไม่ชำระเงินแล้ว — ชำระแล้ว (รวม processing/completed) ไม่แสดงปุ่มยกเลิก */
   function canCancelByPaymentRules(order: { status?: string | null }): boolean {
     const s = normalizeStatus(order?.status);
-    if (!s || s === "canceled" || s === "cancelled") return false;
-    const allowed = new Set([
-      "pending",
-      "paid",
-      "payment_failed",
-      "processing",
-      "on_hold",
-      "onhold",
-    ]);
-    return allowed.has(s);
+    if (!s) return false;
+    const key = customerPaymentUiKey(order);
+    if (key === "cancelled" || key === "paid") return false;
+    return true;
   }
 
   /** โอน/อัปโหลดสลิป — ยังรอชำระ (Yardsale: pending) */
