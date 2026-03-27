@@ -49,7 +49,7 @@ const fallbackQrSrc = computed(() => {
 });
 
 const effectivePromptPayId = computed(() =>
-  String(config.public.promptpayId || "").trim()
+  normalizePromptPayId(String(config.public.promptpayId || "").trim())
 );
 
 const qrDataUrl = ref(null);
@@ -511,6 +511,12 @@ const submitLabel = computed(() => {
               class="mt-3 text-sm font-medium text-teal-700 dark:text-teal-400 text-center px-2"
             >
               {{ $t('checkout.payment_slip.qr_caption') }}
+            </p>
+            <p
+              v-if="effectivePromptPayId && config.public.promptpayQrIncludeAmount"
+              class="mt-2 text-xs text-amber-800 dark:text-amber-200/90 text-center px-2 leading-relaxed max-w-sm mx-auto"
+            >
+              {{ $t('checkout.payment_slip.qr_dynamic_scan_hint') }}
             </p>
           </div>
 

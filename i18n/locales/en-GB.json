@@ -179,6 +179,7 @@
       "bank_section_title": "Shop bank account",
       "bank_account_default": "Bank: Kasikornbank (KBank)\nAccount name: Paradorn Pokpingmueang\nPromptPay: 0901612496",
       "qr_caption": "Scan QR to transfer",
+      "qr_dynamic_scan_hint": "This QR embeds the amount — some bank apps cannot scan it. Try another bank app, transfer using the PromptPay number below, or ask the shop to disable “embed amount in QR” in server settings.",
       "qr_alt": "Thai QR Payment — PromptPay",
       "promptpay_number": "0901612496",
       "copy_promptpay": "Copy PromptPay number",

@@ -72,7 +72,10 @@ export default defineNuxtConfig({
         process.env.NUXT_PUBLIC_PROMPTPAY_QR_URL || "/images/promptpay-qr.png",
       /** เลขพร้อมเพย์ / เลขนิติบุคคล (ไม่มีช่องว่าง) — ถ้ามีจะสร้าง QR แบบไดนามิกแทนรูปคงที่ */
       promptpayId: process.env.NUXT_PUBLIC_PROMPTPAY_ID || "",
-      /** true = ฝังยอดชำระใน QR ตามยอดบนหน้า payment (ถ้าอ่านยอดได้) */
+      /**
+       * true = ฝังยอดใน QR (โหมด EMV dynamic / POI 12) — แอปธนาคารบางตัวสแกนไม่ได้
+       * ถ้าสแกนจ่ายไม่ผ่าน ให้ปิดตัวนี้ (ค่าเริ่มต้น false) แล้วให้ลูกค้าใส่ยอดเองหลังสแกน หรือโอนด้วยเลขพร้อมเพย์
+       */
       promptpayQrIncludeAmount:
         process.env.NUXT_PUBLIC_PROMPTPAY_QR_INCLUDE_AMOUNT === "true",
     },
