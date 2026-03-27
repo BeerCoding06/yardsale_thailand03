@@ -550,7 +550,7 @@
       "products_desc": "ดูรายการ สร้าง แก้ไข ซ่อน หรือคืนสินค้า (CRUD)",
       "categories_desc": "สร้างหมวดหมู่และอัปโหลดรูปปกสำหรับแถบหมวดหน้าร้าน",
       "tags_desc": "สร้างและแก้ไขแท็กสินค้า (CRUD) — แสดงในฟอร์มสินค้าผ่าน wp-tags",
-      "users_desc": "สร้างบัญชีและดูรายชื่อผู้ใช้ (GET /api/admin/users)",
+      "users_desc": "สร้าง แก้ไข ลบผู้ใช้ และตั้งสถานะบัญชี (public / pending / block)",
       "orders_desc": "คำสั่งซื้อทั้งระบบเมื่อล็อกอินเป็นแอดมิน"
     },
     "users": {
@@ -576,7 +576,26 @@
       "list_col_name": "ชื่อ",
       "list_col_role": "บทบาท",
       "list_col_created": "สร้างเมื่อ",
-      "form_title": "สร้างบัญชีใหม่"
+      "list_col_status": "สถานะ",
+      "col_actions": "จัดการ",
+      "account_status": "สถานะบัญชี",
+      "status_public": "ใช้งาน (public)",
+      "status_pending": "รออนุมัติ",
+      "status_block": "ระงับ",
+      "form_title": "สร้างบัญชีใหม่",
+      "edit": "แก้ไข",
+      "delete": "ลบ",
+      "edit_title": "แก้ไขผู้ใช้",
+      "save": "บันทึก",
+      "cancel": "ยกเลิก",
+      "new_password_optional": "รหัสผ่านใหม่ (ไม่บังคับ)",
+      "password_placeholder_optional": "ว่างไว้ถ้าไม่เปลี่ยน",
+      "updated": "อัปเดตผู้ใช้แล้ว",
+      "deleted": "ลบผู้ใช้แล้ว",
+      "update_failed": "อัปเดตผู้ใช้ไม่สำเร็จ",
+      "delete_failed": "ลบผู้ใช้ไม่สำเร็จ",
+      "delete_confirm_title": "ลบผู้ใช้",
+      "delete_confirm": "ลบ {email} ถาวร? ไม่สามารถย้อนกลับได้"
     },
     "categories": {
       "title": "หมวดหมู่",

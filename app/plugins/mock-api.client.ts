@@ -111,6 +111,7 @@ let mockRegistryUsers: AnyObj[] = [
     email: "admin@demo.local",
     name: "Admin",
     role: "admin",
+    account_status: "public",
     created_at: new Date().toISOString(),
   },
 ];
@@ -216,7 +217,23 @@ export default defineNuxtPlugin(() => {
     if (p === "/api/login") {
       const username = String(body?.username || "demo");
       const password = String(body?.password || "");
-      if (username === "admin" && password === "admin") {
+      const loginId = String(body?.email || body?.username || "")
+        .trim()
+        .toLowerCase();
+      const isDemoAdmin =
+        (loginId === "admin" || loginId === "admin@demo.local") &&
+        password === "admin123456";
+      if (isDemoAdmin) {
+        const adminRow = mockRegistryUsers.find(
+          (u) => String(u.email).toLowerCase() === "admin@demo.local"
+        );
+        const st = adminRow?.account_status || "public";
+        if (st === "block" || st === "pending") {
+          return {
+            success: false,
+            error: { message: "Invalid credentials", code: "INVALID_CREDENTIALS" },
+          };
+        }
         return {
           success: true,
           user: {
@@ -227,6 +244,7 @@ export default defineNuxtPlugin(() => {
             token: "demo-admin-token",
             roles: ["admin"],
             role: "admin",
+            account_status: st,
           },
         };
       }
@@ -287,13 +305,28 @@ export default defineNuxtPlugin(() => {
       const id = mockRandomId();
       const name =
         String(body?.name || body?.username || "").trim() || email.split("@")[0] || "User";
-      const row = { id, email, name, role, created_at: new Date().toISOString() };
+      let account_status = "public";
+      const bt = mockBearerToken(opts);
+      if (
+        bt === "demo-admin-token" &&
+        ["public", "pending", "block"].includes(String(body?.account_status || ""))
+      ) {
+        account_status = String(body.account_status);
+      }
+      const row = {
+        id,
+        email,
+        name,
+        role,
+        account_status,
+        created_at: new Date().toISOString(),
+      };
       mockRegistryUsers = [row, ...mockRegistryUsers];
       return {
         success: true,
         data: {
           token: `mock-token-${id}`,
-          user: { id, email, name, role, username: email },
+          user: { id, email, name, role, username: email, account_status },
           id,
           message: "User created",
         },
@@ -386,9 +419,76 @@ export default defineNuxtPlugin(() => {
         success: true,
         data: {
           success: true,
-          users: mockRegistryUsers.map((u) => ({ ...u })),
+          users: mockRegistryUsers.map((u) => ({
+            ...u,
+            account_status: u.account_status ?? "public",
+          })),
         },
       };
+    }
+    const adminUserPath = p.match(/^\/api\/admin\/users\/([^/]+)$/);
+    if (adminUserPath) {
+      const uid = adminUserPath[1];
+      const method = String(opts?.method || "GET").toUpperCase();
+      const token = mockBearerToken(opts);
+      if (!token || token !== "demo-admin-token") {
+        return {
+          success: false,
+          error: { message: "Forbidden", code: "FORBIDDEN" },
+        };
+      }
+      const ix = mockRegistryUsers.findIndex((u) => String(u.id) === uid);
+      if (ix === -1) {
+        return {
+          success: false,
+          error: { message: "User not found", code: "NOT_FOUND" },
+        };
+      }
+      if (method === "PATCH" || method === "PUT") {
+        const cur = mockRegistryUsers[ix]!;
+        const b = body as AnyObj;
+        const nextRow: AnyObj = { ...cur };
+        if (b.email != null && String(b.email).trim()) nextRow.email = String(b.email).trim().toLowerCase();
+        if (b.name != null) nextRow.name = String(b.name);
+        if (b.role != null) {
+          let r = String(b.role);
+          if (r === "customer") r = "user";
+          nextRow.role = r;
+        }
+        if (b.account_status != null && ["public", "pending", "block"].includes(String(b.account_status))) {
+          nextRow.account_status = String(b.account_status);
+        }
+        mockRegistryUsers = mockRegistryUsers.map((u, i) => (i === ix ? nextRow : u));
+        const u = mockRegistryUsers[ix]!;
+        return {
+          success: true,
+          data: {
+            success: true,
+            user: {
+              id: u.id,
+              email: u.email,
+              name: u.name,
+              role: u.role,
+              username: u.email,
+              account_status: u.account_status ?? "public",
+              created_at: u.created_at,
+            },
+          },
+        };
+      }
+      if (method === "DELETE") {
+        if (uid === "00000000-0000-4000-8000-000000000001") {
+          return {
+            success: false,
+            error: { message: "Cannot delete the last admin", code: "LAST_ADMIN" },
+          };
+        }
+        mockRegistryUsers = mockRegistryUsers.filter((u) => String(u.id) !== uid);
+        return {
+          success: true,
+          data: { success: true, deleted: true },
+        };
+      }
     }
     if (p === "/api/my-products") {
       const token = mockBearerToken(opts);

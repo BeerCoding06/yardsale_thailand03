@@ -11,6 +11,12 @@ EXCEPTION
 END $$;
 
 DO $$ BEGIN
+  CREATE TYPE user_account_status AS ENUM ('public', 'pending', 'block');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
   CREATE TYPE order_status AS ENUM ('pending', 'paid', 'canceled', 'payment_failed');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
@@ -30,6 +36,18 @@ CREATE TABLE IF NOT EXISTS users (
   role user_role NOT NULL DEFAULT 'user',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+/* users: สถานะบัญชี (รันซ้ำได้) */
+DO $ensure_user_account_status$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'account_status'
+  ) THEN
+    ALTER TABLE public.users
+      ADD COLUMN account_status user_account_status NOT NULL DEFAULT 'public';
+  END IF;
+END $ensure_user_account_status$;
 
 CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

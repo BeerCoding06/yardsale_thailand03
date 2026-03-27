@@ -5,6 +5,8 @@ import { validate } from '../middlewares/validate.js';
 import {
   loginSchema,
   createUserSchema,
+  adminUserIdParamsSchema,
+  adminUpdateUserSchema,
   checkEmailSchema,
   cartAddSchema,
   cartUpdateSchema,
@@ -42,6 +44,21 @@ router.post(
 );
 router.get('/me', authMiddleware, authController.me);
 router.get('/admin/users', authMiddleware, requireRoles('admin'), authController.adminListUsers);
+router.patch(
+  '/admin/users/:id',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(adminUserIdParamsSchema, 'params'),
+  validate(adminUpdateUserSchema),
+  authController.adminUpdateUser
+);
+router.delete(
+  '/admin/users/:id',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(adminUserIdParamsSchema, 'params'),
+  authController.adminDeleteUser
+);
 router.post('/check-email', validate(checkEmailSchema), authController.checkEmail);
 
 router.get('/products', productController.listProducts);

@@ -10,12 +10,17 @@ export const login = asyncHandler(async (req, res) => {
 
 export const createUser = asyncHandler(async (req, res) => {
   const name = req.body.name || req.body.username || '';
-  const result = await authService.createUser({
-    email: req.body.email,
-    password: req.body.password,
-    name,
-    role: req.body.role,
-  });
+  const allowStatusField = req.user?.role === 'admin';
+  const result = await authService.createUser(
+    {
+      email: req.body.email,
+      password: req.body.password,
+      name,
+      role: req.body.role,
+      account_status: req.body.account_status,
+    },
+    { allowStatusField }
+  );
   sendSuccess(res, { ...result, id: result.user.id, message: 'User created' }, 201);
 });
 
@@ -33,5 +38,15 @@ export const adminListUsers = asyncHandler(async (req, res) => {
   const limit = req.query.limit;
   const offset = req.query.offset;
   const result = await authService.listUsersForAdmin({ limit, offset });
+  sendSuccess(res, { success: true, ...result });
+});
+
+export const adminUpdateUser = asyncHandler(async (req, res) => {
+  const result = await authService.adminUpdateUser(req.user.id, req.params.id, req.body);
+  sendSuccess(res, { success: true, ...result });
+});
+
+export const adminDeleteUser = asyncHandler(async (req, res) => {
+  const result = await authService.adminDeleteUser(req.user.id, req.params.id);
   sendSuccess(res, { success: true, ...result });
 });

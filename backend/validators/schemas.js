@@ -22,7 +22,20 @@ export const createUserSchema = Joi.object({
   username: Joi.string().trim().optional(),
   name: Joi.string().trim().allow('').default(''),
   role: Joi.string().valid('user', 'seller', 'admin', 'customer').default('user'),
+  account_status: Joi.string().valid('public', 'pending', 'block').optional(),
 });
+
+export const adminUserIdParamsSchema = Joi.object({
+  id: uuid.required(),
+});
+
+export const adminUpdateUserSchema = Joi.object({
+  email: emailRule.optional(),
+  name: Joi.string().trim().allow('').optional(),
+  role: Joi.string().valid('user', 'seller', 'admin', 'customer').optional(),
+  account_status: Joi.string().valid('public', 'pending', 'block').optional(),
+  password: Joi.string().min(8).optional(),
+}).or('email', 'name', 'role', 'account_status', 'password');
 
 export const checkEmailSchema = Joi.object({
   email: emailRule.required(),

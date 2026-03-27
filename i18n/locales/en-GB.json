@@ -547,7 +547,7 @@
       "products_desc": "List, create, edit, hide or restore products (CRUD).",
       "categories_desc": "Create categories with optional cover image for the storefront carousel.",
       "tags_desc": "Create and edit product tags (CRUD). Tags appear in seller product forms via wp-tags.",
-      "users_desc": "Create accounts and list users (GET /api/admin/users).",
+      "users_desc": "Create, edit, delete users and set account status (public / pending / block).",
       "orders_desc": "All platform orders when logged in as admin."
     },
     "users": {
@@ -573,7 +573,26 @@
       "list_col_name": "Name",
       "list_col_role": "Role",
       "list_col_created": "Created",
-      "form_title": "Create new account"
+      "list_col_status": "Status",
+      "col_actions": "Actions",
+      "account_status": "Account status",
+      "status_public": "Public (active)",
+      "status_pending": "Pending",
+      "status_block": "Blocked",
+      "form_title": "Create new account",
+      "edit": "Edit",
+      "delete": "Delete",
+      "edit_title": "Edit user",
+      "save": "Save",
+      "cancel": "Cancel",
+      "new_password_optional": "New password (optional)",
+      "password_placeholder_optional": "Leave blank to keep current",
+      "updated": "User updated.",
+      "deleted": "User deleted.",
+      "update_failed": "Could not update user.",
+      "delete_failed": "Could not delete user.",
+      "delete_confirm_title": "Delete user",
+      "delete_confirm": "Permanently delete {email}? This cannot be undone."
     },
     "categories": {
       "title": "Categories",
