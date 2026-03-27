@@ -32,6 +32,9 @@ const amountFromQuery = computed(() => String(route.query.amount || ''));
 /** สั่งซื้อใหม่จากตะกร้า — กรอกฟอร์ม + สร้างออเดอร์บนหน้านี้ */
 const isNewCheckout = computed(() => !isResumePay.value);
 
+/** แสดงบล็อกข้อมูลผู้สั่งซื้อ: สั่งใหม่ หรือกลับมาอัปโหลดสลิป (โหลดจากบัญชี) */
+const showBuyerForm = computed(() => isNewCheckout.value || isResumePay.value);
+
 const methodForOrder = computed(() => {
   const m = String(route.query.method || '').toLowerCase();
   if (m === 'cod') return 'cod';
@@ -88,7 +91,9 @@ onMounted(async () => {
   if (isResumePay.value) {
     if (!orderId.value) {
       router.replace(localePath('/'));
+      return;
     }
+    await loadCustomerData();
     return;
   }
   if (!cart.value?.length) {
@@ -132,8 +137,9 @@ function slipErrorMessage(err) {
     err?.response?._data?.error?.message ||
     err?.message ||
     '';
-  if (code === 'SLIP_BANK_DELAY' && serverMsg) {
-    return serverMsg;
+  if (code === 'SLIP_BANK_DELAY') {
+    const delayMsg = t('checkout.payment_slip.errors.SLIP_BANK_DELAY');
+    if (delayMsg !== 'checkout.payment_slip.errors.SLIP_BANK_DELAY') return delayMsg;
   }
   if (code) {
     const msg = t(`checkout.payment_slip.errors.${code}`);
@@ -310,27 +316,34 @@ const submitLabel = computed(() => {
       </p>
 
       <div
-        v-if="isLoadingCustomerData && isNewCheckout"
+        v-if="isLoadingCustomerData && showBuyerForm"
         class="flex justify-center py-12"
       >
         <UIcon name="i-svg-spinners-90-ring-with-bg" class="w-10 h-10 text-neutral-400" />
       </div>
 
       <template v-else>
-        <!-- ฟอร์มผู้สั่งซื้อ — เฉพาะสั่งซื้อใหม่จากตะกร้า -->
+        <!-- ฟอร์มผู้สั่งซื้อ — สั่งใหม่จากตะกร้า หรือกลับมาอัปโหลดสลิป (อ่านอย่างเดียว) -->
         <div
-          v-if="isNewCheckout"
+          v-if="showBuyerForm"
           class="mb-6 p-4 rounded-2xl bg-white/90 dark:bg-black/40 border-2 border-neutral-200 dark:border-neutral-700"
         >
           <h2 class="text-sm font-semibold text-black dark:text-white mb-3">
             {{ $t('checkout.payment_slip.billing_title') }}
           </h2>
-          <div class="grid grid-cols-2 gap-3 billing">
+          <p
+            v-if="isResumePay"
+            class="mb-3 text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed"
+          >
+            {{ $t('checkout.payment_slip.billing_resume_note') }}
+          </p>
+          <div class="grid grid-cols-2 gap-3 billing" :class="{ 'billing-readonly': isResumePay }">
             <div class="col-span-full">
               <input
                 v-model="userDetails.email"
                 required
                 type="email"
+                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.email')"
               />
             </div>
@@ -339,6 +352,7 @@ const submitLabel = computed(() => {
                 v-model="userDetails.firstName"
                 required
                 type="text"
+                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.first_name')"
               />
             </div>
@@ -347,6 +361,7 @@ const submitLabel = computed(() => {
                 v-model="userDetails.lastName"
                 required
                 type="text"
+                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.last_name')"
               />
             </div>
@@ -355,6 +370,7 @@ const submitLabel = computed(() => {
                 v-model="userDetails.phone"
                 required
                 type="tel"
+                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.phone')"
               />
             </div>
@@ -363,6 +379,7 @@ const submitLabel = computed(() => {
                 v-model="userDetails.city"
                 required
                 type="text"
+                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.city')"
               />
             </div>
@@ -371,6 +388,7 @@ const submitLabel = computed(() => {
                 v-model="userDetails.address1"
                 required
                 rows="2"
+                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.address')"
               />
             </div>
@@ -378,6 +396,7 @@ const submitLabel = computed(() => {
               <input
                 v-model="userDetails.address2"
                 type="text"
+                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.address2')"
               />
             </div>
@@ -385,6 +404,7 @@ const submitLabel = computed(() => {
               <input
                 v-model="userDetails.state"
                 type="text"
+                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.state')"
               />
             </div>
@@ -392,16 +412,23 @@ const submitLabel = computed(() => {
               <input
                 v-model="userDetails.postcode"
                 type="text"
+                :readonly="isResumePay"
                 :placeholder="$t('checkout.form.postcode')"
               />
             </div>
           </div>
-          <p class="mt-3 text-xs text-neutral-500">
+          <p v-if="isNewCheckout" class="mt-3 text-xs text-neutral-500">
             {{ $t('checkout.payment_slip.method_label') }}:
             <span class="font-semibold text-black dark:text-white">{{
               methodForOrder === 'cod'
                 ? $t('checkout.payment_method.cod')
                 : $t('checkout.payment_method.bank_transfer')
+            }}</span>
+          </p>
+          <p v-else class="mt-3 text-xs text-neutral-500">
+            {{ $t('checkout.payment_slip.method_label') }}:
+            <span class="font-semibold text-black dark:text-white">{{
+              $t('checkout.payment_method.bank_transfer')
             }}</span>
           </p>
         </div>
@@ -550,7 +577,7 @@ const submitLabel = computed(() => {
 
           <button
             type="submit"
-            :disabled="submitting || (isNewCheckout && isLoadingCustomerData)"
+            :disabled="submitting || (showBuyerForm && isLoadingCustomerData)"
             class="w-full py-3 rounded-xl font-semibold text-white bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 hover:bg-alizarin-crimson-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             <span v-if="!submitting">{{ submitLabel }}</span>
@@ -594,6 +621,11 @@ select:-webkit-autofill {
 .billing input,
 .billing textarea {
   @apply block bg-white/80 dark:bg-black/20 dark:border-white/20 w-full shadow font-semibold border-2 border-transparent transition hover:border-black dark:hover:border-white rounded-2xl py-3 px-4 text-black dark:text-white placeholder:text-neutral-400 text-sm leading-6 focus-visible:outline-none focus-visible:border-black focus-visible:dark:border-white;
+}
+
+.billing-readonly input:read-only,
+.billing-readonly textarea:read-only {
+  @apply opacity-90 cursor-default bg-neutral-100/90 dark:bg-neutral-900/50 hover:border-transparent dark:hover:border-transparent;
 }
 
 textarea {
