@@ -69,15 +69,20 @@ function slipErrorMessage(err) {
     err?.data?.error?.code ||
     err?.data?.code ||
     err?.response?._data?.error?.code;
+  const serverMsg =
+    err?.data?.error?.message ||
+    err?.response?._data?.error?.message ||
+    err?.message ||
+    '';
+  /** SlipOK แจ้งรายละเอียดเป็นภาษาไทย — แสดงข้อความจากเซิร์ฟเวอร์ก่อน */
+  if (code === 'SLIP_BANK_DELAY' && serverMsg) {
+    return serverMsg;
+  }
   if (code) {
     const msg = t(`checkout.payment_slip.errors.${code}`);
     if (msg !== `checkout.payment_slip.errors.${code}`) return msg;
   }
-  return (
-    err?.data?.error?.message ||
-    err?.message ||
-    t('checkout.payment_slip.errors.generic')
-  );
+  return serverMsg || t('checkout.payment_slip.errors.generic');
 }
 
 async function onSubmit() {
@@ -109,10 +114,11 @@ async function onSubmit() {
           date_created: o.created_at ?? o.date_created,
         };
       }
+      push.success(t('checkout.payment_slip.verify_success_toast'));
       await router.push(
         localePath({
           path: '/payment-successful',
-          query: { order_id: orderId.value },
+          query: { order_id: orderId.value, slip_verified: '1' },
         })
       );
       return;
@@ -198,11 +204,22 @@ async function onSubmit() {
       </div>
 
       <form class="space-y-4" @submit.prevent="onSubmit">
+        <p class="text-xs text-neutral-500 dark:text-neutral-400 px-1">
+          {{ $t('checkout.payment_slip.outcome_hint') }}
+        </p>
         <div
           v-if="error"
-          class="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm"
+          class="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm"
         >
-          {{ error }}
+          <p class="font-semibold text-red-800 dark:text-red-200 mb-1">
+            {{ $t('checkout.payment_slip.result_error_title') }}
+          </p>
+          <p class="text-xs text-red-600/90 dark:text-red-300/90 mb-2">
+            {{ $t('checkout.payment_slip.result_error_hint') }}
+          </p>
+          <p class="text-red-700 dark:text-red-300 leading-relaxed">
+            {{ error }}
+          </p>
         </div>
 
         <div>

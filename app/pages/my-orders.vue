@@ -8,7 +8,8 @@ definePageMeta({
 
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
-const { paymentLabel, paymentColorClass, canCancelByPaymentRules } =
+const localePath = useLocalePath();
+const { paymentLabel, paymentColorClass, canCancelByPaymentRules, canPayOrder } =
   useCustomerPaymentStatus();
 const { endpoint, hasRemoteApi } = useCmsApi();
 
@@ -408,6 +409,18 @@ const cancelOrder = async () => {
 };
 
 const canCancelOrder = (order) => canCancelByPaymentRules(order);
+
+/** ลิงก์ไปหน้าอัปโหลดสลิป (โอนเงิน) */
+function payOrderLink(order) {
+  const amt = order?.total_price ?? order?.total ?? "";
+  return localePath({
+    path: "/checkout/payment",
+    query: {
+      order_id: String(order?.id ?? ""),
+      amount: String(amt),
+    },
+  });
+}
 </script>
 
 <template>
@@ -529,7 +542,7 @@ const canCancelOrder = (order) => canCancelByPaymentRules(order);
                       {{ $t('order.total_amount') }}
                       <span
                         class="font-semibold text-alizarin-crimson-600 dark:text-alizarin-crimson-500"
-                        >฿{{ parseFloat(order.total || 0).toFixed(2) }}</span
+                        >฿{{ parseFloat((order.total_price ?? order.total) || 0).toFixed(2) }}</span
                       >
                     </p>
                     <p
@@ -541,6 +554,13 @@ const canCancelOrder = (order) => canCancelByPaymentRules(order);
                   </div>
 
                   <div class="flex flex-col sm:flex-row gap-2">
+                    <NuxtLink
+                      v-if="canPayOrder(order)"
+                      :to="payOrderLink(order)"
+                      class="px-4 py-2 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg text-center"
+                    >
+                      {{ $t('order.pay_now') }}
+                    </NuxtLink>
                     <NuxtLink
                       :to="`/order/${order.id}`"
                       class="px-4 py-2 bg-green-600 dark:bg-green-500 text-white rounded-xl font-semibold hover:bg-green-700 dark:hover:bg-green-600 transition shadow-lg text-center"

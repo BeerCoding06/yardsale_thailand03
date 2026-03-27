@@ -23,6 +23,27 @@ function resolveSlipokPayload(body, file) {
   return null;
 }
 
+/** SlipOK / ธนาคารบางแห่งแจ้งว่าต้องรอก่อนตรวจสลิปได้ (เช่น BBL ~7 นาที) */
+function slipokFailureCodeFromMessage(msg) {
+  const m = String(msg || '');
+  if (
+    /กรุงเทพ|ธนาคารกรุงเทพ|Bangkok\s*Bank|\bBBL\b|7\s*นาที|รอการตรวจสอบสลิป/i.test(m)
+  ) {
+    return 'SLIP_BANK_DELAY';
+  }
+  return 'SLIP_INVALID';
+}
+
+function slipokErrorMessage(data) {
+  return (
+    data?.message ||
+    data?.data?.message ||
+    data?.data?.error?.message ||
+    data?.error?.message ||
+    'Slip verification failed'
+  );
+}
+
 async function checkSlipWithSlipok(body, file) {
   if (!hasSlipokConfig()) {
     throw new AppError('SlipOK is not configured', 500, 'SLIPOK_NOT_CONFIGURED');
@@ -69,12 +90,9 @@ async function checkSlipWithSlipok(body, file) {
     /* no-op */
   }
   if (!response.ok || !data?.success || !data?.data?.success) {
-    const msg =
-      data?.message ||
-      data?.data?.message ||
-      data?.error?.message ||
-      'Slip verification failed';
-    throw new AppError(String(msg), 400, 'SLIP_INVALID');
+    const msg = slipokErrorMessage(data);
+    const code = slipokFailureCodeFromMessage(msg);
+    throw new AppError(String(msg), 400, code);
   }
   return data.data;
 }

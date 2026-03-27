@@ -66,7 +66,9 @@
     "my_orders": "My orders",
     "no_order_title": "No order found",
     "no_order_message": "We could not find your order. Please try again.",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "slip_verified_title": "Payment confirmed from your slip",
+    "slip_verified_text": "Your slip was verified and your payment is recorded — this order will proceed as normal."
   },
   "filter": {
     "all_categories": "All Categories",
@@ -171,7 +173,7 @@
     "payment_slip": {
       "title": "Upload payment slip",
       "subtitle": "Order #{n} · Amount ฿{amount}",
-      "instructions": "Transfer the exact amount to the shop account below, then submit slip proof (QR data, image, or URL). We verify with SlipOK before confirming payment.",
+      "instructions": "Transfer the exact amount to the shop account below, then submit slip proof (QR data, image, or URL). We verify with SlipOK before confirming payment. Note: some banks (e.g. Bangkok Bank / BBL) may delay slip data — wait about 7 minutes after the transfer, then upload the slip again.",
       "bank_section_title": "Shop bank account",
       "bank_account_default": "Bank: Kasikornbank (KBank)\nAccount name: Paradorn Pokpingmueang\nPromptPay: 0901612496",
       "qr_caption": "Scan QR to transfer",
@@ -192,11 +194,18 @@
       "upload_btn": "Submit and verify slip",
       "uploading": "Verifying slip…",
       "back_home": "Back to home",
+      "result_error_title": "Slip result: verification did not pass",
+      "result_error_hint": "The slip could not be verified yet. Details below.",
+      "verify_success_toast": "Slip verified — your payment is confirmed",
+      "verify_success_title": "Slip submitted successfully",
+      "verify_success_body": "Your slip was verified and your payment has been confirmed.",
+      "outcome_hint": "After you submit your slip, the verification result appears below (Thai or English, matching your site language).",
       "errors": {
         "generic": "Payment could not be confirmed. Please try again.",
         "PAYMENT_PROOF_REQUIRED": "Please paste slip/QR data, upload a slip image, or enter an image URL.",
         "FILE_REQUIRED": "Please upload a slip image or enter an image URL.",
         "SLIP_INVALID": "This slip could not be verified. Check the amount and image.",
+        "SLIP_BANK_DELAY": "Some banks (e.g. Bangkok Bank) release slip data with a delay — wait about 7 minutes after transferring, then submit the slip again.",
         "SLIPOK_NOT_CONFIGURED": "Slip verification is not configured on the server.",
         "FORBIDDEN": "You cannot pay for this order.",
         "NOT_FOUND": "Order not found.",
@@ -386,6 +395,7 @@
     "total_amount": "Total:",
     "payment_method": "Payment Method:",
     "view_details": "View Details",
+    "pay_now": "Pay / upload slip",
     "current_step": "Current Step",
     "shipping_address_label": "Shipping Address:",
     "order_items": "Order Items:",

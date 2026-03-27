@@ -111,6 +111,19 @@ const formattedTotal = computed(() => {
           </p>
         </div>
 
+        <!-- มาจากหน้าอัปโหลดสลิป — แจ้งผลชัดเจน (ไทย/อังกฤษตาม locale) -->
+        <div
+          v-if="route.query.slip_verified === '1'"
+          class="mb-6 p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-200 dark:border-emerald-800"
+        >
+          <p class="font-semibold text-emerald-900 dark:text-emerald-100 mb-1">
+            {{ $t('payment_success.slip_verified_title') }}
+          </p>
+          <p class="text-sm text-emerald-800 dark:text-emerald-200/95 leading-relaxed">
+            {{ $t('payment_success.slip_verified_text') }}
+          </p>
+        </div>
+
         <!-- Order Details Card -->
         <div
           class="bg-white/80 dark:bg-black/20 rounded-2xl p-6 shadow-lg border-2 border-neutral-200 dark:border-neutral-800 mb-6"

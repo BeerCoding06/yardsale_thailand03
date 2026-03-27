@@ -66,10 +66,16 @@ export function useCustomerPaymentStatus() {
     return allowed.has(s);
   }
 
+  /** โอน/อัปโหลดสลิป — ยังรอชำระ (Yardsale: pending) */
+  function canPayOrder(order: { status?: string | null }): boolean {
+    return normalizeStatus(order?.status) === "pending";
+  }
+
   return {
     customerPaymentUiKey,
     paymentLabel,
     paymentColorClass,
     canCancelByPaymentRules,
+    canPayOrder,
   };
 }
