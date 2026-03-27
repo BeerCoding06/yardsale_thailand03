@@ -148,7 +148,7 @@ onMounted(async () => {
         <div class="max-w-4xl mx-auto p-6">
           <div class="flex items-center justify-between mb-6">
             <h1 class="text-3xl font-bold text-black dark:text-white">
-              {{ $t('order.order_details') }} #{{ order.number || order.id }}
+              {{ $t('order.order_details') }}
             </h1>
             <NuxtLink
               to="/my-orders"
