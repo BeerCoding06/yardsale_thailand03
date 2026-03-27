@@ -106,11 +106,25 @@ function pickOrder(orderId: number) {
     date_created: created,
     shipping_status: paid ? "shipped" : "preparing",
     tracking_number: tracking,
+    shipping_receipt_number: "",
+    fulfillment_updated_at: paid ? created : null,
     courier_name: "Kerry Express",
     courier_logo_url: "",
     courier_tracking_url: paid
       ? `https://th.kerryexpress.com/th/track/?track=${encodeURIComponent(tracking)}`
       : "",
+    billing: {
+      email: "buyer@example.com",
+      first_name: "Mock",
+      last_name: "Buyer",
+      phone: "0812345678",
+      address_1: "123 Mock Road",
+      address_2: "",
+      city: "Bangkok",
+      state: "",
+      postcode: "10110",
+      country: "TH",
+    },
     line_items: [],
   };
 }
@@ -417,7 +431,51 @@ export default defineNuxtPlugin(() => {
     if (p === "/api/get-customer-data") return { billing: null, customer: null };
     if (p === "/api/create-order") {
       const id = Math.floor(Date.now() / 1000);
-      return { success: true, order: { id, number: String(id), status: "pending", total: String(body?.total || 0) } };
+      const bo = body as AnyObj;
+      const bill = bo?.billing;
+      return {
+        success: true,
+        order: {
+          id,
+          number: String(id),
+          status: "pending",
+          total: String(bo?.total || 0),
+          billing_snapshot: bill,
+          billing: bill
+            ? {
+                email: bill.email,
+                first_name: bill.first_name || bill.firstName,
+                last_name: bill.last_name || bill.lastName,
+                phone: bill.phone,
+                address_1: bill.address_1 || bill.address1,
+                address_2: bill.address_2 || bill.address2,
+                city: bill.city,
+                state: bill.state,
+                postcode: bill.postcode,
+                country: bill.country || "TH",
+              }
+            : null,
+          shipping_status: "pending",
+        },
+      };
+    }
+    const fulfillMatch = p.match(/^\/api\/seller-orders\/([^/]+)\/fulfillment$/);
+    if (fulfillMatch && String(opts?.method || "GET").toUpperCase() === "PATCH") {
+      const bo = (body as AnyObj) || {};
+      return {
+        success: true,
+        data: {
+          order: {
+            id: fulfillMatch[1],
+            shipping_status: bo.shipping_status,
+            tracking_number: bo.tracking_number || null,
+            shipping_receipt_number: bo.shipping_receipt_number || null,
+            courier_name: bo.courier_name || null,
+            fulfillment_updated_at: new Date().toISOString(),
+            status: "paid",
+          },
+        },
+      };
     }
     if (p === "/api/payment/mock" && (opts?.method === "POST" || opts?.method === "post")) {
       const b = opts?.body;

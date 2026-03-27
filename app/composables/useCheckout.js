@@ -285,7 +285,21 @@ export const useCheckout = () => {
       if (hasRemoteApi) {
         const raw = await $fetch(endpoint('create-order'), {
           method: 'POST',
-          body: { line_items },
+          body: {
+            line_items,
+            billing: {
+              email: userDetails.value.email,
+              first_name: userDetails.value.firstName,
+              last_name: userDetails.value.lastName,
+              phone: userDetails.value.phone,
+              address_1: userDetails.value.address1,
+              address_2: userDetails.value.address2 || '',
+              city: userDetails.value.city,
+              state: userDetails.value.state || '',
+              postcode: userDetails.value.postcode || '',
+              country: userDetails.value.country || 'TH',
+            },
+          },
           headers: {
             'Content-Type': 'application/json',
             ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),

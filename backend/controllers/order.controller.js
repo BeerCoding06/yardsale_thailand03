@@ -4,7 +4,7 @@ import { AppError } from '../utils/AppError.js';
 import * as orderService from '../services/order.service.js';
 
 export const createOrder = asyncHandler(async (req, res) => {
-  const data = await orderService.createOrder(req.user.id, req.body.line_items);
+  const data = await orderService.createOrder(req.user.id, req.body);
   sendSuccess(res, data, 201);
 });
 
@@ -34,4 +34,14 @@ export const sellerOrders = asyncHandler(async (req, res) => {
 export const cancelOrder = asyncHandler(async (req, res) => {
   const data = await orderService.cancelOrder(req.body.order_id, req.user.id, req.user.role);
   sendSuccess(res, { success: true, ...data });
+});
+
+export const patchSellerOrderFulfillment = asyncHandler(async (req, res) => {
+  const data = await orderService.updateSellerOrderFulfillment(
+    req.user.id,
+    req.user.role,
+    req.params.orderId,
+    req.body
+  );
+  sendSuccess(res, data);
 });

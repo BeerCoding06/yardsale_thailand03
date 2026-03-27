@@ -85,6 +85,19 @@ export const cancelOrderSchema = Joi.object({
   order_id: uuid.required(),
 });
 
+export const sellerOrderFulfillmentParamsSchema = Joi.object({
+  orderId: uuid.required(),
+});
+
+export const patchSellerOrderFulfillmentSchema = Joi.object({
+  shipping_status: Joi.string()
+    .valid('pending', 'preparing', 'shipped', 'out_for_delivery', 'delivered')
+    .required(),
+  tracking_number: Joi.string().trim().allow('', null).optional(),
+  shipping_receipt_number: Joi.string().trim().allow('', null).optional(),
+  courier_name: Joi.string().trim().allow('', null).optional(),
+});
+
 export const paymentMockSchema = Joi.object({
   order_id: uuid.required(),
   simulate_failure: Joi.boolean().default(false),

@@ -532,7 +532,20 @@
     "seller_total": "My Total",
     "amount_to_pay": "Amount to Pay",
     "your_products_in_order": "Your Products in This Order",
-    "slip_uploaded": "Payment slip uploaded"
+    "slip_uploaded": "Payment slip uploaded",
+    "shipping_address": "Shipping address",
+    "fulfillment_section": "Shipping & timeline",
+    "fulfillment_after_payment": "After the customer has paid, you can update shipping status and tracking here.",
+    "shipping_status_field": "Shipping status (timeline)",
+    "shipping_receipt_number": "Courier receipt / reference no.",
+    "shipping_receipt_placeholder": "e.g. POD or booking number",
+    "courier_name": "Courier",
+    "courier_placeholder": "e.g. Kerry, Flash, J&T",
+    "tracking_placeholder": "Tracking number",
+    "save_fulfillment": "Save shipping update",
+    "fulfillment_saved": "Shipping info saved",
+    "fulfillment_save_error": "Could not save. Please try again.",
+    "fulfillment_updated_at": "Last updated:"
   },
   "register": {
     "title": "Register",

@@ -1,5 +1,8 @@
 <!--app/pages/seller-orders.vue-->
 <script setup>
+import { push } from "notivue";
+import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
+
 definePageMeta({
   middleware: "auth",
   ssr: false,
@@ -14,6 +17,9 @@ const isClient = ref(false);
 const isLoading = ref(true);
 const orders = ref([]);
 const error = ref(null);
+/** แบบร่างอัปเดตจัดส่งต่อออเดอร์ — key = order.id */
+const fulfillmentDrafts = ref({});
+const savingFulfillmentId = ref(null);
 
 // Format order date
 const formatDate = (dateString) => {
@@ -79,7 +85,95 @@ function normalizeSellerOrderRow(row) {
       phone: o.buyer_phone || "",
     };
   }
+  o.tracking_number = o.tracking_number ?? o.trackingNumber ?? "";
+  o.shipping_receipt_number =
+    o.shipping_receipt_number ?? o.shippingReceiptNumber ?? "";
+  o.courier_name = o.courier_name ?? o.courierName ?? "";
+  o.fulfillment_updated_at =
+    o.fulfillment_updated_at ?? o.fulfillmentUpdatedAt ?? null;
   return o;
+}
+
+const SHIPPING_STATUS_KEYS = [
+  "pending",
+  "preparing",
+  "shipped",
+  "out_for_delivery",
+  "delivered",
+];
+
+function normalizeShippingStatus(s) {
+  const v = String(s || "pending").toLowerCase().replace(/-/g, "_");
+  return SHIPPING_STATUS_KEYS.includes(v) ? v : "pending";
+}
+
+function draftFor(order) {
+  const id = order.id;
+  if (!fulfillmentDrafts.value[id]) {
+    fulfillmentDrafts.value[id] = reactive({
+      shipping_status: normalizeShippingStatus(order.shipping_status),
+      tracking_number: String(order.tracking_number || ""),
+      shipping_receipt_number: String(order.shipping_receipt_number || ""),
+      courier_name: String(order.courier_name || ""),
+    });
+  }
+  return fulfillmentDrafts.value[id];
+}
+
+function shipmentStepsForOrder(order) {
+  const d = draftFor(order);
+  return buildShipmentTimelineSteps({
+    status: order.status,
+    date_created: order.date_created,
+    shipping_status: d.shipping_status,
+  });
+}
+
+async function saveFulfillment(order) {
+  const jwt = user.value?.token;
+  if (!jwt) {
+    push.error(t("auth.login_required"));
+    return;
+  }
+  const d = draftFor(order);
+  savingFulfillmentId.value = order.id;
+  try {
+    const raw = await $fetch(cmsPath(`seller-orders/${order.id}/fulfillment`), {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        "Content-Type": "application/json",
+      },
+      body: {
+        shipping_status: d.shipping_status,
+        tracking_number: d.tracking_number || "",
+        shipping_receipt_number: d.shipping_receipt_number || "",
+        courier_name: d.courier_name || "",
+      },
+    });
+    const inner = unwrapApi(raw);
+    const updated = inner?.order;
+    if (updated) {
+      const ix = orders.value.findIndex((o) => o.id === order.id);
+      if (ix >= 0) {
+        orders.value[ix] = normalizeSellerOrderRow({
+          ...orders.value[ix],
+          ...updated,
+        });
+      }
+      delete fulfillmentDrafts.value[order.id];
+      push.success(t("seller_orders.fulfillment_saved"));
+    }
+  } catch (e) {
+    const msg =
+      e?.data?.error?.message ||
+      e?.data?.message ||
+      e?.message ||
+      t("seller_orders.fulfillment_save_error");
+    push.error(msg);
+  } finally {
+    savingFulfillmentId.value = null;
+  }
 }
 
 // Get payment progress steps (Yardsale: pending | paid | canceled | payment_failed + Woo-style)
@@ -135,6 +229,7 @@ const fetchOrders = async () => {
   try {
     isLoading.value = true;
     error.value = null;
+    fulfillmentDrafts.value = {};
 
     // Get JWT token from user object (stored during login)
     const jwtToken = user.value?.token;
@@ -315,6 +410,20 @@ onMounted(async () => {
                           <span class="font-semibold">{{ $t('seller_orders.phone') }}:</span>
                           <span class="ml-2">{{ order.billing.phone }}</span>
                         </p>
+                        <template v-if="order.billing?.address_1 || order.billing?.city">
+                          <p class="text-neutral-700 dark:text-neutral-300 mt-2">
+                            <span class="font-semibold">{{ $t('seller_orders.shipping_address') }}:</span>
+                          </p>
+                          <p class="text-neutral-600 dark:text-neutral-400 text-sm pl-2 border-l-2 border-blue-300 dark:border-blue-700">
+                            {{ order.billing.address_1 }}
+                            <span v-if="order.billing.address_2">, {{ order.billing.address_2 }}</span>
+                          </p>
+                          <p class="text-neutral-600 dark:text-neutral-400 text-sm pl-2">
+                            {{ order.billing.city
+                            }}<span v-if="order.billing.state">, {{ order.billing.state }}</span
+                            ><span v-if="order.billing.postcode"> {{ order.billing.postcode }}</span>
+                          </p>
+                        </template>
                         <p class="text-neutral-700 dark:text-neutral-300">
                           <span class="font-semibold">{{ $t('seller_orders.order_date') }}:</span>
                           <span class="ml-2">{{ formatDate(order.date_created) }}</span>
@@ -499,6 +608,95 @@ onMounted(async () => {
                         </div>
                       </div>
                     </div>
+
+                    <!-- จัดส่ง: ไทม์ไลน์ + อัปเดต (หลังชำระแล้ว) -->
+                    <div
+                      v-if="orderPaid(order)"
+                      class="mb-4 p-4 rounded-xl bg-teal-50/80 dark:bg-teal-950/25 border-2 border-teal-200 dark:border-teal-900"
+                    >
+                      <p class="text-sm font-semibold text-teal-900 dark:text-teal-100 mb-3">
+                        {{ $t('seller_orders.fulfillment_section') }}
+                      </p>
+                      <ShipmentTimeline :steps="shipmentStepsForOrder(order)" />
+                      <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div class="sm:col-span-2">
+                          <label class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                            {{ $t('seller_orders.shipping_status_field') }}
+                          </label>
+                          <select
+                            v-model="draftFor(order).shipping_status"
+                            class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
+                          >
+                            <option value="pending">{{ $t('shipping.pending') }}</option>
+                            <option value="preparing">{{ $t('shipping.preparing') }}</option>
+                            <option value="shipped">{{ $t('shipping.shipped') }}</option>
+                            <option value="out_for_delivery">{{ $t('order.shipment_timeline.out_for_delivery') }}</option>
+                            <option value="delivered">{{ $t('shipping.delivered') }}</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                            {{ $t('order.tracking_number_label') }}
+                          </label>
+                          <input
+                            v-model="draftFor(order).tracking_number"
+                            type="text"
+                            class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
+                            :placeholder="$t('seller_orders.tracking_placeholder')"
+                          />
+                        </div>
+                        <div>
+                          <label class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                            {{ $t('seller_orders.shipping_receipt_number') }}
+                          </label>
+                          <input
+                            v-model="draftFor(order).shipping_receipt_number"
+                            type="text"
+                            class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
+                            :placeholder="$t('seller_orders.shipping_receipt_placeholder')"
+                          />
+                        </div>
+                        <div class="sm:col-span-2">
+                          <label class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                            {{ $t('seller_orders.courier_name') }}
+                          </label>
+                          <input
+                            v-model="draftFor(order).courier_name"
+                            type="text"
+                            class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
+                            :placeholder="$t('seller_orders.courier_placeholder')"
+                          />
+                        </div>
+                        <div class="sm:col-span-2 flex flex-wrap items-center gap-3">
+                          <button
+                            type="button"
+                            class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-alizarin-crimson-600 text-white hover:bg-alizarin-crimson-700 disabled:opacity-50"
+                            :disabled="savingFulfillmentId === order.id"
+                            @click="saveFulfillment(order)"
+                          >
+                            <UIcon
+                              v-if="savingFulfillmentId === order.id"
+                              name="i-svg-spinners-90-ring-with-bg"
+                              class="w-4 h-4"
+                            />
+                            {{ $t('seller_orders.save_fulfillment') }}
+                          </button>
+                          <p
+                            v-if="order.fulfillment_updated_at"
+                            class="text-xs text-neutral-500 dark:text-neutral-400"
+                          >
+                            {{ $t('seller_orders.fulfillment_updated_at') }}
+                            {{ formatDate(order.fulfillment_updated_at) }}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <p
+                      v-else
+                      class="mb-4 text-sm text-neutral-500 dark:text-neutral-400"
+                    >
+                      {{ $t('seller_orders.fulfillment_after_payment') }}
+                    </p>
 
                     <!-- Seller's Products in Order -->
                     <div

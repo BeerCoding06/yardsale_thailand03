@@ -13,6 +13,8 @@ import {
   cartStockBodySchema,
   createOrderSchema,
   cancelOrderSchema,
+  sellerOrderFulfillmentParamsSchema,
+  patchSellerOrderFulfillmentSchema,
   createProductSchema,
   updateProductSchema,
   productActionSchema,
@@ -122,6 +124,14 @@ router.post('/create-order', authMiddleware, validate(createOrderSchema), orderC
 router.get('/get-order/:id', authMiddleware, orderController.getOrder);
 router.get('/my-orders', authMiddleware, orderController.myOrders);
 router.get('/seller-orders', authMiddleware, orderController.sellerOrders);
+router.patch(
+  '/seller-orders/:orderId/fulfillment',
+  authMiddleware,
+  requireRoles('user', 'seller', 'admin'),
+  validate(sellerOrderFulfillmentParamsSchema, 'params'),
+  validate(patchSellerOrderFulfillmentSchema),
+  orderController.patchSellerOrderFulfillment
+);
 router.post('/cancel-order', authMiddleware, validate(cancelOrderSchema), orderController.cancelOrder);
 
 router.post('/payment/mock', authMiddleware, (req, res, next) => {

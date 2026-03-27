@@ -1,9 +1,12 @@
-export async function createOrderRow(client, { userId, totalPrice, status = 'pending' }) {
+const ORDER_SELECT_BASE = `id, user_id, total_price, status, slip_image_url, created_at,
+  billing_snapshot, shipping_status, tracking_number, shipping_receipt_number, courier_name, fulfillment_updated_at`;
+
+export async function createOrderRow(client, { userId, totalPrice, status = 'pending', billingSnapshot = null }) {
   const r = await client.query(
-    `INSERT INTO orders (user_id, total_price, status)
-     VALUES ($1, $2, $3::order_status)
-     RETURNING id, user_id, total_price, status, slip_image_url, created_at`,
-    [userId, totalPrice, status]
+    `INSERT INTO orders (user_id, total_price, status, billing_snapshot)
+     VALUES ($1, $2, $3::order_status, $4::jsonb)
+     RETURNING ${ORDER_SELECT_BASE}`,
+    [userId, totalPrice, status, billingSnapshot ? JSON.stringify(billingSnapshot) : null]
   );
   return r.rows[0];
 }
@@ -20,7 +23,7 @@ export async function insertOrderItems(client, orderId, items) {
 
 export async function getOrderById(client, orderId) {
   const r = await client.query(
-    `SELECT id, user_id, total_price, status, slip_image_url, created_at
+    `SELECT ${ORDER_SELECT_BASE}
      FROM orders WHERE id = $1`,
     [orderId]
   );
@@ -44,25 +47,60 @@ export async function updateOrderStatus(client, orderId, status, { slipImageUrl 
      SET status = $2::order_status,
          slip_image_url = COALESCE($3, slip_image_url)
      WHERE id = $1
-     RETURNING id, user_id, total_price, status, slip_image_url, created_at`,
+     RETURNING ${ORDER_SELECT_BASE}`,
     [orderId, status, slipImageUrl ?? null]
+  );
+  return r.rows[0] || null;
+}
+
+/** ผู้ขาย / แอดมิน — อัปเดตสถานะจัดส่งและเลขพัสดุ */
+export async function updateOrderFulfillment(client, orderId, fields) {
+  const r = await client.query(
+    `UPDATE orders SET
+      shipping_status = $2,
+      tracking_number = NULLIF(TRIM(COALESCE($3, '')), ''),
+      shipping_receipt_number = NULLIF(TRIM(COALESCE($4, '')), ''),
+      courier_name = NULLIF(TRIM(COALESCE($5, '')), ''),
+      fulfillment_updated_at = now()
+    WHERE id = $1
+    RETURNING ${ORDER_SELECT_BASE}`,
+    [
+      orderId,
+      fields.shipping_status,
+      fields.tracking_number ?? '',
+      fields.shipping_receipt_number ?? '',
+      fields.courier_name ?? '',
+    ]
   );
   return r.rows[0] || null;
 }
 
 export async function listOrdersForUser(client, userId) {
   const r = await client.query(
-    `SELECT id, user_id, total_price, status, slip_image_url, created_at
+    `SELECT ${ORDER_SELECT_BASE}
      FROM orders WHERE user_id = $1 ORDER BY created_at DESC`,
     [userId]
   );
   return r.rows;
 }
 
+export async function orderHasSellerProduct(client, orderId, sellerId) {
+  const r = await client.query(
+    `SELECT 1 FROM order_items oi
+     JOIN products p ON p.id = oi.product_id
+     WHERE oi.order_id = $1 AND p.seller_id = $2::uuid
+     LIMIT 1`,
+    [orderId, sellerId]
+  );
+  return r.rowCount > 0;
+}
+
 /** Orders that include at least one line item sold by sellerId */
 export async function listOrdersForSeller(client, sellerId) {
   const r = await client.query(
     `SELECT DISTINCT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
+            o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
+            o.courier_name, o.fulfillment_updated_at,
             u.email AS buyer_email, u.name AS buyer_name
      FROM orders o
      JOIN order_items oi ON oi.order_id = o.id
@@ -79,6 +117,8 @@ export async function listOrdersForSeller(client, sellerId) {
 export async function listAllOrders(client) {
   const r = await client.query(
     `SELECT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
+            o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
+            o.courier_name, o.fulfillment_updated_at,
             u.email AS buyer_email
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id

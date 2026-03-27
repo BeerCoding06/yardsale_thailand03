@@ -535,7 +535,20 @@
     "seller_total": "ยอดรวมของฉัน",
     "amount_to_pay": "ยอดที่ต้องชำระ",
     "your_products_in_order": "สินค้าของคุณที่ถูกซื้อ",
-    "slip_uploaded": "แนบสลิปโอนเงินแล้ว"
+    "slip_uploaded": "แนบสลิปโอนเงินแล้ว",
+    "shipping_address": "ที่อยู่จัดส่ง",
+    "fulfillment_section": "จัดส่งและไทม์ไลน์",
+    "fulfillment_after_payment": "หลังลูกค้าชำระเงินแล้ว คุณสามารถอัปเดตสถานะจัดส่งและเลขพัสดุได้ที่นี่",
+    "shipping_status_field": "สถานะจัดส่ง (ไทม์ไลน์)",
+    "shipping_receipt_number": "เลขที่ใบเสร็จ/อ้างอิงจากขนส่ง",
+    "shipping_receipt_placeholder": "เช่น เลข POD หรือใบรับฝาก",
+    "courier_name": "บริษัทขนส่ง",
+    "courier_placeholder": "เช่น Kerry, Flash, J&T",
+    "tracking_placeholder": "เลขพัสดุติดตาม",
+    "save_fulfillment": "บันทึกการจัดส่ง",
+    "fulfillment_saved": "บันทึกสถานะจัดส่งแล้ว",
+    "fulfillment_save_error": "บันทึกไม่สำเร็จ ลองอีกครั้ง",
+    "fulfillment_updated_at": "อัปเดตล่าสุด:"
   },
   "register": {
     "title": "สมัครสมาชิก",

@@ -182,6 +182,48 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders (user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status);
 
+/* orders: snapshot ที่อยู่ผู้สั่ง + สถานะจัดส่ง (ผู้ขายอัปเดต) — รันซ้ำได้ */
+DO $ensure_order_fulfillment$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'billing_snapshot'
+  ) THEN
+    ALTER TABLE public.orders ADD COLUMN billing_snapshot JSONB;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'shipping_status'
+  ) THEN
+    ALTER TABLE public.orders
+      ADD COLUMN shipping_status TEXT NOT NULL DEFAULT 'pending';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'tracking_number'
+  ) THEN
+    ALTER TABLE public.orders ADD COLUMN tracking_number TEXT;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'shipping_receipt_number'
+  ) THEN
+    ALTER TABLE public.orders ADD COLUMN shipping_receipt_number TEXT;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'courier_name'
+  ) THEN
+    ALTER TABLE public.orders ADD COLUMN courier_name TEXT;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'fulfillment_updated_at'
+  ) THEN
+    ALTER TABLE public.orders ADD COLUMN fulfillment_updated_at TIMESTAMPTZ;
+  END IF;
+END $ensure_order_fulfillment$;
+
 CREATE TABLE IF NOT EXISTS order_items (
   order_id UUID NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
   product_id UUID NOT NULL REFERENCES products (id) ON DELETE RESTRICT,
