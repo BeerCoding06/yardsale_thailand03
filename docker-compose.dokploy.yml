@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-yardsale}
       POSTGRES_USER: ${POSTGRES_USER:-yardsale}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     volumes:
       - yardsale_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -27,8 +27,8 @@ services:
     environment:
       PORT: 4000
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-yardsale}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-yardsale}
-      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-yardsale}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-yardsale}
+      JWT_SECRET: ${JWT_SECRET:-changeme}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       UPLOAD_DIR: ${UPLOAD_DIR:-./uploads}
       PUBLIC_UPLOAD_BASE: ${PUBLIC_UPLOAD_BASE:-/uploads}

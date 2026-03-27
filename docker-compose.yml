@@ -32,14 +32,16 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-yardsale}
       POSTGRES_USER: ${POSTGRES_USER:-yardsale}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # ถ้า Dokploy ไม่ส่ง env เข้า compose ค่าว่างทำให้ Postgres ล้ม — ค่า default นี้ให้ stack ขึ้นได้; ควร override ใน Dokploy
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     volumes:
       - yardsale_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 15
+      start_period: 60s
 
   backend:
     build:
@@ -54,8 +56,8 @@ services:
     environment:
       PORT: 4000
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-yardsale}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-yardsale}
-      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-yardsale}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-yardsale}
+      JWT_SECRET: ${JWT_SECRET:-changeme}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       UPLOAD_DIR: ${UPLOAD_DIR:-./uploads}
       PUBLIC_UPLOAD_BASE: ${PUBLIC_UPLOAD_BASE:-/uploads}
