@@ -27,9 +27,8 @@ function productLink(product) {
 </script>
 
 <template>
-
-    <div v-for="(product, idx) in products" :key="product.id || product.sku">
-      <article>
+  <div class="contents">
+    <article v-for="(product, idx) in products" :key="product.id || product.sku">
         <NuxtLink
           :to="productLink(product)"
           class="group select-none"
@@ -77,31 +76,37 @@ function productLink(product) {
                 />
               </template>
             </div>
-            <div class="grid gap-0.5 pt-3 pb-4 px-1.5 text-sm font-semibold">
+            <div class="grid gap-0.5 pt-3 pb-4 px-1.5 text-sm font-semibold min-h-[112px]">
               <ProductPrice
                 :sale-price="product.salePrice || ''"
                 :regular-price="product.regularPrice || ''"
                 variant="card"
               />
-              <div class="font-normal text-[#5f5f5f] dark:text-[#a3a3a3]">
+              <div class="font-normal text-[#5f5f5f] dark:text-[#a3a3a3] line-clamp-2 min-h-[40px]">
                 {{ product.name }}
               </div>
               <div
-                class="font-normal text-[#5f5f5f] dark:text-[#a3a3a3]"
-                v-if="product.allPaStyle?.nodes?.[0]?.name"
+                class="font-normal text-[#5f5f5f] dark:text-[#a3a3a3] line-clamp-1 min-h-[20px]"
               >
-                {{ product.allPaStyle.nodes[0].name }}
+                {{ product.allPaStyle?.nodes?.[0]?.name || '' }}
               </div>
               <div
-                v-if="product.stockQuantity !== null && product.stockQuantity !== undefined"
-                class="font-normal text-xs text-[#5f5f5f] dark:text-[#a3a3a3]"
+                class="font-normal text-xs text-[#5f5f5f] dark:text-[#a3a3a3] min-h-[18px]"
+                :class="{
+                  invisible:
+                    product.stockQuantity === null || product.stockQuantity === undefined,
+                }"
               >
-                {{ $t('cart.stock') }} {{ product.stockQuantity }}
+                {{ $t('cart.stock') }}
+                {{
+                  product.stockQuantity === null || product.stockQuantity === undefined
+                    ? "-"
+                    : product.stockQuantity
+                }}
               </div>
             </div>
           </div>
         </NuxtLink>
-      </article>
-    </div>
-
+    </article>
+  </div>
 </template>
