@@ -41,9 +41,9 @@ function productLink(product) {
               <template v-if="product.galleryImages?.nodes?.length > 0">
                 <StorefrontImg
                   :alt="product.name"
-                  :loading="idx === 0 ? 'eager' : 'lazy'"
-                  :fetchpriority="idx === 0 ? 'high' : 'auto'"
-                  :decoding="idx === 0 ? 'sync' : 'async'"
+                  :loading="idx < 4 ? 'eager' : 'lazy'"
+                  :fetchpriority="idx < 4 ? 'high' : 'auto'"
+                  :decoding="idx < 4 ? 'sync' : 'async'"
                   :title="product.name"
                   :src="product.galleryImages.nodes[0].sourceUrl"
                   class="absolute h-full w-full dark:bg-neutral-800 bg-neutral-200 object-cover"
@@ -62,9 +62,9 @@ function productLink(product) {
               <template v-else>
                 <StorefrontImg
                   :alt="product.name"
-                  :loading="idx === 0 ? 'eager' : 'lazy'"
-                  :fetchpriority="idx === 0 ? 'high' : 'auto'"
-                  :decoding="idx === 0 ? 'sync' : 'async'"
+                  :loading="idx < 4 ? 'eager' : 'lazy'"
+                  :fetchpriority="idx < 4 ? 'high' : 'auto'"
+                  :decoding="idx < 4 ? 'sync' : 'async'"
                   :title="product.name"
                   :src="product.image?.sourceUrl"
                   class="absolute h-full w-full dark:bg-neutral-800 bg-neutral-200 object-cover"
@@ -97,4 +97,5 @@ function productLink(product) {
         </NuxtLink>
       </article>
     </div>
+
 </template>

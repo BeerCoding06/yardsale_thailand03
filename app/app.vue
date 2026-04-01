@@ -31,6 +31,10 @@ const ogLocaleTag = computed(() => {
 useHead({
   htmlAttrs: { lang: htmlLang },
   titleTemplate: (chunk?: string) => (chunk ? `${chunk} - ${name}` : name),
+  link: [
+    { rel: "dns-prefetch", href: "//api.yardsaleth.com" },
+    { rel: "preconnect", href: "https://api.yardsaleth.com", crossorigin: "" },
+  ],
 });
 
 useSeoMeta({
