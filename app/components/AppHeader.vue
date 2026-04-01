@@ -196,11 +196,12 @@ const totalQuantity = computed(() =>
             :to="localePath('/')"
           >
             <img
-              class="rounded-lg w-[50px] h-[50px]"
               src="/logo.webp"
               alt="Logo"
-              loading="lazy"
-              title="logo"
+              width="50"
+              height="50"
+              class="w-[50px] aspect-square rounded-lg object-cover"
+              fetchpriority="high"
             />
           </NuxtLink>
           <NuxtLink

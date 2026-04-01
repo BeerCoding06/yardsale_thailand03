@@ -35,7 +35,7 @@ function productLink(product) {
         >
           <div class="cursor-pointer transition ease-[ease] duration-300">
             <div
-              class="relative pb-[133%] dark:shadow-[0_8px_24px_rgba(0,0,0,.5)] rounded-2xl overflow-hidden"
+              class="relative aspect-[3/4] dark:shadow-[0_8px_24px_rgba(0,0,0,.5)] rounded-2xl overflow-hidden"
             >
               <template v-if="product.galleryImages?.nodes?.length > 0">
                 <StorefrontImg
@@ -82,13 +82,19 @@ function productLink(product) {
                 :regular-price="product.regularPrice || ''"
                 variant="card"
               />
-              <div class="font-normal text-[#5f5f5f] dark:text-[#a3a3a3] line-clamp-2 min-h-[40px]">
+              <div
+                :class="[
+                  'font-normal text-[#5f5f5f] dark:text-[#a3a3a3] break-words',
+                  product.allPaStyle?.nodes?.[0]?.name ? 'line-clamp-2' : 'line-clamp-3',
+                ]"
+              >
                 {{ product.name }}
               </div>
               <div
                 class="font-normal text-[#5f5f5f] dark:text-[#a3a3a3] line-clamp-1 min-h-[20px]"
+                v-if="product.allPaStyle?.nodes?.[0]?.name"
               >
-                {{ product.allPaStyle?.nodes?.[0]?.name || '' }}
+                {{ product.allPaStyle.nodes[0].name }}
               </div>
               <div
                 class="font-normal text-xs text-[#5f5f5f] dark:text-[#a3a3a3] min-h-[18px]"
