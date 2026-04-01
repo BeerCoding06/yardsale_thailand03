@@ -197,7 +197,7 @@ const totalQuantity = computed(() =>
           >
             <img
               class="rounded-lg w-[50px] h-[50px]"
-              src="/logo.png"
+              src="/logo.webp"
               alt="Logo"
               loading="lazy"
               title="logo"

@@ -46,6 +46,8 @@ function productLink(product) {
                   :decoding="idx < 4 ? 'sync' : 'async'"
                   :title="product.name"
                   :src="product.galleryImages.nodes[0].sourceUrl"
+                  :srcset="product.galleryImages.nodes[0].srcSet || undefined"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1536px) 33vw, 20vw"
                   class="absolute h-full w-full dark:bg-neutral-800 bg-neutral-200 object-cover"
                   v-if="product.galleryImages.nodes[0]?.sourceUrl"
                 />
@@ -55,6 +57,8 @@ function productLink(product) {
                   loading="lazy"
                   :title="product.name"
                   :src="product.image.sourceUrl"
+                  :srcset="product.image.srcSet || undefined"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1536px) 33vw, 20vw"
                   class="absolute h-full w-full dark:bg-neutral-800 bg-neutral-200 object-cover transition-opacity duration-300 group-hover:opacity-0"
                 />
                 <!-- only add hover if there are 2+ images -->
@@ -67,6 +71,8 @@ function productLink(product) {
                   :decoding="idx < 4 ? 'sync' : 'async'"
                   :title="product.name"
                   :src="product.image?.sourceUrl"
+                  :srcset="product.image?.srcSet || undefined"
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1536px) 33vw, 20vw"
                   class="absolute h-full w-full dark:bg-neutral-800 bg-neutral-200 object-cover"
                 />
               </template>
