@@ -82,6 +82,16 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
+    "/logo.png": {
+      headers: {
+        "cache-control": "public, max-age=31536000, immutable",
+      },
+    },
+    "/images/**": {
+      headers: {
+        "cache-control": "public, max-age=31536000, immutable",
+      },
+    },
     // หน้าแรก SSR เพื่อให้ browser ค้นพบ LCP image ได้ตั้งแต่ HTML แรก
     "/": { ssr: true, prerender: false },
     "/en": { ssr: true, prerender: false },
