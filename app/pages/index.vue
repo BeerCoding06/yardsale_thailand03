@@ -56,6 +56,7 @@ useHead(() => {
 });
 
 const productsData = ref([]);
+const visibleCount = ref(8);
 const isLoading = ref(false);
 const hasFetched = ref(false);
 const tailEl = ref(null);
@@ -131,13 +132,22 @@ async function fetch() {
   }
 }
 
+function revealMoreProducts(step = 8) {
+  if (visibleCount.value >= productsData.value.length) return;
+  visibleCount.value = Math.min(productsData.value.length, visibleCount.value + step);
+}
+
 onMounted(fetch);
 
 useIntervalFn(() => {
   if (!tailEl.value || isLoading.value) return;
   const { top } = tailEl.value.getBoundingClientRect();
   if (top - window.innerHeight < 400) {
-    fetch();
+    if (pageInfo.value.hasNextPage) {
+      fetch();
+    } else {
+      revealMoreProducts(8);
+    }
   }
 }, 500);
 
@@ -145,30 +155,33 @@ watch(
   () => route.query,
   () => {
     productsData.value = [];
+    visibleCount.value = 8;
     pageInfo.value = { hasNextPage: true, endCursor: null };
     fetch();
   }
 );
 
-const products = computed(() => productsData.value);
+const products = computed(() => productsData.value.slice(0, visibleCount.value));
 const productsEmpty = computed(
   () => hasFetched.value && !isLoading.value && productsData.value.length === 0
 );
 </script>
 
 <template>
-  <div class="flex items-center pl-3 lg:pl-5">
-    <ButtonSortBy />
+  <div>
+    <div class="flex items-center pl-3 lg:pl-5">
+      <ButtonSortBy />
+    </div>
+    <div
+      v-if="!productsEmpty"
+      class="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 3xl:grid-cols-7 gap-3 lg:gap-5 p-3 lg:p-5"
+    >
+      <ProductCard :products="products" />
+      <ProductsSkeleton
+        v-if="(!products.length || isLoading) && !productsEmpty"
+      />
+      <br ref="tailEl" />
+    </div>
+    <ProductsEmpty v-else />
   </div>
-  <div
-    v-if="!productsEmpty"
-    class="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 3xl:grid-cols-7 gap-3 lg:gap-5 p-3 lg:p-5"
-  >
-    <ProductCard :products="products" />
-    <ProductsSkeleton
-      v-if="(!products.length || isLoading) && !productsEmpty"
-    />
-    <br ref="tailEl" />
-  </div>
-  <ProductsEmpty v-else />
 </template>
