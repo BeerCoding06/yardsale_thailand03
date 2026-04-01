@@ -130,8 +130,10 @@ services:
       - "traefik.http.routers.yardsaleth-app.rule=Host(`yardsaleth.com`)"
       - "traefik.http.routers.yardsaleth-app.entrypoints=websecure"
       - "traefik.http.routers.yardsaleth-app.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.yardsaleth-app.middlewares=yardsaleth-compress"
       - "traefik.http.routers.yardsaleth-app.service=yardsaleth-app"
       - "traefik.http.services.yardsaleth-app.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.yardsaleth-compress.compress=true"
       # www → https://yardsaleth.com/...
       - "traefik.http.routers.yardsaleth-www.rule=Host(`www.yardsaleth.com`)"
       - "traefik.http.routers.yardsaleth-www.entrypoints=websecure"

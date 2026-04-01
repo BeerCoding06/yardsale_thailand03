@@ -82,8 +82,12 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-    // หน้าแรก: client-only เพื่อหลีกเลี่ยง 500 ตอนยังไม่ login (ไม่รัน logic ฝั่ง server)
-    "/": { ssr: false, prerender: false },
+    // หน้าแรก SSR เพื่อให้ browser ค้นพบ LCP image ได้ตั้งแต่ HTML แรก
+    "/": { ssr: true, prerender: false },
+    "/en": { ssr: true, prerender: false },
+    "/nb": { ssr: true, prerender: false },
+    "/nl": { ssr: true, prerender: false },
+    "/de": { ssr: true, prerender: false },
     "/categories": { ssr: true, prerender: false },
     "/favorites": { ssr: true, prerender: false },
     // Dynamic routes - use SSR instead of prerender to avoid payload file issues
@@ -103,6 +107,7 @@ export default defineNuxtConfig({
   },
 
   nitro: {
+    compressPublicAssets: true,
     prerender: {
       routes: [],
       crawlLinks: false,

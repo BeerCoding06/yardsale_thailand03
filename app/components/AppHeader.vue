@@ -294,6 +294,7 @@ const totalQuantity = computed(() =>
           </div>
           <button
             @mouseup="cartModal = !cartModal"
+            aria-label="Open cart"
             class="hover:bg-black/5 hover:dark:bg-white/15 max-lg:dark:bg-white/15 max-lg:bg-black/5 max-lg:hover:bg-black/10 max-lg:hover:dark:bg-white/20 min-w-12 min-h-12 flex items-center justify-center rounded-full cursor-pointer relative"
           >
             <svg
@@ -327,6 +328,7 @@ const totalQuantity = computed(() =>
             <button
               v-if="clientIsAuthenticated"
               @mouseup="profileModal = !profileModal"
+              aria-label="Open profile menu"
               class="hover:bg-black/5 hover:dark:bg-white/15 max-lg:dark:bg-white/15 max-lg:bg-black/5 max-lg:hover:bg-black/10 max-lg:hover:dark:bg-white/20 min-w-12 min-h-12 flex items-center justify-center rounded-full cursor-pointer relative overflow-hidden"
             >
               <img

@@ -77,6 +77,22 @@ const variables = computed(() => ({
   after: pageInfo.value.endCursor,
 }));
 
+const lcpImageHref = computed(() => {
+  const first = productsData.value?.[0];
+  if (!first) return "";
+  const src =
+    first?.galleryImages?.nodes?.[0]?.sourceUrl ||
+    first?.image?.sourceUrl ||
+    "";
+  return String(src || "");
+});
+
+useHead(() => ({
+  link: lcpImageHref.value
+    ? [{ rel: "preload", as: "image", href: lcpImageHref.value, fetchpriority: "high" }]
+    : [],
+}));
+
 async function fetch() {
   if (isLoading.value || !pageInfo.value.hasNextPage) return;
   isLoading.value = true;

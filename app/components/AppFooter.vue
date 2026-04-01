@@ -42,7 +42,7 @@ const chooseLocale = code => {
             @click="isOpen = !isOpen"
             :aria-expanded="isOpen"
             aria-haspopup="listbox"
-            class="flex h-8 items-center gap-1.5 rounded-lg p-2 transition-all bg-neutral-800/5 hover:bg-neutral-800/10 hover:text-black active:scale-95 dark:bg-white/10 hover:dark:bg-white/20 hover:dark:text-neutral-100">
+            class="flex h-8 items-center gap-1.5 rounded-lg p-2 transition-all text-neutral-800 dark:text-neutral-100 bg-neutral-200/70 hover:bg-neutral-300/80 active:scale-95 dark:bg-neutral-700/70 hover:dark:bg-neutral-600/80">
             {{ currentLocale.name }}
           </button>
         </UTooltip>
@@ -77,9 +77,9 @@ const chooseLocale = code => {
         <button
           type="button"
           @click="toggleDark"
-          class="flex h-8 items-center gap-1.5 rounded-lg p-2 transition-all bg-neutral-800/5 hover:bg-neutral-800/10 hover:text-black active:scale-95 dark:bg-white/10 hover:dark:bg-white/20 hover:dark:text-neutral-100">
+          class="flex h-8 items-center gap-1.5 rounded-lg p-2 transition-all text-neutral-800 dark:text-neutral-100 bg-neutral-200/70 hover:bg-neutral-300/80 active:scale-95 dark:bg-neutral-700/70 hover:dark:bg-neutral-600/80">
           <UIcon :name="colorModeIcon" size="16" />
-          <span class="capitalize leading-3">
+          <span class="capitalize leading-4">
             {{ $t('theme.' + colorMode.preference) }}
           </span>
         </button>

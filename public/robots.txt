@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://yardsaleth.com/sitemap.xml
+User-agent: *
+Allow: /
+
+Sitemap: https://yardsaleth.com/sitemap.xml

@@ -176,6 +176,7 @@ onBeforeUnmount(() => {
         <div class="ml-[-70px] absolute">
           <button
             @click="isCollapsed = true"
+            aria-label="Open menu"
             class="mb-2 p-2 flex bg-black/5 hover:bg-black/10 dark:bg-white/15 hover:dark:bg-white/20 transition active:scale-95"
           >
             <UIcon name="i-heroicons-bars-3" size="24" />
@@ -207,6 +208,7 @@ onBeforeUnmount(() => {
 
         <button
           @click="isCollapsed = false"
+          aria-label="Close menu"
           class="p-2 flex ml-auto h-fit bg-black/5 hover:bg-black/10 dark:bg-white/15 hover:dark:bg-white/20 transition active:scale-95"
         >
           <UIcon name="i-iconamoon-close-bold" size="24" />
@@ -350,7 +352,7 @@ img {
 }
 
 .selected {
-  @apply bg-[#509e9e] lg:hover:bg-[#509e9e] text-white dark:bg-alizarin-crimson-700 lg:hover:dark:bg-alizarin-crimson-800;
+  @apply bg-teal-700 lg:hover:bg-teal-700 text-white font-semibold dark:bg-alizarin-crimson-700 lg:hover:dark:bg-alizarin-crimson-800;
 }
 
 .slider-container {
