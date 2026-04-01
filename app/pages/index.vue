@@ -88,9 +88,29 @@ const lcpImageHref = computed(() => {
   return String(src || "");
 });
 
+const lcpImageSrcSet = computed(() => {
+  const first = productsData.value?.[0];
+  if (!first) return "";
+  return String(
+    first?.galleryImages?.nodes?.[0]?.srcSet ||
+      first?.image?.srcSet ||
+      ""
+  );
+});
+
 useHead(() => ({
   link: lcpImageHref.value
-    ? [{ rel: "preload", as: "image", href: lcpImageHref.value, fetchpriority: "high" }]
+    ? [
+        {
+          rel: "preload",
+          as: "image",
+          href: lcpImageHref.value,
+          fetchpriority: "high",
+          imagesrcset: lcpImageSrcSet.value || undefined,
+          imagesizes:
+            "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1536px) 33vw, 20vw",
+        },
+      ]
     : [],
 }));
 
@@ -137,7 +157,11 @@ function revealMoreProducts(step = 8) {
   visibleCount.value = Math.min(productsData.value.length, visibleCount.value + step);
 }
 
-onMounted(fetch);
+if (import.meta.server) {
+  await fetch();
+} else {
+  onMounted(fetch);
+}
 
 useIntervalFn(() => {
   if (!tailEl.value || isLoading.value) return;
