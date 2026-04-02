@@ -3,6 +3,7 @@
 const route = useRoute();
 const { name } = useAppConfig().site;
 const url = useRequestURL();
+const { locale } = useI18n();
 /** ต้องเรียกนอก useHead — ภายใน callback ของ unhead อาจไม่มี Nuxt context (SSR /locale) */
 const runtimeConfig = useRuntimeConfig();
 const canonical = computed(() => {
@@ -16,24 +17,95 @@ const canonical = computed(() => {
   return query ? `${base}?${query}` : base;
 });
 
-useHead(() => {
+const pageHeading = computed(() => {
+  if (typeof route.query.q === "string" && route.query.q.trim()) {
+    return `Search results for "${route.query.q.trim()}"`;
+  }
+  if (typeof route.query.category === "string" && route.query.category.trim()) {
+    return `${route.query.category.trim()} products`;
+  }
+  return `${name} - second hand marketplace`;
+});
+
+const seoContent = computed(() => {
   const q = typeof route.query.q === "string" ? route.query.q : undefined;
   const category =
     typeof route.query.category === "string" ? route.query.category : undefined;
+  const lang = String(locale.value || "th").toLowerCase();
+  const isThai = lang.startsWith("th");
+  const categorySlug = String(category || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-");
 
-  let title = "";
-  let description = "";
-  const keywords = new Set(["ecommerce", name]);
+  let title = isThai ? `${name} ตลาดของมือสองออนไลน์` : `${name} second hand marketplace`;
+  let description = isThai
+    ? `ซื้อขายของมือสองง่ายๆ บน ${name} รวมเฟอร์นิเจอร์ เครื่องใช้ไฟฟ้า เสื้อผ้า และสินค้าใช้แล้วสภาพดี`
+    : `Buy and sell second hand products on ${name}: furniture, electronics, fashion, and more.`;
+
+  const baseKeywords = isThai
+    ? [
+        "ขายของมือสอง",
+        "ตลาดของมือสอง",
+        "ของมือสองออนไลน์",
+        "ซื้อขายของมือสอง",
+        "สินค้ามือสองราคาถูก",
+        "เฟอร์นิเจอร์มือสอง",
+        "โซฟามือสอง",
+        "ตู้เสื้อผ้ามือสอง",
+        "โต๊ะมือสอง",
+        "เก้าอี้มือสอง",
+        "เครื่องใช้ไฟฟ้ามือสอง",
+        "power bank มือสอง",
+        "เสื้อผ้ามือสอง",
+        "marketplace มือสองไทย",
+        "second hand thailand",
+      ]
+    : [
+        "second hand marketplace thailand",
+        "used furniture thailand",
+        "used electronics thailand",
+        "second hand clothes thailand",
+        "buy and sell used items",
+        "pre owned products thailand",
+      ];
+
+  const categoryKeywordMap = {
+    furniture: isThai
+      ? ["เฟอร์นิเจอร์มือสอง", "โซฟามือสอง", "ตู้เสื้อผ้ามือสอง", "โต๊ะมือสอง", "เก้าอี้มือสอง"]
+      : ["used furniture", "second hand sofa", "used wardrobe", "used table", "used chair"],
+    electronics: isThai
+      ? ["เครื่องใช้ไฟฟ้ามือสอง", "อุปกรณ์ไอทีมือสอง", "power bank มือสอง"]
+      : ["used electronics", "second hand gadgets", "used power bank"],
+    fashion: isThai
+      ? ["เสื้อผ้ามือสอง", "แฟชั่นมือสอง", "รองเท้ามือสอง"]
+      : ["second hand clothes", "used fashion items", "pre owned shoes"],
+  };
+
+  const keywords = new Set([...baseKeywords, "ecommerce", name]);
 
   if (category) {
-    title = `${category} Products`;
-    description = `Browse ${category} products on ${name}.`;
+    title = isThai ? `${category} | ${name}` : `${category} products | ${name}`;
+    description = isThai
+      ? `เลือกซื้อ ${category} มือสองบน ${name} พร้อมสินค้าจากผู้ขายจริงทั่วไทย`
+      : `Browse second hand ${category} products on ${name}.`;
     keywords.add(category);
+    if (/furniture|sofa|wardrobe|table|chair|เฟอร์|โซฟา|ตู้|โต๊ะ|เก้าอี้/.test(categorySlug)) {
+      for (const k of categoryKeywordMap.furniture) keywords.add(k);
+    }
+    if (/electronic|power|gadget|ไฟฟ้า|ไอที|พาวเวอร์/.test(categorySlug)) {
+      for (const k of categoryKeywordMap.electronics) keywords.add(k);
+    }
+    if (/fashion|cloth|shoe|เสื้อผ้า|แฟชั่น|รองเท้า/.test(categorySlug)) {
+      for (const k of categoryKeywordMap.fashion) keywords.add(k);
+    }
   }
 
   if (q) {
-    title = `Search results for "${q}"`;
-    description = `Search results for "${q}" on ${name}.`;
+    title = isThai ? `ผลการค้นหา "${q}" | ${name}` : `Search results for "${q}" | ${name}`;
+    description = isThai
+      ? `ผลการค้นหาสำหรับ "${q}" บน ${name}`
+      : `Search results for "${q}" on ${name}.`;
     keywords.add(q);
   }
 
@@ -42,18 +114,27 @@ useHead(() => {
 
   return {
     title,
-    ogTitle: title,
     description,
-    ogDescription: description,
-    ogUrl: canonicalUrl,
-    canonical: canonicalUrl,
     keywords: Array.from(keywords).join(", "),
-    twitterTitle: title,
-    twitterDescription: description,
-    ogImage: ogImageLogo,
-    twitterImage: ogImageLogo,
+    canonicalUrl,
+    ogImageLogo,
   };
 });
+
+useSeoMeta(() => ({
+  title: seoContent.value.title,
+  description: seoContent.value.description,
+  keywords: seoContent.value.keywords,
+  ogTitle: seoContent.value.title,
+  ogDescription: seoContent.value.description,
+  ogUrl: seoContent.value.canonicalUrl,
+  ogImage: seoContent.value.ogImageLogo,
+  ogType: "website",
+  twitterTitle: seoContent.value.title,
+  twitterDescription: seoContent.value.description,
+  twitterImage: seoContent.value.ogImageLogo,
+  twitterCard: "summary_large_image",
+}));
 
 const productsData = ref([]);
 const visibleCount = ref(8);
@@ -99,19 +180,22 @@ const lcpImageSrcSet = computed(() => {
 });
 
 useHead(() => ({
-  link: lcpImageHref.value
-    ? [
-        {
-          rel: "preload",
-          as: "image",
-          href: lcpImageHref.value,
-          fetchpriority: "high",
-          imagesrcset: lcpImageSrcSet.value || undefined,
-          imagesizes:
-            "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1536px) 33vw, 20vw",
-        },
-      ]
-    : [],
+  link: [
+    { rel: "canonical", href: seoContent.value.canonicalUrl },
+    ...(lcpImageHref.value
+      ? [
+          {
+            rel: "preload",
+            as: "image",
+            href: lcpImageHref.value,
+            fetchpriority: "high",
+            imagesrcset: lcpImageSrcSet.value || undefined,
+            imagesizes:
+              "(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1536px) 33vw, 20vw",
+          },
+        ]
+      : []),
+  ],
 }));
 
 async function fetch() {
@@ -193,6 +277,13 @@ const productsEmpty = computed(
 
 <template>
   <div>
+    <header class="sr-only">
+      <h1>{{ pageHeading }}</h1>
+      <h2>{{ seoContent.description }}</h2>
+      <h3>Used products in Thailand</h3>
+      <h4>Furniture, electronics, fashion, and home items</h4>
+      <h5>Updated listings from real sellers</h5>
+    </header>
     <div class="flex items-center pl-3 lg:pl-5">
       <ButtonSortBy />
     </div>
