@@ -5,25 +5,43 @@ const appConfig = useAppConfig();
 const siteName = appConfig?.site?.name || "Yard Sale Thailand";
 const url = useRequestURL();
 const localePath = useLocalePath();
+const { locale } = useI18n();
 
 const canonical = url.origin + url.pathname;
 const config = useRuntimeConfig();
 const ogImageLogo = `${config.public?.baseUrl || url.origin}/logo.svg`;
 
-useSeoMeta({
-  title: "Favorites",
-  ogTitle: "Favorites",
-  description: `Your favorite products saved on ${siteName}.`,
-  ogDescription: `Your favorite products saved on ${siteName}.`,
+const seo = computed(() => {
+  const isThai = String(locale.value || "th").startsWith("th");
+  const title = isThai ? `รายการโปรด | ${siteName}` : `Favorites | ${siteName}`;
+  const description = isThai
+    ? `รายการสินค้าที่คุณบันทึกไว้ในรายการโปรดบน ${siteName}`
+    : `Your saved favorite products on ${siteName}.`;
+  return { title, description };
+});
+
+useSeoMeta(() => ({
+  title: seo.value.title,
+  ogTitle: seo.value.title,
+  description: seo.value.description,
+  ogDescription: seo.value.description,
   ogUrl: canonical,
-  canonical,
   keywords: `favorites, wishlist, ${siteName}`,
-  twitterTitle: "Favorites",
-  twitterDescription: `Your favorite products saved on ${siteName}.`,
+  twitterTitle: seo.value.title,
+  twitterDescription: seo.value.description,
   ogImage: ogImageLogo,
   twitterImage: ogImageLogo,
+  twitterCard: "summary_large_image",
   robots: "noindex, nofollow",
-});
+}));
+
+useHead(() => ({
+  link: [{ rel: "canonical", href: canonical }],
+  meta: [
+    { name: "author", content: "YardsaleThailand" },
+    { name: "publisher", content: "YardsaleThailand" },
+  ],
+}));
 </script>
 
 <template>

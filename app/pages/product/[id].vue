@@ -17,6 +17,9 @@ const setThumbsSwiper = (swiper) => {
 const modules = [Navigation, Pagination, Thumbs];
 
 const route = useRoute();
+const url = useRequestURL();
+const config = useRuntimeConfig();
+const { locale } = useI18n();
 
 const {
   hasRemoteApi,
@@ -130,6 +133,220 @@ watch([slug, sku, () => route.query.id, idParam], () => {
 
 const product = computed(() => productResult.value);
 
+const productCanonical = computed(() => {
+  const base = config.public?.baseUrl || url.origin;
+  const p = route.params.id;
+  const id = Array.isArray(p) ? p[0] : String(p || "");
+  return `${base}${localePath(`/product/${id}`)}`;
+});
+
+const productImage = computed(
+  () => product.value?.image?.sourceUrl || `${config.public?.baseUrl || url.origin}/logo.svg`
+);
+
+const productSeo = computed(() => {
+  const p = product.value || {};
+  const productName = String(p.name || "").trim();
+  const categoryName = String(p?.categories?.nodes?.[0]?.name || "").trim();
+  const price =
+    String(p.salePrice || p.regularPrice || "").replace(/<[^>]*>/g, "").trim();
+
+  const hasProduct = productName.length > 0;
+  const title = hasProduct
+    ? `${productName}${categoryName ? ` | ${categoryName}` : ""} | YardsaleThailand`
+    : "สินค้ามือสอง | YardsaleThailand";
+  const description = hasProduct
+    ? `ซื้อ ${productName}${price ? ` ราคา ${price}` : ""} บน YardsaleThailand${
+        categoryName ? ` หมวด ${categoryName}` : ""
+      }`
+    : "เลือกซื้อสินค้ามือสองสภาพดีจากผู้ขายจริงบน YardsaleThailand";
+
+  const keywords = [
+    productName,
+    categoryName,
+    "สินค้ามือสอง",
+    "ตลาดของมือสอง",
+    "ซื้อของมือสองออนไลน์",
+    "second hand thailand",
+  ]
+    .map((k) => String(k || "").trim())
+    .filter(Boolean)
+    .join(", ");
+
+  return { title, description, keywords };
+});
+
+function parsePriceNumber(raw) {
+  const cleaned = String(raw || "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/[^0-9.,-]/g, "")
+    .replace(/,/g, "");
+  const n = Number(cleaned);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    const v = String(value ?? "").trim();
+    if (v) return v;
+  }
+  return "";
+}
+
+function firstFiniteNumber(...values) {
+  for (const value of values) {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
+const productJsonLd = computed(() => {
+  const p = product.value || {};
+  const name = String(p.name || "").trim();
+  if (!name) return null;
+
+  const priceValue = parsePriceNumber(p.salePrice || p.regularPrice);
+  const currency = "THB";
+  const inStock =
+    p.stockStatus !== "OUT_OF_STOCK" &&
+    (p.stockQuantity == null || Number(p.stockQuantity) > 0);
+  const condition = "https://schema.org/UsedCondition";
+
+  const imageList = [
+    p.image?.sourceUrl,
+    ...(Array.isArray(p.galleryImages?.nodes)
+      ? p.galleryImages.nodes.map((n) => n?.sourceUrl)
+      : []),
+  ]
+    .map((s) => String(s || "").trim())
+    .filter(Boolean)
+    .slice(0, 8);
+
+  const description = String(productSeo.value.description || "").trim();
+  const category = String(p?.categories?.nodes?.[0]?.name || "").trim();
+  const skuValue = String(p.sku || "").trim();
+  const brandName = String(p?.brand?.name || "YardsaleThailand").trim();
+  const gtinValue = firstNonEmpty(p.gtin, p.gtin13, p.gtin12, p.gtin14, p.ean, p.upc);
+  const mpnValue = firstNonEmpty(p.mpn);
+  const ratingValue = firstFiniteNumber(
+    p.averageRating,
+    p.ratingValue,
+    p.rating,
+    p.reviewSummary?.averageRating
+  );
+  const reviewCount = firstFiniteNumber(
+    p.reviewCount,
+    p.ratingCount,
+    p.reviewsCount,
+    p.reviewSummary?.reviewCount
+  );
+  const reviewNodes = Array.isArray(p.reviews?.nodes) ? p.reviews.nodes : [];
+  const reviews = reviewNodes
+    .slice(0, 3)
+    .map((r) => {
+      const authorName = firstNonEmpty(r?.author?.name, r?.authorName, "Customer");
+      const body = firstNonEmpty(r?.content, r?.body, r?.comment);
+      const score = firstFiniteNumber(r?.rating, r?.ratingValue);
+      return {
+        "@type": "Review",
+        author: { "@type": "Person", name: authorName },
+        ...(body ? { reviewBody: body } : {}),
+        ...(score != null
+          ? {
+              reviewRating: {
+                "@type": "Rating",
+                ratingValue: score,
+                bestRating: 5,
+                worstRating: 1,
+              },
+            }
+          : {}),
+      };
+    })
+    .filter((r) => r.reviewBody || r.reviewRating);
+
+  const productNode = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "@id": `${productCanonical.value}#product`,
+    name,
+    ...(description ? { description } : {}),
+    ...(imageList.length ? { image: imageList } : {}),
+    ...(skuValue ? { sku: skuValue } : {}),
+    ...(gtinValue ? { gtin: gtinValue } : {}),
+    ...(mpnValue ? { mpn: mpnValue } : {}),
+    ...(category ? { category } : {}),
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": productCanonical.value,
+    },
+    brand: {
+      "@type": "Brand",
+      name: brandName,
+    },
+    url: productCanonical.value,
+    offers: {
+      "@type": "Offer",
+      priceCurrency: currency,
+      availability: inStock
+        ? "https://schema.org/InStock"
+        : "https://schema.org/OutOfStock",
+      itemCondition: condition,
+      url: productCanonical.value,
+      ...(priceValue != null ? { price: priceValue } : {}),
+      seller: {
+        "@type": "Organization",
+        name: "YardsaleThailand",
+      },
+    },
+    ...(ratingValue != null && reviewCount != null
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue,
+            reviewCount,
+          },
+        }
+      : {}),
+    ...(reviews.length ? { review: reviews } : {}),
+  };
+
+  return productNode;
+});
+
+useSeoMeta(() => ({
+  title: productSeo.value.title,
+  ogTitle: productSeo.value.title,
+  description: productSeo.value.description,
+  ogDescription: productSeo.value.description,
+  keywords: productSeo.value.keywords,
+  ogType: "product",
+  ogUrl: productCanonical.value,
+  ogImage: productImage.value,
+  twitterTitle: productSeo.value.title,
+  twitterDescription: productSeo.value.description,
+  twitterImage: productImage.value,
+  twitterCard: "summary_large_image",
+  robots: "index, follow",
+}));
+
+useHead(() => ({
+  link: [{ rel: "canonical", href: productCanonical.value }],
+  meta: [
+    { name: "author", content: "YardsaleThailand" },
+    { name: "publisher", content: "YardsaleThailand" },
+  ],
+  script: productJsonLd.value
+    ? [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify(productJsonLd.value),
+        },
+      ]
+    : [],
+}));
+
 // Check if product is simple (no variations)
 const isSimpleProduct = computed(() => {
   return !product.value.variations?.nodes || product.value.variations.nodes.length === 0;
@@ -228,7 +445,6 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
 
 <template>
   <div>
-    <ProductSeo v-if="product?.name" :info="product" />
     <ProductSkeleton v-if="isLoading || !product?.name" />
     <template v-else>
       <div class="justify-center flex flex-col lg:flex-row lg:mx-5">

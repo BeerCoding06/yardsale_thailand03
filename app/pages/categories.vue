@@ -3,25 +3,47 @@
 const { name } = useAppConfig().site;
 const url = useRequestURL();
 const localePath = useLocalePath();
+const { locale } = useI18n();
 
 const categoriesData = ref([]);
 const canonical = url.origin + url.pathname;
 const config = useRuntimeConfig();
 const ogImageLogo = `${config.public?.baseUrl || url.origin}/logo.svg`;
 
-useSeoMeta({
-  title: "Categories",
-  ogTitle: "Categories",
-  description: `Browse product categories on ${name}.`,
-  ogDescription: `Browse product categories on ${name}.`,
+const seo = computed(() => {
+  const isThai = String(locale.value || "th").startsWith("th");
+  const title = isThai ? `หมวดหมู่สินค้า | ${name}` : `Product categories | ${name}`;
+  const description = isThai
+    ? `เลือกดูหมวดหมู่สินค้ามือสองบน ${name} เช่น เฟอร์นิเจอร์ เครื่องใช้ไฟฟ้า และแฟชั่น`
+    : `Browse second hand product categories on ${name}: furniture, electronics, fashion, and more.`;
+  const keywords = isThai
+    ? `หมวดหมู่สินค้า, ของมือสอง, เฟอร์นิเจอร์มือสอง, เครื่องใช้ไฟฟ้ามือสอง, ${name}`
+    : `product categories, second hand marketplace, used furniture, used electronics, ${name}`;
+  return { title, description, keywords };
+});
+
+useSeoMeta(() => ({
+  title: seo.value.title,
+  ogTitle: seo.value.title,
+  description: seo.value.description,
+  ogDescription: seo.value.description,
   ogUrl: canonical,
-  canonical,
-  keywords: `categories, ${name}`,
-  twitterTitle: "Categories",
-  twitterDescription: `Browse product categories on ${name}.`,
+  keywords: seo.value.keywords,
+  twitterTitle: seo.value.title,
+  twitterDescription: seo.value.description,
   ogImage: ogImageLogo,
   twitterImage: ogImageLogo,
-});
+  twitterCard: "summary_large_image",
+}));
+
+useHead(() => ({
+  link: [{ rel: "canonical", href: canonical }],
+  meta: [
+    { name: "robots", content: "index, follow" },
+    { name: "author", content: "YardsaleThailand" },
+    { name: "publisher", content: "YardsaleThailand" },
+  ],
+}));
 
 const { hasRemoteApi, endpoint, unwrapYardsaleResponse, resolveMediaUrl } =
   useStorefrontCatalog();
