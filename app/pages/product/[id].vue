@@ -146,6 +146,7 @@ const productImage = computed(
 
 const productSeo = computed(() => {
   const p = product.value || {};
+  const isThai = String(locale.value || "th").toLowerCase().startsWith("th");
   const productName = String(p.name || "").trim();
   const categoryName = String(p?.categories?.nodes?.[0]?.name || "").trim();
   const price =
@@ -153,13 +154,23 @@ const productSeo = computed(() => {
 
   const hasProduct = productName.length > 0;
   const title = hasProduct
-    ? `${productName}${categoryName ? ` | ${categoryName}` : ""} | YardsaleThailand`
-    : "สินค้ามือสอง | YardsaleThailand";
+    ? isThai
+      ? `${productName}${categoryName ? ` | ${categoryName}` : ""} | สินค้ามือสอง YardsaleThailand`
+      : `${productName}${categoryName ? ` | ${categoryName}` : ""} | Second hand products | YardsaleThailand`
+    : isThai
+      ? "สินค้ามือสอง | YardsaleThailand"
+      : "Second hand products | YardsaleThailand";
   const description = hasProduct
-    ? `ซื้อ ${productName}${price ? ` ราคา ${price}` : ""} บน YardsaleThailand${
-        categoryName ? ` หมวด ${categoryName}` : ""
-      }`
-    : "เลือกซื้อสินค้ามือสองสภาพดีจากผู้ขายจริงบน YardsaleThailand";
+    ? isThai
+      ? `ซื้อ ${productName}${price ? ` ราคา ${price}` : ""} บน YardsaleThailand${
+          categoryName ? ` หมวด ${categoryName}` : ""
+        } รวมหมวดเฟอร์นิเจอร์ อิเล็กทรอนิกส์ แฟชั่น และของมือสองอื่นๆ`
+      : `Buy ${productName}${price ? ` at ${price}` : ""} on YardsaleThailand${
+          categoryName ? ` in ${categoryName}` : ""
+        }. Shop second hand products across furniture, electronics, and fashion.`
+    : isThai
+      ? "เลือกซื้อสินค้ามือสองสภาพดีจากผู้ขายจริงบน YardsaleThailand ครบหมวดเฟอร์นิเจอร์ อิเล็กทรอนิกส์ และแฟชั่น"
+      : "Shop second hand products from real sellers on YardsaleThailand across furniture, electronics, and fashion.";
 
   const keywords = [
     productName,
@@ -447,6 +458,12 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
   <div>
     <ProductSkeleton v-if="isLoading || !product?.name" />
     <template v-else>
+      <header class="sr-only">
+        <h2>{{ productSeo.title }}</h2>
+        <h3>{{ productSeo.description }}</h3>
+        <h4>Second hand products: furniture, electronics, fashion</h4>
+        <h5>YardsaleThailand marketplace listing</h5>
+      </header>
       <div class="justify-center flex flex-col lg:flex-row lg:mx-5">
     <ButtonBack />
     <div class="mr-6 mt-5 pt-2.5 max-xl:hidden">
