@@ -32,16 +32,13 @@ async function main() {
          VALUES ($1, $2, 'Demo Admin', 'admin'::user_role)`,
         [adminEmail, adminHash]
       );
-      console.log('Created admin (use for /admin):', adminEmail, '/', adminPassword);
     } else {
       if (process.env.SEED_RESET_ADMIN_PASSWORD === '1') {
         await client.query(`UPDATE users SET password_hash = $2, role = 'admin'::user_role WHERE id = $1`, [
           adminRow.id,
           adminHash,
         ]);
-        console.log('Reset admin password:', adminEmail, '/', adminPassword);
       } else {
-        console.log('Admin exists:', adminEmail, '(set SEED_RESET_ADMIN_PASSWORD=1 to reset password & role)');
       }
     }
 
@@ -59,9 +56,7 @@ async function main() {
           [email, hash]
         )
       ).rows[0];
-      console.log('Created seller:', email, '/', password);
     } else {
-      console.log('Seller exists:', email);
     }
 
     const cat = (await client.query(`SELECT id FROM categories WHERE slug = 'general' LIMIT 1`)).rows[0];
@@ -75,7 +70,6 @@ async function main() {
     const count = (await client.query(`SELECT COUNT(*)::int AS c FROM products WHERE seller_id = $1`, [seller.id]))
       .rows[0].c;
     if (count > 0) {
-      console.log('Products already seeded for seller, skip.');
       return;
     }
 
@@ -86,7 +80,6 @@ async function main() {
          ($1, $2, 'Demo Mug', 'Ceramic', 12.00, 12.00, NULL, 100, NULL, 'published'::product_listing_status)`,
       [seller.id, categoryId]
     );
-    console.log('Inserted 2 demo products.');
   } finally {
     await client.end();
   }

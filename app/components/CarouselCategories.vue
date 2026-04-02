@@ -15,28 +15,14 @@ const props = defineProps({
 // Create computed for reactive categories
 const categoriesList = computed(() => {
   const cats = props.categories || [];
-  console.log('[CarouselCategories] Computed categories:', cats.length, cats);
   return cats;
 });
 
 // Debug: Watch categories prop changes
 watch(() => props.categories, (newCategories) => {
-  console.log('[CarouselCategories] Categories prop changed:', newCategories?.length || 0);
-  console.log('[CarouselCategories] Categories data:', newCategories);
-  if (newCategories && newCategories.length > 0) {
-    console.log('[CarouselCategories] First category:', newCategories[0]);
-  }
 }, { deep: true, immediate: true });
 
-onMounted(() => {
-  console.log('[CarouselCategories] Component mounted');
-  console.log('[CarouselCategories] Categories prop:', props.categories);
-  console.log('[CarouselCategories] Categories length:', props.categories?.length || 0);
-  console.log('[CarouselCategories] Is array?', Array.isArray(props.categories));
-  if (props.categories && props.categories.length > 0) {
-    console.log('[CarouselCategories] First category structure:', props.categories[0]);
-  }
-});
+onMounted(() => {});
 
 const cardsSlider = ref(null);
 const showPrev = ref(false);

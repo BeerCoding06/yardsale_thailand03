@@ -29,7 +29,6 @@ async function main() {
   await client.connect();
   try {
     await client.query(sql);
-    console.log('categories.image_url OK (added if it was missing).');
   } finally {
     await client.end();
   }

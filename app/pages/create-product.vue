@@ -30,10 +30,6 @@ onMounted(async () => {
   }
 
   isChecking.value = false;
-  console.log(
-    "[create-product] Page loaded, user authenticated:",
-    user.value.id
-  );
 });
 
 // Watch for auth changes

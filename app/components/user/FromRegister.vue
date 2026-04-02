@@ -196,7 +196,6 @@ const handleSubmit = async (e) => {
       }
     });
 
-    console.log("[Form] Sending payload:", payload);
 
     // Send to Nuxt API endpoint (which will call WordPress API)
     const response = await $fetch("/api/create-user", {
@@ -207,7 +206,6 @@ const handleSubmit = async (e) => {
       body: payload,
     });
 
-    console.log("[Form] Response:", response);
 
     message.value = {
       type: "success",

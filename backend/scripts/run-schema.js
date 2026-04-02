@@ -35,7 +35,6 @@ BEGIN
   END IF;
 END $ensure_cat_img$;
 `);
-    console.log('Schema applied (idempotent — safe to re-run).');
   } finally {
     await client.end();
   }

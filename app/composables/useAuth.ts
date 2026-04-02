@@ -25,7 +25,6 @@ export const useAuth = () => {
     remember?: boolean
   ) => {
     try {
-      console.log("[useAuth] Attempting login for username:", username);
 
       const { endpoint } = useCmsApi();
       const response = await $fetch<{
@@ -43,8 +42,6 @@ export const useAuth = () => {
         },
       });
 
-      console.log("[useAuth] Login response:", response);
-      console.log("[useAuth] Response success:", response?.success);
       const raw: any = response;
       const mergedUser =
         raw?.user ??
@@ -52,7 +49,6 @@ export const useAuth = () => {
         (raw?.data && typeof raw.data === "object" && "email" in raw.data
           ? raw.data
           : null);
-      console.log("[useAuth] Response has user:", !!mergedUser);
 
       if (mergedUser && raw.success !== false) {
         const token =
@@ -64,7 +60,6 @@ export const useAuth = () => {
         if (import.meta.client) {
           localStorage.setItem("user", JSON.stringify(normalized));
         }
-        console.log("[useAuth] Login successful, user saved");
         return { success: true, user: normalized };
       }
 

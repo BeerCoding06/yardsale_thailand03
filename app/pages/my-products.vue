@@ -129,10 +129,8 @@ const fetchProducts = async () => {
     });
 
     const response = unwrapApi(raw);
-    console.log("[my-products] API response:", response);
     const requestedAsUserId = (response as any)?.requested_as_user_id;
     if (requestedAsUserId != null) {
-      console.log("[my-products] WordPress ใช้ user_id =", requestedAsUserId, "| ฝั่งคุณ (user.value.id) =", user.value?.id);
       if (user.value?.id != null && Number(user.value.id) !== Number(requestedAsUserId)) {
         console.warn("[my-products] ไม่ตรงกัน: JWT ใน token อาจไม่ตรงกับ user ที่ login (ให้ logout แล้ว login ใหม่)");
       }

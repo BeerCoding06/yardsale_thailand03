@@ -53,7 +53,6 @@ onMounted(async () => {
     const response = hasRemoteApi
       ? unwrapYardsaleResponse(await $fetch(endpoint("categories")))
       : await $fetch("/api/categories?parent=0");
-    console.log("[categories] Categories response:", response);
 
     // API already returns categories with parent=0, so use them directly
     // Since we're querying with parent=0, all returned categories should be parent categories
@@ -70,16 +69,7 @@ onMounted(async () => {
           image: resolved ? { sourceUrl: resolved } : cat.image,
         };
       });
-      
-      console.log(
-        "[categories] Total categories from API:",
-        categoriesData.value.length
-      );
-      
-      // Debug: log first category structure
-      if (categoriesData.value.length > 0) {
-        console.log("[categories] First category structure:", categoriesData.value[0]);
-      }
+
     } else {
       categoriesData.value = [];
       console.warn("[categories] No categories found in response");

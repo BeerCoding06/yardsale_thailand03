@@ -217,20 +217,10 @@ const initTagsSelect2 = () => {
 // Load product data into form
 const loadProductData = () => {
   if (!props.product) {
-    console.log("[FormEditProducts] No product data available");
     return;
   }
 
   const prod = props.product;
-  console.log("[FormEditProducts] Loading product data:", {
-    id: prod.id,
-    name: prod.name,
-    type: prod.type,
-    has_regular_price: prod.regular_price !== undefined,
-    has_sale_price: prod.sale_price !== undefined,
-    regular_price_value: prod.regular_price,
-    sale_price_value: prod.sale_price,
-  });
 
   // Load basic info
   form.value.name = prod.name || "";
@@ -276,10 +266,6 @@ const loadProductData = () => {
             return b.value > a.value ? b : a;
           });
           regularPrice = String(largestNumber.value);
-          console.log(
-            "[FormEditProducts] Extracted regular_price from price_html:",
-            regularPrice
-          );
         }
       }
     }
@@ -317,17 +303,9 @@ const loadProductData = () => {
           );
           if (priceNumber) {
             salePrice = String(priceNumber.value);
-            console.log(
-              "[FormEditProducts] Extracted sale_price from price_html:",
-              salePrice
-            );
           } else {
             // Fallback: use the first valid price
             salePrice = String(validPrices[0].value);
-            console.log(
-              "[FormEditProducts] Extracted sale_price from price_html (fallback):",
-              salePrice
-            );
           }
         }
       }
@@ -338,10 +316,6 @@ const loadProductData = () => {
       );
       if (fallbackMatch && fallbackMatch[1]) {
         salePrice = fallbackMatch[1].replace(/,/g, "");
-        console.log(
-          "[FormEditProducts] Extracted sale_price from price_html (fallback):",
-          salePrice
-        );
       }
     }
   }
@@ -356,17 +330,9 @@ const loadProductData = () => {
     // If regular_price exists and price is different, price is likely the sale price
     if (regularPrice && prod.price !== regularPrice) {
       salePrice = prod.price;
-      console.log(
-        "[FormEditProducts] Using price field as sale_price:",
-        salePrice
-      );
     } else if (!regularPrice) {
       // If no regular_price, price might be the regular price
       regularPrice = prod.price;
-      console.log(
-        "[FormEditProducts] Using price field as regular_price:",
-        regularPrice
-      );
     }
   }
 
@@ -413,12 +379,6 @@ const loadProductData = () => {
     form.value.sale_price = "";
   }
   
-  console.log("[FormEditProducts] Final prices set to form:", {
-    regular_price: form.value.regular_price,
-    sale_price: form.value.sale_price,
-    regular_price_type: typeof form.value.regular_price,
-    sale_price_type: typeof form.value.sale_price,
-  });
 
   form.value.description = prod.description || "";
   form.value.short_description = prod.short_description || "";
@@ -426,16 +386,6 @@ const loadProductData = () => {
   form.value.stock_quantity = prod.stock_quantity || 1;
   form.value.sku = prod.sku || "";
 
-  console.log("[FormEditProducts] Loaded product data:", {
-    name: form.value.name,
-    regular_price: form.value.regular_price,
-    sale_price: form.value.sale_price,
-    original_regular_price: prod.regular_price,
-    original_sale_price: prod.sale_price,
-    product_type: prod.type,
-    attributes: prod.attributes,
-    all_product_keys: Object.keys(prod),
-  });
 
   // Load categories (multiple)
   if (
@@ -486,7 +436,6 @@ watch(
   () => props.product,
   (newProduct) => {
     if (newProduct) {
-      console.log("[FormEditProducts] Product prop changed, reloading data");
       loadProductData();
     }
   },
@@ -504,12 +453,9 @@ onMounted(async () => {
       loadProductData();
     }
     // Fetch categories for form select
-    console.log("[Form] Fetching categories from /api/wp-categories...");
     try {
       const categoriesData = await $fetch("/api/wp-categories");
-      console.log("[Form] Received categories:", categoriesData);
       categories.value = Array.isArray(categoriesData) ? categoriesData : [];
-      console.log("[Form] Loaded categories:", categories.value.length);
     } catch (error) {
       console.error("[Form] Error loading categories:", error);
       categories.value = [];
@@ -524,7 +470,6 @@ onMounted(async () => {
     // CarouselCategories ถูกย้ายไปที่ app.vue แล้ว เพื่อแสดงในทุกหน้า
 
     // Fetch tags
-    console.log("[Form] Fetching tags from /api/wp-tags...");
     try {
       const tagsRaw = await $fetch("/api/wp-tags").catch((err) => {
         console.warn("[Form] Tags API error:", err);
@@ -537,7 +482,6 @@ onMounted(async () => {
         : Array.isArray(tagsRaw)
           ? tagsRaw
           : [];
-      console.log("[Form] Loaded tags:", tags.value.length);
     } catch (error) {
       console.warn("[Form] Error loading tags:", error);
       tags.value = [];
@@ -1190,8 +1134,6 @@ const handleSubmit = async (e) => {
     };
 
     // Upload images to WordPress media library first
-    console.log("[Form] Original form.value.images:", form.value.images);
-    console.log("[Form] uploadedImages:", uploadedImages.value);
 
     if (uploadedImages.value && uploadedImages.value.length > 0) {
       const uploadedImageUrls = [];
@@ -1200,7 +1142,6 @@ const handleSubmit = async (e) => {
       for (const img of uploadedImages.value) {
         if (img && img.file) {
           try {
-            console.log("[Form] Uploading image:", img.file.name);
 
             // Create FormData for upload
             const formData = new FormData();
@@ -1222,10 +1163,6 @@ const handleSubmit = async (e) => {
 
             if (uploadResult && uploadResult.src) {
               uploadedImageUrls.push({ src: uploadResult.src });
-              console.log(
-                "[Form] Image uploaded successfully:",
-                uploadResult.src
-              );
             }
           } catch (error) {
             console.error("[Form] Failed to upload image:", error);
@@ -1243,14 +1180,12 @@ const handleSubmit = async (e) => {
           // If it's already a URL (not base64), use it directly
           if (img.src.startsWith("http://") || img.src.startsWith("https://")) {
             uploadedImageUrls.push({ src: img.src });
-            console.log("[Form] Using existing URL:", img.src);
           }
         }
       }
 
       if (uploadedImageUrls.length > 0) {
         payload.images = uploadedImageUrls;
-        console.log("[Form] Adding images to payload:", payload.images);
       } else {
         console.warn("[Form] No images were uploaded successfully");
       }
@@ -1279,13 +1214,8 @@ const handleSubmit = async (e) => {
 
       if (processedImages.length > 0) {
         payload.images = processedImages;
-        console.log(
-          "[Form] Adding images from form.value.images:",
-          payload.images
-        );
       }
     } else {
-      console.log("[Form] No images found in form");
     }
 
     // Remove undefined fields
@@ -1299,7 +1229,6 @@ const handleSubmit = async (e) => {
     if (token) {
       payload.token = token;
     }
-    console.log("[Form] Sending update payload (has token:", !!token, ")");
 
     const response = await $fetch("/api/update-product", {
       method: "POST",
@@ -1310,7 +1239,6 @@ const handleSubmit = async (e) => {
       body: payload,
     });
 
-    console.log("[Form] Update response:", response);
 
     message.value = {
       type: "success",

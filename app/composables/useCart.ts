@@ -30,13 +30,10 @@ export const useCart = () => {
   };
 
   const updateCart = (next: CartItem[]) => {
-    console.log('[useCart] updateCart called with', next.length, 'items');
     cart.value = next;
     if (import.meta.client) {
       localStorage.setItem('cart', JSON.stringify(next));
-      console.log('[useCart] Cart saved to localStorage');
     }
-    console.log('[useCart] Cart state updated, current length:', cart.value.length);
   };
 
   /** parentProductId = WooCommerce parent product id เมื่อ productId คือ variation id */
@@ -148,7 +145,6 @@ export const useCart = () => {
       const currentQuantity = existingItem?.quantity || 0;
       const requestedQuantity = currentQuantity + 1;
 
-      console.log('[useCart] Calling /api/cart/add with productId:', productId, 'parentProductId:', parentProductId);
 
       const res = await $fetch<AddToCartResponse>('/api/cart/add', {
         method: 'POST',
@@ -159,7 +155,6 @@ export const useCart = () => {
         },
       });
 
-      console.log('[useCart] Response from /api/cart/add:', res);
 
       if (!res || !res.addToCart || !res.addToCart.cartItem) {
         console.error('[useCart] Invalid response structure:', res);
@@ -534,15 +529,11 @@ export const useCart = () => {
   onMounted(() => {
     if (!import.meta.client) return;
     const stored = localStorage.getItem('cart');
-    console.log('[useCart] Loading cart from localStorage:', stored ? 'found' : 'not found');
     if (!stored) {
-      console.log('[useCart] No cart data in localStorage, starting with empty cart');
       return;
     }
     try {
       const parsed = JSON.parse(stored) as CartItem[];
-      console.log('[useCart] Parsed cart data:', parsed);
-      console.log('[useCart] Cart items count:', parsed.length);
       if (Array.isArray(parsed) && parsed.length > 0) {
         // Validate cart items structure
         const validItems = parsed.filter(item => {
@@ -556,10 +547,8 @@ export const useCart = () => {
           }
           return isValid;
         });
-        console.log('[useCart] Valid cart items:', validItems.length);
         updateCart(validItems);
       } else {
-        console.log('[useCart] Cart is empty or invalid');
         updateCart([]);
       }
     } catch (error) {

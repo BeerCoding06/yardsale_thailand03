@@ -5,6 +5,30 @@ const { name, description } = site;
 const config = useRuntimeConfig();
 const ogImageLogo = `${config.public?.baseUrl || 'https://www.yardsaleth.com'}/logo.svg`;
 const { locale } = useI18n();
+const globalKeywords = computed(() => {
+  if (locale.value === "th") {
+    return [
+      name,
+      "ตลาดของมือสอง",
+      "ซื้อของมือสองออนไลน์",
+      "ขายของมือสอง",
+      "เฟอร์นิเจอร์มือสอง",
+      "เครื่องใช้ไฟฟ้ามือสอง",
+      "เสื้อผ้ามือสอง",
+      "YardsaleThailand",
+    ].join(", ");
+  }
+  return [
+    name,
+    "second hand marketplace",
+    "buy used products",
+    "sell used products",
+    "used furniture",
+    "used electronics",
+    "used fashion",
+    "YardsaleThailand",
+  ].join(", ");
+});
 
 const htmlLang = computed(() => {
   const m: Record<string, string> = {
@@ -47,7 +71,7 @@ useSeoMeta({
   twitterSite: "@zhatlen",
   twitterCreator: "@zhatlen",
   twitterImage: ogImageLogo,
-  keywords: `${name}, ecommerce, nuxt`,
+  keywords: globalKeywords,
   viewport:
     "width=device-width, initial-scale=1, viewport-fit=cover",
 });

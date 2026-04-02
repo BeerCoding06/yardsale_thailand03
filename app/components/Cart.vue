@@ -7,26 +7,6 @@ const { order } = useCheckout();
 const cartLength = computed(() => cart.value?.length || 0);
 const cartItems = computed(() => cart.value || []);
 
-// Debug: Watch cart changes
-watch(() => cart.value, (newCart) => {
-  console.log('[Cart] Cart changed, items:', newCart?.length || 0);
-  console.log('[Cart] Cart data:', newCart);
-  console.log('[Cart] Is array?', Array.isArray(newCart));
-  if (newCart && newCart.length > 0) {
-    console.log('[Cart] First item:', newCart[0]);
-    console.log('[Cart] First item has product?', !!newCart[0].product);
-    console.log('[Cart] First item product node?', !!newCart[0].product?.node);
-    console.log('[Cart] First item product name?', newCart[0].product?.node?.name);
-  }
-}, { deep: true, immediate: true });
-
-onMounted(() => {
-  console.log('[Cart] Component mounted');
-  console.log('[Cart] Cart ref:', cart);
-  console.log('[Cart] Cart value:', cart.value);
-  console.log('[Cart] Cart items:', cartLength.value);
-  console.log('[Cart] Cart is array?', Array.isArray(cart.value));
-});
 </script>
 
 <template>

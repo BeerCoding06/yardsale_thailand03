@@ -377,7 +377,6 @@ onMounted(async () => {
 
   try {
     // Fetch categories for form select (wp-categories ใช้ WooCommerce API; fallback ไป /api/categories)
-    console.log("[Form] Fetching categories (wp-categories)...");
     try {
       let categoriesData = await $fetch(cmsPath("wp-categories")).catch(() => null);
       categoriesData = unwrapApiPayload(categoriesData);
@@ -405,7 +404,6 @@ onMounted(async () => {
         slug: cat.slug || '',
       }));
       
-      console.log("[Form] Loaded categories:", categories.value.length);
       if (categories.value.length === 0) {
         console.warn("[Form] No categories found");
       }
@@ -417,7 +415,6 @@ onMounted(async () => {
     // CarouselCategories ถูกย้ายไปที่ app.vue แล้ว เพื่อแสดงในทุกหน้า
 
     // Fetch tags
-    console.log("[Form] Fetching tags (wp-tags)...");
     try {
       const tagsRaw = await $fetch(cmsPath("wp-tags")).catch((err) => {
         console.warn("[Form] Tags API error:", err);
@@ -426,7 +423,6 @@ onMounted(async () => {
       const tagsData = unwrapApiPayload(tagsRaw);
       const nodes = tagsData?.productTags?.nodes;
       tags.value = Array.isArray(nodes) ? nodes : Array.isArray(tagsData) ? tagsData : [];
-      console.log("[Form] Loaded tags:", tags.value.length);
     } catch (error) {
       console.warn("[Form] Error loading tags:", error);
       tags.value = [];
@@ -1238,8 +1234,6 @@ const handleSubmit = async (e) => {
     };
 
     // Upload images to WordPress media library first
-    console.log("[Form] Original productForm.value.images:", productForm.value.images);
-    console.log("[Form] uploadedImages:", uploadedImages.value);
 
     if (uploadedImages.value && uploadedImages.value.length > 0) {
       const uploadedImageUrls = [];
@@ -1248,7 +1242,6 @@ const handleSubmit = async (e) => {
       for (const img of uploadedImages.value) {
         if (img && img.file) {
           try {
-            console.log("[Form] Uploading image:", img.file.name);
 
             // Create FormData for upload
             const formData = new FormData();
@@ -1270,10 +1263,6 @@ const handleSubmit = async (e) => {
 
             if (uploadResult && uploadResult.src) {
               uploadedImageUrls.push({ src: uploadResult.src });
-              console.log(
-                "[Form] Image uploaded successfully:",
-                uploadResult.src
-              );
             }
           } catch (error) {
             console.error("[Form] Failed to upload image:", error);
@@ -1291,14 +1280,12 @@ const handleSubmit = async (e) => {
           // If it's already a URL (not base64), use it directly
           if (img.src.startsWith("http://") || img.src.startsWith("https://")) {
             uploadedImageUrls.push({ src: img.src });
-            console.log("[Form] Using existing URL:", img.src);
           }
         }
       }
 
       if (uploadedImageUrls.length > 0) {
         payload.images = uploadedImageUrls;
-        console.log("[Form] Adding images to payload:", payload.images);
       } else {
         console.warn("[Form] No images were uploaded successfully");
       }
@@ -1327,13 +1314,8 @@ const handleSubmit = async (e) => {
 
       if (processedImages.length > 0) {
         payload.images = processedImages;
-        console.log(
-          "[Form] Adding images from productForm.value.images:",
-          payload.images
-        );
       }
     } else {
-      console.log("[Form] No images found in form");
     }
 
     // Remove undefined fields
@@ -1348,7 +1330,6 @@ const handleSubmit = async (e) => {
     if (token) {
       payload.token = token;
     }
-    console.log("[Form] Sending payload (has token:", !!token, ")");
 
     const response = await $fetch("/api/create-product", {
       method: "POST",
@@ -1359,7 +1340,6 @@ const handleSubmit = async (e) => {
       body: payload,
     });
 
-    console.log("[Form] Response:", response);
 
     message.value = {
       type: "success",
