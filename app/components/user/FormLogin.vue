@@ -131,9 +131,8 @@ const handleSubmit = async (e) => {
           <div class="space-y-4">
             <div>
               <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >ชื่อผู้ใช้หรืออีเมล (ต้องการ) / Username or Email
-                (Required)</label
+                class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
+                >ชื่อผู้ใช้หรืออีเมล / Username or Email</label
               >
               <input
                 v-model="form.username"
@@ -157,8 +156,8 @@ const handleSubmit = async (e) => {
 
             <div>
               <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >รหัสผ่าน (ต้องการ) / Password (Required)</label
+                class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
+                >รหัสผ่าน / Password</label
               >
               <div class="relative">
                 <input

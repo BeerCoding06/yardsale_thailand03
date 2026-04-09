@@ -1402,8 +1402,8 @@ const handleSubmit = async (e) => {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="md:col-span-2">
               <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >{{ $t('create_product.product_name') }} *</label
+                class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
+                >{{ $t('create_product.product_name') }}</label
               >
               <input
                 v-model="productForm.name"
@@ -1427,8 +1427,8 @@ const handleSubmit = async (e) => {
 
             <div>
               <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >{{ $t('create_product.regular_price') }} *</label
+                class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
+                >{{ $t('create_product.regular_price') }}</label
               >
               <input
                 v-model.number="productForm.regular_price"
@@ -1491,8 +1491,8 @@ const handleSubmit = async (e) => {
 
             <div class="md:col-span-2">
               <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >{{ $t('create_product.category') }} *</label
+                class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
+                >{{ $t('create_product.category') }}</label
               >
               <select
                 ref="categorySelect"
@@ -1596,7 +1596,7 @@ const handleSubmit = async (e) => {
 
             <div>
               <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
+                class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
                 >{{ $t('create_product.description') }}</label
               >
               <div
@@ -1629,8 +1629,8 @@ const handleSubmit = async (e) => {
 
             <div v-if="productForm.manage_stock">
               <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >{{ $t('create_product.stock_quantity') }} *</label
+                class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
+                >{{ $t('create_product.stock_quantity') }}</label
               >
               <input
                 v-model.number="productForm.stock_quantity"
@@ -1651,7 +1651,9 @@ const handleSubmit = async (e) => {
         <div
           class="bg-white/80 dark:bg-black/20 rounded-2xl p-6 shadow-lg border-2 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors"
         >
-          <h2 class="text-xl font-semibold mb-4 text-black dark:text-white">
+          <h2
+            class="text-xl font-semibold mb-4 text-black dark:text-white form-required-after"
+          >
             {{ $t('create_product.product_images') }}
           </h2>
 

@@ -179,8 +179,13 @@ export async function listMyOrders(userId, { page, pageSize, offset, search } = 
       offset,
       search,
     });
+    const ids = rows.map((o) => o.id);
+    const lineMap = await orderModel.mapLineItemsByOrderIds(client, ids);
     return {
-      orders: rows.map(formatOrderForApi),
+      orders: rows.map((row) => ({
+        ...formatOrderForApi(row),
+        line_items: lineMap.get(row.id) || [],
+      })),
       pagination: paginationMeta({ page, pageSize, total }),
     };
   } finally {

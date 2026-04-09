@@ -1,5 +1,33 @@
 import { ilikeContainsPattern } from '../utils/pagination.js';
 
+/** รูปหลักสินค้า — สำหรับแสดงในรายการออเดอร์ */
+function primaryProductImageUrl(row) {
+  const main = row.image_url != null ? String(row.image_url).trim() : '';
+  if (main) return main;
+  const arr = row.image_urls;
+  if (Array.isArray(arr)) {
+    for (const x of arr) {
+      const s = String(x ?? '').trim();
+      if (s) return s;
+    }
+  }
+  return null;
+}
+
+/** แถวจาก JOIN order_items + products → รูปแบบส่ง API */
+export function lineItemRowToApi(row) {
+  const qty = Number(row.quantity);
+  const price = Number(row.price);
+  return {
+    product_id: row.product_id,
+    quantity: qty,
+    price,
+    name: row.name,
+    image_url: primaryProductImageUrl(row),
+    total: Number((qty * price).toFixed(2)),
+  };
+}
+
 const ORDER_SELECT_BASE = `id, user_id, total_price, status, slip_image_url, created_at,
   billing_snapshot, shipping_status, tracking_number, shipping_receipt_number, courier_name, fulfillment_updated_at`;
 
@@ -38,13 +66,13 @@ export async function getOrderById(client, orderId) {
 
 export async function getOrderItems(client, orderId) {
   const r = await client.query(
-    `SELECT oi.product_id, oi.quantity, oi.price, p.name
+    `SELECT oi.product_id, oi.quantity, oi.price, p.name, p.image_url, p.image_urls
      FROM order_items oi
      JOIN products p ON p.id = oi.product_id
      WHERE oi.order_id = $1`,
     [orderId]
   );
-  return r.rows;
+  return r.rows.map(lineItemRowToApi);
 }
 
 export async function updateOrderStatus(client, orderId, status, { slipImageUrl } = {}) {
@@ -299,7 +327,7 @@ export async function listAllOrdersPaged(client, { limit, offset, search }) {
 export async function mapLineItemsByOrderIds(client, orderIds) {
   if (!orderIds.length) return new Map();
   const r = await client.query(
-    `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name
+    `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name, p.image_url, p.image_urls
      FROM order_items oi
      JOIN products p ON p.id = oi.product_id
      WHERE oi.order_id = ANY($1::uuid[])
@@ -310,12 +338,7 @@ export async function mapLineItemsByOrderIds(client, orderIds) {
   for (const row of r.rows) {
     const oid = row.order_id;
     if (!map.has(oid)) map.set(oid, []);
-    map.get(oid).push({
-      product_id: row.product_id,
-      quantity: row.quantity,
-      price: row.price,
-      name: row.name,
-    });
+    map.get(oid).push(lineItemRowToApi(row));
   }
   return map;
 }
@@ -356,7 +379,7 @@ export async function mapSlipSnapshotsByOrderIds(client, orderIds) {
 export async function mapSellerLineItemsByOrderIds(client, sellerId, orderIds) {
   if (!orderIds.length) return new Map();
   const r = await client.query(
-    `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name
+    `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name, p.image_url, p.image_urls
      FROM order_items oi
      JOIN products p ON p.id = oi.product_id
      WHERE oi.order_id = ANY($1::uuid[]) AND p.seller_id = $2::uuid
@@ -367,12 +390,7 @@ export async function mapSellerLineItemsByOrderIds(client, sellerId, orderIds) {
   for (const row of r.rows) {
     const oid = row.order_id;
     if (!map.has(oid)) map.set(oid, []);
-    map.get(oid).push({
-      product_id: row.product_id,
-      quantity: row.quantity,
-      price: row.price,
-      name: row.name,
-    });
+    map.get(oid).push(lineItemRowToApi(row));
   }
   return map;
 }

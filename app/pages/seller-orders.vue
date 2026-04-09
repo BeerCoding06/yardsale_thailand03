@@ -132,6 +132,23 @@ function normalizeShippingStatus(s) {
   return SHIPPING_STATUS_KEYS.includes(v) ? v : "pending";
 }
 
+function getLineItemImage(item) {
+  if (!item) return null;
+  const u = item.image_url != null ? String(item.image_url).trim() : "";
+  if (u) return u;
+  if (item.images && Array.isArray(item.images) && item.images.length > 0) {
+    const img = item.images[0];
+    if (img?.src) return img.src;
+    if (img?.sourceUrl) return img.sourceUrl;
+  }
+  if (typeof item.image === "string" && item.image.trim() !== "") return item.image;
+  if (item.image && typeof item.image === "object" && item.image.sourceUrl) {
+    return item.image.sourceUrl;
+  }
+  if (item.image?.src) return item.image.src;
+  return null;
+}
+
 function draftFor(order) {
   const id = order.id;
   if (!fulfillmentDrafts.value[id]) {
@@ -461,19 +478,36 @@ onMounted(async () => {
                       >
                         {{ $t("seller_orders.products_in_order") }}
                       </p>
-                      <ul
-                        class="space-y-1.5 text-sm text-neutral-800 dark:text-neutral-200"
-                      >
+                      <ul class="space-y-2 text-sm text-neutral-800 dark:text-neutral-200">
                         <li
                           v-for="li in order.line_items"
                           :key="`${order.id}-${li.product_id}`"
-                          class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+                          class="flex items-center gap-3"
                         >
-                          <span class="font-medium">{{ li.name }}</span>
-                          <span
-                            class="text-neutral-500 dark:text-neutral-400 tabular-nums"
-                            >× {{ li.quantity }}</span
+                          <StorefrontImg
+                            v-if="getLineItemImage(li)"
+                            :src="getLineItemImage(li)"
+                            :alt="li.name || $t('common.product')"
+                            class="w-12 h-12 shrink-0 object-cover rounded-lg border-2 border-violet-200 dark:border-violet-800"
+                            loading="lazy"
+                          />
+                          <div
+                            v-else
+                            class="w-12 h-12 shrink-0 rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center border-2 border-violet-200 dark:border-violet-800"
                           >
+                            <UIcon
+                              name="i-heroicons-photo"
+                              class="w-6 h-6 text-violet-400 dark:text-violet-500"
+                            />
+                          </div>
+                          <div class="min-w-0 flex-1">
+                            <p class="font-medium text-neutral-900 dark:text-neutral-100 truncate">
+                              {{ li.name || $t("common.product") }}
+                            </p>
+                            <p class="text-neutral-500 dark:text-neutral-400 text-xs tabular-nums">
+                              × {{ li.quantity }}
+                            </p>
+                          </div>
                         </li>
                       </ul>
                     </div>
@@ -772,15 +806,15 @@ onMounted(async () => {
                       <div class="space-y-3">
                         <div
                           v-for="item in (order.seller_line_items || order.line_items)"
-                          :key="item.id"
+                          :key="`${order.id}-${item.product_id}`"
                           class="flex items-center gap-3 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-800"
                         >
                           <!-- Product Image -->
                           <div class="flex-shrink-0">
                             <StorefrontImg
-                              v-if="item.image?.src || item.image"
-                              :src="item.image?.src || item.image"
-                              :alt="item.name"
+                              v-if="getLineItemImage(item)"
+                              :src="getLineItemImage(item)"
+                              :alt="item.name || $t('common.product')"
                               class="w-16 h-16 rounded-lg object-cover border border-neutral-200 dark:border-neutral-700"
                             />
                             <div
@@ -793,13 +827,13 @@ onMounted(async () => {
                           <!-- Product Info -->
                           <div class="flex-1 min-w-0">
                             <p class="text-sm font-semibold text-black dark:text-white truncate">
-                              {{ item.name }}
+                              {{ item.name || $t('common.product') }}
                             </p>
                             <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                               {{ $t('order.quantity') }}: {{ item.quantity }}
                             </p>
                             <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                              {{ $t('order.unit_price') }}: ฿{{ parseFloat((item.total || 0) / (item.quantity || 1)).toFixed(2) }}
+                              {{ $t('order.unit_price') }}: ฿{{ parseFloat(item.price != null ? item.price : (item.total || 0) / (item.quantity || 1)).toFixed(2) }}
                             </p>
                           </div>
                           <!-- Product Total -->

@@ -2,3 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  /**
+   * ดาวแดงหลัง label สำหรับช่องที่มี validation / HTML required
+   */
+  .form-required-after::after {
+    content: "*";
+    @apply ml-0.5 font-semibold text-red-600 dark:text-red-400;
+  }
+}
+

@@ -285,7 +285,7 @@ const handleSubmit = async (e) => {
           <div class="space-y-4">
             <div>
               <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
+                class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
                 >{{ $t('register_form.label_username') }}</label
               >
               <input
@@ -310,7 +310,7 @@ const handleSubmit = async (e) => {
 
             <div>
               <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
+                class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
                 >{{ $t('register_form.label_email') }}</label
               >
               <div class="relative">
@@ -398,6 +398,10 @@ const handleSubmit = async (e) => {
               </button>
             </div>
 
+            <label
+              class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
+              >{{ $t('register_form.label_password') }}</label
+            >
             <div class="relative">
               <input
                 v-model="form.password"

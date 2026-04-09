@@ -143,7 +143,10 @@ const fetchProductImageFromCatalog = async (productId) => {
 // Get item image URL (ข้อมูลออเดอร์ หรือแคตตาล็อกจำลอง)
 const getItemImage = (item) => {
   if (!item) return null;
-  
+
+  const fromApi = item.image_url != null ? String(item.image_url).trim() : "";
+  if (fromApi) return fromApi;
+
   // First, try WooCommerce image data (immediate)
   if (item.images && Array.isArray(item.images) && item.images.length > 0) {
     const img = item.images[0];
@@ -299,7 +302,11 @@ const fetchOrders = async () => {
     orders.value.forEach(order => {
       if (order.line_items && Array.isArray(order.line_items)) {
         order.line_items.forEach(item => {
-          if (item.product_id && (!item.images || item.images.length === 0) && !item.image) {
+          const hasUrl =
+            (item.image_url != null && String(item.image_url).trim() !== "") ||
+            (typeof item.image === "string" && item.image.trim() !== "") ||
+            (item.images && item.images.length > 0);
+          if (item.product_id && !hasUrl) {
             productIds.add(item.product_id);
           }
         });

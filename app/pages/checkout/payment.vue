@@ -365,6 +365,10 @@ const submitLabel = computed(() =>
           </p>
           <div class="grid grid-cols-2 gap-3 billing">
             <div class="col-span-full">
+              <label
+                class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1 form-required-after"
+                >{{ $t('checkout.form.email') }}</label
+              >
               <input
                 v-model="userDetails.email"
                 required
@@ -373,6 +377,10 @@ const submitLabel = computed(() =>
               />
             </div>
             <div class="col-span-1">
+              <label
+                class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1 form-required-after"
+                >{{ $t('checkout.form.first_name') }}</label
+              >
               <input
                 v-model="userDetails.firstName"
                 required
@@ -381,6 +389,10 @@ const submitLabel = computed(() =>
               />
             </div>
             <div class="col-span-1">
+              <label
+                class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1 form-required-after"
+                >{{ $t('checkout.form.last_name') }}</label
+              >
               <input
                 v-model="userDetails.lastName"
                 required
@@ -389,6 +401,10 @@ const submitLabel = computed(() =>
               />
             </div>
             <div class="col-span-1">
+              <label
+                class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1 form-required-after"
+                >{{ $t('checkout.form.phone') }}</label
+              >
               <input
                 v-model="userDetails.phone"
                 required
@@ -397,6 +413,10 @@ const submitLabel = computed(() =>
               />
             </div>
             <div class="col-span-1">
+              <label
+                class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1 form-required-after"
+                >{{ $t('checkout.form.city') }}</label
+              >
               <input
                 v-model="userDetails.city"
                 required
@@ -405,6 +425,10 @@ const submitLabel = computed(() =>
               />
             </div>
             <div class="col-span-full">
+              <label
+                class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1 form-required-after"
+                >{{ $t('checkout.form.address') }}</label
+              >
               <textarea
                 v-model="userDetails.address1"
                 required
@@ -413,6 +437,10 @@ const submitLabel = computed(() =>
               />
             </div>
             <div class="col-span-full">
+              <label
+                class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1"
+                >{{ $t('checkout.form.address2') }}</label
+              >
               <input
                 v-model="userDetails.address2"
                 type="text"
@@ -420,6 +448,10 @@ const submitLabel = computed(() =>
               />
             </div>
             <div class="col-span-1">
+              <label
+                class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1"
+                >{{ $t('checkout.form.state') }}</label
+              >
               <input
                 v-model="userDetails.state"
                 type="text"
@@ -427,6 +459,10 @@ const submitLabel = computed(() =>
               />
             </div>
             <div class="col-span-1">
+              <label
+                class="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1"
+                >{{ $t('checkout.form.postcode') }}</label
+              >
               <input
                 v-model="userDetails.postcode"
                 type="text"

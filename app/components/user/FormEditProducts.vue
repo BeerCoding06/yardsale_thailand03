@@ -1283,8 +1283,8 @@ const handleSubmit = async (e) => {
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="md:col-span-2">
               <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >ชื่อสินค้า *</label
+                class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
+                >ชื่อสินค้า</label
               >
               <input
                 v-model="form.name"
@@ -1308,8 +1308,8 @@ const handleSubmit = async (e) => {
 
             <div>
               <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >ราคาปกติ *</label
+                class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
+                >ราคาปกติ</label
               >
               <input
                 v-model="form.regular_price"
@@ -1367,8 +1367,8 @@ const handleSubmit = async (e) => {
 
             <div class="md:col-span-2">
               <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >หมวดหมู่สินค้า *</label
+                class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
+                >หมวดหมู่สินค้า</label
               >
               <select
                 ref="categorySelect"
@@ -1452,8 +1452,8 @@ const handleSubmit = async (e) => {
 
             <div>
               <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >คำอธิบาย *</label
+                class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
+                >คำอธิบาย</label
               >
               <div
                 ref="descriptionEditor"
@@ -1497,8 +1497,8 @@ const handleSubmit = async (e) => {
 
             <div v-if="form.manage_stock">
               <label
-                class="block text-sm font-medium mb-2 text-black dark:text-white"
-                >จำนวนสต็อก *</label
+                class="block text-sm font-medium mb-2 text-black dark:text-white form-required-after"
+                >จำนวนสต็อก</label
               >
               <input
                 v-model="form.stock_quantity"
@@ -1519,7 +1519,9 @@ const handleSubmit = async (e) => {
         <div
           class="bg-white/80 dark:bg-black/20 rounded-2xl p-6 shadow-lg border-2 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors"
         >
-          <h2 class="text-xl font-semibold mb-4 text-black dark:text-white">
+          <h2
+            class="text-xl font-semibold mb-4 text-black dark:text-white form-required-after"
+          >
             รูปภาพสินค้า
           </h2>
 
