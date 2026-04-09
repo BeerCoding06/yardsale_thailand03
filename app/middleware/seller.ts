@@ -1,10 +1,10 @@
-// เฉพาะ role seller — แอดมินใช้ /admin สำหรับ CMS
+// หน้าผู้ขาย: ผู้ซื้อ (user) ผู้ขาย (seller) และแอดมิน — ต้องล็อกอิน
 
 export default defineNuxtRouteMiddleware(async () => {
   if (import.meta.server) return;
 
   const { isAuthenticated, checkAuth } = useAuth();
-  const { isSeller } = useRoles();
+  const { canAccessSellerPortal } = useRoles();
   const localePath = useLocalePath();
 
   checkAuth();
@@ -13,7 +13,7 @@ export default defineNuxtRouteMiddleware(async () => {
   if (!isAuthenticated.value) {
     return navigateTo(localePath("/login"));
   }
-  if (!isSeller.value) {
+  if (!canAccessSellerPortal.value) {
     return navigateTo(localePath("/"));
   }
 });

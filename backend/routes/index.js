@@ -132,13 +132,13 @@ router.get('/my-orders', authMiddleware, orderController.myOrders);
 router.get(
   '/seller-orders',
   authMiddleware,
-  requireRoles('seller', 'admin'),
+  requireRoles('user', 'seller', 'admin'),
   orderController.sellerOrders
 );
 router.patch(
   '/seller-orders/:orderId/fulfillment',
   authMiddleware,
-  requireRoles('seller', 'admin'),
+  requireRoles('user', 'seller', 'admin'),
   validate(sellerOrderFulfillmentParamsSchema, 'params'),
   validate(patchSellerOrderFulfillmentSchema),
   orderController.patchSellerOrderFulfillment
@@ -153,40 +153,45 @@ router.post('/payment/mock', authMiddleware, (req, res, next) => {
 }, paymentController.mockPayment);
 router.get('/payment/slipok/quota', authMiddleware, paymentController.slipokQuota);
 
-/** ผู้ขาย (seller) + แอดมิน (ใช้ API เดียวกับแอดมิน CMS บางจุด) — ลูกค้า role user ช้อปอย่างเดียว */
-router.get('/my-products', authMiddleware, requireRoles('seller', 'admin'), sellerController.myProducts);
+/** user / seller / admin — ลงขายและจัดการสินค้าของตนได้ (แอดมินมีโหมด CMS แยกที่ /admin) */
+router.get(
+  '/my-products',
+  authMiddleware,
+  requireRoles('user', 'seller', 'admin'),
+  sellerController.myProducts
+);
 router.post(
   '/create-product',
   authMiddleware,
-  requireRoles('seller', 'admin'),
+  requireRoles('user', 'seller', 'admin'),
   validate(createProductSchema),
   sellerController.createProduct
 );
 router.post(
   '/update-product',
   authMiddleware,
-  requireRoles('seller', 'admin'),
+  requireRoles('user', 'seller', 'admin'),
   validate(updateProductSchema),
   sellerController.updateProduct
 );
 router.post(
   '/upload-image',
   authMiddleware,
-  requireRoles('seller', 'admin'),
+  requireRoles('user', 'seller', 'admin'),
   uploadImage.single('image'),
   sellerController.uploadImage
 );
 router.post(
   '/product/cancel',
   authMiddleware,
-  requireRoles('seller', 'admin'),
+  requireRoles('user', 'seller', 'admin'),
   validate(productActionSchema),
   sellerController.cancelProduct
 );
 router.post(
   '/product/restore',
   authMiddleware,
-  requireRoles('seller', 'admin'),
+  requireRoles('user', 'seller', 'admin'),
   validate(productActionSchema),
   sellerController.restoreProduct
 );

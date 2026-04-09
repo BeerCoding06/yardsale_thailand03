@@ -1,8 +1,8 @@
 /**
  * บทบาทจาก backend: user_role ENUM ('user' | 'seller' | 'admin')
- * - user: ผู้ซื้อทั่วไป (ช้อป / ออเดอร์ของตัวเอง)
- * - seller: ผู้ขาย (สินค้าและออเดอร์ฝั่งร้าน)
- * - admin: CMS ระดับระบบ (/admin/*)
+ * - user: ผู้ซื้อ — ช้อป + เข้าหน้าผู้ขาย (ลงสินค้า/ออเดอร์ร้านของตน) ได้
+ * - seller: ผู้ขาย
+ * - admin: CMS (/admin/*) + เข้าหน้าผู้ขายได้เหมือนกัน
  */
 export function userIsAdmin(u: unknown): boolean {
   if (!u || typeof u !== "object") return false;
@@ -48,11 +48,21 @@ export function useRoles() {
     () => isAuthenticated.value && role.value === "seller"
   );
 
+  /** หน้าผู้ขาย (สินค้าของฉัน / ออเดอร์ร้าน): ผู้ซื้อ (user) ผู้ขาย (seller) และแอดมิน */
+  const canAccessSellerPortal = computed(() => {
+    if (!isAuthenticated.value) return false;
+    const r = role.value;
+    if (r === "user" || r === "customer" || r === "seller" || r === "admin")
+      return true;
+    return r === "";
+  });
+
   return {
     role: readonly(role),
     isAdmin,
     isSeller,
     isBuyer,
+    canAccessSellerPortal,
     userIsAdmin,
   };
 }

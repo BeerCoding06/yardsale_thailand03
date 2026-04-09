@@ -2,7 +2,7 @@
 <script setup>
 const auth = useAuth();
 const { user, isAuthenticated, logout, checkAuth, fetchUser } = auth;
-const { isSeller, isAdmin } = useRoles();
+const { canAccessSellerPortal, isAdmin } = useRoles();
 const router = useRouter();
 const { t } = useI18n();
 const localePath = useLocalePath();
@@ -505,7 +505,7 @@ const updateProfile = async () => {
 
               <div class="space-y-2">
                 <NuxtLink
-                  v-if="isSeller"
+                  v-if="canAccessSellerPortal"
                   to="/create-product"
                   class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white border-2 border-transparent hover:border-neutral-200 dark:hover:border-neutral-700"
                 >
@@ -513,7 +513,7 @@ const updateProfile = async () => {
                   <span class="font-medium">{{ $t("auth.create_product") }}</span>
                 </NuxtLink>
                 <NuxtLink
-                  v-if="isSeller"
+                  v-if="canAccessSellerPortal"
                   to="/my-products"
                   class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white border-2 border-transparent hover:border-neutral-200 dark:hover:border-neutral-700"
                 >
@@ -536,7 +536,7 @@ const updateProfile = async () => {
                   <span class="font-medium">{{ $t("auth.my_orders") }}</span>
                 </NuxtLink>
                 <NuxtLink
-                  v-if="isSeller"
+                  v-if="canAccessSellerPortal"
                   to="/seller-orders"
                   class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white border-2 border-transparent hover:border-neutral-200 dark:hover:border-neutral-700"
                 >

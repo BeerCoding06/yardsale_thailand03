@@ -18,10 +18,10 @@ export const myOrders = asyncHandler(async (req, res) => {
   sendSuccess(res, { success: true, orders: data.orders });
 });
 
-/** ผู้ขายเห็นออเดอร์ที่มีสินค้าของตน; แอดมินเห็นทั้งระบบ */
+/** user/seller เห็นออเดอร์ที่มีสินค้าของตน; แอดมินเห็นทั้งระบบ */
 export const sellerOrders = asyncHandler(async (req, res) => {
   const role = req.user.role;
-  if (!['seller', 'admin'].includes(role)) {
+  if (!['user', 'seller', 'admin'].includes(role)) {
     throw new AppError('Seller access required', 403, 'FORBIDDEN');
   }
   const data =

@@ -12,7 +12,7 @@ const profileModal = ref(false);
 const { cart } = useCart();
 const { user, isAuthenticated, logout, checkAuth } = useAuth();
 const { isAdmin } = useAdminRole();
-const { isSeller } = useRoles();
+const { canAccessSellerPortal } = useRoles();
 const localePath = useLocalePath();
 const {
   hasRemoteApi,
@@ -575,7 +575,7 @@ const totalQuantity = computed(() =>
               <span class="font-medium">{{ $t("auth.admin_cms") }}</span>
             </NuxtLink>
             <NuxtLink
-              v-if="isSeller"
+              v-if="canAccessSellerPortal"
               :to="localePath('/create-product')"
               @click="profileModal = false"
               class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white"
@@ -584,7 +584,7 @@ const totalQuantity = computed(() =>
               <span class="font-medium">{{ $t("auth.create_product") }}</span>
             </NuxtLink>
             <NuxtLink
-              v-if="isSeller"
+              v-if="canAccessSellerPortal"
               :to="localePath('/my-products')"
               @click="profileModal = false"
               class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white"
@@ -601,7 +601,7 @@ const totalQuantity = computed(() =>
               <span class="font-medium">{{ $t("auth.my_orders") }}</span>
             </NuxtLink>
             <NuxtLink
-              v-if="isSeller"
+              v-if="canAccessSellerPortal"
               :to="localePath('/seller-orders')"
               @click="profileModal = false"
               class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white"
