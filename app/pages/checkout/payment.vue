@@ -36,12 +36,6 @@ const isNewCheckout = computed(() => !isResumePay.value);
 /** แสดงบล็อกข้อมูลผู้สั่งซื้อ: สั่งใหม่ หรือกลับมาอัปโหลดสลิป (โหลดจากบัญชี) */
 const showBuyerForm = computed(() => isNewCheckout.value || isResumePay.value);
 
-const methodForOrder = computed(() => {
-  const m = String(route.query.method || '').toLowerCase();
-  if (m === 'cod') return 'cod';
-  return 'bank_transfer';
-});
-
 /** รูป QR สำรองเมื่อไม่ได้ตั้ง NUXT_PUBLIC_PROMPTPAY_ID หรือสร้าง QR ไม่สำเร็จ */
 const fallbackQrSrc = computed(() => {
   const u = String(config.public.promptpayQrImageUrl || '').trim();
@@ -144,7 +138,7 @@ onMounted(async () => {
     router.replace(localePath('/'));
     return;
   }
-  paymentMethod.value = methodForOrder.value;
+  paymentMethod.value = 'bank_transfer';
   await loadCustomerData();
 });
 
@@ -261,32 +255,18 @@ async function onSubmitNew() {
     return;
   }
 
-  const method = methodForOrder.value;
-
-  if (method === 'bank_transfer') {
-    const hasFile = !!slipFile.value;
-    const hasUrl = !!String(slipUrl.value || '').trim();
-    const hasData = !!String(slipData.value || '').trim();
-    if (!hasFile && !hasUrl && !hasData) {
-      error.value = t('checkout.payment_slip.errors.PAYMENT_PROOF_REQUIRED');
-      return;
-    }
+  const hasFile = !!slipFile.value;
+  const hasUrl = !!String(slipUrl.value || '').trim();
+  const hasData = !!String(slipData.value || '').trim();
+  if (!hasFile && !hasUrl && !hasData) {
+    error.value = t('checkout.payment_slip.errors.PAYMENT_PROOF_REQUIRED');
+    return;
   }
 
   submitting.value = true;
   try {
-    const orderData = await createOrderFromCart(method);
+    const orderData = await createOrderFromCart('bank_transfer');
     if (!orderData?.id) {
-      return;
-    }
-
-    if (method === 'cod') {
-      await router.push(
-        localePath({
-          path: '/payment-successful',
-          query: { order_id: String(orderData.id) },
-        })
-      );
       return;
     }
 
@@ -334,11 +314,11 @@ async function onSubmit() {
   }
 }
 
-const submitLabel = computed(() => {
-  if (isResumePay.value) return t('checkout.payment_slip.upload_btn');
-  if (methodForOrder.value === 'cod') return t('checkout.payment_slip.submit_place_order_cod');
-  return t('checkout.payment_slip.submit_place_order_bank');
-});
+const submitLabel = computed(() =>
+  isResumePay.value
+    ? t('checkout.payment_slip.upload_btn')
+    : t('checkout.payment_slip.submit_place_order_bank')
+);
 </script>
 
 <template>
@@ -457,9 +437,7 @@ const submitLabel = computed(() => {
           <p v-if="isNewCheckout" class="mt-3 text-xs text-neutral-500">
             {{ $t('checkout.payment_slip.method_label') }}:
             <span class="font-semibold text-black dark:text-white">{{
-              methodForOrder === 'cod'
-                ? $t('checkout.payment_method.cod')
-                : $t('checkout.payment_method.bank_transfer')
+              $t('checkout.payment_method.bank_transfer')
             }}</span>
           </p>
           <p v-else class="mt-3 text-xs text-neutral-500">
@@ -478,7 +456,6 @@ const submitLabel = computed(() => {
 
         <!-- QR + บัญชี — เฉพาะโอนเงิน -->
         <div
-          v-if="isResumePay || methodForOrder === 'bank_transfer'"
           class="mb-6 p-4 sm:p-5 rounded-2xl bg-white/90 dark:bg-black/40 border-2 border-neutral-200 dark:border-neutral-700"
         >
           <h2 class="text-sm font-semibold text-black dark:text-white mb-4">
@@ -542,14 +519,6 @@ const submitLabel = computed(() => {
           >{{ bankTransferDisplay }}</pre>
         </div>
 
-        <!-- COD: ไม่มีสลิป -->
-        <div
-          v-if="isNewCheckout && methodForOrder === 'cod'"
-          class="mb-6 p-4 rounded-xl bg-neutral-100 dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-700 text-sm text-neutral-700 dark:text-neutral-300"
-        >
-          {{ $t('checkout.payment_slip.cod_hint') }}
-        </div>
-
         <form class="space-y-4" @submit.prevent="onSubmit">
           <p class="text-xs text-neutral-500 dark:text-neutral-400 px-1">
             {{ $t('checkout.payment_slip.outcome_hint') }}
@@ -572,7 +541,7 @@ const submitLabel = computed(() => {
           <div>
             <label class="block text-sm font-medium text-black dark:text-white mb-1">
               {{
-                isNewCheckout && methodForOrder === 'cod'
+                isNewCheckout
                   ? $t('checkout.payment_slip.cart_total_preview')
                   : $t('checkout.payment_slip.amount_label')
               }}
@@ -582,49 +551,47 @@ const submitLabel = computed(() => {
             </p>
           </div>
 
-          <template v-if="!isNewCheckout || methodForOrder === 'bank_transfer'">
-            <div>
-              <label class="block text-sm font-medium text-black dark:text-white mb-1">
-                {{ $t('checkout.payment_slip.slip_data_label') }}
-              </label>
-              <textarea
-                v-model="slipData"
-                rows="4"
-                class="w-full rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-black/30 px-4 py-3 text-black dark:text-white text-sm font-mono leading-relaxed"
-                :placeholder="$t('checkout.payment_slip.slip_data_placeholder')"
-              />
-              <p class="mt-1 text-xs text-neutral-500">
-                {{ $t('checkout.payment_slip.slip_data_hint') }}
-              </p>
-            </div>
+          <div>
+            <label class="block text-sm font-medium text-black dark:text-white mb-1">
+              {{ $t('checkout.payment_slip.slip_data_label') }}
+            </label>
+            <textarea
+              v-model="slipData"
+              rows="4"
+              class="w-full rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-black/30 px-4 py-3 text-black dark:text-white text-sm font-mono leading-relaxed"
+              :placeholder="$t('checkout.payment_slip.slip_data_placeholder')"
+            />
+            <p class="mt-1 text-xs text-neutral-500">
+              {{ $t('checkout.payment_slip.slip_data_hint') }}
+            </p>
+          </div>
 
-            <div>
-              <label class="block text-sm font-medium text-black dark:text-white mb-1">
-                {{ $t('checkout.payment_slip.file_label') }}
-              </label>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,application/pdf"
-                class="block w-full text-sm text-neutral-600 dark:text-neutral-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-alizarin-crimson-600 file:text-white"
-                @change="onFileChange"
-              />
-              <p class="mt-1 text-xs text-neutral-500">
-                {{ $t('checkout.payment_slip.file_hint') }}
-              </p>
-            </div>
+          <div>
+            <label class="block text-sm font-medium text-black dark:text-white mb-1">
+              {{ $t('checkout.payment_slip.file_label') }}
+            </label>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              class="block w-full text-sm text-neutral-600 dark:text-neutral-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-alizarin-crimson-600 file:text-white"
+              @change="onFileChange"
+            />
+            <p class="mt-1 text-xs text-neutral-500">
+              {{ $t('checkout.payment_slip.file_hint') }}
+            </p>
+          </div>
 
-            <div>
-              <label class="block text-sm font-medium text-black dark:text-white mb-1">
-                {{ $t('checkout.payment_slip.optional_url') }}
-              </label>
-              <input
-                v-model="slipUrl"
-                type="url"
-                class="w-full rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-black/30 px-4 py-3 text-black dark:text-white text-sm"
-                :placeholder="$t('checkout.payment_slip.url_placeholder')"
-              />
-            </div>
-          </template>
+          <div>
+            <label class="block text-sm font-medium text-black dark:text-white mb-1">
+              {{ $t('checkout.payment_slip.optional_url') }}
+            </label>
+            <input
+              v-model="slipUrl"
+              type="url"
+              class="w-full rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-black/30 px-4 py-3 text-black dark:text-white text-sm"
+              :placeholder="$t('checkout.payment_slip.url_placeholder')"
+            />
+          </div>
 
           <button
             type="submit"

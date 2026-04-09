@@ -152,41 +152,12 @@ async function onContinueToPayment() {
           </p>
         </div>
 
-        <p class="w-full text-xs text-neutral-500 dark:text-neutral-400 mb-3 px-1">
+        <p class="w-full text-xs text-neutral-500 dark:text-neutral-400 mb-2 px-1">
           {{ $t('checkout.pay.continue_hint') }}
         </p>
-
-        <div class="w-full mb-4 space-y-2">
-          <p class="text-sm font-semibold text-black dark:text-white px-1">
-            {{ $t('checkout.choose_payment') }}
-          </p>
-          <label
-            class="flex items-center gap-3 p-3 rounded-2xl border-2 border-black/10 dark:border-white/15 cursor-pointer hover:border-black/20 dark:hover:border-white/25 transition"
-          >
-            <input
-              v-model="paymentMethod"
-              type="radio"
-              value="cod"
-              class="accent-alizarin-crimson-600 w-4 h-4"
-            />
-            <span class="text-sm text-black dark:text-white">{{
-              $t('checkout.payment_method.cod')
-            }}</span>
-          </label>
-          <label
-            class="flex items-center gap-3 p-3 rounded-2xl border-2 border-black/10 dark:border-white/15 cursor-pointer hover:border-black/20 dark:hover:border-white/25 transition"
-          >
-            <input
-              v-model="paymentMethod"
-              type="radio"
-              value="bank_transfer"
-              class="accent-alizarin-crimson-600 w-4 h-4"
-            />
-            <span class="text-sm text-black dark:text-white">{{
-              $t('checkout.payment_method.bank_transfer')
-            }}</span>
-          </label>
-        </div>
+        <p class="w-full text-sm text-black dark:text-white mb-4 px-1 font-medium">
+          {{ $t('checkout.payment_method.bank_transfer') }}
+        </p>
 
         <div
           :key="`checkout-summary-${cartTotal}-${totalQuantity}`"

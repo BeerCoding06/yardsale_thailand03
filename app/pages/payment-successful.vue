@@ -75,7 +75,7 @@ const formattedDate = computed(() => {
 });
 
 const paymentMethodDisplay = computed(() =>
-  order.value?.payment_method_title || t('order.payment_method_cod')
+  order.value?.payment_method_title || t('order.payment_method_unknown')
 );
 
 // Format total price
