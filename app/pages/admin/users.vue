@@ -15,6 +15,8 @@ const { adminFetch } = useAdminFetch();
 
 const editOpen = ref(false);
 const editSaving = ref(false);
+/** แก้ฟอร์มแก้ไข: super admin ล็อกอีเมล/บทบาท (API บังคับเช่นกัน) */
+const editTargetIsSuperAdmin = ref(false);
 const editForm = ref({
   id: "",
   email: "",
@@ -151,6 +153,7 @@ function statusLabel(s: string) {
 }
 
 function openEdit(u: any) {
+  editTargetIsSuperAdmin.value = u?.is_super_admin === true;
   editForm.value = {
     id: String(u.id),
     email: String(u.email || ""),
@@ -169,6 +172,11 @@ function openEdit(u: any) {
 
 function closeEdit() {
   editOpen.value = false;
+  editTargetIsSuperAdmin.value = false;
+}
+
+function isSuperAdminProtectedFromMe(u: any): boolean {
+  return u?.is_super_admin === true && !isSelfRow(u);
 }
 
 async function saveEdit() {
@@ -346,18 +354,25 @@ onMounted(() => {
                 {{ formatDate(u.created_at || "") }}
               </td>
               <td class="py-3 text-right whitespace-nowrap space-x-2">
-                <UButton size="xs" variant="soft" color="neutral" @click="openEdit(u)">
-                  {{ t("admin.users.edit") }}
-                </UButton>
-                <UButton
-                  size="xs"
-                  variant="soft"
-                  color="red"
-                  :disabled="isSelfRow(u)"
-                  @click="askDelete(u)"
-                >
-                  {{ t("admin.users.delete") }}
-                </UButton>
+                <template v-if="isSuperAdminProtectedFromMe(u)">
+                  <span class="text-xs text-neutral-500 dark:text-neutral-400">
+                    {{ t("admin.users.super_admin_owner_only") }}
+                  </span>
+                </template>
+                <template v-else>
+                  <UButton size="xs" variant="soft" color="neutral" @click="openEdit(u)">
+                    {{ t("admin.users.edit") }}
+                  </UButton>
+                  <UButton
+                    size="xs"
+                    variant="soft"
+                    color="red"
+                    :disabled="isSelfRow(u) || u?.is_super_admin"
+                    @click="askDelete(u)"
+                  >
+                    {{ t("admin.users.delete") }}
+                  </UButton>
+                </template>
               </td>
             </tr>
           </tbody>
@@ -379,7 +394,15 @@ onMounted(() => {
           {{ t("admin.users.edit_title") }}
         </h3>
         <UFormGroup :label="t('admin.users.email')" required>
-          <UInput v-model="editForm.email" type="email" autocomplete="email" />
+          <UInput
+            v-model="editForm.email"
+            type="email"
+            autocomplete="email"
+            :disabled="editTargetIsSuperAdmin"
+          />
+          <p v-if="editTargetIsSuperAdmin" class="text-xs text-neutral-500 mt-1">
+            {{ t("admin.users.super_admin_field_locked_hint") }}
+          </p>
         </UFormGroup>
         <UFormGroup :label="t('admin.users.display_name')">
           <UInput v-model="editForm.name" autocomplete="name" />
@@ -387,7 +410,8 @@ onMounted(() => {
         <UFormGroup :label="t('admin.users.role')" required>
           <select
             v-model="editForm.role"
-            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-neutral-950 px-3 py-2 text-sm"
+            :disabled="editTargetIsSuperAdmin"
+            class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-neutral-950 px-3 py-2 text-sm disabled:opacity-60"
           >
             <option v-for="opt in roleOptions" :key="opt.value" :value="opt.value">
               {{ opt.label }}

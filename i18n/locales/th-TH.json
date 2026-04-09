@@ -694,6 +694,8 @@
       "list_heading": "ผู้ใช้ที่ลงทะเบียน",
       "list_empty": "ยังไม่มีข้อมูลผู้ใช้",
       "list_empty_search": "ไม่พบผู้ใช้ที่ตรงกับการค้นหา",
+      "super_admin_owner_only": "แก้ได้เฉพาะเจ้าของบัญชี",
+      "super_admin_field_locked_hint": "ไม่สามารถเปลี่ยนอีเมลหรือบทบาทของ super admin",
       "list_col_email": "อีเมล",
       "list_col_name": "ชื่อ",
       "list_col_role": "บทบาท",

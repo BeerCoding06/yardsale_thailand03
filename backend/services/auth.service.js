@@ -5,8 +5,17 @@ import { AppError } from '../utils/AppError.js';
 import { paginationMeta, parsePaginationQuery, parseSearchQuery } from '../utils/pagination.js';
 import * as userModel from '../models/user.model.js';
 import { pool } from '../models/db.js';
+import { isSuperAdminEmail } from '../config/superAdmin.js';
 
 const SALT_ROUNDS = 12;
+
+function attachSuperAdminFlag(users) {
+  if (!Array.isArray(users)) return users;
+  return users.map((u) => ({
+    ...u,
+    is_super_admin: isSuperAdminEmail(u?.email),
+  }));
+}
 
 export function signToken(user) {
   return jwt.sign(
@@ -156,7 +165,10 @@ export async function listUsersForAdmin(query = {}) {
       offset,
       search,
     });
-    return { users, pagination: paginationMeta({ page, pageSize, total }) };
+    return {
+      users: attachSuperAdminFlag(users),
+      pagination: paginationMeta({ page, pageSize, total }),
+    };
   } finally {
     client.release();
   }
@@ -171,6 +183,23 @@ export async function adminUpdateUser(actorId, targetId, body) {
     const target = await userModel.findUserById(client, targetId);
     if (!target) {
       throw new AppError('User not found', 404, 'NOT_FOUND');
+    }
+
+    if (isSuperAdminEmail(target.email)) {
+      if (String(actorId) !== String(targetId)) {
+        throw new AppError(
+          'This account can only be updated by the account owner',
+          403,
+          'SUPER_ADMIN_PROTECTED'
+        );
+      }
+      const nextEmail = email !== undefined ? String(email).trim().toLowerCase() : null;
+      if (nextEmail != null && nextEmail !== String(target.email).trim().toLowerCase()) {
+        throw new AppError('Super admin email cannot be changed', 400, 'SUPER_ADMIN_EMAIL_LOCKED');
+      }
+      if (role !== undefined && role !== 'admin') {
+        throw new AppError('Super admin role must remain admin', 400, 'SUPER_ADMIN_ROLE_LOCKED');
+      }
     }
 
     if (String(actorId) === String(targetId)) {
@@ -231,6 +260,9 @@ export async function adminDeleteUser(actorId, targetId) {
     const target = await userModel.findUserById(client, targetId);
     if (!target) {
       throw new AppError('User not found', 404, 'NOT_FOUND');
+    }
+    if (isSuperAdminEmail(target.email)) {
+      throw new AppError('This account cannot be deleted', 403, 'SUPER_ADMIN_PROTECTED');
     }
     if (target.role === 'admin') {
       const admins = await userModel.countAdmins(client);

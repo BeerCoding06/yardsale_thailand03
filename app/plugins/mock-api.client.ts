@@ -144,6 +144,14 @@ let mockRegistryUsers: AnyObj[] = [
     account_status: "public",
     created_at: new Date().toISOString(),
   },
+  {
+    id: "00000000-0000-4000-8000-000000000002",
+    email: "paradon.pokpingmaung@gmail.com",
+    name: "Super Admin",
+    role: "admin",
+    account_status: "public",
+    created_at: new Date().toISOString(),
+  },
 ];
 
 let mockCmsProducts: AnyObj[] = [
@@ -205,6 +213,14 @@ function mockPaginationMeta(page: number, pageSize: number, total: number) {
     total: t,
     total_pages: t === 0 ? 0 : Math.ceil(t / pageSize),
   };
+}
+
+/** ตรงกับ backend/config/superAdmin.js (ค่าเริ่มต้น) — ใช้แค่จัด UI / จำลอง 403 */
+const MOCK_SUPER_ADMIN_EMAIL = "paradon.pokpingmaung@gmail.com".toLowerCase();
+function mockIsSuperAdminEmail(email: unknown): boolean {
+  return String(email || "")
+    .trim()
+    .toLowerCase() === MOCK_SUPER_ADMIN_EMAIL;
 }
 
 export default defineNuxtPlugin(() => {
@@ -576,6 +592,7 @@ export default defineNuxtPlugin(() => {
       let list = mockRegistryUsers.map((u) => ({
         ...u,
         account_status: u.account_status ?? "public",
+        is_super_admin: mockIsSuperAdminEmail(u.email),
       }));
       if (q) {
         list = list.filter(
@@ -620,6 +637,15 @@ export default defineNuxtPlugin(() => {
       }
       if (method === "PATCH" || method === "PUT") {
         const cur = mockRegistryUsers[ix]!;
+        if (mockIsSuperAdminEmail(cur.email)) {
+          return {
+            success: false,
+            error: {
+              message: "This account can only be updated by the account owner",
+              code: "SUPER_ADMIN_PROTECTED",
+            },
+          };
+        }
         const b = body as AnyObj;
         const nextRow: AnyObj = { ...cur };
         if (b.email != null && String(b.email).trim()) nextRow.email = String(b.email).trim().toLowerCase();
@@ -651,6 +677,13 @@ export default defineNuxtPlugin(() => {
         };
       }
       if (method === "DELETE") {
+        const delCur = mockRegistryUsers[ix]!;
+        if (mockIsSuperAdminEmail(delCur.email)) {
+          return {
+            success: false,
+            error: { message: "This account cannot be deleted", code: "SUPER_ADMIN_PROTECTED" },
+          };
+        }
         if (uid === "00000000-0000-4000-8000-000000000001") {
           return {
             success: false,

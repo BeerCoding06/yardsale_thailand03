@@ -691,6 +691,8 @@
       "list_heading": "Registered users",
       "list_empty": "No users loaded.",
       "list_empty_search": "No users match your search.",
+      "super_admin_owner_only": "Owner only",
+      "super_admin_field_locked_hint": "Super admin email and role cannot be changed.",
       "list_col_email": "Email",
       "list_col_name": "Name",
       "list_col_role": "Role",

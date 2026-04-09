@@ -42,6 +42,33 @@ async function main() {
       }
     }
 
+    /** Super admin (backend/config/superAdmin.js) — บังคับ role admin ถ้ามีแถวอีเมลนี้แล้ว */
+    const superListRaw =
+      process.env.SUPER_ADMIN_EMAILS != null && String(process.env.SUPER_ADMIN_EMAILS).trim() !== ''
+        ? String(process.env.SUPER_ADMIN_EMAILS)
+        : process.env.SUPER_ADMIN_EMAIL != null && String(process.env.SUPER_ADMIN_EMAIL).trim() !== ''
+          ? String(process.env.SUPER_ADMIN_EMAIL)
+          : 'paradon.pokpingmaung@gmail.com';
+    const superList = superListRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const superAdminEmail of superList) {
+      const superRow = (
+        await client.query(`SELECT id FROM users WHERE LOWER(email) = LOWER($1)`, [superAdminEmail])
+      ).rows[0];
+      if (superRow) {
+        await client.query(
+          `UPDATE users SET role = 'admin'::user_role, account_status = 'public' WHERE id = $1`,
+          [superRow.id]
+        );
+      } else {
+        console.warn(
+          `[seed] Super admin email not in DB (skipping role bump): ${superAdminEmail} — register first, then re-run seed or UPDATE users SET role='admin' manually`
+        );
+      }
+    }
+
     const email = process.env.SEED_SELLER_EMAIL || 'seller@demo.local';
     const password = process.env.SEED_SELLER_PASSWORD || 'demo123456';
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
