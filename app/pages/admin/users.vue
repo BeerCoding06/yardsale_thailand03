@@ -9,16 +9,9 @@ definePageMeta({
 });
 
 const { t } = useI18n();
+const localePath = useLocalePath();
 const { user: authUser, checkAuth } = useAuth();
 const { adminFetch } = useAdminFetch();
-
-const form = ref({
-  email: "",
-  password: "",
-  name: "",
-  role: "user" as "user" | "seller" | "admin",
-  account_status: "public" as "public" | "pending" | "block",
-});
 
 const editOpen = ref(false);
 const editSaving = ref(false);
@@ -35,7 +28,6 @@ const deleteOpen = ref(false);
 const deleteTarget = ref<{ id: string; email: string } | null>(null);
 const deleteLoading = ref(false);
 
-const isSubmitting = ref(false);
 const isLoadingList = ref(true);
 const usersList = ref<any[]>([]);
 
@@ -252,57 +244,6 @@ function isSelfRow(u: any): boolean {
   return String(aid) === String(u.id);
 }
 
-async function onSubmit() {
-  if (!form.value.email?.trim() || !form.value.password) {
-    push.error(t("admin.users.validation_required"));
-    return;
-  }
-  if (form.value.password.length < 8) {
-    push.error(t("admin.users.password_min"));
-    return;
-  }
-
-  isSubmitting.value = true;
-  try {
-    const body: Record<string, unknown> = {
-      email: form.value.email.trim(),
-      password: form.value.password,
-      role: form.value.role,
-      account_status: form.value.account_status,
-      username: form.value.email.trim().split("@")[0] || form.value.email.trim(),
-    };
-    if (form.value.name?.trim()) {
-      body.name = form.value.name.trim();
-    }
-
-    const res = await adminFetch<any>("create-user", {
-      method: "POST",
-      body,
-    });
-
-    const failMsg = isCreateUserFailure(res);
-    if (failMsg) {
-      push.error(failMsg === "error" ? t("admin.users.create_failed") : failMsg);
-      return;
-    }
-
-    push.success(t("admin.users.created"));
-    form.value = {
-      email: "",
-      password: "",
-      name: "",
-      role: "user",
-      account_status: "public",
-    };
-    await loadUsers();
-  } catch (e: any) {
-    const msg = extractApiError(e) || t("admin.users.create_failed");
-    push.error(String(msg));
-  } finally {
-    isSubmitting.value = false;
-  }
-}
-
 const formatDate = (dateString: string) => {
   if (!dateString) return "";
   return new Intl.DateTimeFormat("th-TH", {
@@ -320,13 +261,23 @@ onMounted(() => {
 
 <template>
   <div class="max-w-5xl mx-auto space-y-10">
-    <div>
-      <h1 class="text-2xl font-bold text-neutral-900 dark:text-white">
-        {{ t("admin.users.title") }}
-      </h1>
-      <p class="text-neutral-600 dark:text-neutral-400 mt-1 text-sm">
-        {{ t("admin.users.lead") }}
-      </p>
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-neutral-900 dark:text-white">
+          {{ t("admin.users.title") }}
+        </h1>
+        <p class="text-neutral-600 dark:text-neutral-400 mt-1 text-sm">
+          {{ t("admin.users.lead") }}
+        </p>
+      </div>
+      <UButton
+        color="red"
+        icon="i-heroicons-user-plus"
+        :to="localePath('/admin/users/new')"
+        class="shrink-0"
+      >
+        {{ t("admin.users.create_account") }}
+      </UButton>
     </div>
 
     <UCard>
@@ -413,62 +364,6 @@ onMounted(() => {
         </table>
       </div>
     </UCard>
-
-    <div class="max-w-lg mx-auto">
-      <h2 class="text-lg font-semibold text-neutral-900 dark:text-white mb-2">
-        {{ t("admin.users.form_title") }}
-      </h2>
-      <UCard>
-        <form class="space-y-4" @submit.prevent="onSubmit">
-          <UFormGroup :label="t('admin.users.email')" required>
-            <UInput v-model="form.email" type="email" autocomplete="email" />
-          </UFormGroup>
-          <UFormGroup :label="t('admin.users.password')" required>
-            <UInput v-model="form.password" type="password" autocomplete="new-password" />
-          </UFormGroup>
-          <UFormGroup :label="t('admin.users.display_name')">
-            <UInput v-model="form.name" autocomplete="name" />
-          </UFormGroup>
-          <UFormGroup :label="t('admin.users.role')" required>
-            <select
-              v-model="form.role"
-              class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-neutral-950 px-3 py-2 text-sm text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-alizarin-crimson-500"
-            >
-              <option
-                v-for="opt in roleOptions"
-                :key="opt.value"
-                :value="opt.value"
-              >
-                {{ opt.label }}
-              </option>
-            </select>
-          </UFormGroup>
-          <UFormGroup :label="t('admin.users.account_status')" required>
-            <select
-              v-model="form.account_status"
-              class="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-neutral-950 px-3 py-2 text-sm text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-alizarin-crimson-500"
-            >
-              <option
-                v-for="opt in statusOptions"
-                :key="opt.value"
-                :value="opt.value"
-              >
-                {{ opt.label }}
-              </option>
-            </select>
-          </UFormGroup>
-          <UButton
-            type="submit"
-            color="red"
-            block
-            :loading="isSubmitting"
-            class="justify-center"
-          >
-            {{ t("admin.users.submit") }}
-          </UButton>
-        </form>
-      </UCard>
-    </div>
 
     <UModal
       v-model="editOpen"
