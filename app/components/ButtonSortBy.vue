@@ -17,6 +17,8 @@ const setSort = value => {
   selectedSort.value = value;
   const query = { ...route.query };
 
+  delete query.page;
+
   switch (value) {
     case 'Newest':
       delete query.orderby;

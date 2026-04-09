@@ -249,8 +249,18 @@ export default defineNuxtPlugin(() => {
       return { productTags: { nodes: [{ id: 1, name: "มือสอง", slug: "used" }, { id: 2, name: "sale", slug: "sale" }] } };
     }
     if (p === "/api/products") {
-      const nodes = filterProducts(String(query.get("search") || ""), String(query.get("category") || ""));
-      return { products: { nodes, pageInfo: { hasNextPage: false, endCursor: null } } };
+      const { page, pageSize } = mockParseListPagination(query, 24, 60);
+      const searchTerm = String(query.get("search") || query.get("q") || "").trim();
+      const category = String(query.get("category") || "").trim();
+      const all = filterProducts(searchTerm, category);
+      const total = all.length;
+      const start = (page - 1) * pageSize;
+      const nodes = all.slice(start, start + pageSize);
+      const hasNext = start + pageSize < total;
+      return {
+        products: { nodes, pageInfo: { hasNextPage: hasNext, endCursor: null } },
+        pagination: mockPaginationMeta(page, pageSize, total),
+      };
     }
     if (p === "/api/search") {
       const nodes = filterProducts(String(query.get("search") || ""), "").slice(0, Number(query.get("limit") || 6));

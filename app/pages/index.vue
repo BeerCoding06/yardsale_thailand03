@@ -1,6 +1,9 @@
 <!--app/pages/index.vue-->
 <script setup>
+import { pickPagination } from "~/utils/paginationResponse";
+
 const route = useRoute();
+const router = useRouter();
 const { name } = useAppConfig().site;
 const url = useRequestURL();
 const { locale } = useI18n();
@@ -13,6 +16,11 @@ const canonical = computed(() => {
     params.set("q", route.query.q);
   if (typeof route.query.category === "string" && route.query.category)
     params.set("category", route.query.category);
+  const p = route.query.page;
+  const pageStr = Array.isArray(p) ? p[0] : p;
+  if (typeof pageStr === "string" && pageStr.trim() && pageStr.trim() !== "1") {
+    params.set("page", pageStr.trim());
+  }
   const query = params.toString();
   return query ? `${base}?${query}` : base;
 });
@@ -136,12 +144,18 @@ useSeoMeta(() => ({
   twitterCard: "summary_large_image",
 }));
 
+const PAGE_SIZE = 24;
+
 const productsData = ref([]);
-const visibleCount = ref(8);
 const isLoading = ref(false);
 const hasFetched = ref(false);
-const tailEl = ref(null);
-const pageInfo = ref({ hasNextPage: true, endCursor: null });
+
+const productPagination = ref({
+  page: 1,
+  page_size: PAGE_SIZE,
+  total: 0,
+  total_pages: 0,
+});
 
 const {
   hasRemoteApi,
@@ -156,8 +170,21 @@ const variables = computed(() => ({
   order: route.query.orderby?.toUpperCase() || "DESC",
   field: route.query.fieldby?.toUpperCase() || "DATE",
   category: route.query.category,
-  after: pageInfo.value.endCursor,
 }));
+
+function currentListPage() {
+  const raw = route.query.page;
+  const s = String(Array.isArray(raw) ? raw[0] : raw || "1").trim();
+  const n = parseInt(s, 10);
+  return Math.max(1, Number.isFinite(n) ? n : 1);
+}
+
+function onProductPage(p) {
+  const query = { ...route.query };
+  if (p <= 1) delete query.page;
+  else query.page = String(p);
+  router.push({ path: route.path, query });
+}
 
 const lcpImageHref = computed(() => {
   const first = productsData.value?.[0];
@@ -198,17 +225,31 @@ useHead(() => ({
   ],
 }));
 
-async function fetch() {
-  if (isLoading.value || !pageInfo.value.hasNextPage) return;
+let loadProductsGeneration = 0;
+
+async function loadProducts() {
+  const gen = ++loadProductsGeneration;
   isLoading.value = true;
 
   try {
+    const page = currentListPage();
+    const baseQuery = {
+      search: variables.value.search,
+      order: variables.value.order,
+      field: variables.value.field,
+      category: variables.value.category,
+      page,
+      page_size: PAGE_SIZE,
+    };
+
     if (hasRemoteApi) {
       const raw = await $fetch(endpoint("products"), {
         query: {
           q: variables.value.search,
           search: variables.value.search,
           category: variables.value.category,
+          page,
+          page_size: PAGE_SIZE,
         },
       });
       const data = unwrapYardsaleResponse(raw);
@@ -216,60 +257,85 @@ async function fetch() {
       const nodes = rows
         .map((r) => mapApiProductRow(r))
         .filter((n) => isStorefrontPublishedProduct(n));
-      productsData.value.push(...nodes);
-      pageInfo.value = { hasNextPage: false, endCursor: null };
+      if (gen !== loadProductsGeneration) return;
+      productsData.value = nodes;
+      const pg = pickPagination(data);
+      if (pg) {
+        productPagination.value = pg;
+      } else {
+        productPagination.value = {
+          page,
+          page_size: PAGE_SIZE,
+          total: nodes.length,
+          total_pages: nodes.length ? 1 : 0,
+        };
+      }
       hasFetched.value = true;
       return;
     }
 
     const response = await $fetch("/api/products", {
-      query: variables.value,
+      query: baseQuery,
     });
+    if (gen !== loadProductsGeneration) return;
     const nodes = (response.products?.nodes || []).filter((n) =>
       isStorefrontPublishedProduct(n)
     );
-    productsData.value.push(...nodes);
-    pageInfo.value = response.products.pageInfo;
+    productsData.value = nodes;
+    const pg = pickPagination(response);
+    if (pg) {
+      productPagination.value = pg;
+    } else {
+      productPagination.value = {
+        page,
+        page_size: PAGE_SIZE,
+        total: nodes.length,
+        total_pages: nodes.length ? 1 : 0,
+      };
+    }
+    hasFetched.value = true;
+  } catch (e) {
+    console.error("[index] loadProducts", e);
+    if (gen !== loadProductsGeneration) return;
+    productsData.value = [];
+    productPagination.value = {
+      page: 1,
+      page_size: PAGE_SIZE,
+      total: 0,
+      total_pages: 0,
+    };
     hasFetched.value = true;
   } finally {
-    isLoading.value = false;
+    if (gen === loadProductsGeneration) isLoading.value = false;
   }
 }
-
-function revealMoreProducts(step = 8) {
-  if (visibleCount.value >= productsData.value.length) return;
-  visibleCount.value = Math.min(productsData.value.length, visibleCount.value + step);
-}
-
-if (import.meta.server) {
-  await fetch();
-} else {
-  onMounted(fetch);
-}
-
-useIntervalFn(() => {
-  if (!tailEl.value || isLoading.value) return;
-  const { top } = tailEl.value.getBoundingClientRect();
-  if (top - window.innerHeight < 400) {
-    if (pageInfo.value.hasNextPage) {
-      fetch();
-    } else {
-      revealMoreProducts(8);
-    }
-  }
-}, 500);
 
 watch(
-  () => route.query,
-  () => {
-    productsData.value = [];
-    visibleCount.value = 8;
-    pageInfo.value = { hasNextPage: true, endCursor: null };
-    fetch();
-  }
+  () => [
+    String(route.query.q ?? ""),
+    String(route.query.category ?? ""),
+    String(route.query.orderby ?? ""),
+    String(route.query.fieldby ?? ""),
+  ],
+  (nv, ov) => {
+    if (!ov) return;
+    if (nv.join("|") === ov.join("|")) return;
+    if (route.query.page != null && route.query.page !== "") {
+      router.replace({ path: route.path, query: { ...route.query, page: undefined } });
+    }
+  },
+  { flush: "pre" }
 );
 
-const products = computed(() => productsData.value.slice(0, visibleCount.value));
+watch(
+  () => route.fullPath,
+  () => {
+    loadProducts();
+  },
+  { immediate: true }
+);
+
+const products = computed(() => productsData.value);
 const productsEmpty = computed(
   () => hasFetched.value && !isLoading.value && productsData.value.length === 0
 );
@@ -289,13 +355,32 @@ const productsEmpty = computed(
     </div>
     <div
       v-if="!productsEmpty"
-      class="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 3xl:grid-cols-7 gap-3 lg:gap-5 p-3 lg:p-5"
+      class="space-y-4 p-3 lg:p-5"
     >
-      <ProductCard :products="products" />
-      <ProductsSkeleton
-        v-if="(!products.length || isLoading) && !productsEmpty"
+      <ListPaginationBar
+        :show-search="false"
+        :page="productPagination.page"
+        :total-pages="productPagination.total_pages"
+        :total="productPagination.total"
+        :page-size="productPagination.page_size"
+        :loading="isLoading"
+        @update:page="onProductPage"
       />
-      <br ref="tailEl" />
+      <div
+        class="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 3xl:grid-cols-7 gap-3 lg:gap-5"
+      >
+        <ProductCard :products="products" />
+        <ProductsSkeleton v-if="isLoading && !products.length" />
+      </div>
+      <ListPaginationBar
+        :show-search="false"
+        :page="productPagination.page"
+        :total-pages="productPagination.total_pages"
+        :total="productPagination.total"
+        :page-size="productPagination.page_size"
+        :loading="isLoading"
+        @update:page="onProductPage"
+      />
     </div>
     <ProductsEmpty v-else />
   </div>
