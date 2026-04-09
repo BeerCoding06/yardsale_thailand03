@@ -2,7 +2,7 @@
 <script setup>
 // Page for creating products - requires authentication
 definePageMeta({
-  middleware: "auth",
+  middleware: "seller",
 });
 
 const { isAuthenticated, user, checkAuth } = useAuth();

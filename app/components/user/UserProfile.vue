@@ -2,8 +2,10 @@
 <script setup>
 const auth = useAuth();
 const { user, isAuthenticated, logout, checkAuth, fetchUser } = auth;
+const { isSeller, isAdmin } = useRoles();
 const router = useRouter();
 const { t } = useI18n();
+const localePath = useLocalePath();
 
 // Client-side only state to prevent hydration mismatch
 const isClient = ref(false);
@@ -503,19 +505,28 @@ const updateProfile = async () => {
 
               <div class="space-y-2">
                 <NuxtLink
+                  v-if="isSeller"
                   to="/create-product"
                   class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white border-2 border-transparent hover:border-neutral-200 dark:hover:border-neutral-700"
                 >
                   <UIcon name="i-heroicons-plus-circle" class="w-5 h-5" />
                   <span class="font-medium">{{ $t("auth.create_product") }}</span>
                 </NuxtLink>
-                <!-- INSERT_YOUR_CODE -->
                 <NuxtLink
+                  v-if="isSeller"
                   to="/my-products"
                   class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white border-2 border-transparent hover:border-neutral-200 dark:hover:border-neutral-700"
                 >
                   <UIcon name="i-heroicons-cube-transparent" class="w-5 h-5" />
                   <span class="font-medium">{{ $t("auth.my_products") }}</span>
+                </NuxtLink>
+                <NuxtLink
+                  v-if="isAdmin"
+                  :to="localePath('/admin')"
+                  class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white border-2 border-transparent hover:border-neutral-200 dark:hover:border-neutral-700"
+                >
+                  <UIcon name="i-heroicons-cog-6-tooth" class="w-5 h-5" />
+                  <span class="font-medium">{{ $t("auth.admin_cms") }}</span>
                 </NuxtLink>
                 <NuxtLink
                   to="/my-orders"
@@ -525,6 +536,7 @@ const updateProfile = async () => {
                   <span class="font-medium">{{ $t("auth.my_orders") }}</span>
                 </NuxtLink>
                 <NuxtLink
+                  v-if="isSeller"
                   to="/seller-orders"
                   class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white border-2 border-transparent hover:border-neutral-200 dark:hover:border-neutral-700"
                 >

@@ -4,7 +4,7 @@ import { useCmsApi } from "#imports";
 
 // Page for editing products - requires authentication
 definePageMeta({
-  middleware: "auth",
+  middleware: "seller",
   ssr: false, // Disable SSR to prevent hydration mismatches
 });
 

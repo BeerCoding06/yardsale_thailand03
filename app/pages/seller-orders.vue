@@ -4,7 +4,7 @@ import { push } from "notivue";
 import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
 
 definePageMeta({
-  middleware: "auth",
+  middleware: "seller",
   ssr: false,
 });
 

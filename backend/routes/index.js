@@ -129,11 +129,16 @@ router.post('/check-cart-stock', validate(cartStockBodySchema), cartController.c
 router.post('/create-order', authMiddleware, validate(createOrderSchema), orderController.createOrder);
 router.get('/get-order/:id', authMiddleware, orderController.getOrder);
 router.get('/my-orders', authMiddleware, orderController.myOrders);
-router.get('/seller-orders', authMiddleware, orderController.sellerOrders);
+router.get(
+  '/seller-orders',
+  authMiddleware,
+  requireRoles('seller', 'admin'),
+  orderController.sellerOrders
+);
 router.patch(
   '/seller-orders/:orderId/fulfillment',
   authMiddleware,
-  requireRoles('user', 'seller', 'admin'),
+  requireRoles('seller', 'admin'),
   validate(sellerOrderFulfillmentParamsSchema, 'params'),
   validate(patchSellerOrderFulfillmentSchema),
   orderController.patchSellerOrderFulfillment
@@ -148,40 +153,40 @@ router.post('/payment/mock', authMiddleware, (req, res, next) => {
 }, paymentController.mockPayment);
 router.get('/payment/slipok/quota', authMiddleware, paymentController.slipokQuota);
 
-/** user = ลูกค้าทั่วไป สร้างขายได้เหมือน seller (seller_id = ตัวเอง); admin ยังมองทั้งระบบ */
-router.get('/my-products', authMiddleware, requireRoles('user', 'seller', 'admin'), sellerController.myProducts);
+/** ผู้ขาย (seller) + แอดมิน (ใช้ API เดียวกับแอดมิน CMS บางจุด) — ลูกค้า role user ช้อปอย่างเดียว */
+router.get('/my-products', authMiddleware, requireRoles('seller', 'admin'), sellerController.myProducts);
 router.post(
   '/create-product',
   authMiddleware,
-  requireRoles('user', 'seller', 'admin'),
+  requireRoles('seller', 'admin'),
   validate(createProductSchema),
   sellerController.createProduct
 );
 router.post(
   '/update-product',
   authMiddleware,
-  requireRoles('user', 'seller', 'admin'),
+  requireRoles('seller', 'admin'),
   validate(updateProductSchema),
   sellerController.updateProduct
 );
 router.post(
   '/upload-image',
   authMiddleware,
-  requireRoles('user', 'seller', 'admin'),
+  requireRoles('seller', 'admin'),
   uploadImage.single('image'),
   sellerController.uploadImage
 );
 router.post(
   '/product/cancel',
   authMiddleware,
-  requireRoles('user', 'seller', 'admin'),
+  requireRoles('seller', 'admin'),
   validate(productActionSchema),
   sellerController.cancelProduct
 );
 router.post(
   '/product/restore',
   authMiddleware,
-  requireRoles('user', 'seller', 'admin'),
+  requireRoles('seller', 'admin'),
   validate(productActionSchema),
   sellerController.restoreProduct
 );
