@@ -101,14 +101,27 @@ export const sellerOrderFulfillmentParamsSchema = Joi.object({
   orderId: uuid.required(),
 });
 
-/** ผู้ขายส่งแค่เลขพัสดุ — shipping_status คำนวณจาก 17TRACK (หรือ shipped ถ้าไม่มี key / lookup ไม่สำเร็จ) */
+/** ผู้ขาย: ส่งเลขพัสดุเป็นหลัก — shipping_status จาก 17TRACK ถ้ามี key. แอดมิน: ส่ง shipping_status / courier_name ได้ (merge กับของเดิม) */
 export const patchSellerOrderFulfillmentSchema = Joi.object({
-  tracking_number: Joi.string().trim().allow('', null).required(),
+  tracking_number: Joi.string().trim().allow('', null).optional(),
   /** optional 17TRACK carrier key เมื่อระบบเดาขนส่งไม่ได้ */
   carrier: Joi.number().integer().positive().optional(),
   shipping_receipt_number: Joi.string().trim().allow('', null).optional(),
-  courier_name: Joi.string().trim().allow('', null).optional(),
-});
+  courier_name: Joi.string().trim().max(200).allow('', null).optional(),
+  shipping_status: Joi.string()
+    .valid('pending', 'preparing', 'shipped', 'out_for_delivery', 'delivered')
+    .optional(),
+})
+  .or(
+    'tracking_number',
+    'shipping_status',
+    'courier_name',
+    'shipping_receipt_number',
+    'carrier'
+  )
+  .messages({
+    'object.missing': 'at least one fulfillment field is required',
+  });
 
 export const paymentMockSchema = Joi.object({
   order_id: uuid.required(),

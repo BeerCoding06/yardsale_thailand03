@@ -4,6 +4,51 @@ import * as orderModel from '../models/order.model.js';
 import * as orderService from './order.service.js';
 import { config } from '../config/index.js';
 import fs from 'fs/promises';
+import fsSync from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function uploadsAbsoluteDir() {
+  return path.isAbsolute(config.uploadDir)
+    ? config.uploadDir
+    : path.resolve(path.join(__dirname, '..'), config.uploadDir);
+}
+
+/**
+ * URL สำหรับ orders.slip_image_url / order_slip_snapshots — ไฟล์, ลิงก์ภายนอก, หรือ data:image base64
+ */
+async function resolveSlipImageUrlForPayment(orderId, body, file) {
+  if (file?.filename) {
+    return `/uploads/${file.filename}`;
+  }
+  const extUrl = String(body?.slip_url || '').trim();
+  if (extUrl) return extUrl;
+
+  const slipData = String(body?.slip_data || '').trim();
+  if (!slipData) return null;
+
+  const m = slipData.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/i);
+  if (!m) return null;
+
+  const ext = m[1].toLowerCase() === 'jpeg' ? 'jpg' : m[1].toLowerCase();
+  let buf;
+  try {
+    buf = Buffer.from(m[2], 'base64');
+  } catch {
+    return null;
+  }
+  if (!buf.length) return null;
+
+  const dir = uploadsAbsoluteDir();
+  if (!fsSync.existsSync(dir)) {
+    fsSync.mkdirSync(dir, { recursive: true });
+  }
+  const name = `slip-${orderId}-${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
+  await fs.writeFile(path.join(dir, name), buf);
+  return `/uploads/${name}`;
+}
 
 function parseBool(v) {
   if (v === true || v === 'true' || v === '1') return true;
@@ -136,10 +181,25 @@ export async function mockPayment(userId, body, file) {
     }
 
     const slipChecked = await checkSlipWithSlipok(body, file);
-    const slipUrl = file ? `/uploads/${file.filename}` : null;
+    const thisUploadUrl = await resolveSlipImageUrlForPayment(orderId, body, file);
+    const slipForOrderRow =
+      thisUploadUrl != null && String(thisUploadUrl).trim() !== ''
+        ? String(thisUploadUrl).trim()
+        : order.slip_image_url || null;
+
     const updated = await orderModel.updateOrderStatus(client, orderId, 'paid', {
-      slipImageUrl: slipUrl,
+      slipImageUrl: slipForOrderRow,
     });
+
+    try {
+      await orderModel.insertOrderSlipSnapshot(client, {
+        orderId,
+        imageUrl: thisUploadUrl,
+      });
+    } catch {
+      /* ตาราง order_slip_snapshots ยังไม่ migrate — ไม่บล็อกการชำระ */
+    }
+
     return { order: updated, paid: true, slip: slipChecked };
   });
 }

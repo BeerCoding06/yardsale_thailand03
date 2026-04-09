@@ -126,3 +126,85 @@ export async function listAllOrders(client) {
   );
   return r.rows;
 }
+
+/** รายการสินค้าต่อออเดอร์ (ทุกบรรทัด) — ใช้หน้ารายการออเดอร์แอดมิน */
+export async function mapLineItemsByOrderIds(client, orderIds) {
+  if (!orderIds.length) return new Map();
+  const r = await client.query(
+    `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name
+     FROM order_items oi
+     JOIN products p ON p.id = oi.product_id
+     WHERE oi.order_id = ANY($1::uuid[])
+     ORDER BY oi.order_id, p.name`,
+    [orderIds]
+  );
+  const map = new Map();
+  for (const row of r.rows) {
+    const oid = row.order_id;
+    if (!map.has(oid)) map.set(oid, []);
+    map.get(oid).push({
+      product_id: row.product_id,
+      quantity: row.quantity,
+      price: row.price,
+      name: row.name,
+    });
+  }
+  return map;
+}
+
+/** เฉพาะบรรทัดที่ seller นี้เป็นผู้ขาย — ใช้หน้าผู้ขาย */
+export async function insertOrderSlipSnapshot(client, { orderId, imageUrl }) {
+  const r = await client.query(
+    `INSERT INTO order_slip_snapshots (order_id, image_url)
+     VALUES ($1, $2)
+     RETURNING id, order_id, image_url, created_at`,
+    [orderId, imageUrl != null && String(imageUrl).trim() !== '' ? String(imageUrl).trim() : null]
+  );
+  return r.rows[0] || null;
+}
+
+export async function mapSlipSnapshotsByOrderIds(client, orderIds) {
+  if (!orderIds.length) return new Map();
+  const r = await client.query(
+    `SELECT id, order_id, image_url, created_at
+     FROM order_slip_snapshots
+     WHERE order_id = ANY($1::uuid[])
+     ORDER BY order_id, created_at ASC`,
+    [orderIds]
+  );
+  const map = new Map();
+  for (const row of r.rows) {
+    const oid = row.order_id;
+    if (!map.has(oid)) map.set(oid, []);
+    map.get(oid).push({
+      id: row.id,
+      image_url: row.image_url,
+      created_at: row.created_at,
+    });
+  }
+  return map;
+}
+
+export async function mapSellerLineItemsByOrderIds(client, sellerId, orderIds) {
+  if (!orderIds.length) return new Map();
+  const r = await client.query(
+    `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name
+     FROM order_items oi
+     JOIN products p ON p.id = oi.product_id
+     WHERE oi.order_id = ANY($1::uuid[]) AND p.seller_id = $2::uuid
+     ORDER BY oi.order_id, p.name`,
+    [orderIds, sellerId]
+  );
+  const map = new Map();
+  for (const row of r.rows) {
+    const oid = row.order_id;
+    if (!map.has(oid)) map.set(oid, []);
+    map.get(oid).push({
+      product_id: row.product_id,
+      quantity: row.quantity,
+      price: row.price,
+      name: row.name,
+    });
+  }
+  return map;
+}

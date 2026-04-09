@@ -462,8 +462,15 @@ export default defineNuxtPlugin(() => {
     const fulfillMatch = p.match(/^\/api\/seller-orders\/([^/]+)\/fulfillment$/);
     if (fulfillMatch && String(opts?.method || "GET").toUpperCase() === "PATCH") {
       const bo = (body as AnyObj) || {};
-      const tn = String(bo.tracking_number || "").trim();
-      const shipping_status = tn ? "shipped" : "pending";
+      const tn = String(bo.tracking_number ?? "").trim();
+      const hasStatus = bo.shipping_status != null && String(bo.shipping_status).trim() !== "";
+      let shipping_status = hasStatus ? String(bo.shipping_status).trim() : tn ? "shipped" : "pending";
+      const courier =
+        bo.courier_name != null && String(bo.courier_name).trim() !== ""
+          ? String(bo.courier_name).trim()
+          : tn
+            ? "Mock Courier"
+            : null;
       return {
         success: true,
         data: {
@@ -472,7 +479,7 @@ export default defineNuxtPlugin(() => {
             shipping_status,
             tracking_number: tn || null,
             shipping_receipt_number: bo.shipping_receipt_number || null,
-            courier_name: bo.courier_name || null,
+            courier_name: courier,
             fulfillment_updated_at: new Date().toISOString(),
             status: "paid",
           },

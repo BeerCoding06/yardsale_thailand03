@@ -183,7 +183,21 @@ export async function listSellerOrders(sellerId) {
   const client = await pool.connect();
   try {
     const orders = await orderModel.listOrdersForSeller(client, sellerId);
-    return { orders: orders.map(formatOrderForApi) };
+    const ids = orders.map((o) => o.id);
+    const lineMap = await orderModel.mapSellerLineItemsByOrderIds(client, sellerId, ids);
+    let snapMap = new Map();
+    try {
+      snapMap = await orderModel.mapSlipSnapshotsByOrderIds(client, ids);
+    } catch {
+      /* order_slip_snapshots ยังไม่มีในฐานข้อมูล */
+    }
+    return {
+      orders: orders.map((row) => ({
+        ...formatOrderForApi(row),
+        line_items: lineMap.get(row.id) || [],
+        slip_snapshots: snapMap.get(row.id) || [],
+      })),
+    };
   } finally {
     client.release();
   }
@@ -193,20 +207,109 @@ export async function listAllOrdersAdmin() {
   const client = await pool.connect();
   try {
     const orders = await orderModel.listAllOrders(client);
-    return { orders: orders.map(formatOrderForApi) };
+    const ids = orders.map((o) => o.id);
+    const lineMap = await orderModel.mapLineItemsByOrderIds(client, ids);
+    let snapMap = new Map();
+    try {
+      snapMap = await orderModel.mapSlipSnapshotsByOrderIds(client, ids);
+    } catch {
+      /* order_slip_snapshots ยังไม่มีในฐานข้อมูล */
+    }
+    return {
+      orders: orders.map((row) => ({
+        ...formatOrderForApi(row),
+        line_items: lineMap.get(row.id) || [],
+        slip_snapshots: snapMap.get(row.id) || [],
+      })),
+    };
   } finally {
     client.release();
   }
 }
 
-/** ผู้ขายกรอกเลข Tracking — ระบบเรียก 17TRACK (ถ้ามี API key) กำหนด shipping_status / courier อัตโนมัติ */
-export async function updateSellerOrderFulfillment(userId, orderId, body) {
+const FULFILLMENT_STATUSES = new Set([
+  'pending',
+  'preparing',
+  'shipped',
+  'out_for_delivery',
+  'delivered',
+]);
+
+function normalizeFulfillmentStatus(s) {
+  const v = String(s || 'pending')
+    .toLowerCase()
+    .trim()
+    .replace(/-/g, '_');
+  return FULFILLMENT_STATUSES.has(v) ? v : 'pending';
+}
+
+/** ผู้ขายกรอกเลข Tracking — 17TRACK ถ้ามี key. แอดมินแก้ทุกออเดอร์ได้ + ตั้ง shipping_status/courier เอง */
+export async function updateSellerOrderFulfillment(userId, orderId, body, role) {
   const client = await pool.connect();
   try {
     const order = await orderModel.getOrderById(client, orderId);
     if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
-    const ok = await orderModel.orderHasSellerProduct(client, orderId, userId);
-    if (!ok) throw new AppError('Forbidden', 403, 'FORBIDDEN');
+
+    const isAdmin = role === 'admin';
+    if (!isAdmin) {
+      const ok = await orderModel.orderHasSellerProduct(client, orderId, userId);
+      if (!ok) throw new AppError('Forbidden', 403, 'FORBIDDEN');
+    }
+
+    if (isAdmin) {
+      let tn =
+        body.tracking_number !== undefined
+          ? String(body.tracking_number ?? '').trim()
+          : String(order.tracking_number || '').trim();
+      let courier_name =
+        body.courier_name !== undefined
+          ? String(body.courier_name ?? '').trim()
+          : String(order.courier_name || '').trim();
+      let shipping_receipt_number =
+        body.shipping_receipt_number !== undefined
+          ? String(body.shipping_receipt_number ?? '').trim()
+          : String(order.shipping_receipt_number || '').trim();
+      let shipping_status = normalizeFulfillmentStatus(
+        body.shipping_status !== undefined ? body.shipping_status : order.shipping_status
+      );
+
+      if (tn) {
+        const resolved = await seventeenTrack.tryResolveTrackingForFulfillment(tn, body.carrier);
+        if (resolved) {
+          if (body.shipping_status === undefined) {
+            shipping_status = seventeenTrack.mapNormalizedToShippingStatus(resolved.normalized);
+          }
+          if (body.courier_name === undefined) {
+            const fromTrack = resolved.normalized.carrier || '';
+            if (fromTrack) courier_name = fromTrack;
+          }
+          try {
+            await trackingLogModel.insertTrackingLog(client, {
+              trackingNumber: resolved.normalized.trackingNumber,
+              carrier: resolved.normalized.carrier,
+              status: resolved.normalized.currentStatus,
+              rawResponse: resolved.upstream,
+            });
+          } catch {
+            /* noop */
+          }
+        } else if (body.shipping_status === undefined) {
+          shipping_status = 'shipped';
+        }
+      } else {
+        if (body.courier_name === undefined) courier_name = '';
+        if (body.shipping_receipt_number === undefined) shipping_receipt_number = '';
+        if (body.shipping_status === undefined) shipping_status = 'pending';
+      }
+
+      const updated = await orderModel.updateOrderFulfillment(client, orderId, {
+        shipping_status,
+        tracking_number: tn,
+        shipping_receipt_number,
+        courier_name,
+      });
+      return { order: formatOrderForApi(updated) };
+    }
 
     const tn = String(body.tracking_number ?? '').trim();
     let shipping_status = 'pending';

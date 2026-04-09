@@ -258,3 +258,13 @@ CREATE TABLE IF NOT EXISTS tracking_logs (
 
 CREATE INDEX IF NOT EXISTS idx_tracking_logs_number ON tracking_logs (tracking_number);
 CREATE INDEX IF NOT EXISTS idx_tracking_logs_created ON tracking_logs (created_at DESC);
+
+/* สลิปแต่ละครั้งที่อัปโหลดตรวจ — แสดงในแอดมิน */
+CREATE TABLE IF NOT EXISTS order_slip_snapshots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id UUID NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
+  image_url TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_order_slip_snapshots_order ON order_slip_snapshots (order_id, created_at DESC);

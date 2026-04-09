@@ -151,9 +151,11 @@ async function saveFulfillment(order) {
     if (updated) {
       const ix = orders.value.findIndex((o) => o.id === order.id);
       if (ix >= 0) {
+        const prev = orders.value[ix];
         orders.value[ix] = normalizeSellerOrderRow({
-          ...orders.value[ix],
+          ...prev,
           ...updated,
+          line_items: prev.line_items,
         });
       }
       delete fulfillmentDrafts.value[order.id];
@@ -379,6 +381,32 @@ onMounted(async () => {
                           {{ paymentLabel(order) }}
                         </span>
                       </div>
+                    </div>
+
+                    <div
+                      v-if="order.line_items?.length"
+                      class="mb-4 p-4 rounded-xl bg-violet-50/90 dark:bg-violet-950/25 border-2 border-violet-200 dark:border-violet-900"
+                    >
+                      <p
+                        class="text-sm font-semibold text-violet-900 dark:text-violet-200 mb-2"
+                      >
+                        {{ $t("seller_orders.products_in_order") }}
+                      </p>
+                      <ul
+                        class="space-y-1.5 text-sm text-neutral-800 dark:text-neutral-200"
+                      >
+                        <li
+                          v-for="li in order.line_items"
+                          :key="`${order.id}-${li.product_id}`"
+                          class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+                        >
+                          <span class="font-medium">{{ li.name }}</span>
+                          <span
+                            class="text-neutral-500 dark:text-neutral-400 tabular-nums"
+                            >× {{ li.quantity }}</span
+                          >
+                        </li>
+                      </ul>
                     </div>
 
                     <!-- Customer Information Card -->
