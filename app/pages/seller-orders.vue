@@ -124,8 +124,10 @@ function shipmentStepsForOrder(order) {
   const d = draftFor(order);
   return buildShipmentTimelineSteps({
     status: order.status,
-    date_created: order.date_created,
+    date_created: order.date_created || order.created_at,
+    created_at: order.created_at || order.date_created,
     shipping_status: d.shipping_status,
+    fulfillment_updated_at: order.fulfillment_updated_at,
   });
 }
 

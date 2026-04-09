@@ -467,6 +467,7 @@
     "pending": "Pending Shipping",
     "preparing": "Preparing Products",
     "shipped": "Shipped",
+    "out_for_delivery": "Out for delivery",
     "on_hold": "Shipping On Hold",
     "delivered": "Delivered",
     "ordered": "Ordered",

@@ -6,6 +6,8 @@ definePageMeta({
   ssr: false, // Disable SSR to prevent hydration mismatches
 });
 
+import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
+
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
 const localePath = useLocalePath();
@@ -49,6 +51,41 @@ const formatDate = (dateString) => {
 };
 
 const { t } = useI18n();
+
+const API_SHIPPING_STATUSES = [
+  "pending",
+  "preparing",
+  "shipped",
+  "out_for_delivery",
+  "delivered",
+];
+
+function orderTimelinePayload(order) {
+  let ship = String(order.shipping_status || "pending")
+    .toLowerCase()
+    .replace(/-/g, "_");
+  if (!API_SHIPPING_STATUSES.includes(ship)) ship = "pending";
+  return {
+    status: order.status,
+    shipping_status: ship,
+    date_created: order.date_created || order.created_at,
+    created_at: order.created_at || order.date_created,
+    fulfillment_updated_at: order.fulfillment_updated_at,
+  };
+}
+
+function shipmentTimelineStepsForOrder(order) {
+  return buildShipmentTimelineSteps(orderTimelinePayload(order));
+}
+
+function currentShipmentTimelineLabel(order) {
+  const steps = shipmentTimelineStepsForOrder(order);
+  const cur = steps.find((s) => s.variant === "active");
+  if (cur) return t(`order.shipment_timeline.${cur.key}`);
+  const doneLast = [...steps].reverse().find((s) => s.variant === "done");
+  if (doneLast) return t(`order.shipment_timeline.${doneLast.key}`);
+  return t("shipping.pending");
+}
 
 // Reactive map to store product images by product_id
 const productImages = ref(new Map());
@@ -131,17 +168,24 @@ const getCancelButtonText = (orderId) => {
 
 // Format shipping status
 const getShippingStatusText = (status) => {
+  const k = String(status || "")
+    .toLowerCase()
+    .replace(/-/g, "_");
   const statusMap = {
     pending: t('shipping.pending'),
     preparing: t('shipping.preparing'),
     shipped: t('shipping.shipped'),
+    out_for_delivery: t('shipping.out_for_delivery'),
     on_hold: t('shipping.on_hold'),
     delivered: t('shipping.delivered'),
   };
-  return statusMap[status] || status;
+  return statusMap[k] || status;
 };
 
 const getShippingStatusColor = (status) => {
+  const k = String(status || "")
+    .toLowerCase()
+    .replace(/-/g, "_");
   const colorMap = {
     pending:
       "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200",
@@ -149,87 +193,32 @@ const getShippingStatusColor = (status) => {
       "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200",
     shipped:
       "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200",
+    out_for_delivery:
+      "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200",
     on_hold:
       "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200",
     delivered:
       "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200",
   };
   return (
-    colorMap[status] ||
+    colorMap[k] ||
     "bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
   );
 };
 
 const getShippingStatusIcon = (status) => {
+  const k = String(status || "")
+    .toLowerCase()
+    .replace(/-/g, "_");
   const iconMap = {
     pending: "i-iconamoon-clock-fill",
     preparing: "i-iconamoon-package-fill",
     shipped: "i-iconamoon-truck-fill",
+    out_for_delivery: "i-heroicons-map-pin",
     on_hold: "i-iconamoon-pause-circle-fill",
     delivered: "i-iconamoon-check-circle-1-fill",
   };
-  return iconMap[status] || "i-iconamoon-info-circle-fill";
-};
-
-// Get shipping progress steps
-const getShippingSteps = (order) => {
-  const steps = [
-    {
-      id: 1,
-      label: t('shipping.ordered'),
-      status: "completed",
-      icon: "i-heroicons-shopping-bag",
-    },
-    {
-      id: 2,
-      label: t('shipping.prepare'),
-      status:
-        order.shipping_status === "preparing" ||
-        order.shipping_status === "shipped" ||
-        order.shipping_status === "delivered"
-          ? "completed"
-          : order.shipping_status === "pending"
-          ? "current"
-          : "pending",
-      icon: "i-iconamoon-box-duotone",
-    },
-    {
-      id: 3,
-      label: t('shipping.shipped'),
-      status:
-        order.shipping_status === "shipped" ||
-        order.shipping_status === "delivered"
-          ? order.shipping_status === "shipped"
-            ? "current"
-            : "completed"
-          : "pending",
-      icon: "i-heroicons-truck",
-    },
-    {
-      id: 4,
-      label: t('shipping.delivered'),
-      status: order.shipping_status === "delivered" ? "completed" : "pending",
-      icon: "i-heroicons-check-circle",
-    },
-  ];
-
-  // Handle on_hold status
-  if (order.shipping_status === "on_hold") {
-    steps.forEach((step) => {
-      if (step.id > 1) step.status = "cancelled";
-    });
-  }
-
-  return steps;
-};
-
-// Get current step number
-const getCurrentStep = (order) => {
-  if (order.shipping_status === "on_hold") return 0;
-  if (order.shipping_status === "delivered") return 4;
-  if (order.shipping_status === "shipped") return 3;
-  if (order.shipping_status === "preparing") return 2;
-  return 1;
+  return iconMap[k] || "i-iconamoon-info-circle-fill";
 };
 
 // Fetch orders
@@ -621,89 +610,10 @@ function payOrderLink(order) {
                           {{ getShippingStatusText(order.shipping_status) }}
                         </span>
                       </div>
-                      <div class="relative">
-                        <!-- Progress Bar Line -->
-                        <div
-                          class="absolute top-5 left-0 right-0 h-0.5 bg-neutral-200 dark:bg-neutral-700"
-                        >
-                          <div
-                            :class="[
-                              'h-full transition-all duration-500',
-                              order.shipping_status === 'on_hold'
-                                ? 'bg-red-500 w-0'
-                                : order.shipping_status === 'delivered'
-                                ? 'bg-green-500 w-full'
-                                : order.shipping_status === 'shipped'
-                                ? 'bg-purple-500'
-                                : order.shipping_status === 'preparing'
-                                ? 'bg-blue-500'
-                                : 'bg-yellow-500',
-                            ]"
-                            :style="{
-                              width: `${(getCurrentStep(order) / 4) * 100}%`,
-                            }"
-                          ></div>
-                        </div>
-
-                        <!-- Steps -->
-                        <div class="relative flex justify-between">
-                          <div
-                            v-for="step in getShippingSteps(order)"
-                            :key="step.id"
-                            class="flex flex-col items-center"
-                            :class="
-                              step.id === 1
-                                ? 'items-start'
-                                : step.id === 4
-                                ? 'items-end'
-                                : ''
-                            "
-                          >
-                            <!-- Step Circle -->
-                            <div
-                              :class="[
-                                'w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300',
-                                step.status === 'completed'
-                                  ? 'bg-green-500 border-green-500 text-white'
-                                  : step.status === 'current'
-                                  ? 'bg-blue-500 border-blue-500 text-white animate-pulse'
-                                  : step.status === 'cancelled'
-                                  ? 'bg-red-500 border-red-500 text-white'
-                                  : 'bg-white dark:bg-neutral-800 border-neutral-300 dark:border-neutral-600 text-neutral-400 dark:text-neutral-500',
-                              ]"
-                            >
-                              <UIcon :name="step.icon" class="w-5 h-5" />
-                            </div>
-
-                            <!-- Step Label -->
-                            <div
-                              class="mt-2 text-center"
-                              :class="
-                                step.id === 1
-                                  ? 'text-left'
-                                  : step.id === 4
-                                  ? 'text-right'
-                                  : ''
-                              "
-                            >
-                              <p
-                                :class="[
-                                  'text-xs font-semibold',
-                                  step.status === 'completed'
-                                    ? 'text-green-600 dark:text-green-400'
-                                    : step.status === 'current'
-                                    ? 'text-blue-600 dark:text-blue-400'
-                                    : step.status === 'cancelled'
-                                    ? 'text-red-600 dark:text-red-400'
-                                    : 'text-neutral-500 dark:text-neutral-400',
-                                ]"
-                              >
-                                {{ step.label }}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      <ShipmentTimeline
+                        class="mt-1"
+                        :steps="shipmentTimelineStepsForOrder(order)"
+                      />
                     </div>
 
                     <!-- Summary -->
@@ -719,15 +629,7 @@ function payOrderLink(order) {
                         <p
                           class="text-sm font-semibold text-black dark:text-white"
                         >
-                          {{
-                            getShippingSteps(order).find(
-                              (s) => s.status === "current"
-                            )?.label ||
-                            getShippingSteps(order).find(
-                              (s) => s.status === "completed" && s.id === 4
-                            )?.label ||
-                            $t('shipping.pending')
-                          }}
+                          {{ currentShipmentTimelineLabel(order) }}
                         </p>
                       </div>
                       <div v-if="order.tracking_number" class="text-right">

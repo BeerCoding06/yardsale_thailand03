@@ -18,8 +18,12 @@ export const SHIPMENT_STEP_ICONS: Record<ShipmentStepKey, string> = {
 
 export type OrderLike = {
   status?: string | null;
+  /** Woo-style หรือจาก formatOrderForApi */
   date_created?: string | null;
+  created_at?: string | null;
   shipping_status?: string | null;
+  /** จาก PATCH fulfillment — เวลาอัปเดตล่าสุดจาก API */
+  fulfillment_updated_at?: string | null;
 };
 
 function norm(s: string | null | undefined): string {
@@ -38,7 +42,7 @@ export function getShipmentActiveStepIndex(order: OrderLike): number {
 
   const ship = norm(order.shipping_status);
   if (ship === "delivered") return 4;
-  if (ship === "out_for_delivery" || ship === "in_transit") return 3;
+  if (ship === "out_for_delivery" || ship === "in_transit" || ship === "out for delivery") return 3;
   if (ship === "shipped") return 2;
   if (ship === "preparing" || ship === "packed") return 1;
   if (ship === "pending") return 0;
@@ -51,11 +55,10 @@ export function getShipmentActiveStepIndex(order: OrderLike): number {
   return 0;
 }
 
-function offsetIso(baseIso: string | undefined, hours: number): string | null {
-  if (!baseIso) return null;
-  const d = new Date(baseIso);
+function toIso(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return null;
-  d.setTime(d.getTime() + hours * 60 * 60 * 1000);
   return d.toISOString();
 }
 
@@ -68,7 +71,8 @@ export type TimelineStepVm = {
 
 export function buildShipmentTimelineSteps(order: OrderLike): TimelineStepVm[] {
   const active = getShipmentActiveStepIndex(order);
-  const base = order.date_created || undefined;
+  const createdIso = toIso(order.date_created || order.created_at);
+  const fulfillmentIso = toIso(order.fulfillment_updated_at);
 
   return SHIPMENT_STEP_KEYS.map((key, i) => {
     let variant: TimelineStepVm["variant"];
@@ -82,12 +86,13 @@ export function buildShipmentTimelineSteps(order: OrderLike): TimelineStepVm[] {
       variant = "pending";
     }
 
+    /** เวลาแสดงตามข้อมูล API เท่านั้น — ไม่สร้างเวลาปลอม */
     let timestampIso: string | null = null;
-    if (variant === "done" || variant === "active") {
+    if (active >= 0 && (variant === "done" || variant === "active")) {
       if (i === 0) {
-        timestampIso = base ? new Date(base).toISOString() : null;
-      } else {
-        timestampIso = offsetIso(base, 2 * i);
+        timestampIso = createdIso;
+      } else if (i === active) {
+        timestampIso = fulfillmentIso || createdIso;
       }
     }
 
