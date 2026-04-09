@@ -670,7 +670,6 @@
     },
     "users": {
       "title": "Users",
-      "lead": "Log in as admin (e.g. admin{'@'}demo.local after npm run db:seed in backend). Then create accounts; seller/admin roles need your admin session.",
       "email": "Email",
       "password": "Password",
       "display_name": "Display name",

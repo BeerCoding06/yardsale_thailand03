@@ -673,7 +673,6 @@
     },
     "users": {
       "title": "ผู้ใช้",
-      "lead": "ล็อกอินเป็นแอดมิน (เช่น admin{'@'}demo.local หลังรัน npm run db:seed ใน backend) แล้วค่อยสร้างบัญชี — บทบาทผู้ขาย/แอดมินต้องใช้ session แอดมิน",
       "email": "อีเมล",
       "password": "รหัสผ่าน",
       "display_name": "ชื่อที่แสดง",

@@ -274,9 +274,6 @@ onMounted(() => {
         <h1 class="text-2xl font-bold text-neutral-900 dark:text-white">
           {{ t("admin.users.title") }}
         </h1>
-        <p class="text-neutral-600 dark:text-neutral-400 mt-1 text-sm">
-          {{ t("admin.users.lead") }}
-        </p>
       </div>
       <UButton
         color="red"
