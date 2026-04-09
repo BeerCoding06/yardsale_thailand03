@@ -111,22 +111,18 @@ function draftFor(order) {
   const id = order.id;
   if (!fulfillmentDrafts.value[id]) {
     fulfillmentDrafts.value[id] = reactive({
-      shipping_status: normalizeShippingStatus(order.shipping_status),
       tracking_number: String(order.tracking_number || ""),
-      shipping_receipt_number: String(order.shipping_receipt_number || ""),
-      courier_name: String(order.courier_name || ""),
     });
   }
   return fulfillmentDrafts.value[id];
 }
 
 function shipmentStepsForOrder(order) {
-  const d = draftFor(order);
   return buildShipmentTimelineSteps({
     status: order.status,
     date_created: order.date_created || order.created_at,
     created_at: order.created_at || order.date_created,
-    shipping_status: d.shipping_status,
+    shipping_status: normalizeShippingStatus(order.shipping_status),
     fulfillment_updated_at: order.fulfillment_updated_at,
   });
 }
@@ -147,10 +143,7 @@ async function saveFulfillment(order) {
         "Content-Type": "application/json",
       },
       body: {
-        shipping_status: d.shipping_status,
         tracking_number: d.tracking_number || "",
-        shipping_receipt_number: d.shipping_receipt_number || "",
-        courier_name: d.courier_name || "",
       },
     });
     const inner = unwrapApi(raw);
@@ -620,31 +613,11 @@ onMounted(async () => {
                         {{ $t('seller_orders.fulfillment_section') }}
                       </p>
                       <p class="text-xs text-teal-800/90 dark:text-teal-200/90 mb-3">
-                        {{ $t('seller_orders.tracking_seller_only_hint') }}
+                        {{ $t('seller_orders.tracking_auto_status_hint') }}
                       </p>
                       <ShipmentTimeline :steps="shipmentStepsForOrder(order)" />
                       <div class="mt-4 grid gap-3 sm:grid-cols-2">
                         <div class="sm:col-span-2">
-                          <label
-                            class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
-                            :for="`seller-shipping-status-${order.id}`"
-                          >
-                            {{ $t('seller_orders.shipping_status_field') }}
-                          </label>
-                          <select
-                            :id="`seller-shipping-status-${order.id}`"
-                            :name="`shipping_status_${order.id}`"
-                            v-model="draftFor(order).shipping_status"
-                            class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
-                          >
-                            <option value="pending">{{ $t('shipping.pending') }}</option>
-                            <option value="preparing">{{ $t('shipping.preparing') }}</option>
-                            <option value="shipped">{{ $t('shipping.shipped') }}</option>
-                            <option value="out_for_delivery">{{ $t('order.shipment_timeline.out_for_delivery') }}</option>
-                            <option value="delivered">{{ $t('shipping.delivered') }}</option>
-                          </select>
-                        </div>
-                        <div>
                           <label
                             class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
                             :for="`seller-tracking-${order.id}`"
@@ -659,40 +632,6 @@ onMounted(async () => {
                             autocomplete="off"
                             class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
                             :placeholder="$t('seller_orders.tracking_placeholder')"
-                          />
-                        </div>
-                        <div>
-                          <label
-                            class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
-                            :for="`seller-receipt-${order.id}`"
-                          >
-                            {{ $t('seller_orders.shipping_receipt_number') }}
-                          </label>
-                          <input
-                            :id="`seller-receipt-${order.id}`"
-                            :name="`shipping_receipt_${order.id}`"
-                            v-model="draftFor(order).shipping_receipt_number"
-                            type="text"
-                            autocomplete="off"
-                            class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
-                            :placeholder="$t('seller_orders.shipping_receipt_placeholder')"
-                          />
-                        </div>
-                        <div class="sm:col-span-2">
-                          <label
-                            class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
-                            :for="`seller-courier-${order.id}`"
-                          >
-                            {{ $t('seller_orders.courier_name') }}
-                          </label>
-                          <input
-                            :id="`seller-courier-${order.id}`"
-                            :name="`courier_name_${order.id}`"
-                            v-model="draftFor(order).courier_name"
-                            type="text"
-                            autocomplete="organization"
-                            class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
-                            :placeholder="$t('seller_orders.courier_placeholder')"
                           />
                         </div>
                         <div class="sm:col-span-2 flex flex-wrap items-center gap-3">

@@ -3,6 +3,8 @@ import { withTransaction, pool } from '../models/db.js';
 import * as productModel from '../models/product.model.js';
 import * as orderModel from '../models/order.model.js';
 import * as cartModel from '../models/cart.model.js';
+import * as seventeenTrack from './seventeenTrack.service.js';
+import * as trackingLogModel from '../models/trackingLog.model.js';
 
 function aggregateLineItems(lineItems) {
   const map = new Map();
@@ -197,7 +199,7 @@ export async function listAllOrdersAdmin() {
   }
 }
 
-/** ผู้ขาย (เจ้าของสินค้าในออเดอร์) เท่านั้นที่อัปเดตไทม์ไลน์จัดส่ง + เลขพัสดุ — แอดมินที่ไม่มีสินค้าในออเดอร์ทำไม่ได้ */
+/** ผู้ขายกรอกเลข Tracking — ระบบเรียก 17TRACK (ถ้ามี API key) กำหนด shipping_status / courier อัตโนมัติ */
 export async function updateSellerOrderFulfillment(userId, orderId, body) {
   const client = await pool.connect();
   try {
@@ -205,11 +207,42 @@ export async function updateSellerOrderFulfillment(userId, orderId, body) {
     if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
     const ok = await orderModel.orderHasSellerProduct(client, orderId, userId);
     if (!ok) throw new AppError('Forbidden', 403, 'FORBIDDEN');
+
+    const tn = String(body.tracking_number ?? '').trim();
+    let shipping_status = 'pending';
+    let courier_name = String(body.courier_name ?? '').trim();
+    let shipping_receipt_number = String(body.shipping_receipt_number ?? '').trim();
+
+    if (tn) {
+      const resolved = await seventeenTrack.tryResolveTrackingForFulfillment(tn, body.carrier);
+      if (resolved) {
+        shipping_status = seventeenTrack.mapNormalizedToShippingStatus(resolved.normalized);
+        if (!courier_name) {
+          courier_name = resolved.normalized.carrier || '';
+        }
+        try {
+          await trackingLogModel.insertTrackingLog(client, {
+            trackingNumber: resolved.normalized.trackingNumber,
+            carrier: resolved.normalized.carrier,
+            status: resolved.normalized.currentStatus,
+            rawResponse: resolved.upstream,
+          });
+        } catch {
+          /* tracking_logs ไม่มีหรือ insert ล้ม — ไม่บล็อก fulfillment */
+        }
+      } else {
+        shipping_status = 'shipped';
+      }
+    } else {
+      courier_name = '';
+      shipping_receipt_number = '';
+    }
+
     const updated = await orderModel.updateOrderFulfillment(client, orderId, {
-      shipping_status: body.shipping_status,
-      tracking_number: body.tracking_number ?? '',
-      shipping_receipt_number: body.shipping_receipt_number ?? '',
-      courier_name: body.courier_name ?? '',
+      shipping_status,
+      tracking_number: tn,
+      shipping_receipt_number,
+      courier_name,
     });
     return { order: formatOrderForApi(updated) };
   } finally {

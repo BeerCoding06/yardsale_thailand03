@@ -539,6 +539,7 @@
     "shipping_address": "Shipping address",
     "fulfillment_section": "Shipping & timeline",
     "tracking_seller_only_hint": "As the seller, enter the courier tracking number here so the buyer can follow the parcel.",
+    "tracking_auto_status_hint": "Enter the tracking number only. The system checks 17TRACK and sets shipping status and courier automatically (if the API key is configured). Clear the field and save to reset.",
     "fulfillment_after_payment": "After the customer has paid, you can update shipping status and tracking here.",
     "shipping_status_field": "Shipping status (timeline)",
     "shipping_receipt_number": "Courier receipt / reference no.",

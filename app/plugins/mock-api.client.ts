@@ -462,13 +462,15 @@ export default defineNuxtPlugin(() => {
     const fulfillMatch = p.match(/^\/api\/seller-orders\/([^/]+)\/fulfillment$/);
     if (fulfillMatch && String(opts?.method || "GET").toUpperCase() === "PATCH") {
       const bo = (body as AnyObj) || {};
+      const tn = String(bo.tracking_number || "").trim();
+      const shipping_status = tn ? "shipped" : "pending";
       return {
         success: true,
         data: {
           order: {
             id: fulfillMatch[1],
-            shipping_status: bo.shipping_status,
-            tracking_number: bo.tracking_number || null,
+            shipping_status,
+            tracking_number: tn || null,
             shipping_receipt_number: bo.shipping_receipt_number || null,
             courier_name: bo.courier_name || null,
             fulfillment_updated_at: new Date().toISOString(),

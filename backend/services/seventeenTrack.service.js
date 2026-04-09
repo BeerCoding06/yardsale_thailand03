@@ -195,6 +195,69 @@ function normalizeAcceptedItem(item) {
   };
 }
 
+/**
+ * แปลงผล 17TRACK → shipping_status ของออเดอร์ (สอดคล้อง patchSellerOrderFulfillment / timeline)
+ */
+export function mapNormalizedToShippingStatus(normalized) {
+  if (!normalized) return 'shipped';
+  const ti = normalized._rawItem?.track_info || {};
+  const ls = ti.latest_status || {};
+  const main = String(ls.status || '')
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+  const sub = String(ls.substatus || '').toLowerCase();
+  const text = `${normalized.currentStatus || ''} ${ls.substatus_descr || ''} ${main} ${sub}`.toLowerCase();
+
+  if (
+    /\bdelivered\b|delivery_success|delivered_ok|ส่งมอบ|นำส่งสำเร็จ|successfully\s*delivered|pod/.test(text) ||
+    main === 'delivered'
+  ) {
+    return 'delivered';
+  }
+  if (
+    /out_for_delivery|out\s*for\s*delivery|final_delivery|กำลังนำส่ง|นำส่งถึง|on\s*the\s*way\s*to\s*deliver/.test(
+      text
+    ) ||
+    main === 'out_for_delivery' ||
+    main.includes('outfordelivery')
+  ) {
+    return 'out_for_delivery';
+  }
+  if (
+    /in_transit|intransit|picked_up|depart|arrival|customs|transit|warehouse|sort|ระหว่างทาง|ขนส่ง|คัดแยก/.test(
+      text
+    ) ||
+    main === 'in_transit' ||
+    main.includes('inflight')
+  ) {
+    return 'shipped';
+  }
+  if (
+    /info_received|pending|notfound|exception|รับฝาก|รับเข้า|รับพัสดุ|รอ|accepted/.test(text) ||
+    main === 'pending' ||
+    main === 'notfound' ||
+    main === 'info_received'
+  ) {
+    return 'preparing';
+  }
+  return 'shipped';
+}
+
+/**
+ * เรียก 17TRACK แบบเงียบ — ใช้ตอนบันทึก fulfillment (ไม่ throw; คืน null ถ้าไม่มี key / error)
+ */
+export async function tryResolveTrackingForFulfillment(trackingNumber, carrier) {
+  const tn = String(trackingNumber || '').trim();
+  if (!tn || !config.seventeenTrack.apiKey) return null;
+  try {
+    await registerTrackingNumber(tn, carrier);
+    await sleep(400);
+    return await getTrackInfo(tn, carrier);
+  } catch {
+    return null;
+  }
+}
+
 async function getTrackInfo(trackingNumber, carrier) {
   const payload = buildPayload(trackingNumber, carrier);
   const json = await postSeventeen(GETINFO_PATH, payload, { retries: 3 });
@@ -231,11 +294,15 @@ export async function trackShipment({ trackingNumber, carrier }) {
   if (!tn) {
     throw new AppError('trackingNumber is required', 400, 'VALIDATION_ERROR');
   }
+  if (!config.seventeenTrack.apiKey) {
+    throw new AppError('Shipment tracking is not configured', 503, 'TRACKING_NOT_CONFIGURED');
+  }
 
-  await registerTrackingNumber(tn, carrier);
-  await sleep(400);
-
-  const { normalized, upstream } = await getTrackInfo(tn, carrier);
+  const resolved = await tryResolveTrackingForFulfillment(tn, carrier);
+  if (!resolved) {
+    throw new AppError('Could not load tracking information', 502, 'TRACKING_LOOKUP_FAILED');
+  }
+  const { normalized, upstream } = resolved;
 
   const client = await pool.connect();
   try {

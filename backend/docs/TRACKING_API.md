@@ -4,6 +4,8 @@
 
 `Frontend → POST /api/track → Backend → 17TRACK v2.4 (register + gettrackinfo) → normalized JSON + optional row in tracking_logs`
 
+**Seller fulfillment:** `PATCH /api/seller-orders/:orderId/fulfillment` with `{ "tracking_number": "..." }` only. The backend calls 17TRACK (when `SEVENTEEN_TRACK_API_KEY` is set), maps the result to `shipping_status` (`pending` … `delivered`) and sets `courier_name` from the carrier. If the key is missing or lookup fails, `shipping_status` is set to `shipped` when a non-empty tracking number is saved.
+
 ## Environment
 
 | Variable | Required | Description |

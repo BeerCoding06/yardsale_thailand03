@@ -89,11 +89,11 @@ export const sellerOrderFulfillmentParamsSchema = Joi.object({
   orderId: uuid.required(),
 });
 
+/** ผู้ขายส่งแค่เลขพัสดุ — shipping_status คำนวณจาก 17TRACK (หรือ shipped ถ้าไม่มี key / lookup ไม่สำเร็จ) */
 export const patchSellerOrderFulfillmentSchema = Joi.object({
-  shipping_status: Joi.string()
-    .valid('pending', 'preparing', 'shipped', 'out_for_delivery', 'delivered')
-    .required(),
-  tracking_number: Joi.string().trim().allow('', null).optional(),
+  tracking_number: Joi.string().trim().allow('', null).required(),
+  /** optional 17TRACK carrier key เมื่อระบบเดาขนส่งไม่ได้ */
+  carrier: Joi.number().integer().positive().optional(),
   shipping_receipt_number: Joi.string().trim().allow('', null).optional(),
   courier_name: Joi.string().trim().allow('', null).optional(),
 });
