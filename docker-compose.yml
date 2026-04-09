@@ -67,6 +67,10 @@ services:
       SLIPOK_API_KEY: ${SLIPOK_API_KEY:-}
       SLIPOK_API_BASE: ${SLIPOK_API_BASE:-https://api.slipok.com}
       SLIPOK_LOG_DEFAULT: ${SLIPOK_LOG_DEFAULT:-true}
+      # 17TRACK — POST /api/track (header 17token); ว่าง = endpoint คืน TRACKING_NOT_CONFIGURED
+      SEVENTEEN_TRACK_API_KEY: ${SEVENTEEN_TRACK_API_KEY:-}
+      SEVENTEEN_TRACK_BASE_URL: ${SEVENTEEN_TRACK_BASE_URL:-https://api.17track.net}
+      TRACK_API_RATE_LIMIT_PER_MINUTE: ${TRACK_API_RATE_LIMIT_PER_MINUTE:-30}
     volumes:
       - yardsale_uploads:/app/uploads
     # ต้อง publish 0.0.0.0:4000 เพื่อให้ Caddy (container) ยิงมาที่ 172.17.0.1:4000 ได้ — ถ้าใช้ 127.0.0.1:4000 อย่างเดียว bridge จะ connection refused

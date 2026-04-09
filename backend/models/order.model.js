@@ -53,7 +53,7 @@ export async function updateOrderStatus(client, orderId, status, { slipImageUrl 
   return r.rows[0] || null;
 }
 
-/** ผู้ขาย / แอดมิน — อัปเดตสถานะจัดส่งและเลขพัสดุ */
+/** ผู้ขายที่มีสินค้าในออเดอร์ — อัปเดตสถานะจัดส่งและเลขพัสดุ */
 export async function updateOrderFulfillment(client, orderId, fields) {
   const r = await client.query(
     `UPDATE orders SET

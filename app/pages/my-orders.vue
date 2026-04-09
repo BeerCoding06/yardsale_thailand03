@@ -734,7 +734,7 @@ function payOrderLink(order) {
                         <p
                           class="text-xs text-neutral-500 dark:text-neutral-600 mb-1"
                         >
-                          {{ $t('order.tracking_number_label') }}
+                          {{ $t('order.tracking_from_seller') }}
                         </p>
                         <p
                           class="text-sm font-mono font-bold text-alizarin-crimson-600 dark:text-alizarin-crimson-400"

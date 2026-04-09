@@ -24,6 +24,7 @@ import {
   createTagSchema,
   updateTagSchema,
   deleteTagSchema,
+  trackShipmentSchema,
 } from '../validators/schemas.js';
 import { uploadImage } from '../middlewares/upload.js';
 import * as authController from '../controllers/auth.controller.js';
@@ -34,6 +35,8 @@ import * as cartController from '../controllers/cart.controller.js';
 import * as orderController from '../controllers/order.controller.js';
 import * as paymentController from '../controllers/payment.controller.js';
 import * as sellerController from '../controllers/seller.controller.js';
+import * as trackController from '../controllers/track.controller.js';
+import { trackRateLimit } from '../middlewares/trackRateLimit.js';
 
 const router = Router();
 
@@ -62,6 +65,9 @@ router.delete(
   authController.adminDeleteUser
 );
 router.post('/check-email', validate(checkEmailSchema), authController.checkEmail);
+
+/** Shipment tracking (17TRACK) — see backend/docs/TRACKING_API.md */
+router.post('/track', trackRateLimit, validate(trackShipmentSchema), trackController.trackShipment);
 
 router.get('/products', productController.listProducts);
 router.get('/product/:id', optionalAuth, productController.getProduct);

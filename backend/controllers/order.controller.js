@@ -37,11 +37,6 @@ export const cancelOrder = asyncHandler(async (req, res) => {
 });
 
 export const patchSellerOrderFulfillment = asyncHandler(async (req, res) => {
-  const data = await orderService.updateSellerOrderFulfillment(
-    req.user.id,
-    req.user.role,
-    req.params.orderId,
-    req.body
-  );
+  const data = await orderService.updateSellerOrderFulfillment(req.user.id, req.params.orderId, req.body);
   sendSuccess(res, data);
 });

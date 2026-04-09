@@ -258,3 +258,10 @@ export const deleteTagSchema = Joi.object({
 export const productActionSchema = Joi.object({
   product_id: uuid.required(),
 });
+
+/** POST /api/track — 17TRACK lookup */
+export const trackShipmentSchema = Joi.object({
+  trackingNumber: Joi.string().trim().min(3).max(100).required(),
+  /** Optional 17TRACK carrier key when auto-detect fails */
+  carrier: Joi.number().integer().positive().optional(),
+});

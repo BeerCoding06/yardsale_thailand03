@@ -197,16 +197,14 @@ export async function listAllOrdersAdmin() {
   }
 }
 
-/** ผู้ขายอัปเดตไทม์ไลน์จัดส่ง + เลขพัสดุ / ใบเสร็จขนส่ง */
-export async function updateSellerOrderFulfillment(userId, role, orderId, body) {
+/** ผู้ขาย (เจ้าของสินค้าในออเดอร์) เท่านั้นที่อัปเดตไทม์ไลน์จัดส่ง + เลขพัสดุ — แอดมินที่ไม่มีสินค้าในออเดอร์ทำไม่ได้ */
+export async function updateSellerOrderFulfillment(userId, orderId, body) {
   const client = await pool.connect();
   try {
     const order = await orderModel.getOrderById(client, orderId);
     if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
-    if (role !== 'admin') {
-      const ok = await orderModel.orderHasSellerProduct(client, orderId, userId);
-      if (!ok) throw new AppError('Forbidden', 403, 'FORBIDDEN');
-    }
+    const ok = await orderModel.orderHasSellerProduct(client, orderId, userId);
+    if (!ok) throw new AppError('Forbidden', 403, 'FORBIDDEN');
     const updated = await orderModel.updateOrderFulfillment(client, orderId, {
       shipping_status: body.shipping_status,
       tracking_number: body.tracking_number ?? '',

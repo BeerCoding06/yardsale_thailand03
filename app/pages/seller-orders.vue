@@ -617,13 +617,21 @@ onMounted(async () => {
                       <p class="text-sm font-semibold text-teal-900 dark:text-teal-100 mb-3">
                         {{ $t('seller_orders.fulfillment_section') }}
                       </p>
+                      <p class="text-xs text-teal-800/90 dark:text-teal-200/90 mb-3">
+                        {{ $t('seller_orders.tracking_seller_only_hint') }}
+                      </p>
                       <ShipmentTimeline :steps="shipmentStepsForOrder(order)" />
                       <div class="mt-4 grid gap-3 sm:grid-cols-2">
                         <div class="sm:col-span-2">
-                          <label class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                          <label
+                            class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
+                            :for="`seller-shipping-status-${order.id}`"
+                          >
                             {{ $t('seller_orders.shipping_status_field') }}
                           </label>
                           <select
+                            :id="`seller-shipping-status-${order.id}`"
+                            :name="`shipping_status_${order.id}`"
                             v-model="draftFor(order).shipping_status"
                             class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
                           >
@@ -635,34 +643,52 @@ onMounted(async () => {
                           </select>
                         </div>
                         <div>
-                          <label class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                          <label
+                            class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
+                            :for="`seller-tracking-${order.id}`"
+                          >
                             {{ $t('order.tracking_number_label') }}
                           </label>
                           <input
+                            :id="`seller-tracking-${order.id}`"
+                            :name="`tracking_number_${order.id}`"
                             v-model="draftFor(order).tracking_number"
                             type="text"
+                            autocomplete="off"
                             class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
                             :placeholder="$t('seller_orders.tracking_placeholder')"
                           />
                         </div>
                         <div>
-                          <label class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                          <label
+                            class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
+                            :for="`seller-receipt-${order.id}`"
+                          >
                             {{ $t('seller_orders.shipping_receipt_number') }}
                           </label>
                           <input
+                            :id="`seller-receipt-${order.id}`"
+                            :name="`shipping_receipt_${order.id}`"
                             v-model="draftFor(order).shipping_receipt_number"
                             type="text"
+                            autocomplete="off"
                             class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
                             :placeholder="$t('seller_orders.shipping_receipt_placeholder')"
                           />
                         </div>
                         <div class="sm:col-span-2">
-                          <label class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                          <label
+                            class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
+                            :for="`seller-courier-${order.id}`"
+                          >
                             {{ $t('seller_orders.courier_name') }}
                           </label>
                           <input
+                            :id="`seller-courier-${order.id}`"
+                            :name="`courier_name_${order.id}`"
                             v-model="draftFor(order).courier_name"
                             type="text"
+                            autocomplete="organization"
                             class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
                             :placeholder="$t('seller_orders.courier_placeholder')"
                           />
