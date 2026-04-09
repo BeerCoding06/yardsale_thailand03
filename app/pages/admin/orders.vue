@@ -268,47 +268,48 @@ onMounted(() => {
               <th class="py-2 font-medium text-right">{{ t("admin.orders.col_fulfillment") }}</th>
             </tr>
           </thead>
-          <tbody>
-            <template v-for="(o, i) in orders">
-              <tr :key="`ord-${o.id || o.order_id || i}-head`" class="border-b border-neutral-100 dark:border-neutral-800">
-                <td class="py-3 pr-4 font-mono text-xs align-top">
-                  {{ o.id ?? o.order_id ?? "—" }}
-                </td>
-                <td
-                  class="py-3 pr-4 text-neutral-600 dark:text-neutral-400 break-all max-w-[12rem] align-top"
-                >
-                  {{ o.buyer_email ?? "—" }}
-                </td>
-                <td class="py-3 pr-4 capitalize align-top">
-                  {{ o.status ?? o.order_status ?? "—" }}
-                </td>
-                <td class="py-3 pr-4 align-top">
-                  {{ o.total_price ?? o.total ?? o.grand_total ?? "—" }}
-                </td>
-                <td class="py-3 pr-4 text-neutral-600 dark:text-neutral-400 align-top">
-                  {{ formatDate(o.created_at || o.date_created || o.createdAt || "") }}
-                </td>
-                <td class="py-3 text-right align-top">
-                  <UButton
-                    size="xs"
-                    color="primary"
-                    variant="soft"
-                    @click="toggleExpand(String(o.id || o.order_id || ''))"
-                  >
-                    {{
-                      expandedId === String(o.id || o.order_id)
-                        ? t("admin.orders.fulfillment_close")
-                        : t("admin.orders.fulfillment_open")
-                    }}
-                  </UButton>
-                </td>
-              </tr>
-              <tr
-                v-if="expandedId === String(o.id || o.order_id)"
-                :key="`ord-${o.id || o.order_id || i}-fulfillment`"
-                class="border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-900/40"
+          <tbody
+            v-for="(o, i) in orders"
+            :key="`ord-${o.id || o.order_id || i}`"
+          >
+            <tr class="border-b border-neutral-100 dark:border-neutral-800">
+              <td class="py-3 pr-4 font-mono text-xs align-top">
+                {{ o.id ?? o.order_id ?? "—" }}
+              </td>
+              <td
+                class="py-3 pr-4 text-neutral-600 dark:text-neutral-400 break-all max-w-[12rem] align-top"
               >
-                <td colspan="6" class="p-4 sm:p-5">
+                {{ o.buyer_email ?? "—" }}
+              </td>
+              <td class="py-3 pr-4 capitalize align-top">
+                {{ o.status ?? o.order_status ?? "—" }}
+              </td>
+              <td class="py-3 pr-4 align-top">
+                {{ o.total_price ?? o.total ?? o.grand_total ?? "—" }}
+              </td>
+              <td class="py-3 pr-4 text-neutral-600 dark:text-neutral-400 align-top">
+                {{ formatDate(o.created_at || o.date_created || o.createdAt || "") }}
+              </td>
+              <td class="py-3 text-right align-top">
+                <UButton
+                  size="xs"
+                  color="primary"
+                  variant="soft"
+                  @click="toggleExpand(String(o.id || o.order_id || ''))"
+                >
+                  {{
+                    expandedId === String(o.id || o.order_id)
+                      ? t("admin.orders.fulfillment_close")
+                      : t("admin.orders.fulfillment_open")
+                  }}
+                </UButton>
+              </td>
+            </tr>
+            <tr
+              v-if="expandedId === String(o.id || o.order_id)"
+              class="border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-900/40"
+            >
+              <td colspan="6" class="p-4 sm:p-5">
                   <div class="max-w-2xl space-y-4">
                     <div
                       class="rounded-xl border border-amber-200/90 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/25 p-4 space-y-3"
@@ -452,9 +453,8 @@ onMounted(() => {
                       {{ t("admin.orders.fulfillment_hint") }}
                     </p>
                   </div>
-                </td>
-              </tr>
-            </template>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
