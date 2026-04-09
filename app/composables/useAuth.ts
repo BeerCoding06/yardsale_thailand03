@@ -18,6 +18,11 @@ export const useAuth = () => {
   // Initialize user state as null to prevent hydration mismatch
   const user = useState<any>("user", () => null);
   const isAuthenticated = computed(() => !!user.value);
+  /** กัน navigate ซ้ำเมื่อหลายคำขอได้ 401 พร้อมกัน */
+  const sessionExpiredRedirecting = useState(
+    "auth-session-expired-redirecting",
+    () => false
+  );
 
   const login = async (
     username: string,
@@ -59,6 +64,7 @@ export const useAuth = () => {
         user.value = normalized;
         if (import.meta.client) {
           localStorage.setItem("user", JSON.stringify(normalized));
+          sessionExpiredRedirecting.value = false;
         }
         return { success: true, user: normalized };
       }
@@ -107,8 +113,37 @@ export const useAuth = () => {
     user.value = null;
     if (import.meta.client) {
       localStorage.removeItem("user");
+      sessionExpiredRedirecting.value = false;
     }
-    navigateTo("/login");
+    const localePath = useLocalePath();
+    navigateTo(localePath("/login"));
+  };
+
+  /** ล้าง state + พาไป login (ใช้เมื่อ JWT หมดอายุ / API ตอบ 401) */
+  const sessionExpiredRedirect = async () => {
+    if (!import.meta.client) return;
+    if (sessionExpiredRedirecting.value) return;
+    const route = useRoute();
+    if (/\/login\/?$/i.test(route.path)) return;
+
+    sessionExpiredRedirecting.value = true;
+    user.value = null;
+    try {
+      localStorage.removeItem("user");
+    } catch {
+      /* ignore */
+    }
+    const localePath = useLocalePath();
+    const q: Record<string, string> = { reason: "session_expired" };
+    if (route.fullPath && route.path !== localePath("/login")) {
+      q.redirect = route.fullPath;
+    }
+    try {
+      await navigateTo({ path: localePath("/login"), query: q });
+    } catch (e) {
+      console.warn("[useAuth] sessionExpiredRedirect:", e);
+      sessionExpiredRedirecting.value = false;
+    }
   };
 
   const checkAuth = () => {
@@ -120,7 +155,13 @@ export const useAuth = () => {
             const parsedUser = JSON.parse(storedUser);
             // ตรวจสอบว่า user object มีข้อมูลที่จำเป็น
             if (parsedUser && (parsedUser.id || parsedUser.ID)) {
-              user.value = parsedUser;
+              const t = parsedUser.token;
+              if (typeof t !== "string" || !t.trim()) {
+                localStorage.removeItem("user");
+                user.value = null;
+              } else {
+                user.value = parsedUser;
+              }
             } else {
               // ถ้า user object ไม่ถูกต้อง ให้ลบออก
               localStorage.removeItem("user");
@@ -166,8 +207,14 @@ export const useAuth = () => {
         }
         return merged;
       }
-    } catch (e) {
-      console.warn("[useAuth] fetchUser failed:", e);
+    } catch (e: any) {
+      const status =
+        e?.statusCode ?? e?.status ?? e?.response?.status;
+      if (status === 401) {
+        await sessionExpiredRedirect();
+      } else {
+        console.warn("[useAuth] fetchUser failed:", e);
+      }
     }
     return null;
   };
@@ -179,5 +226,7 @@ export const useAuth = () => {
     logout,
     checkAuth,
     fetchUser,
+    sessionExpiredRedirect,
   };
 };
+

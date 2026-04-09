@@ -8,10 +8,11 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
   }
 
   const { isAuthenticated, checkAuth } = useAuth();
+  const localePath = useLocalePath();
   checkAuth();
   await nextTick();
 
   if (!isAuthenticated.value) {
-    return navigateTo("/login");
+    return navigateTo(localePath("/login"));
   }
 });
