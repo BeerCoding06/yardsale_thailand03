@@ -612,9 +612,6 @@ onMounted(async () => {
                       <p class="text-sm font-semibold text-teal-900 dark:text-teal-100 mb-3">
                         {{ $t('seller_orders.fulfillment_section') }}
                       </p>
-                      <p class="text-xs text-teal-800/90 dark:text-teal-200/90 mb-3">
-                        {{ $t('seller_orders.tracking_auto_status_hint') }}
-                      </p>
                       <ShipmentTimeline :steps="shipmentStepsForOrder(order)" />
                       <div class="mt-4 grid gap-3 sm:grid-cols-2">
                         <div class="sm:col-span-2">
