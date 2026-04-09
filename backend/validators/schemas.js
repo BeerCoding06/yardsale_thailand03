@@ -8,6 +8,18 @@ const productListingStatus = Joi.string()
   .valid('pending_review', 'published', 'hidden')
   .optional();
 
+const moderationIssueKey = Joi.string().valid(
+  'photos',
+  'title_name',
+  'description',
+  'price',
+  'category',
+  'stock',
+  'tags',
+  'illegal_or_prohibited',
+  'other'
+);
+
 export const loginSchema = Joi.object({
   username: Joi.string().trim().optional(),
   email: emailRule.optional(),
@@ -184,6 +196,9 @@ export const updateProductSchema = Joi.object({
     .optional(),
   /** Admin only: publish / hide from storefront */
   listing_status: productListingStatus,
+  /** Admin only: เหตุผลที่ไม่ผ่านการตรวจ — เก็บเป็น JSON ใน products.moderation_feedback */
+  moderation_issue_keys: Joi.array().items(moderationIssueKey).max(20).optional(),
+  moderation_message: Joi.string().trim().max(2000).allow('', null).optional(),
   tag_ids: Joi.array().items(uuid).max(100).optional(),
 })
   .or(
@@ -197,6 +212,8 @@ export const updateProductSchema = Joi.object({
     'image_url',
     'image_urls',
     'listing_status',
+    'moderation_issue_keys',
+    'moderation_message',
     'tag_ids'
   )
   .messages({

@@ -142,6 +142,17 @@ BEGIN
   END IF;
 END $ensure_prod_image_urls$;
 
+/* ผลตรวจสอบจากแอดมิน (เหตุผลที่ไม่ผ่าน — แจ้งผู้ขาย) */
+DO $ensure_prod_moderation_feedback$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'products' AND column_name = 'moderation_feedback'
+  ) THEN
+    ALTER TABLE public.products ADD COLUMN moderation_feedback JSONB;
+  END IF;
+END $ensure_prod_moderation_feedback$;
+
 CREATE INDEX IF NOT EXISTS idx_products_category ON products (category_id);
 CREATE INDEX IF NOT EXISTS idx_products_seller ON products (seller_id);
 CREATE INDEX IF NOT EXISTS idx_products_cancelled ON products (is_cancelled);

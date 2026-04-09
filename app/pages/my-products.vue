@@ -25,6 +25,30 @@ function unwrapApi(res: any) {
   return res;
 }
 
+function parseModerationFeedback(raw: unknown) {
+  let v = raw;
+  if (v == null) return null;
+  if (typeof v === "string") {
+    try {
+      v = JSON.parse(v);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return null;
+  const o = v as Record<string, unknown>;
+  const issues = Array.isArray(o.issues)
+    ? o.issues.filter((x): x is string => typeof x === "string")
+    : [];
+  const message = typeof o.message === "string" ? o.message.trim() : "";
+  if (!issues.length && !message) return null;
+  return {
+    issues,
+    message,
+    at: o.at,
+  };
+}
+
 /** Express: listing_status + is_cancelled / price / created_at */
 function normalizeMyProduct(p: any) {
   if (!p || typeof p !== "object") return p;
@@ -42,6 +66,7 @@ function normalizeMyProduct(p: any) {
     stock_quantity: p.stock_quantity ?? p.stock,
     manage_stock: p.manage_stock ?? true,
     date_created: p.date_created ?? p.created_at,
+    moderation: parseModerationFeedback(p.moderation_feedback),
   };
 }
 
@@ -60,6 +85,12 @@ const isCancelling = ref(false);
 const isRestoring = ref(false);
 
 const { t } = useI18n();
+
+function moderationIssueLabel(key: string) {
+  const path = `my_products.moderation_issue_${key}`;
+  const translated = t(path);
+  return translated === path ? key : translated;
+}
 
 // Get product image URL from WooCommerce data
 const getProductImage = (product: any) => {
@@ -444,6 +475,32 @@ watch(isAuthenticated, (newVal: boolean) => {
                 >
                   {{ product.name }}
                 </h3>
+
+                <div
+                  v-if="product.moderation"
+                  class="mb-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 p-3 text-sm text-amber-950 dark:text-amber-100"
+                >
+                  <p class="font-semibold mb-2">
+                    {{ $t("my_products.moderation_notice_title") }}
+                  </p>
+                  <ul
+                    v-if="product.moderation.issues.length"
+                    class="list-disc ps-4 space-y-0.5"
+                  >
+                    <li
+                      v-for="issue in product.moderation.issues"
+                      :key="issue"
+                    >
+                      {{ moderationIssueLabel(issue) }}
+                    </li>
+                  </ul>
+                  <p
+                    v-if="product.moderation.message"
+                    class="mt-2 whitespace-pre-wrap"
+                  >
+                    {{ product.moderation.message }}
+                  </p>
+                </div>
 
                 <div class="flex items-center gap-2 mb-3">
                   <span

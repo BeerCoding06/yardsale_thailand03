@@ -1,5 +1,18 @@
 import { AppError } from '../utils/AppError.js';
 
+/** คีย์เหตุผลที่แอดมินเลือกได้ — ต้องตรงกับ Joi / ฝั่งแอดมิน */
+const MODERATION_ISSUE_KEYS = new Set([
+  'photos',
+  'title_name',
+  'description',
+  'price',
+  'category',
+  'stock',
+  'tags',
+  'illegal_or_prohibited',
+  'other',
+]);
+
 /** เช็กทุกครั้ง — ไม่ cache เพื่อให้หลังรัน migration ไม่ต้องรีสตาร์ท API */
 async function hasListingStatusColumn(client) {
   try {
@@ -41,6 +54,22 @@ async function hasProductImageUrlsColumn(client) {
         WHERE table_schema = current_schema()
           AND table_name = 'products'
           AND column_name = 'image_urls'
+      ) AS ok`
+    );
+    return r.rows[0]?.ok === true;
+  } catch {
+    return false;
+  }
+}
+
+async function hasModerationFeedbackColumn(client) {
+  try {
+    const r = await client.query(
+      `SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'products'
+          AND column_name = 'moderation_feedback'
       ) AS ok`
     );
     return r.rows[0]?.ok === true;
@@ -102,19 +131,21 @@ async function joinProductSelectColumns(client) {
   const hasLs = await hasListingStatusColumn(client);
   const hasPb = await hasProductPriceBreakdown(client);
   const hasImgs = await hasProductImageUrlsColumn(client);
+  const hasMod = await hasModerationFeedbackColumn(client);
   const priceCols = hasPb
     ? `p.price, p.regular_price, p.sale_price,`
     : `p.price,`;
   const imgCols = hasImgs ? `p.image_url, p.image_urls,` : `p.image_url,`;
+  const modFrag = hasMod ? 'p.moderation_feedback, ' : '';
   if (hasLs) {
     return `
     p.id, p.name, p.description, ${priceCols} p.stock, p.category_id, p.seller_id,
-    ${imgCols} p.is_cancelled, p.listing_status, p.created_at,
+    ${imgCols} p.is_cancelled, p.listing_status, ${modFrag}p.created_at,
     c.name AS category_name, c.slug AS category_slug`;
   }
   return `
     p.id, p.name, p.description, ${priceCols} p.stock, p.category_id, p.seller_id,
-    ${imgCols} p.is_cancelled, p.created_at,
+    ${imgCols} p.is_cancelled, ${modFrag}p.created_at,
     c.name AS category_name, c.slug AS category_slug`;
 }
 
@@ -233,11 +264,13 @@ async function returningProductColumns(client) {
   const hasLs = await hasListingStatusColumn(client);
   const hasPb = await hasProductPriceBreakdown(client);
   const hasImgs = await hasProductImageUrlsColumn(client);
+  const hasMod = await hasModerationFeedbackColumn(client);
   let base =
     'id, name, description, price, stock, category_id, seller_id, image_url, is_cancelled';
   if (hasImgs) base += ', image_urls';
   if (hasPb) base += ', regular_price, sale_price';
   if (hasLs) base += ', listing_status';
+  if (hasMod) base += ', moderation_feedback';
   base += ', created_at';
   return base;
 }
@@ -418,11 +451,13 @@ export async function listProductsBySeller(client, sellerId) {
   const hasLs = await hasListingStatusColumn(client);
   const hasPb = await hasProductPriceBreakdown(client);
   const hasImgs = await hasProductImageUrlsColumn(client);
+  const hasMod = await hasModerationFeedbackColumn(client);
   const priceCols = hasPb ? 'price, regular_price, sale_price,' : 'price,';
   const imgCols = hasImgs ? 'image_url, image_urls,' : 'image_url,';
   const lsCol = hasLs ? ', listing_status' : '';
+  const modCol = hasMod ? ', moderation_feedback' : '';
   const r = await client.query(
-    `SELECT id, name, description, ${priceCols} stock, category_id, seller_id, ${imgCols} is_cancelled${lsCol}, created_at
+    `SELECT id, name, description, ${priceCols} stock, category_id, seller_id, ${imgCols} is_cancelled${lsCol}${modCol}, created_at
      FROM products WHERE seller_id = $1 ORDER BY created_at DESC`,
     [sellerId]
   );
@@ -433,11 +468,13 @@ export async function listAllProducts(client) {
   const hasLs = await hasListingStatusColumn(client);
   const hasPb = await hasProductPriceBreakdown(client);
   const hasImgs = await hasProductImageUrlsColumn(client);
+  const hasMod = await hasModerationFeedbackColumn(client);
   const priceCols = hasPb ? 'price, regular_price, sale_price,' : 'price,';
   const imgCols = hasImgs ? 'image_url, image_urls,' : 'image_url,';
   const lsCol = hasLs ? ', listing_status' : '';
+  const modCol = hasMod ? ', moderation_feedback' : '';
   const r = await client.query(
-    `SELECT id, name, description, ${priceCols} stock, category_id, seller_id, ${imgCols} is_cancelled${lsCol}, created_at
+    `SELECT id, name, description, ${priceCols} stock, category_id, seller_id, ${imgCols} is_cancelled${lsCol}${modCol}, created_at
      FROM products ORDER BY created_at DESC`
   );
   return r.rows;
@@ -473,8 +510,23 @@ export async function updateProduct(client, productId, body, sellerId, isAdmin) 
 
   const tagIdsExplicit = Object.prototype.hasOwnProperty.call(body, 'tag_ids');
   const tagPayload = tagIdsExplicit ? (Array.isArray(body.tag_ids) ? body.tag_ids : []) : null;
+  const hasMod = await hasModerationFeedbackColumn(client);
+  const modKeysExplicit = Object.prototype.hasOwnProperty.call(body, 'moderation_issue_keys');
+  const modMsgExplicit = Object.prototype.hasOwnProperty.call(body, 'moderation_message');
+  const modKeysRaw = body.moderation_issue_keys;
+  const modMsgRaw = body.moderation_message;
+  if (!hasMod && isAdmin && (modKeysExplicit || modMsgExplicit)) {
+    throw new AppError(
+      'Cannot set moderation feedback: database has no products.moderation_feedback column. Run backend/db/schema.sql or migration 20260409_product_moderation_feedback.sql.',
+      400,
+      'MODERATION_FEEDBACK_UNAVAILABLE'
+    );
+  }
+
   const sqlBody = { ...body };
   delete sqlBody.tag_ids;
+  delete sqlBody.moderation_issue_keys;
+  delete sqlBody.moderation_message;
 
   const sets = [];
   const params = [];
@@ -525,6 +577,36 @@ export async function updateProduct(client, productId, body, sellerId, isAdmin) 
   if (hasLs && sqlBody.listing_status !== undefined && isAdmin) {
     sets.push(`listing_status = $${n++}`);
     params.push(sqlBody.listing_status);
+  }
+
+  if (hasMod && isAdmin) {
+    const publishClear =
+      hasLs &&
+      Object.prototype.hasOwnProperty.call(sqlBody, 'listing_status') &&
+      sqlBody.listing_status === 'published';
+    if (publishClear) {
+      sets.push(`moderation_feedback = $${n++}`);
+      params.push(null);
+    } else if (modKeysExplicit || modMsgExplicit) {
+      const issues =
+        modKeysExplicit && Array.isArray(modKeysRaw)
+          ? [...new Set(modKeysRaw.map((k) => String(k)))].filter((k) =>
+              MODERATION_ISSUE_KEYS.has(k)
+            )
+          : [];
+      const message =
+        modMsgExplicit && modMsgRaw != null ? String(modMsgRaw).trim() : '';
+      const payload =
+        issues.length > 0 || message.length > 0
+          ? JSON.stringify({
+              issues,
+              message,
+              at: new Date().toISOString(),
+            })
+          : null;
+      sets.push(`moderation_feedback = $${n++}::jsonb`);
+      params.push(payload);
+    }
   }
 
   if (sets.length) {

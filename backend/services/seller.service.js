@@ -65,7 +65,11 @@ export async function updateProduct(userId, role, body) {
   const client = await pool.connect();
   try {
     const { product_id, ...rest } = body;
-    if (!isAdmin) delete rest.listing_status;
+    if (!isAdmin) {
+      delete rest.listing_status;
+      delete rest.moderation_issue_keys;
+      delete rest.moderation_message;
+    }
 
     const hasPriceKeys =
       rest.price !== undefined ||
