@@ -1,6 +1,6 @@
 <!--app/components/CarouselCategories.vue-->
 <script setup>
-import { ref, watch, onMounted } from "vue";
+import { ref, watch } from "vue";
 const router = useRouter();
 const route = useRoute();
 const localePath = useLocalePath();
@@ -22,15 +22,7 @@ const categoriesList = computed(() => {
 watch(() => props.categories, (newCategories) => {
 }, { deep: true, immediate: true });
 
-onMounted(() => {});
-
-const cardsSlider = ref(null);
-const showPrev = ref(false);
-const showNext = ref(true);
-const isDragging = ref(false);
-const dragThreshold = 10;
 const isReloading = ref(false);
-let startX, scrollLeft;
 
 const colors = [
   "bg-[#dad5ff]",
@@ -50,7 +42,7 @@ function categoryQueryValue(cat) {
 }
 const setCategory = (category) => {
   const key = categoryQueryValue(category);
-  if (!isDragging.value && (route.query.category || "") !== key) {
+  if ((route.query.category || "") !== key) {
     router.push({
       path: localePath('/'), // ใช้ localePath เพื่ออยู่ locale เดิม และให้ watch ใน index ทำงาน
       query: key ? { category: key } : {},
@@ -88,33 +80,6 @@ const getCategoryClass = (index) => {
   return `${colors[index % colors.length]} hover:brightness-90`;
 };
 
-const initializeDrag = (e) => {
-  isDragging.value = false;
-  startX = e.pageX - cardsSlider.value.getBoundingClientRect().left;
-  scrollLeft = cardsSlider.value.scrollLeft;
-  document.addEventListener("mousemove", handleDragging);
-  document.addEventListener("mouseup", endDrag);
-};
-
-const handleDragging = (e) => {
-  const xPos = e.pageX - cardsSlider.value.getBoundingClientRect().left;
-  const walk = (xPos - startX) * 1.5;
-  cardsSlider.value.scrollLeft = scrollLeft - walk;
-  isDragging.value = Math.abs(walk) > dragThreshold;
-};
-
-const endDrag = () => {
-  document.removeEventListener("mousemove", handleDragging);
-  document.removeEventListener("mouseup", endDrag);
-  isDragging.value = false; // reset เพื่อให้คลิก category ทำงานหลังปล่อยเมาส์
-};
-
-const updateButtonVisibility = () => {
-  const { scrollLeft, scrollWidth, clientWidth } = cardsSlider.value;
-  showPrev.value = scrollLeft > 16;
-  showNext.value = scrollLeft < scrollWidth - clientWidth - 16;
-};
-
 const reloadCategories = async () => {
   if (isReloading.value) return;
   
@@ -133,19 +98,6 @@ const reloadCategories = async () => {
   }
 };
 
-onMounted(() => {
-  nextTick(() => {
-    if (cardsSlider.value) {
-      cardsSlider.value.addEventListener("mousedown", initializeDrag);
-      updateButtonVisibility();
-    }
-  });
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener("mousemove", handleDragging);
-  document.removeEventListener("mouseup", endDrag);
-});
 </script>
 
 <template>
@@ -157,7 +109,9 @@ onBeforeUnmount(() => {
         : 'translate-x-[89%] md:translate-x-[93%] lg:translate-x-[400px]'
     "
   >
-    <div class="bg-[#fbfbfb] w-screen px-[30px] py-[20px] h-full lg:w-[400px]">
+    <div
+      class="bg-[#fbfbfb] w-screen px-[30px] py-[20px] h-full min-h-0 flex flex-col lg:w-[400px]"
+    >
       <div class="w-full flex justify-between relative">
         <div class="ml-[-70px] absolute">
           <button
@@ -200,13 +154,8 @@ onBeforeUnmount(() => {
           <UIcon name="i-iconamoon-close-bold" size="24" />
         </button>
       </div>
-      <div v-if="showPrev" class="slider-btn prev-btn"></div>
-      <div class="slider-wrapper mt-[40px]">
-        <div
-          ref="cardsSlider"
-          class="cards-slider flex-col !pr-0"
-          @scroll="updateButtonVisibility"
-        >
+      <div class="slider-wrapper mt-[40px] flex-1 min-h-0">
+        <div class="cards-slider flex flex-col">
           <!-- Reload button when no categories -->
           <div
             v-if="!categoriesList || categoriesList.length === 0"
@@ -227,7 +176,7 @@ onBeforeUnmount(() => {
           <div
             @click="goToAllCategories"
             :class="[
-              'card h-[50px] transition cursor-pointer',
+              'card card-row h-[50px] transition cursor-pointer',
               !route.query.category
                 ? 'selected'
                 : 'bg-[#efefef] hover:bg-[#e2e2e2] dark:bg-[#262626] hover:dark:bg-[#333] text-black dark:text-white',
@@ -256,7 +205,7 @@ onBeforeUnmount(() => {
                   toggleCategory(category.id || category.databaseId);
                 "
                 :class="[
-                  'card h-[50px] text-black transition cat-button-bezel flex items-center justify-between',
+                  'card card-row h-[50px] text-black transition cat-button-bezel flex items-center justify-between',
                   route.query.category === categoryQueryValue(category)
                     ? 'selected'
                     : getCategoryClass(i),
@@ -298,7 +247,7 @@ onBeforeUnmount(() => {
                   :key="child.id || child.databaseId || child.name"
                   @click.stop="setCategory(child)"
                   :class="[
-                    'card h-[40px] text-black transition cat-button-bezel flex items-center gap-2',
+                    'card card-chip h-[40px] text-black transition cat-button-bezel flex items-center gap-2',
                     route.query.category === categoryQueryValue(child)
                       ? 'selected'
                       : 'bg-gray-100 dark:bg-gray-800',
@@ -346,49 +295,26 @@ img {
 }
 
 .slider-wrapper {
-  @apply relative w-full overflow-hidden;
+  @apply relative w-full min-h-0 flex flex-col;
 }
 
 .cards-slider {
-  @apply flex cursor-grab w-full overflow-auto gap-2 lg:gap-4 pr-3 lg:pr-4;
-}
-
-.cards-slider:active {
-  cursor: grabbing;
+  @apply w-full min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain gap-2 lg:gap-4 pr-1 -mr-1;
+  scrollbar-gutter: stable;
 }
 
 .card {
-  @apply cursor-pointer min-w-max select-none box-border flex items-center rounded-full p-1.5 transition-all;
+  @apply cursor-pointer min-w-0 select-none box-border flex items-center rounded-full p-1.5 transition-all;
   &:active {
-    @apply cursor-grab scale-95;
+    @apply scale-[0.98];
   }
 }
 
-.slider-btn {
-  @apply h-full w-14 cursor-pointer absolute top-0 z-10 flex items-center justify-center select-none;
+.card-row {
+  @apply w-full max-w-full;
 }
 
-.prev-btn {
-  @apply left-0 bg-gradient-to-r from-white dark:from-black;
-}
-
-.next-btn {
-  right: 0;
-  background: #000;
-}
-
-.next-btn::before {
-  position: absolute;
-  content: "";
-  right: 56px;
-  width: 56px;
-  height: 100%;
-  background: linear-gradient(to left, rgb(0, 0, 0), transparent);
-}
-
-.slider-wrapper::before,
-.slider-wrapper::after {
-  content: "";
-  pointer-events: none;
+.card-chip {
+  @apply w-auto max-w-full shrink-0;
 }
 </style>

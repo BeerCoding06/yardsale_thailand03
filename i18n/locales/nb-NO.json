@@ -34,6 +34,7 @@
     "reset_search": "Tilbakestill søk"
   },
   "pagination": {
+    "nav_aria": "Bytt side",
     "search": "Søk",
     "search_placeholder": "Filtrer listen…",
     "prev": "Forrige",

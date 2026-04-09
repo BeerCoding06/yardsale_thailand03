@@ -34,6 +34,7 @@
     "reset_search": "Suche zurücksetzen"
   },
   "pagination": {
+    "nav_aria": "Seite wechseln",
     "search": "Suche",
     "search_placeholder": "Liste filtern…",
     "prev": "Zurück",

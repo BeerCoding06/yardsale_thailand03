@@ -47,56 +47,94 @@ function goPrev() {
 function goNext() {
   if (props.page < props.totalPages) emit("update:page", props.page + 1);
 }
+
+const navDisabled = computed(
+  () => props.loading || props.totalPages <= 0
+);
 </script>
 
 <template>
   <div
-    class="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3 mb-4"
+    class="list-pagination-bar rounded-2xl border-2 border-neutral-200 bg-white/90 p-4 shadow-lg backdrop-blur-sm transition-colors dark:border-neutral-800 dark:bg-black/25"
+    role="navigation"
+    :aria-busy="loading"
+    :aria-label="t('pagination.nav_aria')"
   >
-    <div v-if="showSearch" class="flex-1 min-w-[12rem] max-w-md">
-      <label class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">
-        {{ t("pagination.search") }}
-      </label>
-      <UInput
-        v-model="localSearch"
-        size="sm"
-        :placeholder="t('pagination.search_placeholder')"
-        icon="i-heroicons-magnifying-glass"
-        :disabled="loading"
-      />
-    </div>
     <div
-      class="flex flex-wrap items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400"
+      class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-stretch sm:justify-between"
     >
-      <span v-if="total >= 0" class="whitespace-nowrap">
-        {{ t("pagination.total_items", { n: total }) }}
-      </span>
-      <span class="whitespace-nowrap">
-        {{
-          totalPages > 0
-            ? t("pagination.page_of", { page, total: totalPages })
-            : t("pagination.page_none")
-        }}
-      </span>
-      <div class="flex gap-1">
-        <UButton
-          size="xs"
-          color="neutral"
-          variant="soft"
-          :disabled="loading || page <= 1"
-          @click="goPrev"
+      <div v-if="showSearch" class="min-w-0 flex-1 sm:max-w-md">
+        <label
+          class="mb-1.5 block text-sm font-semibold text-black dark:text-white"
         >
-          {{ t("pagination.prev") }}
-        </UButton>
-        <UButton
-          size="xs"
-          color="neutral"
-          variant="soft"
-          :disabled="loading || totalPages <= 0 || page >= totalPages"
-          @click="goNext"
+          {{ t("pagination.search") }}
+        </label>
+        <UInput
+          v-model="localSearch"
+          size="md"
+          :placeholder="t('pagination.search_placeholder')"
+          icon="i-heroicons-magnifying-glass"
+          :disabled="loading"
+          :ui="{
+            rounded: 'rounded-xl',
+            size: { md: 'text-sm' },
+            base: 'border-2 border-neutral-200 bg-white/80 text-black placeholder:text-neutral-400 focus:border-alizarin-crimson-600 dark:border-neutral-700 dark:bg-black/30 dark:text-white dark:placeholder:text-neutral-500 dark:focus:border-alizarin-crimson-500',
+          }"
+        />
+      </div>
+
+      <div
+        class="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4"
+      >
+        <div
+          class="flex flex-col gap-1 text-sm text-neutral-600 dark:text-neutral-400 sm:text-right"
         >
-          {{ t("pagination.next") }}
-        </UButton>
+          <span
+            v-if="total >= 0"
+            class="inline-flex items-center gap-2 font-medium text-neutral-700 dark:text-neutral-300"
+          >
+            <UIcon
+              name="i-heroicons-squares-2x2"
+              class="h-4 w-4 shrink-0 text-alizarin-crimson-600 dark:text-alizarin-crimson-400"
+            />
+            {{ t("pagination.total_items", { n: total }) }}
+          </span>
+          <span
+            class="inline-flex w-fit items-center rounded-xl border-2 border-alizarin-crimson-200 bg-alizarin-crimson-50 px-3 py-1.5 text-sm font-semibold text-alizarin-crimson-900 dark:border-alizarin-crimson-800 dark:bg-alizarin-crimson-950/50 dark:text-alizarin-crimson-100"
+          >
+            <UIcon
+              v-if="loading"
+              name="i-svg-spinners-90-ring-with-bg"
+              class="mr-2 h-4 w-4 shrink-0 text-alizarin-crimson-600 dark:text-alizarin-crimson-400"
+            />
+            {{
+              totalPages > 0
+                ? t("pagination.page_of", { page, total: totalPages })
+                : t("pagination.page_none")
+            }}
+          </span>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            class="inline-flex min-h-[2.75rem] min-w-[2.75rem] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-neutral-200 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm transition hover:border-alizarin-crimson-500 hover:text-alizarin-crimson-700 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 dark:border-neutral-700 dark:bg-neutral-900/80 dark:text-neutral-100 dark:hover:border-alizarin-crimson-500 dark:hover:text-alizarin-crimson-300 sm:flex-initial"
+            :disabled="loading || page <= 1 || totalPages <= 0"
+            @click="goPrev"
+          >
+            <UIcon name="i-heroicons-chevron-left" class="h-5 w-5" />
+            <span class="sm:inline">{{ t("pagination.prev") }}</span>
+          </button>
+          <button
+            type="button"
+            class="inline-flex min-h-[2.75rem] flex-1 items-center justify-center gap-2 rounded-xl border-2 border-alizarin-crimson-600 bg-alizarin-crimson-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:border-alizarin-crimson-700 hover:bg-alizarin-crimson-700 active:scale-[0.98] disabled:pointer-events-none disabled:border-neutral-300 disabled:bg-neutral-300 disabled:text-neutral-500 dark:border-alizarin-crimson-500 dark:bg-alizarin-crimson-500 dark:hover:border-alizarin-crimson-600 dark:hover:bg-alizarin-crimson-600 dark:disabled:border-neutral-700 dark:disabled:bg-neutral-800 dark:disabled:text-neutral-500 sm:flex-initial sm:min-w-[7.5rem]"
+            :disabled="navDisabled || page >= totalPages"
+            @click="goNext"
+          >
+            <span class="sm:inline">{{ t("pagination.next") }}</span>
+            <UIcon name="i-heroicons-chevron-right" class="h-5 w-5" />
+          </button>
+        </div>
       </div>
     </div>
   </div>

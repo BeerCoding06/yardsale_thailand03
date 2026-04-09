@@ -40,6 +40,7 @@
     "not_available": "ไม่มี"
   },
   "pagination": {
+    "nav_aria": "เปลี่ยนหน้ารายการ",
     "search": "ค้นหา",
     "search_placeholder": "กรองรายการนี้…",
     "prev": "ก่อนหน้า",

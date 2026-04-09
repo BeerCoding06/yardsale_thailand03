@@ -34,6 +34,7 @@
     "reset_search": "Zoekopdracht resetten"
   },
   "pagination": {
+    "nav_aria": "Pagina wijzigen",
     "search": "Zoeken",
     "search_placeholder": "Lijst filteren…",
     "prev": "Vorige",
