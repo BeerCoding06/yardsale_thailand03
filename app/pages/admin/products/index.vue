@@ -259,6 +259,27 @@ function reviewMediaSrc(path: string): string {
   return resolveMediaUrl(path) ?? path;
 }
 
+function reviewListingBadgeClass(row: any): string {
+  const base =
+    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold shrink-0";
+  switch (listingStatusValue(row)) {
+    case "published":
+      return `${base} bg-emerald-100 text-emerald-900 dark:bg-emerald-950/90 dark:text-emerald-200`;
+    case "hidden":
+      return `${base} bg-neutral-200 text-neutral-900 dark:bg-neutral-700 dark:text-neutral-100`;
+    case "pending_review":
+    default:
+      return `${base} bg-amber-100 text-amber-950 dark:bg-amber-950/70 dark:text-amber-100`;
+  }
+}
+
+function reviewListingStatusLabel(row: any): string {
+  const v = listingStatusValue(row);
+  if (v === "published") return t("admin.products.listing_published");
+  if (v === "hidden") return t("admin.products.listing_hidden");
+  return t("admin.products.listing_pending_review");
+}
+
 async function submitApproveFromReview() {
   const row = reviewRow.value;
   if (!row?.id) return;
@@ -480,95 +501,191 @@ onMounted(() => load());
       :ui="{
         overlay: { background: 'bg-black/50 dark:bg-black/70 backdrop-blur-sm' },
         background: 'bg-white dark:bg-neutral-900',
-        width: 'w-full sm:max-w-lg',
+        width: 'w-full sm:max-w-xl md:max-w-2xl',
         rounded: 'rounded-2xl',
       }"
     >
       <div
         v-if="reviewRow"
-        class="p-6 space-y-4 max-h-[85vh] overflow-y-auto"
+        class="p-5 sm:p-6 space-y-5 max-h-[85vh] overflow-y-auto"
       >
         <h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
           {{ t("admin.products.review_title") }}
         </h3>
 
-        <div class="rounded-xl border border-neutral-200 dark:border-neutral-700 p-4 space-y-3 text-sm">
-          <p class="font-medium text-neutral-900 dark:text-white">
-            {{ reviewRow.name }}
-          </p>
+        <div
+          class="rounded-2xl border border-neutral-200/90 dark:border-neutral-700 overflow-hidden shadow-sm dark:shadow-none bg-white dark:bg-neutral-900"
+        >
+          <div
+            class="relative px-5 py-4 sm:px-6 sm:py-5 bg-gradient-to-br from-neutral-50 via-white to-neutral-50/80 dark:from-neutral-800/40 dark:via-neutral-900 dark:to-neutral-950 border-b border-neutral-200/80 dark:border-neutral-700"
+          >
+            <p
+              class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400"
+            >
+              {{ t("admin.products.review_heading_name") }}
+            </p>
+            <p
+              class="text-lg sm:text-xl font-bold text-neutral-900 dark:text-white mt-1.5 leading-snug pr-2"
+            >
+              {{ reviewRow.name }}
+            </p>
+            <span
+              v-if="reviewRow.is_cancelled"
+              class="inline-flex mt-3 rounded-full bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-200 px-2.5 py-0.5 text-xs font-semibold"
+            >
+              {{ t("admin.products.status_cancelled") }}
+            </span>
+          </div>
+
           <div
             v-if="reviewImageUrls(reviewRow).length"
-            class="flex flex-wrap gap-2"
+            class="px-5 py-4 sm:px-6 border-b border-neutral-100 dark:border-neutral-800"
           >
-            <img
-              v-for="(src, idx) in reviewImageUrls(reviewRow)"
-              :key="idx"
-              :src="reviewMediaSrc(src)"
-              :alt="`${reviewRow.name} ${idx + 1}`"
-              class="h-20 w-20 rounded-lg object-cover border border-neutral-200 dark:border-neutral-600"
-            />
+            <p
+              class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 mb-3"
+            >
+              {{ t("admin.products.review_heading_photos") }}
+            </p>
+            <div
+              class="flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory -mx-1 px-1 [scrollbar-width:thin]"
+            >
+              <img
+                v-for="(src, idx) in reviewImageUrls(reviewRow)"
+                :key="idx"
+                :src="reviewMediaSrc(src)"
+                :alt="`${reviewRow.name} ${idx + 1}`"
+                class="h-24 w-24 sm:h-28 sm:w-28 shrink-0 snap-start rounded-xl object-cover ring-1 ring-black/[0.06] dark:ring-white/10 shadow-sm"
+              />
+            </div>
           </div>
-          <dl class="grid grid-cols-1 gap-2 text-neutral-700 dark:text-neutral-300">
-            <div>
-              <dt class="text-xs text-neutral-500 dark:text-neutral-400">
-                {{ t("admin.products.review_field_description") }}
-              </dt>
-              <dd class="whitespace-pre-wrap break-words mt-0.5">
-                {{ reviewRow.description || "—" }}
-              </dd>
-            </div>
-            <div class="flex flex-wrap gap-x-4 gap-y-1">
-              <div>
-                <dt class="text-xs text-neutral-500 dark:text-neutral-400">
-                  {{ t("admin.products.col_price") }}
-                </dt>
-                <dd class="tabular-nums">
-                  {{ reviewRow.price ?? "—" }}
-                  <template v-if="reviewRow.regular_price != null">
-                    / {{ t("admin.products.review_regular") }}
-                    {{ reviewRow.regular_price }}
-                  </template>
-                  <template v-if="reviewRow.sale_price != null && reviewRow.sale_price !== ''">
-                    · {{ t("admin.products.review_sale") }} {{ reviewRow.sale_price }}
-                  </template>
-                </dd>
+
+          <div
+            class="grid grid-cols-2 divide-x divide-neutral-200/90 dark:divide-neutral-700 border-b border-neutral-100 dark:border-neutral-800"
+          >
+            <div class="p-4 sm:p-5 bg-neutral-50/50 dark:bg-neutral-950/30">
+              <p
+                class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400"
+              >
+                {{ t("admin.products.col_price") }}
+              </p>
+              <p
+                class="text-lg sm:text-xl font-bold tabular-nums text-neutral-900 dark:text-white mt-1"
+              >
+                {{ reviewRow.price ?? "—" }}
+              </p>
+              <div
+                v-if="reviewRow.regular_price != null || (reviewRow.sale_price != null && reviewRow.sale_price !== '')"
+                class="mt-2 space-y-0.5 text-xs text-neutral-600 dark:text-neutral-400"
+              >
+                <p
+                  v-if="reviewRow.regular_price != null"
+                  class="tabular-nums"
+                >
+                  <span class="text-neutral-500 dark:text-neutral-500">{{
+                    t("admin.products.review_regular")
+                  }}</span>
+                  {{ reviewRow.regular_price }}
+                </p>
+                <p
+                  v-if="reviewRow.sale_price != null && reviewRow.sale_price !== ''"
+                  class="tabular-nums"
+                >
+                  <span class="text-neutral-500 dark:text-neutral-500">{{
+                    t("admin.products.review_sale")
+                  }}</span>
+                  {{ reviewRow.sale_price }}
+                </p>
               </div>
-              <div>
-                <dt class="text-xs text-neutral-500 dark:text-neutral-400">
-                  {{ t("admin.products.col_stock") }}
-                </dt>
-                <dd>{{ reviewRow.stock ?? "—" }}</dd>
+            </div>
+            <div class="p-4 sm:p-5 bg-neutral-50/50 dark:bg-neutral-950/30">
+              <p
+                class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400"
+              >
+                {{ t("admin.products.col_stock") }}
+              </p>
+              <p
+                class="text-lg sm:text-xl font-bold tabular-nums text-neutral-900 dark:text-white mt-1"
+              >
+                {{ reviewRow.stock ?? "—" }}
+              </p>
+            </div>
+          </div>
+
+          <div class="px-5 py-4 sm:px-6 sm:py-5 border-b border-neutral-100 dark:border-neutral-800">
+            <p
+              class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 mb-2.5"
+            >
+              {{ t("admin.products.review_heading_description") }}
+            </p>
+            <div
+              class="max-h-52 sm:max-h-60 overflow-y-auto rounded-xl border border-neutral-200/80 dark:border-neutral-700 bg-neutral-50/90 dark:bg-neutral-950/50 px-4 py-3.5 text-[15px] leading-relaxed text-neutral-800 dark:text-neutral-200 [scrollbar-width:thin]"
+            >
+              <p
+                v-if="reviewRow.description && String(reviewRow.description).trim()"
+                class="whitespace-pre-wrap break-words"
+              >
+                {{ reviewRow.description }}
+              </p>
+              <p
+                v-else
+                class="text-neutral-400 dark:text-neutral-500 italic text-sm"
+              >
+                {{ t("admin.products.review_empty_description") }}
+              </p>
+            </div>
+          </div>
+
+          <div
+            class="px-5 py-1 sm:px-6 bg-neutral-50/70 dark:bg-neutral-950/40"
+          >
+            <p
+              class="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 px-0 py-3 border-b border-neutral-200/60 dark:border-neutral-800"
+            >
+              {{ t("admin.products.review_heading_meta") }}
+            </p>
+            <div
+              class="divide-y divide-neutral-200/70 dark:divide-neutral-800 text-sm"
+            >
+              <div class="flex items-start justify-between gap-4 py-3">
+                <span class="text-neutral-500 dark:text-neutral-400 shrink-0 pt-0.5">{{
+                  t("admin.products.review_field_category")
+                }}</span>
+                <span
+                  class="font-mono text-xs text-right text-neutral-800 dark:text-neutral-200 break-all"
+                  >{{ reviewRow.category_id || "—" }}</span
+                >
+              </div>
+              <div class="flex items-start justify-between gap-4 py-3">
+                <span class="text-neutral-500 dark:text-neutral-400 shrink-0 pt-0.5">{{
+                  t("admin.products.review_field_seller")
+                }}</span>
+                <span
+                  class="font-mono text-xs text-right text-neutral-800 dark:text-neutral-200 break-all"
+                  >{{ reviewRow.seller_id || "—" }}</span
+                >
+              </div>
+              <div class="flex items-center justify-between gap-4 py-3">
+                <span class="text-neutral-500 dark:text-neutral-400 shrink-0">{{
+                  t("admin.products.form_listing_status")
+                }}</span>
+                <span :class="reviewListingBadgeClass(reviewRow)">{{
+                  reviewListingStatusLabel(reviewRow)
+                }}</span>
+              </div>
+              <div
+                v-if="reviewRow.created_at"
+                class="flex items-start justify-between gap-4 py-3"
+              >
+                <span class="text-neutral-500 dark:text-neutral-400 shrink-0 pt-0.5">{{
+                  t("admin.products.review_created_at")
+                }}</span>
+                <span
+                  class="text-xs text-right text-neutral-800 dark:text-neutral-200 tabular-nums"
+                  >{{ reviewRow.created_at }}</span
+                >
               </div>
             </div>
-            <div>
-              <dt class="text-xs text-neutral-500 dark:text-neutral-400">
-                {{ t("admin.products.review_field_category") }}
-              </dt>
-              <dd class="font-mono text-xs break-all">
-                {{ reviewRow.category_id || "—" }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-xs text-neutral-500 dark:text-neutral-400">
-                {{ t("admin.products.review_field_seller") }}
-              </dt>
-              <dd class="font-mono text-xs break-all">
-                {{ reviewRow.seller_id || "—" }}
-              </dd>
-            </div>
-            <div>
-              <dt class="text-xs text-neutral-500 dark:text-neutral-400">
-                {{ t("admin.products.form_listing_status") }}
-              </dt>
-              <dd>{{ listingStatusValue(reviewRow) }}</dd>
-            </div>
-            <div v-if="reviewRow.created_at">
-              <dt class="text-xs text-neutral-500 dark:text-neutral-400">
-                {{ t("admin.products.review_created_at") }}
-              </dt>
-              <dd>{{ reviewRow.created_at }}</dd>
-            </div>
-          </dl>
+          </div>
         </div>
 
         <div
