@@ -1,4 +1,5 @@
 import { AppError } from '../utils/AppError.js';
+import { paginationMeta } from '../utils/pagination.js';
 import { pool } from '../models/db.js';
 import * as productModel from '../models/product.model.js';
 import * as userModel from '../models/user.model.js';
@@ -7,15 +8,33 @@ import {
   normalizeProductPricesForCreate,
 } from '../utils/productPrices.js';
 
-export async function myProducts(userId, role, { ownOnly = false } = {}) {
+export async function myProducts(userId, role, { ownOnly = false, page, pageSize, offset, search } = {}) {
   const client = await pool.connect();
   try {
     if (role === 'admin' && !ownOnly) {
-      const products = await productModel.listAllProducts(client);
-      return { products, count: products.length };
+      const total = await productModel.countAllProductsForAdmin(client, search);
+      const products = await productModel.listAllProductsPaged(client, {
+        limit: pageSize,
+        offset,
+        search,
+      });
+      return {
+        products,
+        count: products.length,
+        pagination: paginationMeta({ page, pageSize, total }),
+      };
     }
-    const products = await productModel.listProductsBySeller(client, userId);
-    return { products, count: products.length };
+    const total = await productModel.countProductsBySeller(client, userId, search);
+    const products = await productModel.listProductsBySellerPaged(client, userId, {
+      limit: pageSize,
+      offset,
+      search,
+    });
+    return {
+      products,
+      count: products.length,
+      pagination: paginationMeta({ page, pageSize, total }),
+    };
   } finally {
     client.release();
   }

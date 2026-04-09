@@ -7,6 +7,7 @@ definePageMeta({
 });
 
 import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
+import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
 
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
@@ -36,6 +37,30 @@ const cancellingOrderId = ref(null);
 const cancelMessage = ref(null);
 const showCancelModal = ref(false);
 const orderToCancel = ref(null);
+
+const ORDER_PAGE_SIZE = 20;
+const listPage = ref(1);
+const listSearch = ref("");
+const orderPagination = ref({
+  page: 1,
+  page_size: ORDER_PAGE_SIZE,
+  total: 0,
+  total_pages: 0,
+});
+
+function onOrderSearch(q) {
+  const tq = String(q || "").trim();
+  if (tq === listSearch.value) return;
+  listSearch.value = tq;
+  listPage.value = 1;
+  fetchOrders();
+}
+
+function onOrderPage(p) {
+  if (p === listPage.value) return;
+  listPage.value = p;
+  fetchOrders();
+}
 
 // Format order date
 const formatDate = (dateString) => {
@@ -246,6 +271,7 @@ const fetchOrders = async () => {
       headers: {
         Authorization: `Bearer ${jwtToken}`,
       },
+      query: paginationQuery(listPage.value, listSearch.value, ORDER_PAGE_SIZE),
     });
     const body = unwrapApi(raw);
     let list = Array.isArray(body?.orders)
@@ -254,12 +280,19 @@ const fetchOrders = async () => {
         ? body.data.orders
         : [];
 
-    const uid = user.value?.id ?? user.value?.ID;
-    if (uid != null && uid !== "") {
-      list = list.filter((o) => String(o?.user_id ?? o?.userId) === String(uid));
-    }
-
     orders.value = list;
+
+    const pg = pickPagination(body);
+    if (pg) {
+      orderPagination.value = pg;
+    } else {
+      orderPagination.value = {
+        page: listPage.value,
+        page_size: ORDER_PAGE_SIZE,
+        total: list.length,
+        total_pages: list.length ? 1 : 0,
+      };
+    }
 
     // Fetch product images from WordPress REST API for line items without images (in background)
     const productIds = new Set();
@@ -283,6 +316,12 @@ const fetchOrders = async () => {
     console.error("[my-orders] Error fetching orders:", err);
     error.value = err?.message || t('order.error_loading');
     orders.value = [];
+    orderPagination.value = {
+      page: 1,
+      page_size: ORDER_PAGE_SIZE,
+      total: 0,
+      total_pages: 0,
+    };
   } finally {
     isLoading.value = false;
   }
@@ -454,6 +493,17 @@ function payOrderLink(order) {
             </NuxtLink>
           </div>
 
+          <ListPaginationBar
+            :page="orderPagination.page"
+            :total-pages="orderPagination.total_pages"
+            :total="orderPagination.total"
+            :page-size="orderPagination.page_size"
+            :loading="isLoading"
+            :search="listSearch"
+            @update:page="onOrderPage"
+            @update:search="onOrderSearch"
+          />
+
           <template v-if="orders.length === 0">
             <div
               class="bg-white/80 dark:bg-black/20 rounded-2xl p-12 text-center border-2 border-neutral-200 dark:border-neutral-800"
@@ -463,12 +513,21 @@ function payOrderLink(order) {
                 class="w-16 h-16 mx-auto mb-4 text-neutral-400 dark:text-neutral-600"
               />
               <p class="text-xl font-semibold text-black dark:text-white mb-2">
-                {{ $t('order.no_orders') }}
+                {{
+                  listSearch.trim()
+                    ? $t('order.no_orders_search')
+                    : $t('order.no_orders')
+                }}
               </p>
               <p class="text-neutral-500 dark:text-neutral-400 mb-6">
-                {{ $t('order.start_shopping') }}
+                {{
+                  listSearch.trim()
+                    ? $t('order.no_orders_search_hint')
+                    : $t('order.start_shopping')
+                }}
               </p>
               <NuxtLink
+                v-if="!listSearch.trim()"
                 to="/"
                 class="inline-block px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg"
               >

@@ -20,7 +20,7 @@ export const getProduct = asyncHandler(async (req, res) => {
 
 export const search = asyncHandler(async (req, res) => {
   const q = req.query.q || req.query.search;
-  const data = await productService.searchProducts(q || '');
+  const data = await productService.searchProducts(q || '', req.query);
   sendSuccess(res, data);
 });
 

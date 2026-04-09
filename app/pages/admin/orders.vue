@@ -2,6 +2,7 @@
 import { push } from "notivue";
 import { useCmsApi } from "#imports";
 import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
+import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
 import ShipmentTimeline from "~/components/ShipmentTimeline.vue";
 import StorefrontImg from "~/components/StorefrontImg.vue";
 
@@ -31,6 +32,30 @@ const expandedId = ref<string | null>(null);
 const savingId = ref<string | null>(null);
 /** แบบร่างแก้จัดส่งต่อออเดอร์ — key = order.id */
 const adminDrafts = ref<Record<string, any>>({});
+
+const ORDER_PAGE_SIZE = 20;
+const listPage = ref(1);
+const listSearch = ref("");
+const orderPagination = ref({
+  page: 1,
+  page_size: ORDER_PAGE_SIZE,
+  total: 0,
+  total_pages: 0,
+});
+
+function onOrderSearch(q: string) {
+  const tq = String(q || "").trim();
+  if (tq === listSearch.value) return;
+  listSearch.value = tq;
+  listPage.value = 1;
+  fetchOrders();
+}
+
+function onOrderPage(p: number) {
+  if (p === listPage.value) return;
+  listPage.value = p;
+  fetchOrders();
+}
 
 function normalizeShippingStatus(s: unknown): string {
   const v = String(s || "pending")
@@ -153,16 +178,41 @@ async function fetchOrders() {
   try {
     const res = await $fetch<any>(endpoint("seller-orders"), {
       headers: { Authorization: `Bearer ${jwt}` },
+      query: paginationQuery(listPage.value, listSearch.value, ORDER_PAGE_SIZE),
     });
     if (res && res.success !== false) {
       orders.value = pickOrdersPayload(res).map(normalizeOrderRow);
+      const inner = unwrapApi(res);
+      const pg = pickPagination(inner);
+      if (pg) {
+        orderPagination.value = pg;
+      } else {
+        orderPagination.value = {
+          page: listPage.value,
+          page_size: ORDER_PAGE_SIZE,
+          total: orders.value.length,
+          total_pages: orders.value.length ? 1 : 0,
+        };
+      }
     } else {
       error.value = res?.error || res?.message || t("seller_orders.error_loading");
       orders.value = [];
+      orderPagination.value = {
+        page: 1,
+        page_size: ORDER_PAGE_SIZE,
+        total: 0,
+        total_pages: 0,
+      };
     }
   } catch (e: any) {
     error.value = e?.message || t("seller_orders.error_loading");
     orders.value = [];
+    orderPagination.value = {
+      page: 1,
+      page_size: ORDER_PAGE_SIZE,
+      total: 0,
+      total_pages: 0,
+    };
   } finally {
     isLoading.value = false;
   }
@@ -244,6 +294,17 @@ onMounted(() => {
       </UButton>
     </div>
 
+    <ListPaginationBar
+      :page="orderPagination.page"
+      :total-pages="orderPagination.total_pages"
+      :total="orderPagination.total"
+      :page-size="orderPagination.page_size"
+      :loading="isLoading"
+      :search="listSearch"
+      @update:page="onOrderPage"
+      @update:search="onOrderSearch"
+    />
+
     <UCard>
       <div v-if="isLoading" class="py-12 text-center text-neutral-500">
         {{ t("general.loading") }}
@@ -252,7 +313,11 @@ onMounted(() => {
         {{ error }}
       </div>
       <div v-else-if="!orders.length" class="py-12 text-center text-neutral-500">
-        {{ t("admin.orders.empty") }}
+        {{
+          listSearch.trim()
+            ? t("admin.orders.empty_search")
+            : t("admin.orders.empty")
+        }}
       </div>
       <div v-else class="overflow-x-auto">
         <table class="w-full text-sm text-left">

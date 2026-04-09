@@ -35,9 +35,7 @@ export const checkEmail = asyncHandler(async (req, res) => {
 });
 
 export const adminListUsers = asyncHandler(async (req, res) => {
-  const limit = req.query.limit;
-  const offset = req.query.offset;
-  const result = await authService.listUsersForAdmin({ limit, offset });
+  const result = await authService.listUsersForAdmin(req.query);
   sendSuccess(res, { success: true, ...result });
 });
 

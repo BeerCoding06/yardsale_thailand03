@@ -33,6 +33,15 @@
     "in": "i",
     "reset_search": "Tilbakestill søk"
   },
+  "pagination": {
+    "search": "Søk",
+    "search_placeholder": "Filtrer listen…",
+    "prev": "Forrige",
+    "next": "Neste",
+    "page_of": "Side {page} av {total}",
+    "page_none": "—",
+    "total_items": "{n} oppføringer totalt"
+  },
   "filter": {
     "all_categories": "Alle Kategorier",
     "newest": "Nyeste",

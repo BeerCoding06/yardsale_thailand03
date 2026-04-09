@@ -2,6 +2,7 @@
 <script setup>
 import { push } from "notivue";
 import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
+import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
 
 definePageMeta({
   middleware: "seller",
@@ -20,6 +21,30 @@ const error = ref(null);
 /** แบบร่างอัปเดตจัดส่งต่อออเดอร์ — key = order.id */
 const fulfillmentDrafts = ref({});
 const savingFulfillmentId = ref(null);
+
+const ORDER_PAGE_SIZE = 20;
+const listPage = ref(1);
+const listSearch = ref("");
+const orderPagination = ref({
+  page: 1,
+  page_size: ORDER_PAGE_SIZE,
+  total: 0,
+  total_pages: 0,
+});
+
+function onOrderSearch(q) {
+  const tq = String(q || "").trim();
+  if (tq === listSearch.value) return;
+  listSearch.value = tq;
+  listPage.value = 1;
+  fetchOrders();
+}
+
+function onOrderPage(p) {
+  if (p === listPage.value) return;
+  listPage.value = p;
+  fetchOrders();
+}
 
 // Format order date
 const formatDate = (dateString) => {
@@ -241,6 +266,7 @@ const fetchOrders = async () => {
       headers: {
         Authorization: `Bearer ${jwtToken}`,
       },
+      query: paginationQuery(listPage.value, listSearch.value, ORDER_PAGE_SIZE),
     });
     const body = unwrapApi(raw);
     const list = Array.isArray(body?.orders)
@@ -252,13 +278,37 @@ const fetchOrders = async () => {
     if (body && body.success === false) {
       error.value = body?.error?.message || body?.message || t("seller_orders.error_loading");
       orders.value = [];
+      orderPagination.value = {
+        page: 1,
+        page_size: ORDER_PAGE_SIZE,
+        total: 0,
+        total_pages: 0,
+      };
     } else {
       orders.value = list.map(normalizeSellerOrderRow);
+    }
+
+    const pg = pickPagination(body);
+    if (pg) {
+      orderPagination.value = pg;
+    } else {
+      orderPagination.value = {
+        page: listPage.value,
+        page_size: ORDER_PAGE_SIZE,
+        total: orders.value.length,
+        total_pages: orders.value.length ? 1 : 0,
+      };
     }
   } catch (err) {
     console.error("[seller-orders] Error fetching orders:", err);
     error.value = err?.message || t('seller_orders.error_loading');
     orders.value = [];
+    orderPagination.value = {
+      page: 1,
+      page_size: ORDER_PAGE_SIZE,
+      total: 0,
+      total_pages: 0,
+    };
   } finally {
     isLoading.value = false;
   }
@@ -325,6 +375,17 @@ onMounted(async () => {
             </NuxtLink>
           </div>
 
+          <ListPaginationBar
+            :page="orderPagination.page"
+            :total-pages="orderPagination.total_pages"
+            :total="orderPagination.total"
+            :page-size="orderPagination.page_size"
+            :loading="isLoading"
+            :search="listSearch"
+            @update:page="onOrderPage"
+            @update:search="onOrderSearch"
+          />
+
           <template v-if="orders.length === 0">
             <div
               class="bg-white/80 dark:bg-black/20 rounded-2xl p-12 text-center border-2 border-neutral-200 dark:border-neutral-800"
@@ -334,10 +395,18 @@ onMounted(async () => {
                 class="w-16 h-16 mx-auto mb-4 text-neutral-400 dark:text-neutral-600"
               />
               <p class="text-xl font-semibold text-black dark:text-white mb-2">
-                {{ $t('seller_orders.no_orders') }}
+                {{
+                  listSearch.trim()
+                    ? $t('seller_orders.no_orders_search')
+                    : $t('seller_orders.no_orders')
+                }}
               </p>
               <p class="text-neutral-500 dark:text-neutral-400 mb-4">
-                {{ $t('seller_orders.no_customers') }}
+                {{
+                  listSearch.trim()
+                    ? $t('seller_orders.no_orders_search_hint')
+                    : $t('seller_orders.no_customers')
+                }}
               </p>
             </div>
           </template>

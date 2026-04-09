@@ -188,6 +188,25 @@ function mockRandomId(): string {
   return `mock-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function mockParseListPagination(query: URLSearchParams, defaultSize = 20, maxSize = 100) {
+  const page = Math.max(1, parseInt(String(query.get("page") || "1"), 10) || 1);
+  let ps = parseInt(String(query.get("page_size") || query.get("pageSize") || ""), 10);
+  if (!Number.isFinite(ps) || ps < 1) ps = defaultSize;
+  ps = Math.min(Math.max(ps, 1), maxSize);
+  const q = String(query.get("q") || query.get("search") || "").trim().toLowerCase();
+  return { page, pageSize: ps, q };
+}
+
+function mockPaginationMeta(page: number, pageSize: number, total: number) {
+  const t = total;
+  return {
+    page,
+    page_size: pageSize,
+    total: t,
+    total_pages: t === 0 ? 0 : Math.ceil(t / pageSize),
+  };
+}
+
 export default defineNuxtPlugin(() => {
   const originalFetch = globalThis.$fetch;
 
@@ -531,7 +550,21 @@ export default defineNuxtPlugin(() => {
       const orderId = Number(query.get("order_id") || query.get("id") || 1);
       return { success: true, order: pickOrder(orderId) };
     }
-    if (p === "/api/my-orders-jwt" || p === "/api/my-orders" || p === "/api/seller-orders") return { success: true, orders: [] };
+    if (p === "/api/my-orders-jwt" || p === "/api/my-orders" || p === "/api/seller-orders") {
+      const { page, pageSize, q } = mockParseListPagination(query);
+      const orders: AnyObj[] = [];
+      if (q) {
+        /* mock ไม่มีออเดอร์ตัวอย่าง — ค้นหาแล้วว่าง */
+      }
+      const total = orders.length;
+      const start = (page - 1) * pageSize;
+      const slice = orders.slice(start, start + pageSize);
+      return {
+        success: true,
+        orders: slice,
+        pagination: mockPaginationMeta(page, pageSize, total),
+      };
+    }
     if (p === "/api/admin/users") {
       if (!mockBearerToken(opts)) {
         return {
@@ -539,14 +572,31 @@ export default defineNuxtPlugin(() => {
           error: { message: "Unauthorized", code: "UNAUTHORIZED" },
         };
       }
+      const { page, pageSize, q } = mockParseListPagination(query, 25, 100);
+      let list = mockRegistryUsers.map((u) => ({
+        ...u,
+        account_status: u.account_status ?? "public",
+      }));
+      if (q) {
+        list = list.filter(
+          (u) =>
+            String(u.email || "")
+              .toLowerCase()
+              .includes(q) ||
+            String(u.name || "")
+              .toLowerCase()
+              .includes(q)
+        );
+      }
+      const total = list.length;
+      const start = (page - 1) * pageSize;
+      const users = list.slice(start, start + pageSize);
       return {
         success: true,
         data: {
           success: true,
-          users: mockRegistryUsers.map((u) => ({
-            ...u,
-            account_status: u.account_status ?? "public",
-          })),
+          users,
+          pagination: mockPaginationMeta(page, pageSize, total),
         },
       };
     }
@@ -619,22 +669,25 @@ export default defineNuxtPlugin(() => {
       const isAdmin = token === "demo-admin-token";
       const ownOnly =
         query.get("own_only") === "1" || query.get("own_only") === "true";
+      const { page, pageSize, q } = mockParseListPagination(query, 20, 100);
+      let list: AnyObj[] = [];
       if (isAdmin && !ownOnly) {
-        return {
-          success: true,
-          count: mockCmsProducts.length,
-          products: mockCmsProducts.map((x) => ({ ...x })),
-        };
+        list = mockCmsProducts.map((x) => ({ ...x }));
+      } else if (ownOnly && isAdmin) {
+        list = mockCmsProducts.filter((x) => x.seller_id === MOCK_SELLER).map((x) => ({ ...x }));
       }
-      if (ownOnly && isAdmin) {
-        const mine = mockCmsProducts.filter((x) => x.seller_id === MOCK_SELLER);
-        return {
-          success: true,
-          count: mine.length,
-          products: mine.map((x) => ({ ...x })),
-        };
+      if (q) {
+        list = list.filter((x) => String(x.name || "").toLowerCase().includes(q));
       }
-      return { success: true, count: 0, products: [] };
+      const total = list.length;
+      const start = (page - 1) * pageSize;
+      const products = list.slice(start, start + pageSize);
+      return {
+        success: true,
+        count: products.length,
+        products,
+        pagination: mockPaginationMeta(page, pageSize, total),
+      };
     }
     if (p === "/api/create-product" && (opts?.method === "POST" || opts?.method === "post")) {
       const row = {

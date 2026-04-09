@@ -1,5 +1,11 @@
+import { ilikeContainsPattern } from '../utils/pagination.js';
+
 const ORDER_SELECT_BASE = `id, user_id, total_price, status, slip_image_url, created_at,
   billing_snapshot, shipping_status, tracking_number, shipping_receipt_number, courier_name, fulfillment_updated_at`;
+
+const ORDER_O = ORDER_SELECT_BASE.split(',')
+  .map((s) => `o.${s.trim()}`)
+  .join(', ');
 
 export async function createOrderRow(client, { userId, totalPrice, status = 'pending', billingSnapshot = null }) {
   const r = await client.query(
@@ -123,6 +129,168 @@ export async function listAllOrders(client) {
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id
      ORDER BY o.created_at DESC`
+  );
+  return r.rows;
+}
+
+function userOrderSearchCondition(likePattern, paramIndex) {
+  if (!likePattern) return { sql: '', params: [] };
+  return {
+    sql: ` AND (
+      CAST(o.id AS TEXT) ILIKE $${paramIndex} ESCAPE '\\'
+      OR o.status::text ILIKE $${paramIndex} ESCAPE '\\'
+      OR COALESCE(o.billing_snapshot->>'email','') ILIKE $${paramIndex} ESCAPE '\\'
+    )`,
+    params: [likePattern],
+  };
+}
+
+export async function countOrdersForUser(client, userId, search) {
+  const like = ilikeContainsPattern(search);
+  const cond = userOrderSearchCondition(like, 2);
+  const params = [userId, ...cond.params];
+  const r = await client.query(
+    `SELECT COUNT(*)::int AS c FROM orders o WHERE o.user_id = $1::uuid ${cond.sql}`,
+    params
+  );
+  return r.rows[0]?.c ?? 0;
+}
+
+export async function listOrdersForUserPaged(client, userId, { limit, offset, search }) {
+  const like = ilikeContainsPattern(search);
+  const cond = userOrderSearchCondition(like, 2);
+  const lim = Math.min(Math.max(Number(limit) || 20, 1), 100);
+  const off = Math.max(Number(offset) || 0, 0);
+  const params = [userId, ...cond.params, lim, off];
+  const iLim = params.length - 1;
+  const iOff = params.length;
+  const r = await client.query(
+    `SELECT ${ORDER_O}
+     FROM orders o
+     WHERE o.user_id = $1::uuid ${cond.sql}
+     ORDER BY o.created_at DESC
+     LIMIT $${iLim} OFFSET $${iOff}`,
+    params
+  );
+  return r.rows;
+}
+
+export async function countOrdersForSeller(client, sellerId, search) {
+  const like = ilikeContainsPattern(search);
+  const params = [sellerId];
+  let extra = '';
+  if (like) {
+    params.push(like);
+    extra = ` AND (
+      CAST(o.id AS TEXT) ILIKE $2 ESCAPE '\\'
+      OR o.status::text ILIKE $2 ESCAPE '\\'
+      OR COALESCE(u.email,'') ILIKE $2 ESCAPE '\\'
+      OR COALESCE(u.name,'') ILIKE $2 ESCAPE '\\'
+    )`;
+  }
+  const r = await client.query(
+    `SELECT COUNT(DISTINCT o.id)::int AS c
+     FROM orders o
+     JOIN order_items oi ON oi.order_id = o.id
+     JOIN products p ON p.id = oi.product_id
+     LEFT JOIN users u ON u.id = o.user_id
+     WHERE p.seller_id = $1::uuid ${extra}`,
+    params
+  );
+  return r.rows[0]?.c ?? 0;
+}
+
+export async function listOrdersForSellerPaged(client, sellerId, { limit, offset, search }) {
+  const like = ilikeContainsPattern(search);
+  const lim = Math.min(Math.max(Number(limit) || 20, 1), 100);
+  const off = Math.max(Number(offset) || 0, 0);
+  const params = [sellerId];
+  let searchSql = '';
+  if (like) {
+    params.push(like);
+    searchSql = ` AND (
+      CAST(o.id AS TEXT) ILIKE $2 ESCAPE '\\'
+      OR o.status::text ILIKE $2 ESCAPE '\\'
+      OR COALESCE(u.email,'') ILIKE $2 ESCAPE '\\'
+      OR COALESCE(u.name,'') ILIKE $2 ESCAPE '\\'
+    )`;
+  }
+  params.push(lim, off);
+  const iLim = params.length - 1;
+  const iOff = params.length;
+  const r = await client.query(
+    `WITH seller_ids AS (
+       SELECT DISTINCT o.id, o.created_at
+       FROM orders o
+       JOIN order_items oi ON oi.order_id = o.id
+       JOIN products p ON p.id = oi.product_id
+       LEFT JOIN users u ON u.id = o.user_id
+       WHERE p.seller_id = $1::uuid ${searchSql}
+     ),
+     paged AS (
+       SELECT id FROM seller_ids ORDER BY created_at DESC LIMIT $${iLim} OFFSET $${iOff}
+     )
+     SELECT ${ORDER_O},
+            u.email AS buyer_email, u.name AS buyer_name
+     FROM orders o
+     JOIN paged p ON p.id = o.id
+     LEFT JOIN users u ON u.id = o.user_id
+     ORDER BY o.created_at DESC`,
+    params
+  );
+  return r.rows;
+}
+
+export async function countAllOrders(client, search) {
+  const like = ilikeContainsPattern(search);
+  const params = [];
+  let extra = '';
+  if (like) {
+    params.push(like);
+    extra = ` AND (
+      CAST(o.id AS TEXT) ILIKE $1 ESCAPE '\\'
+      OR o.status::text ILIKE $1 ESCAPE '\\'
+      OR COALESCE(u.email,'') ILIKE $1 ESCAPE '\\'
+    )`;
+  }
+  const r = await client.query(
+    `SELECT COUNT(*)::int AS c
+     FROM orders o
+     LEFT JOIN users u ON u.id = o.user_id
+     WHERE 1=1 ${extra}`,
+    params
+  );
+  return r.rows[0]?.c ?? 0;
+}
+
+export async function listAllOrdersPaged(client, { limit, offset, search }) {
+  const like = ilikeContainsPattern(search);
+  const lim = Math.min(Math.max(Number(limit) || 20, 1), 100);
+  const off = Math.max(Number(offset) || 0, 0);
+  const params = [];
+  let extra = '';
+  if (like) {
+    params.push(like);
+    extra = ` AND (
+      CAST(o.id AS TEXT) ILIKE $1 ESCAPE '\\'
+      OR o.status::text ILIKE $1 ESCAPE '\\'
+      OR COALESCE(u.email,'') ILIKE $1 ESCAPE '\\'
+    )`;
+  }
+  params.push(lim, off);
+  const iLim = params.length - 1;
+  const iOff = params.length;
+  const r = await client.query(
+    `SELECT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
+            o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
+            o.courier_name, o.fulfillment_updated_at,
+            u.email AS buyer_email
+     FROM orders o
+     LEFT JOIN users u ON u.id = o.user_id
+     WHERE 1=1 ${extra}
+     ORDER BY o.created_at DESC
+     LIMIT $${iLim} OFFSET $${iOff}`,
+    params
   );
   return r.rows;
 }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { push } from "notivue";
+import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
 
 definePageMeta({
   layout: "admin",
@@ -38,6 +39,30 @@ const isSubmitting = ref(false);
 const isLoadingList = ref(true);
 const usersList = ref<any[]>([]);
 
+const USER_PAGE_SIZE = 25;
+const listPage = ref(1);
+const listSearch = ref("");
+const listPagination = ref({
+  page: 1,
+  page_size: USER_PAGE_SIZE,
+  total: 0,
+  total_pages: 0,
+});
+
+function onUserSearch(q: string) {
+  const tq = String(q || "").trim();
+  if (tq === listSearch.value) return;
+  listSearch.value = tq;
+  listPage.value = 1;
+  loadUsers();
+}
+
+function onUserPage(p: number) {
+  if (p === listPage.value) return;
+  listPage.value = p;
+  loadUsers();
+}
+
 const roleOptions = computed(() => [
   { value: "user" as const, label: t("admin.users.role_customer") },
   { value: "seller" as const, label: t("admin.users.role_seller") },
@@ -60,10 +85,33 @@ function pickUsers(res: any): any[] {
 async function loadUsers() {
   isLoadingList.value = true;
   try {
-    const res = await adminFetch<any>("admin/users");
+    const res = await adminFetch<any>("admin/users", {
+      query: paginationQuery(listPage.value, listSearch.value, USER_PAGE_SIZE),
+    });
     usersList.value = pickUsers(res);
+    const inner =
+      res?.success === true && res.data != null && typeof res.data === "object"
+        ? res.data
+        : res;
+    const pg = pickPagination(inner);
+    if (pg) {
+      listPagination.value = pg;
+    } else {
+      listPagination.value = {
+        page: listPage.value,
+        page_size: USER_PAGE_SIZE,
+        total: usersList.value.length,
+        total_pages: usersList.value.length ? 1 : 0,
+      };
+    }
   } catch (e: any) {
     usersList.value = [];
+    listPagination.value = {
+      page: 1,
+      page_size: USER_PAGE_SIZE,
+      total: 0,
+      total_pages: 0,
+    };
     const status = e?.statusCode ?? e?.status ?? e?.response?.status;
     const msg = extractApiError(e);
     if (status === 403 || status === 401) {
@@ -288,10 +336,26 @@ onMounted(() => {
       <div v-if="isLoadingList" class="py-8 text-center text-neutral-500">
         {{ t("general.loading") }}
       </div>
-      <div v-else-if="!usersList.length" class="py-8 text-center text-neutral-500">
-        {{ t("admin.users.list_empty") }}
+      <ListPaginationBar
+        v-else
+        :page="listPagination.page"
+        :total-pages="listPagination.total_pages"
+        :total="listPagination.total"
+        :page-size="listPagination.page_size"
+        :loading="isLoadingList"
+        :search="listSearch"
+        class="mb-4"
+        @update:page="onUserPage"
+        @update:search="onUserSearch"
+      />
+      <div v-if="!isLoadingList && !usersList.length" class="py-8 text-center text-neutral-500">
+        {{
+          listSearch.trim()
+            ? t("admin.users.list_empty_search")
+            : t("admin.users.list_empty")
+        }}
       </div>
-      <div v-else class="overflow-x-auto">
+      <div v-else-if="usersList.length" class="overflow-x-auto">
         <table class="w-full text-sm text-left">
           <thead>
             <tr class="border-b border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400">

@@ -1,6 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { sendSuccess } from '../utils/response.js';
 import { AppError } from '../utils/AppError.js';
+import { parsePaginationQuery, parseSearchQuery } from '../utils/pagination.js';
 import * as orderService from '../services/order.service.js';
 
 export const createOrder = asyncHandler(async (req, res) => {
@@ -14,8 +15,15 @@ export const getOrder = asyncHandler(async (req, res) => {
 });
 
 export const myOrders = asyncHandler(async (req, res) => {
-  const data = await orderService.listMyOrders(req.user.id);
-  sendSuccess(res, { success: true, orders: data.orders });
+  const { page, pageSize, offset } = parsePaginationQuery(req.query);
+  const search = parseSearchQuery(req.query);
+  const data = await orderService.listMyOrders(req.user.id, {
+    page,
+    pageSize,
+    offset,
+    search,
+  });
+  sendSuccess(res, { success: true, orders: data.orders, pagination: data.pagination });
 });
 
 /** user/seller เห็นออเดอร์ที่มีสินค้าของตน; แอดมินเห็นทั้งระบบ */
@@ -24,11 +32,13 @@ export const sellerOrders = asyncHandler(async (req, res) => {
   if (!['user', 'seller', 'admin'].includes(role)) {
     throw new AppError('Seller access required', 403, 'FORBIDDEN');
   }
+  const { page, pageSize, offset } = parsePaginationQuery(req.query);
+  const search = parseSearchQuery(req.query);
   const data =
     role === 'admin'
-      ? await orderService.listAllOrdersAdmin()
-      : await orderService.listSellerOrders(req.user.id);
-  sendSuccess(res, { success: true, orders: data.orders });
+      ? await orderService.listAllOrdersAdmin({ page, pageSize, offset, search })
+      : await orderService.listSellerOrders(req.user.id, { page, pageSize, offset, search });
+  sendSuccess(res, { success: true, orders: data.orders, pagination: data.pagination });
 });
 
 export const cancelOrder = asyncHandler(async (req, res) => {

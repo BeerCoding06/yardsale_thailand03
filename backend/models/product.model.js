@@ -1,4 +1,5 @@
 import { AppError } from '../utils/AppError.js';
+import { ilikeContainsPattern } from '../utils/pagination.js';
 
 /** คีย์เหตุผลที่แอดมินเลือกได้ — ต้องตรงกับ Joi / ฝั่งแอดมิน */
 const MODERATION_ISSUE_KEYS = new Set([
@@ -162,7 +163,7 @@ export function sqlPublicProductWhere() {
 
 export async function listProducts(
   client,
-  { search, categoryId, categorySlug, publicOnly = true } = {}
+  { search, categoryId, categorySlug, publicOnly = true, limit, offset } = {}
 ) {
   const hasLs = await hasListingStatusColumn(client);
   const cols = await joinProductSelectColumns(client);
@@ -187,8 +188,44 @@ export async function listProducts(
     sql += ` AND c.slug = $${params.length}`;
   }
   sql += ' ORDER BY p.created_at DESC';
+  if (limit != null && limit !== undefined) {
+    const lim = Math.min(Math.max(Number(limit), 1), 100);
+    const off = Math.max(Number(offset) || 0, 0);
+    params.push(lim, off);
+    sql += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
+  }
   const r = await client.query(sql, params);
   return r.rows;
+}
+
+/** นับจำนวนสินค้าหน้าร้าน — เงื่อนไขเดียวกับ listProducts */
+export async function countListProducts(
+  client,
+  { search, categoryId, categorySlug, publicOnly = true } = {}
+) {
+  const hasLs = await hasListingStatusColumn(client);
+  let baseWhere;
+  if (hasLs) {
+    baseWhere = publicOnly ? sqlPublicProductWhere() : ` WHERE p.is_cancelled = false`;
+  } else {
+    baseWhere = ` WHERE p.is_cancelled = false`;
+  }
+  let sql = `SELECT COUNT(*)::int AS c ${baseProductFrom()}${baseWhere}`;
+  const params = [];
+  if (search) {
+    params.push(`%${search}%`);
+    sql += ` AND (p.name ILIKE $${params.length} OR p.description ILIKE $${params.length})`;
+  }
+  if (categoryId) {
+    params.push(categoryId);
+    sql += ` AND p.category_id = $${params.length}`;
+  }
+  if (categorySlug) {
+    params.push(categorySlug);
+    sql += ` AND c.slug = $${params.length}`;
+  }
+  const r = await client.query(sql, params);
+  return r.rows[0]?.c ?? 0;
 }
 
 export async function getProductById(
@@ -464,6 +501,58 @@ export async function listProductsBySeller(client, sellerId) {
   return r.rows;
 }
 
+export async function countProductsBySeller(client, sellerId, search) {
+  const like = ilikeContainsPattern(search);
+  const params = [sellerId];
+  let extra = '';
+  if (like) {
+    params.push(like);
+    extra = ` AND (
+      p.name ILIKE $2 ESCAPE '\\'
+      OR COALESCE(p.description,'') ILIKE $2 ESCAPE '\\'
+      OR CAST(p.id AS TEXT) ILIKE $2 ESCAPE '\\'
+    )`;
+  }
+  const r = await client.query(
+    `SELECT COUNT(*)::int AS c FROM products p WHERE p.seller_id = $1::uuid ${extra}`,
+    params
+  );
+  return r.rows[0]?.c ?? 0;
+}
+
+export async function listProductsBySellerPaged(client, sellerId, { limit, offset, search }) {
+  const hasLs = await hasListingStatusColumn(client);
+  const hasPb = await hasProductPriceBreakdown(client);
+  const hasImgs = await hasProductImageUrlsColumn(client);
+  const hasMod = await hasModerationFeedbackColumn(client);
+  const priceCols = hasPb ? 'price, regular_price, sale_price,' : 'price,';
+  const imgCols = hasImgs ? 'image_url, image_urls,' : 'image_url,';
+  const lsCol = hasLs ? ', listing_status' : '';
+  const modCol = hasMod ? ', moderation_feedback' : '';
+  const like = ilikeContainsPattern(search);
+  const params = [sellerId];
+  let extra = '';
+  if (like) {
+    params.push(like);
+    extra = ` AND (
+      p.name ILIKE $2 ESCAPE '\\'
+      OR COALESCE(p.description,'') ILIKE $2 ESCAPE '\\'
+      OR CAST(p.id AS TEXT) ILIKE $2 ESCAPE '\\'
+    )`;
+  }
+  const lim = Math.min(Math.max(Number(limit) || 20, 1), 100);
+  const off = Math.max(Number(offset) || 0, 0);
+  params.push(lim, off);
+  const r = await client.query(
+    `SELECT id, name, description, ${priceCols} stock, category_id, seller_id, ${imgCols} is_cancelled${lsCol}${modCol}, created_at
+     FROM products p WHERE p.seller_id = $1::uuid ${extra}
+     ORDER BY p.created_at DESC
+     LIMIT $${params.length - 1} OFFSET $${params.length}`,
+    params
+  );
+  return r.rows;
+}
+
 export async function listAllProducts(client) {
   const hasLs = await hasListingStatusColumn(client);
   const hasPb = await hasProductPriceBreakdown(client);
@@ -476,6 +565,57 @@ export async function listAllProducts(client) {
   const r = await client.query(
     `SELECT id, name, description, ${priceCols} stock, category_id, seller_id, ${imgCols} is_cancelled${lsCol}${modCol}, created_at
      FROM products ORDER BY created_at DESC`
+  );
+  return r.rows;
+}
+
+export async function countAllProductsForAdmin(client, search) {
+  const like = ilikeContainsPattern(search);
+  const params = [];
+  let extra = '';
+  if (like) {
+    params.push(like);
+    extra = ` AND (
+      p.name ILIKE $1 ESCAPE '\\'
+      OR COALESCE(p.description,'') ILIKE $1 ESCAPE '\\'
+      OR CAST(p.seller_id AS TEXT) ILIKE $1 ESCAPE '\\'
+      OR CAST(p.id AS TEXT) ILIKE $1 ESCAPE '\\'
+    )`;
+  }
+  const r = await client.query(`SELECT COUNT(*)::int AS c FROM products p WHERE 1=1 ${extra}`, params);
+  return r.rows[0]?.c ?? 0;
+}
+
+export async function listAllProductsPaged(client, { limit, offset, search }) {
+  const hasLs = await hasListingStatusColumn(client);
+  const hasPb = await hasProductPriceBreakdown(client);
+  const hasImgs = await hasProductImageUrlsColumn(client);
+  const hasMod = await hasModerationFeedbackColumn(client);
+  const priceCols = hasPb ? 'price, regular_price, sale_price,' : 'price,';
+  const imgCols = hasImgs ? 'image_url, image_urls,' : 'image_url,';
+  const lsCol = hasLs ? ', listing_status' : '';
+  const modCol = hasMod ? ', moderation_feedback' : '';
+  const like = ilikeContainsPattern(search);
+  const params = [];
+  let extra = '';
+  if (like) {
+    params.push(like);
+    extra = ` AND (
+      p.name ILIKE $1 ESCAPE '\\'
+      OR COALESCE(p.description,'') ILIKE $1 ESCAPE '\\'
+      OR CAST(p.seller_id AS TEXT) ILIKE $1 ESCAPE '\\'
+      OR CAST(p.id AS TEXT) ILIKE $1 ESCAPE '\\'
+    )`;
+  }
+  const lim = Math.min(Math.max(Number(limit) || 20, 1), 100);
+  const off = Math.max(Number(offset) || 0, 0);
+  params.push(lim, off);
+  const r = await client.query(
+    `SELECT id, name, description, ${priceCols} stock, category_id, seller_id, ${imgCols} is_cancelled${lsCol}${modCol}, created_at
+     FROM products p WHERE 1=1 ${extra}
+     ORDER BY p.created_at DESC
+     LIMIT $${params.length - 1} OFFSET $${params.length}`,
+    params
   );
   return r.rows;
 }

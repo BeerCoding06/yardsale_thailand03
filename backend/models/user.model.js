@@ -1,3 +1,5 @@
+import { ilikeContainsPattern } from '../utils/pagination.js';
+
 export async function findUserByEmail(client, email) {
   const r = await client.query(
     `SELECT id, email, password_hash, name, role, account_status, created_at
@@ -40,15 +42,46 @@ export async function emailExists(client, email, excludeUserId = null) {
   return r.rowCount > 0;
 }
 
-export async function listUsers(client, { limit = 100, offset = 0 } = {}) {
+export async function countUsers(client, { search } = {}) {
+  const like = ilikeContainsPattern(search);
+  const params = [];
+  let where = '';
+  if (like) {
+    params.push(like);
+    where = ` WHERE (
+      LOWER(email) ILIKE $1 ESCAPE '\\'
+      OR LOWER(COALESCE(name,'')) ILIKE $1 ESCAPE '\\'
+      OR CAST(id AS TEXT) ILIKE $1 ESCAPE '\\'
+    )`;
+  }
+  const r = await client.query(`SELECT COUNT(*)::int AS c FROM users ${where}`, params);
+  return r.rows[0]?.c ?? 0;
+}
+
+export async function listUsers(client, { limit = 100, offset = 0, search } = {}) {
   const lim = Math.min(Math.max(Number(limit) || 100, 1), 500);
   const off = Math.max(Number(offset) || 0, 0);
+  const like = ilikeContainsPattern(search);
+  const params = [];
+  let where = '';
+  if (like) {
+    params.push(like);
+    where = ` WHERE (
+      LOWER(email) ILIKE $1 ESCAPE '\\'
+      OR LOWER(COALESCE(name,'')) ILIKE $1 ESCAPE '\\'
+      OR CAST(id AS TEXT) ILIKE $1 ESCAPE '\\'
+    )`;
+  }
+  params.push(lim, off);
+  const iLim = params.length - 1;
+  const iOff = params.length;
   const r = await client.query(
     `SELECT id, email, name, role, account_status, created_at
      FROM users
+     ${where}
      ORDER BY created_at DESC
-     LIMIT $1 OFFSET $2`,
-    [lim, off]
+     LIMIT $${iLim} OFFSET $${iOff}`,
+    params
   );
   return r.rows;
 }

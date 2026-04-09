@@ -33,6 +33,15 @@
     "in": "in",
     "reset_search": "Suche zurücksetzen"
   },
+  "pagination": {
+    "search": "Suche",
+    "search_placeholder": "Liste filtern…",
+    "prev": "Zurück",
+    "next": "Weiter",
+    "page_of": "Seite {page} von {total}",
+    "page_none": "—",
+    "total_items": "{n} Einträge gesamt"
+  },
   "filter": {
     "all_categories": "Alle Kategorien",
     "newest": "Neueste",

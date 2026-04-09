@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { push } from "notivue";
+import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
 
 definePageMeta({
   layout: "admin",
@@ -28,12 +29,45 @@ const isLoading = ref(true);
 const products = ref<any[]>([]);
 const error = ref<string | null>(null);
 
+const PRODUCT_PAGE_SIZE = 20;
+const listPage = ref(1);
+const listSearch = ref("");
+const productPagination = ref({
+  page: 1,
+  page_size: PRODUCT_PAGE_SIZE,
+  total: 0,
+  total_pages: 0,
+});
+
+function unwrapListPayload(res: any) {
+  if (res?.success === true && res.data != null && typeof res.data === "object") {
+    return res.data;
+  }
+  return res;
+}
+
+function onProductSearch(q: string) {
+  const tq = String(q || "").trim();
+  if (tq === listSearch.value) return;
+  listSearch.value = tq;
+  listPage.value = 1;
+  load();
+}
+
+function onProductPage(p: number) {
+  if (p === listPage.value) return;
+  listPage.value = p;
+  load();
+}
+
 async function load() {
   isLoading.value = true;
   error.value = null;
   try {
-    const res = await adminFetch<any>("my-products");
-    const raw = res as any;
+    const res = await adminFetch<any>("my-products", {
+      query: paginationQuery(listPage.value, listSearch.value, PRODUCT_PAGE_SIZE),
+    });
+    const raw = unwrapListPayload(res) as any;
     const list = Array.isArray(raw?.products)
       ? raw.products
       : Array.isArray(raw?.data?.products)
@@ -45,10 +79,27 @@ async function load() {
       ...p,
       listing_status: normalizeListingStatus(p),
     }));
+    const pg = pickPagination(raw);
+    if (pg) {
+      productPagination.value = pg;
+    } else {
+      productPagination.value = {
+        page: listPage.value,
+        page_size: PRODUCT_PAGE_SIZE,
+        total: products.value.length,
+        total_pages: products.value.length ? 1 : 0,
+      };
+    }
   } catch (e: any) {
     error.value =
       e?.data?.error?.message || e?.data?.message || e?.message || "Error";
     products.value = [];
+    productPagination.value = {
+      page: 1,
+      page_size: PRODUCT_PAGE_SIZE,
+      total: 0,
+      total_pages: 0,
+    };
   } finally {
     isLoading.value = false;
   }
@@ -391,10 +442,26 @@ onMounted(() => load());
       <div v-else-if="error" class="py-8 text-center text-red-600">
         {{ error }}
       </div>
-      <div v-else-if="!products.length" class="py-12 text-center text-neutral-500">
-        {{ t("admin.products.empty") }}
+      <ListPaginationBar
+        v-else
+        :page="productPagination.page"
+        :total-pages="productPagination.total_pages"
+        :total="productPagination.total"
+        :page-size="productPagination.page_size"
+        :loading="isLoading"
+        :search="listSearch"
+        class="mb-4"
+        @update:page="onProductPage"
+        @update:search="onProductSearch"
+      />
+      <div v-if="!isLoading && !error && !products.length" class="py-12 text-center text-neutral-500">
+        {{
+          listSearch.trim()
+            ? t("admin.products.empty_search")
+            : t("admin.products.empty")
+        }}
       </div>
-      <div v-else class="overflow-x-auto">
+      <div v-else-if="!isLoading && !error && products.length" class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>
             <tr

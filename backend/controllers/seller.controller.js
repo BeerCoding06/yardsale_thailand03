@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { sendSuccess } from '../utils/response.js';
 import { config } from '../config/index.js';
 import { AppError } from '../utils/AppError.js';
+import { parsePaginationQuery, parseSearchQuery } from '../utils/pagination.js';
 import * as sellerService from '../services/seller.service.js';
 
 function userRole(req) {
@@ -12,7 +13,18 @@ export const myProducts = asyncHandler(async (req, res) => {
   const q = req.query?.own_only;
   const ownOnly =
     q === '1' || q === 'true' || (Array.isArray(q) && (q[0] === '1' || q[0] === 'true'));
-  const data = await sellerService.myProducts(req.user.id, userRole(req), { ownOnly });
+  const { page, pageSize, offset } = parsePaginationQuery(req.query, {
+    defaultPageSize: 20,
+    maxPageSize: 100,
+  });
+  const search = parseSearchQuery(req.query);
+  const data = await sellerService.myProducts(req.user.id, userRole(req), {
+    ownOnly,
+    page,
+    pageSize,
+    offset,
+    search,
+  });
   sendSuccess(res, { success: true, ...data });
 });
 

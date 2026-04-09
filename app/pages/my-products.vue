@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import { push } from "notivue";
 import { useCmsApi } from "#imports";
+import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
 
 // แสดงเฉพาะสินค้าของ user ที่ login (API ใช้ JWT เท่านั้น ไม่ส่ง user_id – เซิร์ฟเวอร์ดึงจาก token)
 definePageMeta({
@@ -84,6 +85,30 @@ const productToRestore = ref<string | number | null>(null);
 const isCancelling = ref(false);
 const isRestoring = ref(false);
 
+const PRODUCT_PAGE_SIZE = 20;
+const listPage = ref(1);
+const listSearch = ref("");
+const productPagination = ref({
+  page: 1,
+  page_size: PRODUCT_PAGE_SIZE,
+  total: 0,
+  total_pages: 0,
+});
+
+function onProductSearch(q: string) {
+  const tq = String(q || "").trim();
+  if (tq === listSearch.value) return;
+  listSearch.value = tq;
+  listPage.value = 1;
+  fetchProducts();
+}
+
+function onProductPage(p: number) {
+  if (p === listPage.value) return;
+  listPage.value = p;
+  fetchProducts();
+}
+
 const { t } = useI18n();
 
 function moderationIssueLabel(key: string) {
@@ -150,12 +175,13 @@ const fetchProducts = async () => {
     }
 
     // หน้าร้าน: own_only=1 — แม้ role admin ก็เห็นเฉพาะสินค้าของบัญชีนี้ (รายการทั้งระบบใช้แอดมิน /admin/products)
-    const base = cmsPath("my-products");
-    const sep = base.includes("?") ? "&" : "?";
-    const url = `${base}${sep}own_only=1`;
-    const raw = await $fetch(url, {
+    const raw = await $fetch(cmsPath("my-products"), {
       headers: {
         Authorization: `Bearer ${jwtToken}`,
+      },
+      query: {
+        own_only: "1",
+        ...paginationQuery(listPage.value, listSearch.value, PRODUCT_PAGE_SIZE),
       },
     });
 
@@ -170,14 +196,43 @@ const fetchProducts = async () => {
     if (response && response.success !== false) {
       if (Array.isArray(response)) {
         products.value = response.map(normalizeMyProduct);
+        productPagination.value = {
+          page: listPage.value,
+          page_size: PRODUCT_PAGE_SIZE,
+          total: products.value.length,
+          total_pages: products.value.length ? 1 : 0,
+        };
       } else if (response.products && Array.isArray(response.products)) {
         products.value = response.products.map(normalizeMyProduct);
+        const pg = pickPagination(response);
+        if (pg) {
+          productPagination.value = pg;
+        } else {
+          productPagination.value = {
+            page: listPage.value,
+            page_size: PRODUCT_PAGE_SIZE,
+            total: products.value.length,
+            total_pages: products.value.length ? 1 : 0,
+          };
+        }
       } else {
         products.value = [];
         error.value = t('my_products.no_products_found');
+        productPagination.value = {
+          page: 1,
+          page_size: PRODUCT_PAGE_SIZE,
+          total: 0,
+          total_pages: 0,
+        };
       }
     } else {
       products.value = [];
+      productPagination.value = {
+        page: 1,
+        page_size: PRODUCT_PAGE_SIZE,
+        total: 0,
+        total_pages: 0,
+      };
       error.value =
         (response as any)?.error?.message ||
         (response as any)?.error ||
@@ -187,6 +242,13 @@ const fetchProducts = async () => {
   } catch (err) {
     console.error("[my-products] Error fetching products:", err);
     const errorObj = err as any;
+    products.value = [];
+    productPagination.value = {
+      page: 1,
+      page_size: PRODUCT_PAGE_SIZE,
+      total: 0,
+      total_pages: 0,
+    };
     error.value =
       errorObj?.data?.error?.message ||
       errorObj?.data?.message ||
@@ -377,6 +439,19 @@ watch(isAuthenticated, (newVal: boolean) => {
             <span>{{ $t('my_products.create_new') }}</span>
           </NuxtLink>
         </div>
+
+        <ListPaginationBar
+          v-if="!isLoading && !error"
+          :page="productPagination.page"
+          :total-pages="productPagination.total_pages"
+          :total="productPagination.total"
+          :page-size="productPagination.page_size"
+          :loading="isLoading"
+          :search="listSearch"
+          @update:page="onProductPage"
+          @update:search="onProductSearch"
+        />
+
         <template v-if="isLoading">
           <div class="flex items-center justify-center py-12">
             <div class="text-center">
@@ -404,12 +479,21 @@ watch(isAuthenticated, (newVal: boolean) => {
               class="w-16 h-16 mx-auto mb-4 text-neutral-400 dark:text-neutral-600"
             />
             <p class="text-xl font-semibold text-black dark:text-white mb-2">
-              {{ $t('my_products.no_products') }}
+              {{
+                listSearch.trim()
+                  ? $t('my_products.no_products_search')
+                  : $t('my_products.no_products')
+              }}
             </p>
             <p class="text-neutral-500 dark:text-neutral-400 mb-6">
-              {{ $t('my_products.start_creating') }}
+              {{
+                listSearch.trim()
+                  ? $t('my_products.no_products_search_hint')
+                  : $t('my_products.start_creating')
+              }}
             </p>
             <NuxtLink
+              v-if="!listSearch.trim()"
               to="/create-product"
               class="inline-flex items-center gap-2 px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg"
             >

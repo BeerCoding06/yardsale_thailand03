@@ -1,4 +1,5 @@
 import { AppError } from '../utils/AppError.js';
+import { paginationMeta, parsePaginationQuery } from '../utils/pagination.js';
 import * as productModel from '../models/product.model.js';
 import { pool } from '../models/db.js';
 
@@ -8,13 +9,44 @@ export async function listProducts(query) {
     const search = query.search || query.q;
     const categoryId = query.category_id;
     const categorySlug = query.category;
-    const rows = await productModel.listProducts(client, {
+    const wantsPaging =
+      (query.page != null && String(query.page).trim() !== '') ||
+      query.page_size != null ||
+      query.pageSize != null;
+
+    if (!wantsPaging) {
+      const rows = await productModel.listProducts(client, {
+        search,
+        categoryId,
+        categorySlug,
+        publicOnly: true,
+      });
+      return { products: rows, count: rows.length, pagination: null };
+    }
+
+    const { page, pageSize, offset } = parsePaginationQuery(query, {
+      defaultPageSize: 24,
+      maxPageSize: 60,
+    });
+    const total = await productModel.countListProducts(client, {
       search,
       categoryId,
       categorySlug,
       publicOnly: true,
     });
-    return { products: rows, count: rows.length };
+    const rows = await productModel.listProducts(client, {
+      search,
+      categoryId,
+      categorySlug,
+      publicOnly: true,
+      limit: pageSize,
+      offset,
+    });
+    return {
+      products: rows,
+      count: rows.length,
+      pagination: paginationMeta({ page, pageSize, total }),
+    };
   } finally {
     client.release();
   }
@@ -36,11 +68,33 @@ export async function getProduct(id, { includeCancelled, viewerUserId, viewerRol
   }
 }
 
-export async function searchProducts(q) {
+export async function searchProducts(q, query = {}) {
   const client = await pool.connect();
   try {
-    const rows = await productModel.listProducts(client, { search: q, publicOnly: true });
-    return { products: rows, count: rows.length };
+    const wantsPaging =
+      (query.page != null && String(query.page).trim() !== '') ||
+      query.page_size != null ||
+      query.pageSize != null;
+    if (!wantsPaging) {
+      const rows = await productModel.listProducts(client, { search: q, publicOnly: true });
+      return { products: rows, count: rows.length, pagination: null };
+    }
+    const { page, pageSize, offset } = parsePaginationQuery(query, {
+      defaultPageSize: 24,
+      maxPageSize: 60,
+    });
+    const total = await productModel.countListProducts(client, { search: q, publicOnly: true });
+    const rows = await productModel.listProducts(client, {
+      search: q,
+      publicOnly: true,
+      limit: pageSize,
+      offset,
+    });
+    return {
+      products: rows,
+      count: rows.length,
+      pagination: paginationMeta({ page, pageSize, total }),
+    };
   } finally {
     client.release();
   }

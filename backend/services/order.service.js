@@ -1,4 +1,5 @@
 import { AppError } from '../utils/AppError.js';
+import { paginationMeta } from '../utils/pagination.js';
 import { withTransaction, pool } from '../models/db.js';
 import * as productModel from '../models/product.model.js';
 import * as orderModel from '../models/order.model.js';
@@ -169,20 +170,33 @@ export async function getOrder(orderId, userId, role) {
   }
 }
 
-export async function listMyOrders(userId) {
+export async function listMyOrders(userId, { page, pageSize, offset, search } = {}) {
   const client = await pool.connect();
   try {
-    const orders = await orderModel.listOrdersForUser(client, userId);
-    return { orders: orders.map(formatOrderForApi) };
+    const total = await orderModel.countOrdersForUser(client, userId, search);
+    const rows = await orderModel.listOrdersForUserPaged(client, userId, {
+      limit: pageSize,
+      offset,
+      search,
+    });
+    return {
+      orders: rows.map(formatOrderForApi),
+      pagination: paginationMeta({ page, pageSize, total }),
+    };
   } finally {
     client.release();
   }
 }
 
-export async function listSellerOrders(sellerId) {
+export async function listSellerOrders(sellerId, { page, pageSize, offset, search } = {}) {
   const client = await pool.connect();
   try {
-    const orders = await orderModel.listOrdersForSeller(client, sellerId);
+    const total = await orderModel.countOrdersForSeller(client, sellerId, search);
+    const orders = await orderModel.listOrdersForSellerPaged(client, sellerId, {
+      limit: pageSize,
+      offset,
+      search,
+    });
     const ids = orders.map((o) => o.id);
     const lineMap = await orderModel.mapSellerLineItemsByOrderIds(client, sellerId, ids);
     let snapMap = new Map();
@@ -197,16 +211,22 @@ export async function listSellerOrders(sellerId) {
         line_items: lineMap.get(row.id) || [],
         slip_snapshots: snapMap.get(row.id) || [],
       })),
+      pagination: paginationMeta({ page, pageSize, total }),
     };
   } finally {
     client.release();
   }
 }
 
-export async function listAllOrdersAdmin() {
+export async function listAllOrdersAdmin({ page, pageSize, offset, search } = {}) {
   const client = await pool.connect();
   try {
-    const orders = await orderModel.listAllOrders(client);
+    const total = await orderModel.countAllOrders(client, search);
+    const orders = await orderModel.listAllOrdersPaged(client, {
+      limit: pageSize,
+      offset,
+      search,
+    });
     const ids = orders.map((o) => o.id);
     const lineMap = await orderModel.mapLineItemsByOrderIds(client, ids);
     let snapMap = new Map();
@@ -221,6 +241,7 @@ export async function listAllOrdersAdmin() {
         line_items: lineMap.get(row.id) || [],
         slip_snapshots: snapMap.get(row.id) || [],
       })),
+      pagination: paginationMeta({ page, pageSize, total }),
     };
   } finally {
     client.release();

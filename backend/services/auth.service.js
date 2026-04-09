@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/index.js';
 import { AppError } from '../utils/AppError.js';
+import { paginationMeta, parsePaginationQuery, parseSearchQuery } from '../utils/pagination.js';
 import * as userModel from '../models/user.model.js';
 import { pool } from '../models/db.js';
 
@@ -141,11 +142,21 @@ export async function checkEmail(email) {
   }
 }
 
-export async function listUsersForAdmin({ limit, offset } = {}) {
+export async function listUsersForAdmin(query = {}) {
+  const { page, pageSize, offset } = parsePaginationQuery(query, {
+    defaultPageSize: 25,
+    maxPageSize: 100,
+  });
+  const search = parseSearchQuery(query);
   const client = await pool.connect();
   try {
-    const users = await userModel.listUsers(client, { limit, offset });
-    return { users };
+    const total = await userModel.countUsers(client, { search });
+    const users = await userModel.listUsers(client, {
+      limit: pageSize,
+      offset,
+      search,
+    });
+    return { users, pagination: paginationMeta({ page, pageSize, total }) };
   } finally {
     client.release();
   }
