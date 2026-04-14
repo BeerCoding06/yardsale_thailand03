@@ -43,10 +43,11 @@ function parseModerationFeedback(raw: unknown) {
     : [];
   const message = typeof o.message === "string" ? o.message.trim() : "";
   if (!issues.length && !message) return null;
+  const at = typeof o.at === "string" ? o.at : null;
   return {
     issues,
     message,
-    at: o.at,
+    at,
   };
 }
 
@@ -85,6 +86,8 @@ const productToRestore = ref<string | number | null>(null);
 const isCancelling = ref(false);
 const isRestoring = ref(false);
 
+const MODERATION_TOAST_SIG_KEY = "yardsale_my_products_moderation_sig";
+
 const PRODUCT_PAGE_SIZE = 20;
 const listPage = ref(1);
 const listSearch = ref("");
@@ -109,12 +112,49 @@ function onProductPage(p: number) {
   fetchProducts();
 }
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 function moderationIssueLabel(key: string) {
   const path = `my_products.moderation_issue_${key}`;
   const translated = t(path);
   return translated === path ? key : translated;
+}
+
+const moderationProductCount = computed(
+  () => products.value.filter((p: any) => p?.moderation).length
+);
+
+function moderationFeedbackSignature(list: any[]) {
+  const ids = list
+    .filter((p) => p?.moderation)
+    .map((p) => String(p.id))
+    .sort();
+  return ids.join(",");
+}
+
+function maybePushModerationToast() {
+  if (!import.meta.client) return;
+  const moderated = products.value.filter((p: any) => p?.moderation);
+  if (moderated.length === 0) return;
+  const sig = moderationFeedbackSignature(products.value);
+  try {
+    const prev = sessionStorage.getItem(MODERATION_TOAST_SIG_KEY);
+    if (prev === sig) return;
+    sessionStorage.setItem(MODERATION_TOAST_SIG_KEY, sig);
+  } catch {
+    /* private mode */
+  }
+  push.warning(t("my_products.moderation_toast", { n: moderated.length }));
+}
+
+function formatModerationAt(iso: unknown) {
+  if (iso == null || typeof iso !== "string") return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(String(locale.value || "th").startsWith("th") ? "th-TH" : "en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 // Get product image URL from WooCommerce data
@@ -256,6 +296,9 @@ const fetchProducts = async () => {
       t('my_products.load_error');
   } finally {
     isLoading.value = false;
+    if (!error.value && products.value.length) {
+      nextTick(() => maybePushModerationToast());
+    }
   }
 };
 
@@ -440,6 +483,28 @@ watch(isAuthenticated, (newVal: boolean) => {
           </NuxtLink>
         </div>
 
+        <div
+          v-if="!isLoading && !error && moderationProductCount > 0"
+          class="mb-6 flex gap-3 rounded-2xl border-2 border-alizarin-crimson-300 bg-alizarin-crimson-50 p-4 shadow-md dark:border-alizarin-crimson-800 dark:bg-alizarin-crimson-950/40"
+          role="status"
+        >
+          <UIcon
+            name="i-heroicons-shield-exclamation"
+            class="mt-0.5 h-8 w-8 shrink-0 text-alizarin-crimson-600 dark:text-alizarin-crimson-400"
+          />
+          <div class="min-w-0">
+            <p class="font-bold text-alizarin-crimson-900 dark:text-alizarin-crimson-100">
+              {{ $t("my_products.moderation_banner_title") }}
+            </p>
+            <p class="mt-1 text-sm text-alizarin-crimson-800 dark:text-alizarin-crimson-200">
+              {{ $t("my_products.moderation_banner_body", { n: moderationProductCount }) }}
+            </p>
+            <p class="mt-2 text-xs text-alizarin-crimson-700/90 dark:text-alizarin-crimson-300/90">
+              {{ $t("my_products.moderation_banner_hint") }}
+            </p>
+          </div>
+        </div>
+
         <ListPaginationBar
           v-if="!isLoading && !error"
           :page="productPagination.page"
@@ -532,6 +597,12 @@ watch(isAuthenticated, (newVal: boolean) => {
                 </div>
                 <!-- Status Badge -->
                 <div
+                  v-if="product.moderation"
+                  class="absolute top-2 left-2 max-w-[calc(100%-5rem)] px-2.5 py-1 rounded-full text-xs font-bold bg-alizarin-crimson-600 text-white shadow-md dark:bg-alizarin-crimson-500"
+                >
+                  {{ $t("my_products.moderation_badge") }}
+                </div>
+                <div
                   class="absolute top-2 right-2 px-3 py-1 rounded-full text-xs font-semibold"
                   :class="{
                     'bg-yellow-500 text-white': product.status === 'pending',
@@ -562,28 +633,46 @@ watch(isAuthenticated, (newVal: boolean) => {
 
                 <div
                   v-if="product.moderation"
-                  class="mb-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-800 p-3 text-sm text-amber-950 dark:text-amber-100"
+                  class="mb-3 rounded-xl border-2 border-alizarin-crimson-200 bg-white/90 p-3 text-sm shadow-sm dark:border-alizarin-crimson-900 dark:bg-alizarin-crimson-950/30 dark:text-alizarin-crimson-50"
                 >
-                  <p class="font-semibold mb-2">
-                    {{ $t("my_products.moderation_notice_title") }}
-                  </p>
-                  <ul
-                    v-if="product.moderation.issues.length"
-                    class="list-disc ps-4 space-y-0.5"
-                  >
-                    <li
-                      v-for="issue in product.moderation.issues"
-                      :key="issue"
-                    >
-                      {{ moderationIssueLabel(issue) }}
-                    </li>
-                  </ul>
-                  <p
-                    v-if="product.moderation.message"
-                    class="mt-2 whitespace-pre-wrap"
-                  >
-                    {{ product.moderation.message }}
-                  </p>
+                  <div class="flex items-start gap-2 border-l-4 border-alizarin-crimson-600 pl-3 dark:border-alizarin-crimson-400">
+                    <UIcon
+                      name="i-heroicons-chat-bubble-left-ellipsis"
+                      class="mt-0.5 h-5 w-5 shrink-0 text-alizarin-crimson-600 dark:text-alizarin-crimson-400"
+                    />
+                    <div class="min-w-0 flex-1">
+                      <p class="font-bold text-alizarin-crimson-900 dark:text-alizarin-crimson-100">
+                        {{ $t("my_products.moderation_notice_title") }}
+                      </p>
+                      <p
+                        v-if="product.moderation.at && formatModerationAt(product.moderation.at)"
+                        class="mt-0.5 text-xs text-neutral-600 dark:text-neutral-400"
+                      >
+                        {{ $t("my_products.moderation_reviewed_at") }}:
+                        {{ formatModerationAt(product.moderation.at) }}
+                      </p>
+                      <p class="mt-2 text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                        {{ $t("my_products.moderation_action_hint") }}
+                      </p>
+                      <ul
+                        v-if="product.moderation.issues.length"
+                        class="mt-2 list-disc space-y-0.5 ps-4 text-neutral-900 dark:text-neutral-100"
+                      >
+                        <li
+                          v-for="issue in product.moderation.issues"
+                          :key="issue"
+                        >
+                          {{ moderationIssueLabel(issue) }}
+                        </li>
+                      </ul>
+                      <p
+                        v-if="product.moderation.message"
+                        class="mt-2 whitespace-pre-wrap text-neutral-800 dark:text-neutral-200"
+                      >
+                        {{ product.moderation.message }}
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="flex items-center gap-2 mb-3">
