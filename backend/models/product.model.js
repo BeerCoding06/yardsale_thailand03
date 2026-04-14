@@ -655,7 +655,11 @@ export async function updateProduct(client, productId, body, sellerId, isAdmin) 
   const modMsgExplicit = Object.prototype.hasOwnProperty.call(body, 'moderation_message');
   const modKeysRaw = body.moderation_issue_keys;
   const modMsgRaw = body.moderation_message;
-  if (!hasMod && isAdmin && (modKeysExplicit || modMsgExplicit)) {
+  /** คีย์มีใน JSON แต่เป็นค่าว่าง (เช่น [] / "") ไม่ถือว่าต้องเขียน moderation — หลีกเลี่ยง 400 เมื่อ DB ยังไม่มีคอลัมน์ */
+  const wantsModerationPersist =
+    (modKeysExplicit && Array.isArray(modKeysRaw) && modKeysRaw.length > 0) ||
+    (modMsgExplicit && String(modMsgRaw ?? '').trim().length > 0);
+  if (!hasMod && isAdmin && wantsModerationPersist) {
     throw new AppError(
       'Cannot set moderation feedback: database has no products.moderation_feedback column. Run backend/db/schema.sql or migration 20260409_product_moderation_feedback.sql.',
       400,
