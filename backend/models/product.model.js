@@ -655,16 +655,16 @@ export async function updateProduct(client, productId, body, sellerId, isAdmin) 
   const modMsgExplicit = Object.prototype.hasOwnProperty.call(body, 'moderation_message');
   const modKeysRaw = body.moderation_issue_keys;
   const modMsgRaw = body.moderation_message;
-  /** คีย์มีใน JSON แต่เป็นค่าว่าง (เช่น [] / "") ไม่ถือว่าต้องเขียน moderation — หลีกเลี่ยง 400 เมื่อ DB ยังไม่มีคอลัมน์ */
-  const wantsModerationPersist =
-    (modKeysExplicit && Array.isArray(modKeysRaw) && modKeysRaw.length > 0) ||
-    (modMsgExplicit && String(modMsgRaw ?? '').trim().length > 0);
-  if (!hasMod && isAdmin && wantsModerationPersist) {
-    throw new AppError(
-      'Cannot set moderation feedback: database has no products.moderation_feedback column. Run backend/db/schema.sql or migration 20260409_product_moderation_feedback.sql.',
-      400,
-      'MODERATION_FEEDBACK_UNAVAILABLE'
-    );
+  /** ไม่มีคอลัมน์ moderation_feedback → ข้ามการบันทึก feedback (ไม่ throw) จนกว่าจะรัน migration */
+  if (!hasMod && isAdmin && process.env.NODE_ENV !== 'test') {
+    const sentModerationPayload =
+      (modKeysExplicit && Array.isArray(modKeysRaw) && modKeysRaw.length > 0) ||
+      (modMsgExplicit && String(modMsgRaw ?? '').trim().length > 0);
+    if (sentModerationPayload) {
+      console.warn(
+        '[products] moderation_feedback column missing — feedback not saved. Run: backend/db/migrations/20260409_product_moderation_feedback.sql'
+      );
+    }
   }
 
   const sqlBody = { ...body };
