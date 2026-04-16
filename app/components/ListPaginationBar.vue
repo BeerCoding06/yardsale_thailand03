@@ -61,9 +61,9 @@ const navDisabled = computed(
     :aria-label="t('pagination.nav_aria')"
   >
     <div
-      class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-stretch sm:justify-between"
+      class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-stretch sm:justify-between mb-[20px]"
     >
-      <div v-if="showSearch" class="min-w-0 w-[50%] md:w-[150px] sm:max-w-md">
+      <div v-if="showSearch" class="min-w-0 w-[50%] md:w-[250px] sm:max-w-md">
         <label
           class="mb-1.5 block text-sm font-semibold text-black dark:text-white"
         >
