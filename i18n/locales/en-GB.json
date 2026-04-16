@@ -503,7 +503,7 @@
     "notification_shipped": "Your order has been shipped 🚚",
     "shipment_timeline": {
       "placed": "Order Placed",
-      "packed": "Packed",
+      "packed": "Waiting for seller to ship",
       "shipped": "Shipped",
       "out_for_delivery": "Out for Delivery",
       "delivered": "Delivered"

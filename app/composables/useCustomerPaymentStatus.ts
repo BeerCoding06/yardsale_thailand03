@@ -17,12 +17,26 @@ function normalizeStatus(raw: string | undefined | null): string {
 
 export function customerPaymentUiKey(order: {
   status?: string | null;
+  /** Woo / บาง API */
+  set_paid?: boolean | null;
+  is_paid?: boolean | null;
+  financial_status?: string | null;
 }): CustomerPaymentUiKey {
+  if (order?.set_paid === true || order?.is_paid === true) return "paid";
+  const fin = normalizeStatus(order?.financial_status);
+  if (fin === "paid") return "paid";
+
   const s = normalizeStatus(order?.status);
   if (!s) return "unknown";
   if (s === "canceled" || s === "cancelled") return "cancelled";
   if (s === "payment_failed" || s === "failed") return "payment_failed";
   if (s === "paid" || s === "processing" || s === "completed") return "paid";
+  if (s.startsWith("wc_")) {
+    if (s.includes("cancel")) return "cancelled";
+    if (s.includes("failed") || s.includes("refund")) return "payment_failed";
+    if (s.includes("completed") || s.includes("processing")) return "paid";
+    if (s.includes("pending") || s.includes("on_hold")) return "awaiting_payment";
+  }
   if (s === "pending" || s === "on_hold" || s === "onhold") return "awaiting_payment";
   return "unknown";
 }

@@ -507,7 +507,7 @@
     "notification_shipped": "คำสั่งซื้อของคุณถูกจัดส่งแล้ว 🚚",
     "shipment_timeline": {
       "placed": "สั่งซื้อแล้ว",
-      "packed": "แพ็คสินค้าแล้ว",
+      "packed": "รอผู้ขายเตรียมจัดส่ง",
       "shipped": "ส่งออกจากคลัง",
       "out_for_delivery": "กำลังนำส่ง",
       "delivered": "จัดส่งสำเร็จ"

@@ -12,9 +12,21 @@ const { order } = useCheckout();
 const router = useRouter();
 const { t, locale } = useI18n();
 const loadingOrder = ref(false);
-const { hasRemoteApi, endpoint } = useStorefrontCatalog();
+const { hasRemoteApi, endpoint, resolveMediaUrl } = useStorefrontCatalog();
 const { user } = useAuth();
 const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
+
+function lineItemImageSrc(item) {
+  if (!item) return "";
+  let u = "";
+  if (item.image_url != null) u = String(item.image_url).trim();
+  if (!u && item.image && typeof item.image === "object") {
+    u = String(item.image.src || item.image.sourceUrl || "").trim();
+  }
+  if (!u && typeof item.image === "string") u = String(item.image).trim();
+  if (!u) return "";
+  return resolveMediaUrl(u) || u;
+}
 
 // เมื่อเข้ามาจากหน้าชำระ จะมี order_id ใน query แต่ไม่มี order ใน state – ให้โหลดออเดอร์
 onMounted(async () => {
@@ -262,13 +274,14 @@ const formattedTotal = computed(() => {
               class="flex gap-4 pb-4 border-b border-neutral-200 dark:border-neutral-800 last:border-0"
             >
               <div
-                v-if="item.image"
+                v-if="lineItemImageSrc(item)"
                 class="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0"
               >
-                <img
-                  :src="item.image.src || item.image"
-                  :alt="item.name"
+                <StorefrontImg
+                  :src="lineItemImageSrc(item)"
+                  :alt="item.name || $t('common.product')"
                   class="w-full h-full object-cover"
+                  loading="lazy"
                 />
               </div>
               <div class="flex-1">

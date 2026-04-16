@@ -65,9 +65,12 @@ export function useStorefrontCatalog() {
 
   function resolveMediaUrl(url: string | null | undefined): string | undefined {
     if (!url) return undefined;
-    if (/^https?:\/\//i.test(url)) return url;
-    if (url.startsWith("/")) return `${backendOrigin()}${url}`;
-    return url;
+    const u = String(url).trim();
+    if (!u) return undefined;
+    if (u.startsWith("//")) return `https:${u}`;
+    if (/^https?:\/\//i.test(u)) return u;
+    if (u.startsWith("/")) return `${backendOrigin()}${u}`;
+    return u;
   }
 
   function slugifyName(name: string): string {

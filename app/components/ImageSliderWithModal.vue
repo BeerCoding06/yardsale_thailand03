@@ -1,14 +1,19 @@
 <!--app/components/ImageSliderWithModal.vue-->
 <script setup lang="ts">
 const { isOpenImageSliderModal } = useComponents();
+const { resolveMediaUrl } = useStorefrontCatalog();
 const props = defineProps({
   product: Object,
 });
 
 const images = computed(() => {
   const mainImage = props.product?.image?.sourceUrl ? [props.product.image.sourceUrl] : [];
-  const additionalImages = props.product?.galleryImages?.nodes.map((image: any) => image.sourceUrl) || [];
-  return mainImage.concat(additionalImages);
+  const additionalImages =
+    props.product?.galleryImages?.nodes.map((image: any) => image.sourceUrl) || [];
+  const raw = mainImage.concat(additionalImages);
+  return raw
+    .map((u: string) => (u ? resolveMediaUrl(String(u).trim()) || String(u).trim() : ""))
+    .filter(Boolean);
 });
 </script>
 
