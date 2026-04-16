@@ -23,6 +23,16 @@ function orderLooksPaidInPayload(order) {
   );
 }
 
+/** มีผลตรวจ SlipOK ใน response — กันหน้า success ทั้งที่ API ไม่ยืนยันสลิป */
+function slipOkResponsePresent(payload) {
+  if (!payload || typeof payload !== 'object') return false;
+  if (payload.already_paid === true) return true;
+  if (payload.slip_verification?.verified === true) return true;
+  const s = payload.slip;
+  if (s && typeof s === 'object' && !Array.isArray(s) && Object.keys(s).length > 0) return true;
+  return false;
+}
+
 function normalizeSlipPaymentPayload(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload;
   const p = payload.paid;
@@ -30,8 +40,18 @@ function normalizeSlipPaymentPayload(payload) {
     p === true ||
     p === 1 ||
     (typeof p === 'string' && ['true', '1', 'yes'].includes(p.trim().toLowerCase()));
-  if (!paid && orderLooksPaidInPayload(payload.order)) paid = true;
-  return { ...payload, paid };
+  const hasProof = slipOkResponsePresent(payload);
+  if (!paid && orderLooksPaidInPayload(payload.order) && hasProof) {
+    paid = true;
+  }
+  let slipVerificationIncomplete = false;
+  if (paid && !hasProof) {
+    slipVerificationIncomplete = true;
+    paid = false;
+  }
+  const out = { ...payload, paid };
+  if (slipVerificationIncomplete) out.slip_verification_incomplete = true;
+  return out;
 }
 
 export const useCheckout = () => {

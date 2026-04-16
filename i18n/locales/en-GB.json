@@ -252,6 +252,7 @@
         "SLIP_INVALID": "This slip could not be verified. Check the amount and image.",
         "SLIP_BANK_DELAY": "Bangkok Bank slips need time to become verifiable — wait about 7 minutes, then submit your slip for payment verification.",
         "SLIPOK_NOT_CONFIGURED": "Slip verification is not configured on the server.",
+        "VERIFY_RESPONSE_MISSING": "The server said paid but the response did not include SlipOK verification — do not treat as success; update the backend or try again.",
         "FORBIDDEN": "You cannot pay for this order.",
         "NOT_FOUND": "Order not found.",
         "UPLOAD_ERROR": "File upload failed. Try a smaller image or another format.",

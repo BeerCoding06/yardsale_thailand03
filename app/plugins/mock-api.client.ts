@@ -581,7 +581,7 @@ export default defineNuxtPlugin(() => {
         };
       }
       if (orderId) mockPaidOrderIds.add(orderId);
-      /** รูปแบบเดียวกับ Express sendSuccess — ไม่ห่อ success ซ้อนใน data */
+      /** รูปแบบเดียวกับ Express sendSuccess — ไม่ห่อ success ซ้อนใน data; สอดคล้อง slip_verification จาก SlipOK */
       return {
         success: true,
         data: {
@@ -591,6 +591,8 @@ export default defineNuxtPlugin(() => {
             total_price: 0,
           },
           paid: true,
+          slip: { mock: true },
+          slip_verification: { verified: true, mock: true },
         },
       };
     }

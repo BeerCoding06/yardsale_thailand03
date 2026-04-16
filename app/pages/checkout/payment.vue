@@ -555,7 +555,9 @@ async function onSubmitResumeOnly() {
       );
       return;
     }
-    error.value = t('checkout.payment_slip.errors.generic');
+    error.value = res?.slip_verification_incomplete
+      ? t('checkout.payment_slip.errors.VERIFY_RESPONSE_MISSING')
+      : t('checkout.payment_slip.errors.generic');
   } catch (err) {
     error.value = slipErrorMessage(err);
     if (slipErrorCode(err) === 'SLIP_BANK_DELAY' && orderId.value) {
@@ -623,7 +625,9 @@ async function onSubmitNew() {
       );
       return;
     }
-    error.value = t('checkout.payment_slip.errors.generic');
+    error.value = res?.slip_verification_incomplete
+      ? t('checkout.payment_slip.errors.VERIFY_RESPONSE_MISSING')
+      : t('checkout.payment_slip.errors.generic');
   } catch (err) {
     error.value = slipErrorMessage(err);
     if (slipErrorCode(err) === 'SLIP_BANK_DELAY' && createdOrderId) {

@@ -90,6 +90,32 @@ function slipokErrorMessage(data) {
   );
 }
 
+function pickSlipokField(obj, keys) {
+  if (!obj || typeof obj !== 'object') return null;
+  for (const k of keys) {
+    const v = obj[k];
+    if (v != null && String(v).trim() !== '') return v;
+  }
+  return null;
+}
+
+/** สรุปผล SlipOK ส่งให้ client — ไม่ส่ง payload ดิบทั้งก้อน */
+function summarizeSlipokResult(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { verified: false };
+  }
+  return {
+    verified: true,
+    amount: pickSlipokField(raw, ['amount', 'Amount', 'transAmount', 'value']),
+    date: pickSlipokField(raw, ['date', 'Date', 'transDate', 'trans_date']),
+    time: pickSlipokField(raw, ['time', 'Time', 'transTime', 'trans_time']),
+    sender: pickSlipokField(raw, ['sender', 'Sender', 'senderName', 'customerName', 'name']),
+    receiver: pickSlipokField(raw, ['receiver', 'Receiver', 'receiveAccount', 'receiverName']),
+    bank: pickSlipokField(raw, ['bank', 'Bank', 'senderBank', 'sendingBank', 'bankName']),
+    trans_ref: pickSlipokField(raw, ['transRef', 'trans_ref', 'ref', 'reference']),
+  };
+}
+
 async function checkSlipWithSlipok(body, file) {
   if (!hasSlipokConfig()) {
     throw new AppError('SlipOK is not configured', 500, 'SLIPOK_NOT_CONFIGURED');
@@ -245,7 +271,12 @@ export async function mockPayment(userId, body, file) {
       /* ตาราง order_slip_snapshots ยังไม่ migrate — ไม่บล็อกการชำระ */
     }
 
-    return { order: orderService.formatOrderForApi(updated), paid: true, slip: slipChecked };
+    return {
+      order: orderService.formatOrderForApi(updated),
+      paid: true,
+      slip: slipChecked,
+      slip_verification: summarizeSlipokResult(slipChecked),
+    };
   });
 
   if (result?.paid === true && result?.order?.id) {
