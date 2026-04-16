@@ -4,8 +4,8 @@ RUN apk add --no-cache dumb-init
 
 WORKDIR /app
 
-# Install deps first for layer caching
-COPY package*.json ./
+# Install deps first for layer caching (ต้องมี package-lock.json ใน repo — รัน npm install ใน backend แล้ว commit)
+COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 # Copy source

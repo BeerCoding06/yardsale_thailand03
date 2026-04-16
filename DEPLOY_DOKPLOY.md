@@ -122,6 +122,22 @@ Then test in browser:
 
 ## 7) Troubleshooting
 
+### Backend build: `npm ci` — package.json and package-lock.json not in sync
+
+ข้อความแบบ `Missing: google-auth-library@... from lock file` แปลว่า **`backend/package-lock.json` ใน branch ที่ Dokploy clone ยังไม่ตรงกับ `backend/package.json`** (มักเกิดหลังเพิ่ม dependency แต่ยังไม่ได้อัปเดต lock แล้ว push)
+
+บนเครื่อง dev (ใช้ Node **18+** หรือ **20 LTS**):
+
+```bash
+cd backend
+npm install
+git add package.json package-lock.json
+git commit -m "chore(backend): sync package-lock with package.json"
+git push
+```
+
+จากนั้นใน Dokploy ให้ **rebuild backend แบบไม่ใช้ cache** (หรือ trigger deploy ใหม่หลัง push) — ถ้ายังชี้ branch/fork เก่า ให้ตรวจว่าแอปชี้ repo + branch เดียวกับที่ push
+
 ### `403` on `/seller-orders`
 - Ensure token is valid and role is one of: `user`, `seller`, `admin`.
 - Re-login to refresh JWT.
