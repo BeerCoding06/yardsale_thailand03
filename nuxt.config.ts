@@ -72,6 +72,17 @@ export default defineNuxtConfig({
         process.env.NUXT_PUBLIC_PROMPTPAY_QR_URL || "/images/promptpay-qr.png",
       /** เลขพร้อมเพย์ / เลขนิติบุคคล (ไม่มีช่องว่าง) — ถ้ามีจะสร้าง QR แบบไดนามิกแทนรูปคงที่ */
       promptpayId: process.env.NUXT_PUBLIC_PROMPTPAY_ID || "",
+      /** Laravel API สำหรับบันทึก FCM token และยิงแจ้งเตือน */
+      laravelApiBase: process.env.NUXT_PUBLIC_LARAVEL_API_BASE || "",
+      /** Firebase Web Config (FCM) */
+      firebaseApiKey: process.env.NUXT_PUBLIC_FIREBASE_API_KEY || "",
+      firebaseAuthDomain: process.env.NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "",
+      firebaseProjectId: process.env.NUXT_PUBLIC_FIREBASE_PROJECT_ID || "",
+      firebaseStorageBucket: process.env.NUXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "",
+      firebaseMessagingSenderId:
+        process.env.NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "",
+      firebaseAppId: process.env.NUXT_PUBLIC_FIREBASE_APP_ID || "",
+      firebaseVapidKey: process.env.NUXT_PUBLIC_FIREBASE_VAPID_KEY || "",
       /**
        * true = ฝังยอดใน QR (โหมด EMV dynamic / POI 12) — แอปธนาคารบางตัวสแกนไม่ได้
        * ถ้าสแกนจ่ายไม่ผ่าน ให้ปิดตัวนี้ (ค่าเริ่มต้น false) แล้วให้ลูกค้าใส่ยอดเองหลังสแกน หรือโอนด้วยเลขพร้อมเพย์
