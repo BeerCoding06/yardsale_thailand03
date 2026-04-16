@@ -58,6 +58,19 @@ useHead({
   link: [
     { rel: "dns-prefetch", href: "//api.yardsaleth.com" },
     { rel: "preconnect", href: "https://api.yardsaleth.com", crossorigin: "" },
+    /** PWA — Safari iOS 16.4+ รับ Web Push ได้ดีขึ้นเมื่อ “เพิ่มไปที่หน้าจอโฮม” แล้วเปิดจากไอคอน */
+    { rel: "manifest", href: "/site.webmanifest" },
+    { rel: "apple-touch-icon", href: "/logo.png", sizes: "180x180" },
+  ],
+  meta: [
+    { name: "mobile-web-app-capable", content: "yes" },
+    { name: "apple-mobile-web-app-capable", content: "yes" },
+    {
+      name: "apple-mobile-web-app-status-bar-style",
+      content: "black-translucent",
+    },
+    { name: "apple-mobile-web-app-title", content: name },
+    { name: "theme-color", content: "#fafafa" },
   ],
 });
 

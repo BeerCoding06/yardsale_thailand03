@@ -34,3 +34,31 @@ export async function notifySellersNewOrder(orderId) {
     client.release();
   }
 }
+
+/**
+ * แจ้งผู้ซื้อเมื่อชำระเงิน / ยืนยันสลิปสำเร็จ (order status = paid)
+ * @param {string} buyerUserId UUID
+ * @param {string} orderId UUID
+ */
+export async function notifyBuyerOrderPaid(buyerUserId, orderId) {
+  if (!firebaseMessaging.isFcmConfigured()) return;
+  if (!buyerUserId || !orderId) return;
+
+  const client = await pool.connect();
+  try {
+    const tokens = await fcmTokenModel.listTokensForUser(client, buyerUserId);
+    if (!tokens.length) return;
+
+    const shortRef = String(orderId).replace(/-/g, '').slice(0, 12);
+    await firebaseMessaging.sendToDevices(
+      tokens,
+      'Payment successful',
+      `Your order is confirmed (#${shortRef}).`,
+      { type: 'payment_paid', order_id: String(orderId) }
+    );
+  } catch (e) {
+    console.warn('[fcm] notifyBuyerOrderPaid:', e?.message || e);
+  } finally {
+    client.release();
+  }
+}

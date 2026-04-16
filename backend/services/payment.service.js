@@ -2,6 +2,7 @@ import { AppError } from '../utils/AppError.js';
 import { withTransaction } from '../models/db.js';
 import * as orderModel from '../models/order.model.js';
 import * as orderService from './order.service.js';
+import { notifyBuyerOrderPaid } from './fcmOrderNotify.service.js';
 import { config } from '../config/index.js';
 import fs from 'fs/promises';
 import fsSync from 'fs';
@@ -167,7 +168,7 @@ export async function mockPayment(userId, body, file) {
   const orderId = body.order_id;
   const simulateFailure = parseBool(body.simulate_failure);
 
-  return withTransaction(async (client) => {
+  const result = await withTransaction(async (client) => {
     const order = await orderModel.getOrderById(client, orderId);
     if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
     if (order.user_id !== userId) {
@@ -202,4 +203,10 @@ export async function mockPayment(userId, body, file) {
 
     return { order: updated, paid: true, slip: slipChecked };
   });
+
+  if (result?.paid === true && result?.order?.id) {
+    notifyBuyerOrderPaid(userId, result.order.id).catch(() => {});
+  }
+
+  return result;
 }

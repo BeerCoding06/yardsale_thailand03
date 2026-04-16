@@ -18,58 +18,62 @@ This guide is specific to this repository and uses:
 3. Set compose path to: `docker-compose.dokploy.yml`
 4. Select branch (for example `main`).
 
-## 3) Required environment variables
+## 3) Environment variables on Dokploy
 
-Set these in Dokploy app environment (do not commit secrets).
+ตั้งใน **Dokploy → แอป Compose นี้ → Environment** (ทั้ง stack ใช้ชุดเดียวก็ได้ เพราะ `docker-compose.dokploy.yml` ส่งต่อให้ `postgres` / `backend` / `frontend`)
 
-### Required secrets
+### บล็อกคัดลอก — แก้ `your-domain` แล้ววางทีเดียว
 
 ```env
+# --- บังคับ (secret) ---
 POSTGRES_PASSWORD=change-this-strong-password
 JWT_SECRET=change-this-long-random-secret-at-least-32-chars
-```
 
-### Recommended app vars
-
-```env
+# --- ฐานข้อมูล / JWT ---
 POSTGRES_DB=yardsale
 POSTGRES_USER=yardsale
 JWT_EXPIRES_IN=7d
 
-# Public web URL
+# --- URL สาธารณะ (ห้ามใช้ http://backend:4000 ใน NUXT_PUBLIC_* ) ---
 BASE_URL=https://www.your-domain.com
-
-# Browser should call public API domain in production
 NUXT_PUBLIC_CMS_API_BASE=https://api.your-domain.com/api
 NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN=https://api.your-domain.com
+NUXT_IMAGE_DOMAINS=api.your-domain.com,www.your-domain.com,your-domain.com
 
-# Add all domains that Nuxt Image is allowed to fetch
-NUXT_IMAGE_DOMAINS=api.your-domain.com,www.your-domain.com
-
-# Optional API CORS allowlist
+# --- CORS (ใส่ origin หน้าเว็บที่ลูกค้าเปิดจริง) ---
 CORS_ORIGINS=https://www.your-domain.com,https://your-domain.com
+
+# --- FCM: บันทึก token + ยิง push (ฝั่งเบราว์เซอร์ → API เดียวกับ Express) ---
+# ค่า Firebase ทั้งหมดมาจาก Firebase Console → Project settings → Your apps → Web
+NUXT_PUBLIC_LARAVEL_API_BASE=https://api.your-domain.com
+NUXT_PUBLIC_FIREBASE_API_KEY=
+NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NUXT_PUBLIC_FIREBASE_PROJECT_ID=
+NUXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NUXT_PUBLIC_FIREBASE_APP_ID=
+NUXT_PUBLIC_FIREBASE_VAPID_KEY=
+
+# --- FCM: ฝั่งเซิร์ฟเวอร์ (ยิง HTTP v1) ใช้อย่างใดอย่างหนึ่ง ---
+FIREBASE_PROJECT_ID=
+# แบบ A: วาง JSON ทั้งก้อนเป็น secret (แนะนำบน Dokploy — minify เป็นบรรทัดเดียว)
+FIREBASE_CREDENTIALS_JSON=
+# แบบ B: path ไฟล์ใน container (ต้อง mount ไฟล์เข้าไปที่ path นั้น)
+# FIREBASE_CREDENTIALS=/run/secrets/firebase.json
 ```
 
-Notes:
-- In production, avoid internal URLs for `NUXT_PUBLIC_*` variables.
-- `DATABASE_URL` is built automatically inside compose from `POSTGRES_*`.
+หมายเหตุ:
 
-### Firebase push (optional)
+- `DATABASE_URL` ไม่ต้องใส่ใน Dokploy สำหรับ compose นี้ — compose สร้างให้ backend จาก `POSTGRES_*` อัตโนมัติ
+- `NUXT_PUBLIC_LARAVEL_API_BASE` ชื่อยังว่า Laravel แต่ **ชี้ไปที่โดเมน Express** (`https://api...`) **ไม่**ต่อ `/api` ท้าย URL
+- หลัง deploy ครั้งแรกที่มีตาราง `fcm_tokens`: รัน `npm run db:schema` ใน **backend** container
 
-ใน Dokploy → Environment ของ stack นี้ (หรือแยก per-service ถ้าคุณแยก):
+รายละเอียดเพิ่ม: `docs/FIREBASE_PUSH_NOTIFICATION_SETUP.md`
 
-**Backend (`backend` service)** — ใช้อย่างใดอย่างหนึ่ง:
+### Safari / iPhone (Web Push)
 
-- `FIREBASE_PROJECT_ID` — โปรเจกต์ GCP/Firebase (ถ้าไม่ใส่ จะอ่านจาก JSON)
-- `FIREBASE_CREDENTIALS` — path ไฟล์ JSON **ใน container** (ต้อง mount volume ใส่ไฟล์นั้น) หรือ
-- `FIREBASE_CREDENTIALS_JSON` — วาง **เนื้อหา service account JSON ทั้งก้อน** เป็น secret ใน Dokploy (ไม่ต้อง mount ไฟล์; แนะนำ minify เป็นบรรทัดเดียว)
-
-**Frontend (`frontend` service)** — ให้เบราว์เซอร์ลงทะเบียน FCM และยิงไป API เดียวกับที่ลูกค้าใช้:
-
-- `NUXT_PUBLIC_LARAVEL_API_BASE` = URL โดเมนสาธารณะของ API เช่น `https://api.your-domain.com` (**ไม่**ใส่ `/api` ต่อท้าย — แอปจะต่อ `/api/save-token` ให้)
-- `NUXT_PUBLIC_FIREBASE_API_KEY`, `NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NUXT_PUBLIC_FIREBASE_PROJECT_ID`, `NUXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NUXT_PUBLIC_FIREBASE_APP_ID`, `NUXT_PUBLIC_FIREBASE_VAPID_KEY` — จาก Firebase Console → Web app
-
-หลัง deploy ครั้งแรกที่เพิ่มตาราง FCM: รัน `npm run db:schema` ใน backend container อีกครั้ง (เหมือนขั้น schema เดิม) — ดู `docs/FIREBASE_PUSH_NOTIFICATION_SETUP.md` หมวด Express / Dokploy
+- โปรเจกต์มี **`/site.webmanifest`** + meta **เพิ่มไปที่หน้าจอโฮม (PWA)** แล้ว — บน **iOS 16.4+** ให้ผู้ใช้: Safari → แชร์ → **Add to Home Screen** → เปิดจากไอคอน แล้วค่อยอนุญาต notification
+- **ไม่มี env พิเศษ** สำหรับ Safari นอกจาก HTTPS + ชุด Firebase ด้านบนให้ครบ
 
 ## 4) Domain routing in Dokploy
 

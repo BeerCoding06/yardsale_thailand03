@@ -139,7 +139,8 @@ cd backend && npm install && npm run db:schema
 
 - `POST /api/save-token` — ต้องมี JWT ของผู้ใช้; body `{ "token": "...", "device": "web" }`
 - `POST /api/send-notification` — เฉพาะ **admin** + JWT; body `{ "title", "body", "data?", "user_ids?", "tokens?" }`
-- หลังสร้างออเดอร์: แจ้งผู้ขายที่มีสินค้าในออเดอร์อัตโนมัติ (ถ้า FCM ตั้งค่าแล้ว) — `backend/services/fcmOrderNotify.service.js`
+- หลังสร้างออเดอร์: แจ้งผู้ขายที่มีสินค้าในออเดอร์อัตโนมัติ — `notifySellersNewOrder`
+- หลังชำระเงินสำเร็จ (`/api/payment/mock` → `paid`): แจ้งผู้ซื้อ — `notifyBuyerOrderPaid` (ต้องมี FCM token ของผู้ซื้อใน `fcm_tokens`)
 
 ### Nuxt ชี้มาที่ Express
 
@@ -189,6 +190,12 @@ curl -X POST http://127.0.0.1:8000/api/send-notification \
     }
   }'
 ```
+
+## 4b) Safari / iPhone
+
+- โปรเจกต์มี `public/site.webmanifest` และ meta ใน `app/app.vue` เพื่อให้เพิ่ม **หน้าจอโฮม (PWA)** ได้
+- **iOS 16.4+**: Web Push ใช้งานได้ดีขึ้นเมื่อผู้ใช้ **Add to Home Screen** แล้วเปิดจากไอคอนแอป — แท็บ Safari ธรรมดามักจำกัดกว่า
+- ไม่มี env เพิ่มเฉพาะ Safari — ใช้ชุด Firebase + HTTPS เหมือนแพลตฟอร์มอื่น
 
 ## 5) Firebase Console Checklist
 

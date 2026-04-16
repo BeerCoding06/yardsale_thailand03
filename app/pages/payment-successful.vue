@@ -1,5 +1,6 @@
 <!--app/pages/payment-successful.vue-->
 <script setup>
+import { push } from "notivue";
 import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
 
 definePageMeta({
@@ -54,6 +55,20 @@ onMounted(async () => {
       loadingOrder.value = false;
     }
   }
+
+  /** มือถือมัก redirect เร็ว — toast จากหน้า checkout อาจไม่ทันเห็น; แสดงซ้ำเมื่อมาจากสลิปสำเร็จ */
+  if (import.meta.client && route.query.slip_verified === "1" && orderId) {
+    const key = `yardsale_pay_ok_toast_${String(orderId)}`;
+    try {
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, "1");
+        push.success(t("checkout.payment_slip.verify_success_toast"));
+      }
+    } catch {
+      push.success(t("checkout.payment_slip.verify_success_toast"));
+    }
+  }
+
   if (!order.value?.id && !orderId) {
     console.warn('[payment-successful] No order data, redirecting to home');
     router.push('/');
