@@ -1,4 +1,5 @@
 <script setup>
+import { nextTick } from 'vue';
 import { push } from 'notivue';
 import { buildPromptPayQrDataUrl } from "~/utils/promptpayDynamicQr";
 
@@ -20,7 +21,7 @@ const {
   error,
   paymentMethod,
 } = useCheckout();
-const { isAuthenticated, checkAuth } = useAuth();
+const { isAuthenticated, checkAuth, user } = useAuth();
 const { cart } = useCart();
 const config = useRuntimeConfig();
 
@@ -61,13 +62,60 @@ const slipUrl = ref('');
 const slipData = ref('');
 const submitting = ref(false);
 
-/** Bangkok Bank (BBL) — สลิปต้องรอก่อนตรวจได้: ปิดปุ่มส่ง + ป๊อปอัป นับถอยหลัง 8 นาที */
+/** BBL — รอ 8 นาที; ธนาคารอื่น — รอ 15 วินาที (ตามที่ระบุ "15วิ") */
 const BBL_COOLDOWN_MS = 8 * 60 * 1000;
+const OTHER_BANK_COOLDOWN_MS = 15 * 1000;
+
+/** รหัสธนาคารต้นทางที่โอน (แสดงใน select) */
+const TRANSFER_BANK_CODES = [
+  'BBL',
+  'KBANK',
+  'SCB',
+  'KTB',
+  'BAY',
+  'TTB',
+  'CIMBT',
+  'UOBT',
+  'LHBANK',
+  'ICBCT',
+  'GSB',
+  'BAAC',
+  'GHB',
+  'EXIM',
+  'IBANK',
+  'SME',
+];
+
 const bblModalOpen = ref(false);
 const bblCooldownUntil = ref(null);
 const bblTick = ref(0);
 const bblTickTimerRef = ref(null);
-const transferFromBbl = ref(false);
+const selectedBank = ref('');
+const bankWatchPaused = ref(false);
+
+function transferBankCooldownMs(code) {
+  return code === 'BBL' ? BBL_COOLDOWN_MS : OTHER_BANK_COOLDOWN_MS;
+}
+
+function readTransferBankCode(uid) {
+  if (!import.meta.client || !uid) return '';
+  try {
+    const v = sessionStorage.getItem(`yardsale_bank_code_${uid}`);
+    return v && TRANSFER_BANK_CODES.includes(v) ? v : '';
+  } catch {
+    return '';
+  }
+}
+
+function writeTransferBankCode(uid, code) {
+  if (!import.meta.client || !uid) return;
+  try {
+    if (code) sessionStorage.setItem(`yardsale_bank_code_${uid}`, code);
+    else sessionStorage.removeItem(`yardsale_bank_code_${uid}`);
+  } catch {
+    /* private mode */
+  }
+}
 
 function slipErrorCode(err) {
   return (
@@ -138,7 +186,8 @@ function startBblTick() {
   }, 1000);
 }
 
-function armBblCooldown(suffix) {
+/** จากเซิร์ฟเวอร์ SLIP_BANK_DELAY — ถือว่าเป็นคิว BBL (8 นาที) */
+function armOrderBblCooldown(suffix) {
   const now = Date.now();
   const proposedEnd = now + BBL_COOLDOWN_MS;
   const currentEnd =
@@ -155,21 +204,48 @@ function armBblCooldown(suffix) {
 function restoreBblCooldownFromStorage() {
   if (!import.meta.client) return;
   const now = Date.now();
-  let until = 0;
   const oid = String(orderId.value || '').trim();
+  let until = 0;
   if (oid) until = Math.max(until, readBblStored(`order_${oid}`));
+
   const uid = user.value?.id;
-  if (uid) until = Math.max(until, readBblStored(`prefill_${uid}`));
+  let savedBank = '';
+  if (uid) {
+    let prefillT = readBblStored(`prefill_${uid}`);
+    savedBank = readTransferBankCode(uid);
+    if (prefillT > now && !savedBank) {
+      try {
+        sessionStorage.removeItem(`yardsale_bbl_prefill_${uid}`);
+      } catch {
+        /* ignore */
+      }
+      prefillT = 0;
+    }
+    until = Math.max(until, prefillT);
+  }
+
+  bankWatchPaused.value = true;
+  if (savedBank) selectedBank.value = savedBank;
+
   if (until > now) {
     bblCooldownUntil.value = until;
-    bblModalOpen.value = true;
+    const rem = until - now;
+    const prefillEnd = uid ? readBblStored(`prefill_${uid}`) : 0;
+    const orderEnd = oid ? readBblStored(`order_${oid}`) : 0;
+    const dominatedByOrder = orderEnd > now && orderEnd >= prefillEnd;
+    const bankForModal = selectedBank.value || (dominatedByOrder ? 'BBL' : '');
+    bblModalOpen.value = rem > 60_000 && (bankForModal === 'BBL' || dominatedByOrder);
     startBblTick();
   } else {
     bblCooldownUntil.value = null;
+    bblModalOpen.value = false;
   }
+  nextTick(() => {
+    bankWatchPaused.value = false;
+  });
 }
 
-function recalculateBblCooldownAfterPrefillOff() {
+function recalculateAfterPrefillCleared() {
   if (!import.meta.client) return;
   const uid = user.value?.id;
   if (uid) {
@@ -178,6 +254,7 @@ function recalculateBblCooldownAfterPrefillOff() {
     } catch {
       /* ignore */
     }
+    writeTransferBankCode(uid, '');
   }
   const now = Date.now();
   let until = 0;
@@ -188,6 +265,8 @@ function recalculateBblCooldownAfterPrefillOff() {
   }
   if (until > now) {
     bblCooldownUntil.value = until;
+    const rem = until - now;
+    bblModalOpen.value = rem > 60_000;
     startBblTick();
   } else {
     bblCooldownUntil.value = null;
@@ -196,14 +275,39 @@ function recalculateBblCooldownAfterPrefillOff() {
   }
 }
 
-watch(transferFromBbl, (on) => {
-  if (!import.meta.client) return;
-  if (on) {
-    const uid = user.value?.id;
-    if (uid) armBblCooldown(`prefill_${uid}`);
-  } else {
-    recalculateBblCooldownAfterPrefillOff();
+watch(selectedBank, (code) => {
+  if (!import.meta.client || bankWatchPaused.value) return;
+  const uid = user.value?.id;
+  if (!uid) return;
+
+  try {
+    sessionStorage.removeItem(`yardsale_bbl_prefill_${uid}`);
+  } catch {
+    /* ignore */
   }
+
+  if (!code) {
+    writeTransferBankCode(uid, '');
+    recalculateAfterPrefillCleared();
+    return;
+  }
+
+  writeTransferBankCode(uid, code);
+
+  const ms = transferBankCooldownMs(code);
+  const now = Date.now();
+  const prefillEnd = now + ms;
+  writeBblStored(`prefill_${uid}`, prefillEnd);
+
+  const oid = String(orderId.value || '').trim();
+  const orderEnd = oid ? readBblStored(`order_${oid}`) : 0;
+  const orderActive = orderEnd > now ? orderEnd : 0;
+  const finalUntil = Math.max(prefillEnd, orderActive);
+  const dominatedByOrder = orderActive > 0 && orderActive >= prefillEnd;
+
+  bblCooldownUntil.value = finalUntil;
+  bblModalOpen.value = code === 'BBL' || dominatedByOrder;
+  startBblTick();
 });
 
 function revokeSlipPreview() {
@@ -378,6 +482,10 @@ function validateBuyerForm() {
 /** ส่งสลิปเมื่อมี order อยู่แล้ว  */
 async function onSubmitResumeOnly() {
   error.value = null;
+  if (!String(selectedBank.value || '').trim()) {
+    error.value = t('checkout.payment_slip.bbl_bank_required');
+    return;
+  }
   const hasFile = !!slipFile.value;
   const hasUrl = !!String(slipUrl.value || '').trim();
   const hasData = !!String(slipData.value || '').trim();
@@ -418,7 +526,7 @@ async function onSubmitResumeOnly() {
   } catch (err) {
     error.value = slipErrorMessage(err);
     if (slipErrorCode(err) === 'SLIP_BANK_DELAY' && orderId.value) {
-      armBblCooldown(`order_${orderId.value}`);
+      armOrderBblCooldown(`order_${orderId.value}`);
     }
   } finally {
     submitting.value = false;
@@ -430,6 +538,10 @@ async function onSubmitNew() {
   error.value = null;
   if (!validateBuyerForm()) {
     error.value = t('checkout.error.incomplete_data');
+    return;
+  }
+  if (!String(selectedBank.value || '').trim()) {
+    error.value = t('checkout.payment_slip.bbl_bank_required');
     return;
   }
 
@@ -482,7 +594,7 @@ async function onSubmitNew() {
   } catch (err) {
     error.value = slipErrorMessage(err);
     if (slipErrorCode(err) === 'SLIP_BANK_DELAY' && createdOrderId) {
-      armBblCooldown(`order_${createdOrderId}`);
+      armOrderBblCooldown(`order_${createdOrderId}`);
     }
   } finally {
     submitting.value = false;
@@ -771,18 +883,26 @@ const submitLabel = computed(() =>
             </p>
           </div>
 
-          <label
-            class="flex items-start gap-3 rounded-2xl border-2 border-amber-200/80 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3 cursor-pointer"
-          >
-            <input
-              v-model="transferFromBbl"
-              type="checkbox"
-              class="mt-1 h-4 w-4 rounded border-neutral-300 text-alizarin-crimson-600 focus:ring-alizarin-crimson-500"
-            />
-            <span class="text-sm text-neutral-800 dark:text-neutral-200 leading-snug">
-              {{ $t('checkout.payment_slip.bbl_checkbox') }}
-            </span>
-          </label>
+          <div>
+            <label class="block text-sm font-medium text-black dark:text-white mb-1">
+              {{ $t('checkout.payment_slip.bbl_bank_label') }}
+            </label>
+            <select
+              v-model="selectedBank"
+              required
+              class="block w-full rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-black/30 px-4 py-3 text-black dark:text-white text-sm shadow font-semibold transition hover:border-black/40 dark:hover:border-white/30 focus-visible:outline-none focus-visible:border-black focus-visible:dark:border-white"
+            >
+              <option disabled value="">
+                {{ $t('checkout.payment_slip.bbl_bank_placeholder') }}
+              </option>
+              <option v-for="code in TRANSFER_BANK_CODES" :key="code" :value="code">
+                {{ $t(`checkout.payment_slip.bank_options.${code}`) }}
+              </option>
+            </select>
+            <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              {{ $t('checkout.payment_slip.bbl_bank_hint') }}
+            </p>
+          </div>
 
           <div>
             <label class="block text-sm font-medium text-black dark:text-white mb-1">
