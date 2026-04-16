@@ -196,6 +196,8 @@ curl -X POST http://127.0.0.1:8000/api/send-notification \
 
 - โปรเจกต์มี `public/site.webmanifest` และ meta ใน `app/app.vue` เพื่อให้เพิ่ม **หน้าจอโฮม (PWA)** ได้
 - **iOS 16.4+**: Web Push ใช้งานได้ดีขึ้นเมื่อผู้ใช้ **Add to Home Screen** แล้วเปิดจากไอคอนแอป — แท็บ Safari ธรรมดามักจำกัดกว่า
+- **การขอสิทธิ์แจ้งเตือน (Safari / WebKit):** เบราว์เซอร์มักบังคับให้ `Notification.requestPermission()` เกิดหลัง **การแตะหรือคลิกของผู้ใช้** ไม่ใช่ตอนโหลดหน้าอัตโนมัติ — ใน `useFcmPush` จะรอ **pointerdown / click ครั้งแรก** บนหน้าแล้วค่อยขอสิทธิ์และลงทะเบียน FCM (ดู console `[fcm] Safari: แตะ...` ในโหมด dev)
+- คอมโพเนนต์อื่นสามารถอ่าน `useFcmPush().awaitingSafariGesture` (readonly) เพื่อแสดงข้อความเช่น “แตะที่หน้าจอเพื่อเปิดการแจ้งเตือน” ได้
 - ไม่มี env เพิ่มเฉพาะ Safari — ใช้ชุด Firebase + HTTPS เหมือนแพลตฟอร์มอื่น
 
 ## 5) Firebase Console Checklist

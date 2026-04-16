@@ -3,12 +3,25 @@ import { paginationMeta, parsePaginationQuery } from '../utils/pagination.js';
 import * as productModel from '../models/product.model.js';
 import { pool } from '../models/db.js';
 
+function pickListSort(query) {
+  const order = String(query.orderby || query.order || 'DESC')
+    .toUpperCase()
+    .trim();
+  const field = String(query.fieldby || query.field || 'DATE')
+    .toUpperCase()
+    .trim();
+  const sortOrder = order === 'ASC' ? 'ASC' : 'DESC';
+  const sortField = field === 'PRICE' ? 'PRICE' : 'DATE';
+  return { sortOrder, sortField };
+}
+
 export async function listProducts(query) {
   const client = await pool.connect();
   try {
     const search = query.search || query.q;
     const categoryId = query.category_id;
     const categorySlug = query.category;
+    const { sortOrder, sortField } = pickListSort(query);
     const wantsPaging =
       (query.page != null && String(query.page).trim() !== '') ||
       query.page_size != null ||
@@ -20,6 +33,8 @@ export async function listProducts(query) {
         categoryId,
         categorySlug,
         publicOnly: true,
+        sortOrder,
+        sortField,
       });
       return { products: rows, count: rows.length, pagination: null };
     }
@@ -41,6 +56,8 @@ export async function listProducts(query) {
       publicOnly: true,
       limit: pageSize,
       offset,
+      sortOrder,
+      sortField,
     });
     return {
       products: rows,
@@ -71,12 +88,18 @@ export async function getProduct(id, { includeCancelled, viewerUserId, viewerRol
 export async function searchProducts(q, query = {}) {
   const client = await pool.connect();
   try {
+    const { sortOrder, sortField } = pickListSort(query);
     const wantsPaging =
       (query.page != null && String(query.page).trim() !== '') ||
       query.page_size != null ||
       query.pageSize != null;
     if (!wantsPaging) {
-      const rows = await productModel.listProducts(client, { search: q, publicOnly: true });
+      const rows = await productModel.listProducts(client, {
+        search: q,
+        publicOnly: true,
+        sortOrder,
+        sortField,
+      });
       return { products: rows, count: rows.length, pagination: null };
     }
     const { page, pageSize, offset } = parsePaginationQuery(query, {
@@ -89,6 +112,8 @@ export async function searchProducts(q, query = {}) {
       publicOnly: true,
       limit: pageSize,
       offset,
+      sortOrder,
+      sortField,
     });
     return {
       products: rows,

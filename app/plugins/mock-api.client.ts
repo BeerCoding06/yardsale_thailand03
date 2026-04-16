@@ -89,6 +89,25 @@ function filterProducts(search?: string, category?: string) {
   return out;
 }
 
+function effectiveMockPrice(p: AnyObj): number {
+  const sale = p.salePrice != null && p.salePrice !== "" ? Number(String(p.salePrice).replace(/[^0-9.]/g, "")) : NaN;
+  const reg = Number(String(p.regularPrice || "0").replace(/[^0-9.]/g, ""));
+  if (Number.isFinite(sale) && sale > 0 && Number.isFinite(reg) && sale < reg) return sale;
+  return Number.isFinite(reg) && reg > 0 ? reg : 0;
+}
+
+function sortMockProductList(list: AnyObj[], orderby: string, fieldby: string) {
+  const ord = String(orderby || "DESC").toUpperCase() === "ASC" ? 1 : -1;
+  const fld = String(fieldby || "DATE").toUpperCase();
+  const copy = [...list];
+  if (fld === "PRICE") {
+    copy.sort((a, b) => ord * (effectiveMockPrice(a) - effectiveMockPrice(b)));
+  } else {
+    copy.sort((a, b) => ord * (a.databaseId - b.databaseId));
+  }
+  return copy;
+}
+
 /** ออเดอร์ที่ชำระสลิปแล้ว (mock) — ให้ get-order แสดงสถานะ paid */
 const mockPaidOrderIds = new Set<string>();
 
@@ -252,7 +271,9 @@ export default defineNuxtPlugin(() => {
       const { page, pageSize } = mockParseListPagination(query, 24, 60);
       const searchTerm = String(query.get("search") || query.get("q") || "").trim();
       const category = String(query.get("category") || "").trim();
-      const all = filterProducts(searchTerm, category);
+      const orderby = String(query.get("orderby") || query.get("order") || "DESC").trim();
+      const fieldby = String(query.get("fieldby") || query.get("field") || "DATE").trim();
+      const all = sortMockProductList(filterProducts(searchTerm, category), orderby, fieldby);
       const total = all.length;
       const start = (page - 1) * pageSize;
       const nodes = all.slice(start, start + pageSize);

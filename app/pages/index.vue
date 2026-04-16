@@ -165,10 +165,15 @@ const {
   isStorefrontPublishedProduct,
 } = useStorefrontCatalog();
 
+function queryScalar(v) {
+  const x = Array.isArray(v) ? v[0] : v;
+  return typeof x === "string" ? x : "";
+}
+
 const variables = computed(() => ({
   search: route.query.q,
-  order: route.query.orderby?.toUpperCase() || "DESC",
-  field: route.query.fieldby?.toUpperCase() || "DATE",
+  order: queryScalar(route.query.orderby).toUpperCase() || "DESC",
+  field: queryScalar(route.query.fieldby).toUpperCase() || "DATE",
   category: route.query.category,
 }));
 
@@ -248,6 +253,8 @@ async function loadProducts() {
           q: variables.value.search,
           search: variables.value.search,
           category: variables.value.category,
+          orderby: variables.value.order,
+          fieldby: variables.value.field,
           page,
           page_size: PAGE_SIZE,
         },

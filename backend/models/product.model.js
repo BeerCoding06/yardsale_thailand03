@@ -163,10 +163,20 @@ export function sqlPublicProductWhere() {
 
 export async function listProducts(
   client,
-  { search, categoryId, categorySlug, publicOnly = true, limit, offset } = {}
+  {
+    search,
+    categoryId,
+    categorySlug,
+    publicOnly = true,
+    limit,
+    offset,
+    sortOrder = 'DESC',
+    sortField = 'DATE',
+  } = {}
 ) {
   const hasLs = await hasListingStatusColumn(client);
   const cols = await joinProductSelectColumns(client);
+  const hasPb = await hasProductPriceBreakdown(client);
   let baseWhere;
   if (hasLs) {
     baseWhere = publicOnly ? sqlPublicProductWhere() : ` WHERE p.is_cancelled = false`;
@@ -187,7 +197,16 @@ export async function listProducts(
     params.push(categorySlug);
     sql += ` AND c.slug = $${params.length}`;
   }
-  sql += ' ORDER BY p.created_at DESC';
+  const ord = String(sortOrder || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+  const fld = String(sortField || 'DATE').toUpperCase() === 'PRICE' ? 'PRICE' : 'DATE';
+  if (fld === 'PRICE') {
+    const priceExpr = hasPb
+      ? `(CASE WHEN p.sale_price IS NOT NULL AND p.sale_price > 0 AND COALESCE(p.regular_price, p.price) > p.sale_price THEN p.sale_price ELSE COALESCE(p.regular_price, p.price) END)`
+      : 'p.price';
+    sql += ` ORDER BY ${priceExpr} ${ord} NULLS LAST, p.created_at DESC, p.id DESC`;
+  } else {
+    sql += ` ORDER BY p.created_at ${ord}, p.id DESC`;
+  }
   if (limit != null && limit !== undefined) {
     const lim = Math.min(Math.max(Number(limit), 1), 100);
     const off = Math.max(Number(offset) || 0, 0);

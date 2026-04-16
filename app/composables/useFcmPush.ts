@@ -5,10 +5,37 @@ type FcmUserId = number | string | null | undefined;
 
 type FirebaseMessagingModule = typeof import("firebase/messaging");
 
+/** Safari / WebKit — การขอสิทธิ์แจ้งเตือนต้องมาหลัง user gesture (โดยเฉพาะ iOS) */
+function isSafariFamilyForPush(): boolean {
+  if (!import.meta.client) return false;
+  const ua = navigator.userAgent || "";
+  const isIOS =
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && (navigator.maxTouchPoints ?? 0) > 1);
+  if (isIOS) {
+    return /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+  }
+  return /^((?!chrome|android|chromium|edg).)*safari/i.test(ua);
+}
+
+function pushPermissionShouldWaitForGesture(): boolean {
+  if (!import.meta.client) return false;
+  if (typeof Notification === "undefined") return false;
+  if (Notification.permission !== "default") return false;
+  return isSafariFamilyForPush();
+}
+
 export function useFcmPush() {
   const initialized = useState("fcm:initialized", () => false);
   const foregroundBound = useState("fcm:foreground-bound", () => false);
   const latestToken = useState<string | null>("fcm:latest-token", () => null);
+  /** รอแตะครั้งแรก (Safari) ก่อนขอสิทธิ์ — ให้ UI แสดงคำแนะนำได้ */
+  const awaitingSafariGesture = useState("fcm:awaiting-safari-gesture", () => false);
+  const safariGestureHooked = useState("fcm:safari-gesture-hooked", () => false);
+  const pendingGestureUserId = useState<FcmUserId | undefined>(
+    "fcm:pending-gesture-user-id",
+    () => undefined
+  );
   const { notify } = useNotification();
   const config = useRuntimeConfig();
 
@@ -67,11 +94,7 @@ export function useFcmPush() {
     }
   }
 
-  async function initFcmPush(userId?: FcmUserId) {
-    if (!import.meta.client) return null;
-    if (!("serviceWorker" in navigator)) return null;
-    if (!window.isSecureContext) return null;
-
+  async function registerMessagingAndToken(userId?: FcmUserId) {
     const firebaseConfig = {
       apiKey: String(config.public.firebaseApiKey || ""),
       authDomain: String(config.public.firebaseAuthDomain || ""),
@@ -81,24 +104,9 @@ export function useFcmPush() {
       appId: String(config.public.firebaseAppId || ""),
     };
     const vapidKey = String(config.public.firebaseVapidKey || "");
-    const hasConfig = Object.values(firebaseConfig).every((v) => v.trim()) && !!vapidKey;
-    if (!hasConfig) {
-      if (import.meta.dev) {
-        console.warn(
-          "[fcm] ยังไม่ตั้งค่า Firebase web + VAPID — ตรวจ NUXT_PUBLIC_FIREBASE_* และ NUXT_PUBLIC_FIREBASE_VAPID_KEY"
-        );
-      }
-      return null;
-    }
 
     const permission = await Notification.requestPermission();
     if (permission !== "granted") return null;
-
-    // ลงทะเบียน FCM แล้ว — แค่ sync token กับ backend อีกครั้ง (เช่น หลังล็อกอิน JWT พร้อม)
-    if (initialized.value && latestToken.value) {
-      await saveTokenToBackend(latestToken.value, userId);
-      return latestToken.value;
-    }
 
     const [{ getApps, initializeApp }, messagingModule] = await Promise.all([
       import("firebase/app"),
@@ -106,7 +114,10 @@ export function useFcmPush() {
     ]);
     const messagingApi = messagingModule as FirebaseMessagingModule;
     const supported = await messagingApi.isSupported();
-    if (!supported) return null;
+    if (!supported) {
+      if (import.meta.dev) console.warn("[fcm] Firebase messaging ไม่รองรับในเบราว์เซอร์นี้");
+      return null;
+    }
 
     const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
@@ -114,7 +125,10 @@ export function useFcmPush() {
     Object.entries(firebaseConfig).forEach(([key, value]) => {
       swUrl.searchParams.set(key, value);
     });
-    const registration = await navigator.serviceWorker.register(swUrl.toString());
+    const registration = await navigator.serviceWorker.register(swUrl.toString(), {
+      type: "classic",
+      updateViaCache: "none",
+    });
 
     const messaging = messagingApi.getMessaging(app);
     const token = await messagingApi.getToken(messaging, {
@@ -139,5 +153,84 @@ export function useFcmPush() {
     return token;
   }
 
-  return { initFcmPush, latestToken: readonly(latestToken) };
+  function scheduleSafariGestureInit(userId?: FcmUserId) {
+    pendingGestureUserId.value = userId;
+    if (safariGestureHooked.value) return;
+    safariGestureHooked.value = true;
+    awaitingSafariGesture.value = true;
+
+    if (import.meta.dev) {
+      console.info(
+        "[fcm] Safari: แตะหรือคลิกที่หน้าเว็บครั้งหนึ่งเพื่อขอสิทธิ์แจ้งเตือน (ข้อกำหนดของเบราว์เซอร์)"
+      );
+    }
+
+    let fired = false;
+    const run = () => {
+      if (fired) return;
+      fired = true;
+      window.removeEventListener("pointerdown", run, true);
+      window.removeEventListener("click", run, true);
+      safariGestureHooked.value = false;
+      awaitingSafariGesture.value = false;
+      void (async () => {
+        try {
+          await registerMessagingAndToken(pendingGestureUserId.value);
+        } catch (e) {
+          console.warn("[fcm] register after gesture failed:", e);
+        }
+      })();
+    };
+
+    window.addEventListener("pointerdown", run, { capture: true, passive: true });
+    window.addEventListener("click", run, { capture: true, passive: true });
+  }
+
+  async function initFcmPush(userId?: FcmUserId) {
+    if (!import.meta.client) return null;
+    if (!("serviceWorker" in navigator)) return null;
+    if (!window.isSecureContext) return null;
+
+    const firebaseConfig = {
+      apiKey: String(config.public.firebaseApiKey || ""),
+      authDomain: String(config.public.firebaseAuthDomain || ""),
+      projectId: String(config.public.firebaseProjectId || ""),
+      storageBucket: String(config.public.firebaseStorageBucket || ""),
+      messagingSenderId: String(config.public.firebaseMessagingSenderId || ""),
+      appId: String(config.public.firebaseAppId || ""),
+    };
+    const vapidKey = String(config.public.firebaseVapidKey || "");
+    const hasConfig = Object.values(firebaseConfig).every((v) => v.trim()) && !!vapidKey;
+    if (!hasConfig) {
+      if (import.meta.dev) {
+        console.warn(
+          "[fcm] ยังไม่ตั้งค่า Firebase web + VAPID — ตรวจ NUXT_PUBLIC_FIREBASE_* และ NUXT_PUBLIC_FIREBASE_VAPID_KEY"
+        );
+      }
+      return null;
+    }
+
+    if (initialized.value && latestToken.value) {
+      await saveTokenToBackend(latestToken.value, userId);
+      return latestToken.value;
+    }
+
+    if (pushPermissionShouldWaitForGesture()) {
+      scheduleSafariGestureInit(userId);
+      return null;
+    }
+
+    try {
+      return await registerMessagingAndToken(userId);
+    } catch (e) {
+      console.warn("[fcm] init failed:", e);
+      return null;
+    }
+  }
+
+  return {
+    initFcmPush,
+    latestToken: readonly(latestToken),
+    awaitingSafariGesture: readonly(awaitingSafariGesture),
+  };
 }

@@ -73,6 +73,7 @@ FIREBASE_CREDENTIALS_JSON=
 ### Safari / iPhone (Web Push)
 
 - โปรเจกต์มี **`/site.webmanifest`** + meta **เพิ่มไปที่หน้าจอโฮม (PWA)** แล้ว — บน **iOS 16.4+** ให้ผู้ใช้: Safari → แชร์ → **Add to Home Screen** → เปิดจากไอคอน แล้วค่อยอนุญาต notification
+- **แตะหน้าจอครั้งหนึ่ง:** Safari/WebKit มักไม่ยอมให้ขอสิทธิ์แจ้งเตือนตอนโหลดหน้า — แอปจะรอ **คลิก/แตะครั้งแรก** แล้วค่อยเปิด dialog อนุญาต (ดู `useFcmPush.ts`)
 - **ไม่มี env พิเศษ** สำหรับ Safari นอกจาก HTTPS + ชุด Firebase ด้านบนให้ครบ
 
 ## 4) Domain routing in Dokploy
