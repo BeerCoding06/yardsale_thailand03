@@ -55,9 +55,168 @@ const bankTransferDisplay = computed(() => {
 });
 
 const slipFile = ref(null);
+/** object URL สำหรับแสดงตัวอย่างรูป — revoke เมื่อเปลี่ยน/เลิกใช้ */
+const slipPreviewUrl = ref(null);
 const slipUrl = ref('');
 const slipData = ref('');
 const submitting = ref(false);
+
+/** Bangkok Bank (BBL) — สลิปต้องรอก่อนตรวจได้: ปิดปุ่มส่ง + ป๊อปอัป นับถอยหลัง 8 นาที */
+const BBL_COOLDOWN_MS = 8 * 60 * 1000;
+const bblModalOpen = ref(false);
+const bblCooldownUntil = ref(null);
+const bblTick = ref(0);
+const bblTickTimerRef = ref(null);
+const transferFromBbl = ref(false);
+
+function slipErrorCode(err) {
+  return (
+    err?.data?.error?.code ||
+    err?.data?.code ||
+    err?.response?._data?.error?.code ||
+    null
+  );
+}
+
+function readBblStored(suffix) {
+  if (!import.meta.client) return 0;
+  try {
+    const v = sessionStorage.getItem(`yardsale_bbl_${suffix}`);
+    const n = v ? parseInt(v, 10) : 0;
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeBblStored(suffix, until) {
+  if (!import.meta.client) return;
+  try {
+    sessionStorage.setItem(`yardsale_bbl_${suffix}`, String(until));
+  } catch {
+    /* private mode */
+  }
+}
+
+function stopBblTick() {
+  if (bblTickTimerRef.value != null) {
+    clearInterval(bblTickTimerRef.value);
+    bblTickTimerRef.value = null;
+  }
+}
+
+function bblRemainingSeconds() {
+  const u = bblCooldownUntil.value;
+  if (!u) return 0;
+  return Math.max(0, Math.ceil((u - Date.now()) / 1000));
+}
+
+const bblSubmitBlocked = computed(() => {
+  bblTick.value;
+  return bblRemainingSeconds() > 0;
+});
+
+const bblCountdownFormatted = computed(() => {
+  bblTick.value;
+  const s = bblRemainingSeconds();
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${m}:${String(sec).padStart(2, '0')}`;
+});
+
+function startBblTick() {
+  stopBblTick();
+  bblTick.value = Date.now();
+  bblTickTimerRef.value = setInterval(() => {
+    bblTick.value = Date.now();
+    const u = bblCooldownUntil.value;
+    if (!u || Date.now() >= u) {
+      stopBblTick();
+      bblCooldownUntil.value = null;
+      bblModalOpen.value = false;
+    }
+  }, 1000);
+}
+
+function armBblCooldown(suffix) {
+  const now = Date.now();
+  const proposedEnd = now + BBL_COOLDOWN_MS;
+  const currentEnd =
+    bblCooldownUntil.value && bblCooldownUntil.value > now
+      ? bblCooldownUntil.value
+      : 0;
+  const until = Math.max(proposedEnd, currentEnd);
+  bblCooldownUntil.value = until;
+  writeBblStored(suffix, until);
+  bblModalOpen.value = true;
+  startBblTick();
+}
+
+function restoreBblCooldownFromStorage() {
+  if (!import.meta.client) return;
+  const now = Date.now();
+  let until = 0;
+  const oid = String(orderId.value || '').trim();
+  if (oid) until = Math.max(until, readBblStored(`order_${oid}`));
+  const uid = user.value?.id;
+  if (uid) until = Math.max(until, readBblStored(`prefill_${uid}`));
+  if (until > now) {
+    bblCooldownUntil.value = until;
+    bblModalOpen.value = true;
+    startBblTick();
+  } else {
+    bblCooldownUntil.value = null;
+  }
+}
+
+function recalculateBblCooldownAfterPrefillOff() {
+  if (!import.meta.client) return;
+  const uid = user.value?.id;
+  if (uid) {
+    try {
+      sessionStorage.removeItem(`yardsale_bbl_prefill_${uid}`);
+    } catch {
+      /* ignore */
+    }
+  }
+  const now = Date.now();
+  let until = 0;
+  const oid = String(orderId.value || '').trim();
+  if (oid) {
+    const t = readBblStored(`order_${oid}`);
+    if (t > now) until = t;
+  }
+  if (until > now) {
+    bblCooldownUntil.value = until;
+    startBblTick();
+  } else {
+    bblCooldownUntil.value = null;
+    stopBblTick();
+    bblModalOpen.value = false;
+  }
+}
+
+watch(transferFromBbl, (on) => {
+  if (!import.meta.client) return;
+  if (on) {
+    const uid = user.value?.id;
+    if (uid) armBblCooldown(`prefill_${uid}`);
+  } else {
+    recalculateBblCooldownAfterPrefillOff();
+  }
+});
+
+function revokeSlipPreview() {
+  if (slipPreviewUrl.value) {
+    URL.revokeObjectURL(slipPreviewUrl.value);
+    slipPreviewUrl.value = null;
+  }
+}
+
+onUnmounted(() => {
+  revokeSlipPreview();
+  stopBblTick();
+});
 
 const parsePrice = (priceString) => {
   if (!priceString) return 0;
@@ -132,6 +291,7 @@ onMounted(async () => {
       return;
     }
     await loadCustomerData();
+    restoreBblCooldownFromStorage();
     return;
   }
   if (!cart.value?.length) {
@@ -140,6 +300,7 @@ onMounted(async () => {
   }
   paymentMethod.value = 'bank_transfer';
   await loadCustomerData();
+  restoreBblCooldownFromStorage();
 });
 
 async function copyToClipboard(text) {
@@ -162,10 +323,24 @@ function copyBankDetails() {
 }
 
 function onFileChange(e) {
-  const f = e.target?.files?.[0];
-  slipFile.value = f || null;
+  revokeSlipPreview();
+  const f = e.target?.files?.[0] || null;
+  slipFile.value = f;
   error.value = null;
+  if (f && typeof f.type === 'string' && f.type.startsWith('image/')) {
+    slipPreviewUrl.value = URL.createObjectURL(f);
+  }
 }
+
+const slipIsPdf = computed(
+  () => slipFile.value && String(slipFile.value.type || '').includes('pdf')
+);
+const slipIsImage = computed(
+  () =>
+    slipFile.value &&
+    typeof slipFile.value.type === 'string' &&
+    slipFile.value.type.startsWith('image/')
+);
 
 function slipErrorMessage(err) {
   const code =
@@ -242,6 +417,9 @@ async function onSubmitResumeOnly() {
     error.value = t('checkout.payment_slip.errors.generic');
   } catch (err) {
     error.value = slipErrorMessage(err);
+    if (slipErrorCode(err) === 'SLIP_BANK_DELAY' && orderId.value) {
+      armBblCooldown(`order_${orderId.value}`);
+    }
   } finally {
     submitting.value = false;
   }
@@ -264,11 +442,13 @@ async function onSubmitNew() {
   }
 
   submitting.value = true;
+  let createdOrderId = null;
   try {
     const orderData = await createOrderFromCart('bank_transfer');
     if (!orderData?.id) {
       return;
     }
+    createdOrderId = String(orderData.id);
 
     const amt = String(orderData.total_price ?? orderData.total ?? '');
     const res = await submitBankSlip({
@@ -301,12 +481,16 @@ async function onSubmitNew() {
     error.value = t('checkout.payment_slip.errors.generic');
   } catch (err) {
     error.value = slipErrorMessage(err);
+    if (slipErrorCode(err) === 'SLIP_BANK_DELAY' && createdOrderId) {
+      armBblCooldown(`order_${createdOrderId}`);
+    }
   } finally {
     submitting.value = false;
   }
 }
 
 async function onSubmit() {
+  if (bblSubmitBlocked.value) return;
   if (isResumePay.value) {
     await onSubmitResumeOnly();
   } else {
@@ -587,20 +771,18 @@ const submitLabel = computed(() =>
             </p>
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-black dark:text-white mb-1">
-              {{ $t('checkout.payment_slip.slip_data_label') }}
-            </label>
-            <textarea
-              v-model="slipData"
-              rows="4"
-              class="w-full rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-black/30 px-4 py-3 text-black dark:text-white text-sm font-mono leading-relaxed"
-              :placeholder="$t('checkout.payment_slip.slip_data_placeholder')"
+          <label
+            class="flex items-start gap-3 rounded-2xl border-2 border-amber-200/80 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3 cursor-pointer"
+          >
+            <input
+              v-model="transferFromBbl"
+              type="checkbox"
+              class="mt-1 h-4 w-4 rounded border-neutral-300 text-alizarin-crimson-600 focus:ring-alizarin-crimson-500"
             />
-            <p class="mt-1 text-xs text-neutral-500">
-              {{ $t('checkout.payment_slip.slip_data_hint') }}
-            </p>
-          </div>
+            <span class="text-sm text-neutral-800 dark:text-neutral-200 leading-snug">
+              {{ $t('checkout.payment_slip.bbl_checkbox') }}
+            </span>
+          </label>
 
           <div>
             <label class="block text-sm font-medium text-black dark:text-white mb-1">
@@ -615,6 +797,36 @@ const submitLabel = computed(() =>
             <p class="mt-1 text-xs text-neutral-500">
               {{ $t('checkout.payment_slip.file_hint') }}
             </p>
+            <div
+              v-if="slipPreviewUrl && slipIsImage"
+              class="mt-3 rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-black/30 p-3 overflow-hidden"
+            >
+              <p class="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">
+                {{ $t('checkout.payment_slip.file_preview_label') }}
+              </p>
+              <img
+                :src="slipPreviewUrl"
+                :alt="$t('checkout.payment_slip.file_preview_alt')"
+                class="max-h-72 w-full object-contain object-top rounded-xl mx-auto"
+              />
+            </div>
+            <div
+              v-else-if="slipFile && slipIsPdf"
+              class="mt-3 flex items-center gap-3 rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-black/30 p-4"
+            >
+              <UIcon
+                name="i-heroicons-document-text"
+                class="w-10 h-10 shrink-0 text-alizarin-crimson-600 dark:text-alizarin-crimson-400"
+              />
+              <div class="min-w-0">
+                <p class="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+                  {{ $t('checkout.payment_slip.file_pdf_selected') }}
+                </p>
+                <p class="text-sm text-black dark:text-white truncate font-medium">
+                  {{ slipFile.name }}
+                </p>
+              </div>
+            </div>
           </div>
 
           <div>
@@ -631,10 +843,24 @@ const submitLabel = computed(() =>
 
           <button
             type="submit"
-            :disabled="submitting || (showBuyerForm && isLoadingCustomerData)"
+            :disabled="
+              submitting ||
+              (showBuyerForm && isLoadingCustomerData) ||
+              bblSubmitBlocked
+            "
             class="w-full py-3 rounded-xl font-semibold text-white bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 hover:bg-alizarin-crimson-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
-            <span v-if="!submitting">{{ submitLabel }}</span>
+            <span v-if="!submitting && !bblSubmitBlocked">{{ submitLabel }}</span>
+            <span
+              v-else-if="!submitting && bblSubmitBlocked"
+              class="block text-center text-sm"
+            >
+              {{
+                $t('checkout.payment_slip.bbl_submit_wait', {
+                  time: bblCountdownFormatted,
+                })
+              }}
+            </span>
             <span v-else class="inline-flex items-center justify-center gap-2">
               <UIcon name="i-svg-spinners-90-ring-with-bg" class="w-5 h-5" />
               {{ $t('checkout.payment_slip.uploading') }}
@@ -650,6 +876,60 @@ const submitLabel = computed(() =>
         </form>
       </template>
     </div>
+
+    <UModal
+      v-model="bblModalOpen"
+      :ui="{
+        overlay: {
+          background: 'bg-black/50 dark:bg-black/70 backdrop-blur-sm',
+        },
+        width: 'w-full sm:max-w-md',
+      }"
+    >
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-xl font-bold text-black dark:text-white pr-2">
+            {{ $t('checkout.payment_slip.bbl_modal_title') }}
+          </h3>
+          <button
+            type="button"
+            class="p-2 shrink-0 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition"
+            @click="bblModalOpen = false"
+          >
+            <UIcon
+              name="i-heroicons-x-mark"
+              class="w-5 h-5 text-neutral-500 dark:text-neutral-400"
+            />
+          </button>
+        </div>
+        <div class="mb-5 text-center">
+          <UIcon
+            name="i-heroicons-clock"
+            class="w-14 h-14 mx-auto text-amber-500 mb-3"
+          />
+          <p
+            class="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed mb-4 text-left"
+          >
+            {{ $t('checkout.payment_slip.bbl_modal_body') }}
+          </p>
+          <p
+            class="text-3xl font-mono font-bold text-alizarin-crimson-600 dark:text-alizarin-crimson-400 tracking-tight"
+          >
+            {{ bblCountdownFormatted }}
+          </p>
+          <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+            {{ $t('checkout.payment_slip.bbl_countdown_label') }}
+          </p>
+        </div>
+        <button
+          type="button"
+          class="w-full py-3 rounded-xl font-semibold text-white bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition"
+          @click="bblModalOpen = false"
+        >
+          {{ $t('checkout.payment_slip.bbl_understood') }}
+        </button>
+      </div>
+    </UModal>
   </div>
 </template>
 
