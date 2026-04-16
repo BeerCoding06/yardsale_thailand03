@@ -1,7 +1,7 @@
 <!--app/pages/payment-successful.vue-->
 <script setup>
 import { push } from "notivue";
-import { yardsaleBodyIsFailure } from "~/utils/cmsApiEndpoint";
+import { unwrapYardsaleResponse, yardsaleBodyIsFailure } from "~/utils/cmsApiEndpoint";
 
 definePageMeta({
   ssr: false, // Disable SSR to prevent hydration mismatches
@@ -56,8 +56,9 @@ onMounted(async () => {
   if (orderId) {
     loadingOrder.value = true;
     const slipOk = route.query.slip_verified === "1";
-    const maxAttempts = slipOk ? 3 : 1;
-    const delayMs = 700;
+    /** หลังชำระเงิน DB/replica อาจตามช้า — โพลนานขึ้นเมื่อมาจากสลิปสำเร็จ */
+    const maxAttempts = slipOk ? 18 : 1;
+    const delayMs = slipOk ? 500 : 0;
     try {
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         if (hasRemoteApi) {
@@ -76,11 +77,13 @@ onMounted(async () => {
             if (customerPaymentUiKey(order.value) === "paid") break;
           }
         } else {
-          const data = await $fetch("/api/get-order", { query: { order_id: orderId } });
-          if (data?.order) {
+          const raw = await $fetch("/api/get-order", { query: { order_id: orderId } });
+          const data = unwrapYardsaleResponse(raw) ?? raw;
+          const ord = data?.order ?? raw?.order;
+          if (ord) {
             const prev =
               order.value && typeof order.value === "object" ? { ...order.value } : {};
-            applyFetchedOrder(data.order, prev);
+            applyFetchedOrder(ord, prev);
             if (customerPaymentUiKey(order.value) === "paid") break;
           }
         }

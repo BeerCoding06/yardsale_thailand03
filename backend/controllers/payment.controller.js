@@ -14,10 +14,11 @@ export const mockPayment = asyncHandler(async (req, res) => {
     throw new AppError(message, 422, 'VALIDATION_ERROR');
   }
   const data = await paymentService.mockPayment(req.user.id, value, req.file);
-  sendSuccess(res, { success: true, ...data });
+  /** sendSuccess ใส่ success ที่ชั้นนอกแล้ว — อย่าใส่ success ซ้ำใน data */
+  sendSuccess(res, data);
 });
 
 export const slipokQuota = asyncHandler(async (_req, res) => {
   const data = await paymentService.getSlipokQuota();
-  sendSuccess(res, { success: true, ...data });
+  sendSuccess(res, data);
 });

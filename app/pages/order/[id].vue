@@ -5,7 +5,11 @@ definePageMeta({
   ssr: false,
 });
 
-import { messageFromYardsaleBody, yardsaleBodyIsFailure } from "~/utils/cmsApiEndpoint";
+import {
+  messageFromYardsaleBody,
+  unwrapYardsaleResponse,
+  yardsaleBodyIsFailure,
+} from "~/utils/cmsApiEndpoint";
 import {
   buildShipmentTimelineSteps,
   getShipmentActiveStepIndex,
@@ -130,10 +134,11 @@ const fetchOrder = async () => {
         ...(customerId ? { customer_id: String(customerId) } : {}),
       });
 
-      const orderData = await $fetch(`/api/get-order?${queryParams.toString()}`);
+      const rawOrder = await $fetch(`/api/get-order?${queryParams.toString()}`);
+      const orderData = unwrapYardsaleResponse(rawOrder) ?? rawOrder;
+      const o = orderData?.order ?? rawOrder?.order;
 
-      if (orderData.success && orderData.order) {
-        const o = orderData.order;
+      if (o) {
         const prev =
           order.value && typeof order.value === "object" ? { ...order.value } : {};
         const merged = { ...prev, ...o };
@@ -157,6 +162,15 @@ const fetchOrder = async () => {
     isLoading.value = false;
   }
 };
+
+useRefetchWhenTabVisible(() => {
+  if (isClient.value && isAuthenticated.value && user.value) fetchOrder();
+});
+
+watch(orderId, (id) => {
+  if (!isClient.value || !isAuthenticated.value || !user.value || !id) return;
+  fetchOrder();
+});
 
 onMounted(async () => {
   isClient.value = true;
@@ -240,7 +254,9 @@ onMounted(async () => {
                 <span class="text-neutral-600 dark:text-neutral-400"
                   >{{ $t('order.order_number') }}:</span
                 >
-                <span class="font-semibold text-lg text-black dark:text-white"
+                <span
+                  class="font-semibold text-lg text-black dark:text-white"
+                  :title="String(order.id || '')"
                   >#{{ order.number || order.id }}</span
                 >
               </div>

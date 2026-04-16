@@ -375,6 +375,10 @@ const fetchOrders = async () => {
   }
 };
 
+useRefetchWhenTabVisible(() => {
+  if (isClient.value && isAuthenticated.value && user.value) fetchOrders();
+});
+
 // Redirect to login if not authenticated (client-side only)
 onMounted(async () => {
   isClient.value = true;

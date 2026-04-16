@@ -80,6 +80,13 @@ export function customerPaymentUiKey(order: {
 }): CustomerPaymentUiKey {
   const s = effectiveOrderStatus(order);
 
+  /** ยกเลิก / ล้มเหลว ก่อน — กัน is_paid ค้างจาก cache */
+  if (s === "canceled" || s === "cancelled") return "cancelled";
+  if (s === "payment_failed" || s === "failed") return "payment_failed";
+
+  /** status หลัก = paid ก่อน flag — DB อัปเดตแล้วแต่ is_paid ใน merged object ยังเก่า */
+  if (primaryStatusLooksPaid(s)) return "paid";
+
   if (
     truthyPaidFlag(order?.set_paid) ||
     truthyPaidFlag(order?.is_paid) ||
@@ -87,10 +94,6 @@ export function customerPaymentUiKey(order: {
   ) {
     return "paid";
   }
-
-  if (s === "canceled" || s === "cancelled") return "cancelled";
-  if (s === "payment_failed" || s === "failed") return "payment_failed";
-  if (primaryStatusLooksPaid(s)) return "paid";
 
   const fin = normalizeStatus(order?.financial_status);
   if (fin === "paid") return "paid";
