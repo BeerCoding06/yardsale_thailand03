@@ -949,18 +949,6 @@ const submitLabel = computed(() =>
             </div>
           </div>
 
-          <div>
-            <label class="block text-sm font-medium text-black dark:text-white mb-1">
-              {{ $t('checkout.payment_slip.optional_url') }}
-            </label>
-            <input
-              v-model="slipUrl"
-              type="url"
-              class="w-full rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-black/30 px-4 py-3 text-black dark:text-white text-sm"
-              :placeholder="$t('checkout.payment_slip.url_placeholder')"
-            />
-          </div>
-
           <button
             type="submit"
             :disabled="
