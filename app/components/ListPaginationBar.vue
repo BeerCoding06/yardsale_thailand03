@@ -63,7 +63,7 @@ const navDisabled = computed(
     <div
       class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-stretch sm:justify-between"
     >
-      <div v-if="showSearch" class="min-w-0 w-[50%] md:w-[30px] sm:max-w-md">
+      <div v-if="showSearch" class="min-w-0 w-[50%] md:w-[150px] sm:max-w-md">
         <label
           class="mb-1.5 block text-sm font-semibold text-black dark:text-white"
         >
