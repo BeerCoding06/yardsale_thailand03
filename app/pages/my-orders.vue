@@ -15,6 +15,7 @@ const localePath = useLocalePath();
 const { paymentLabel, paymentColorClass, canCancelByPaymentRules, canPayOrder } =
   useCustomerPaymentStatus();
 const { endpoint, hasRemoteApi } = useCmsApi();
+const { resolveMediaUrl } = useStorefrontCatalog();
 
 function cmsPath(rel) {
   return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
@@ -185,6 +186,14 @@ const getItemImage = (item) => {
   }
   
   return null;
+};
+
+/** รูปจาก API อาจเป็น `/uploads/...` ต้องแปลงเป็น origin ของ backend */
+const itemImageDisplayUrl = (item) => {
+  const raw = getItemImage(item);
+  if (!raw || typeof raw !== "string") return null;
+  if (hasRemoteApi) return resolveMediaUrl(raw) ?? raw;
+  return raw;
 };
 
 // Computed for cancel button text
@@ -787,8 +796,8 @@ function payOrderLink(order) {
                       class="flex items-center gap-3 text-sm"
                     >
                       <StorefrontImg
-                        v-if="getItemImage(item)"
-                        :src="getItemImage(item)"
+                        v-if="itemImageDisplayUrl(item)"
+                        :src="itemImageDisplayUrl(item)"
                         :alt="item.name || $t('common.product')"
                         class="w-12 h-12 object-cover rounded-lg border-2 border-neutral-200 dark:border-neutral-700"
                         loading="lazy"
