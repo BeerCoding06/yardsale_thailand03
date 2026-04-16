@@ -8,6 +8,7 @@ definePageMeta({
 
 import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
 import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
+import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
 
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
@@ -19,13 +20,6 @@ const { resolveMediaUrl } = useStorefrontCatalog();
 
 function cmsPath(rel) {
   return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
-}
-
-function unwrapApi(res) {
-  if (res?.success === true && res.data != null && typeof res.data === "object") {
-    return res.data;
-  }
-  return res;
 }
 
 // Client-side only state
@@ -285,8 +279,24 @@ const fetchOrders = async () => {
       },
       query: paginationQuery(listPage.value, listSearch.value, ORDER_PAGE_SIZE),
     });
-    const body = unwrapApi(raw);
-    let list = Array.isArray(body?.orders)
+    const body = unwrapYardsaleResponse(raw) ?? raw;
+    if (body && body.success === false) {
+      error.value =
+        (typeof body.error === "object" && body.error?.message) ||
+        body.message ||
+        (typeof body.error === "string" ? body.error : null) ||
+        t("order.error_loading");
+      orders.value = [];
+      orderPagination.value = {
+        page: 1,
+        page_size: ORDER_PAGE_SIZE,
+        total: 0,
+        total_pages: 0,
+      };
+      return;
+    }
+
+    const list = Array.isArray(body?.orders)
       ? body.orders
       : Array.isArray(body?.data?.orders)
         ? body.data.orders
@@ -402,16 +412,15 @@ const cancelOrder = async () => {
     cancellingOrderId.value = orderId;
     cancelMessage.value = null;
 
-    const response = unwrapApi(
-      await $fetch(cmsPath("cancel-order"), {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${user.value?.token || ""}`,
-          "Content-Type": "application/json",
-        },
-        body: { order_id: orderId },
-      })
-    );
+    const rawCancel = await $fetch(cmsPath("cancel-order"), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${user.value?.token || ""}`,
+        "Content-Type": "application/json",
+      },
+      body: { order_id: orderId },
+    });
+    const response = unwrapYardsaleResponse(rawCancel) ?? rawCancel;
 
     if (response?.success !== false && (response?.success === true || response?.order != null)) {
       cancelMessage.value = {

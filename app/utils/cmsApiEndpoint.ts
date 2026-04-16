@@ -10,13 +10,46 @@ export function hasRemoteCmsApi(publicCfg: PublicCmsConfig): boolean {
   return !!(String(publicCfg.cmsApiBase || "").trim());
 }
 
-/** แกะ `{ success, data }` จาก Express sendSuccess */
+/**
+ * แกะ `{ success, data }` จาก Express sendSuccess
+ * รองรับห่อซ้อน (เช่น data ข้างในยังเป็น { success, data }) จำกัดความลึกเพื่อกันวงซ้ำ
+ */
 export function unwrapYardsaleResponse(res: unknown): unknown {
-  const r = res as { success?: boolean; data?: unknown } | null;
-  if (r && typeof r === "object" && r.success === true && r.data != null) {
-    return r.data;
+  let current = res;
+  const maxDepth = 8;
+  for (let i = 0; i < maxDepth; i++) {
+    const r = current as { success?: boolean; data?: unknown } | null;
+    if (!r || typeof r !== "object" || Array.isArray(r)) break;
+    if (r.success !== true) break;
+    if (r.data == null) break;
+    if (typeof r.data !== "object") break;
+    current = r.data;
   }
-  return res;
+  return current;
+}
+
+/** Payload หลัง unwrap ที่ Express ส่ง success: false */
+export function yardsaleBodyIsFailure(body: unknown): boolean {
+  return (
+    !!body &&
+    typeof body === "object" &&
+    !Array.isArray(body) &&
+    (body as { success?: boolean }).success === false
+  );
+}
+
+/** ข้อความจาก body ของ Express sendError หรือ proxy error */
+export function messageFromYardsaleBody(body: unknown, fallback: string): string {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return fallback;
+  const o = body as Record<string, unknown>;
+  const err = o.error;
+  if (typeof err === "string" && err.trim()) return err.trim();
+  if (err && typeof err === "object" && typeof (err as { message?: unknown }).message === "string") {
+    const m = String((err as { message: string }).message).trim();
+    if (m) return m;
+  }
+  if (typeof o.message === "string" && o.message.trim()) return o.message.trim();
+  return fallback;
 }
 
 export function cmsEndpointFromPublic(

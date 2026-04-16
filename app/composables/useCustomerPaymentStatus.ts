@@ -41,11 +41,17 @@ export function customerPaymentUiKey(order: {
   /** Woo / บาง API */
   set_paid?: boolean | null;
   is_paid?: boolean | null;
+  /** บาง response แนบ paid แยกจาก status */
+  paid?: unknown;
   financial_status?: string | null;
   /** Shopify-style / บาง headless */
   payment_status?: string | null;
 }): CustomerPaymentUiKey {
-  if (truthyPaidFlag(order?.set_paid) || truthyPaidFlag(order?.is_paid)) {
+  if (
+    truthyPaidFlag(order?.set_paid) ||
+    truthyPaidFlag(order?.is_paid) ||
+    truthyPaidFlag(order?.paid)
+  ) {
     return "paid";
   }
 

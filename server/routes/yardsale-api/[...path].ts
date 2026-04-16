@@ -3,6 +3,7 @@
  * ใช้ proxyRequest เพื่อส่ง multipart (อัปโหลดสลิป) — ห้าม readBody + $fetch
  */
 import {
+  createError,
   defineEventHandler,
   getRequestURL,
   getRouterParam,
@@ -25,14 +26,20 @@ export default defineEventHandler(async (event) => {
   try {
     return await proxyRequest(event, url);
   } catch (err: any) {
-    const status =
-      Number(err?.statusCode || err?.status || err?.response?.status) || 502;
-    return {
-      success: false,
-      error: {
-        message: err?.message || "Proxy error",
-        code: status === 502 ? "UPSTREAM_UNAVAILABLE" : "PROXY_ERROR",
+    const upstream =
+      Number(err?.statusCode || err?.status || err?.response?.status) || 0;
+    const statusCode =
+      upstream >= 400 && upstream < 600 ? upstream : 502;
+    const code =
+      statusCode === 502 ? "UPSTREAM_UNAVAILABLE" : "PROXY_ERROR";
+    const message = String(err?.message || "Proxy error");
+    throw createError({
+      statusCode,
+      statusMessage: message,
+      data: {
+        success: false,
+        error: { message, code },
       },
-    };
+    });
   }
 });

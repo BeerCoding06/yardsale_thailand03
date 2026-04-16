@@ -3,13 +3,17 @@ import { push } from 'notivue';
 import { isCartLineSalableBySnapshot } from '~/utils/cart-line-salable';
 import { wcStatusToCartStockToken } from '~/utils/stock-status-format';
 import { serverCartRowsToCartItems, yardsaleProductRowToCartItem } from '~/utils/yardsaleCart';
-import { unwrapYardsaleResponse } from '~/utils/cmsApiEndpoint';
+import { messageFromYardsaleBody, yardsaleBodyIsFailure } from '~/utils/cmsApiEndpoint';
 import type { CartItem } from '~~/shared/types';
 
 export const useCart = () => {
   const { t } = useI18n();
-  const { hasRemoteApi, endpoint, resolveMediaUrl, isStorefrontPublishedProduct } =
-    useStorefrontCatalog();
+  const {
+    hasRemoteApi,
+    fetchYardsale,
+    resolveMediaUrl,
+    isStorefrontPublishedProduct,
+  } = useStorefrontCatalog();
   const { user, isAuthenticated } = useAuth();
   const cart = useState<CartItem[]>('cart', () => []);
   const addToCartButtonStatus = ref<AddBtnStatus>('add');
@@ -44,10 +48,14 @@ export const useCart = () => {
       if (hasRemoteApi) {
         const product_id = String(productId);
         if (!isAuthenticated.value || !user.value?.token) {
-          const raw = await $fetch<unknown>(endpoint(`product/${product_id}`));
-          const data = unwrapYardsaleResponse(raw) as {
+          const data = (await fetchYardsale(`product/${product_id}`)) as {
             product?: Record<string, unknown>;
           } | null;
+          if (yardsaleBodyIsFailure(data)) {
+            push.error(messageFromYardsaleBody(data, t('cart.add_error')));
+            addToCartButtonStatus.value = 'add';
+            return;
+          }
           const p = data?.product ?? (data as Record<string, unknown> | null);
           if (!p || typeof p !== 'object' || p.id == null) {
             push.error(t('cart.add_error'));
@@ -90,16 +98,25 @@ export const useCart = () => {
           }))
           .filter((x) => x.pid);
 
-        const raw = await $fetch<unknown>(endpoint('cart/add'), {
+        const data = (await fetchYardsale('cart/add', {
           method: 'POST',
           headers: {
             ...authHeaders(),
             'Content-Type': 'application/json',
           },
           body: { product_id, quantity: 1 },
-        });
-        const data = unwrapYardsaleResponse(raw) as { items?: unknown[] } | null;
-        const rows = data?.items;
+        })) as { items?: unknown[] } | null;
+        if (yardsaleBodyIsFailure(data)) {
+          push.error(messageFromYardsaleBody(data, t('cart.add_error')));
+          addToCartButtonStatus.value = 'add';
+          return;
+        }
+        if (!Array.isArray(data?.items)) {
+          push.error(t('cart.add_error'));
+          addToCartButtonStatus.value = 'add';
+          return;
+        }
+        const rows = data.items;
         let mapped = serverCartRowsToCartItems(
           rows as Parameters<typeof serverCartRowsToCartItems>[0],
           resolveMediaUrl
@@ -118,15 +135,19 @@ export const useCart = () => {
             ...serverItems,
             ...extras.map((x) => ({ product_id: x.pid, quantity: x.qty })),
           ];
-          const raw2 = await $fetch<unknown>(endpoint('cart/update'), {
+          const data2 = (await fetchYardsale('cart/update', {
             method: 'POST',
             headers: {
               ...authHeaders(),
               'Content-Type': 'application/json',
             },
             body: { items: mergedPayload },
-          });
-          const data2 = unwrapYardsaleResponse(raw2) as { items?: unknown[] } | null;
+          })) as { items?: unknown[] } | null;
+          if (yardsaleBodyIsFailure(data2)) {
+            push.error(messageFromYardsaleBody(data2, t('cart.update_error')));
+            addToCartButtonStatus.value = 'add';
+            return;
+          }
           if (data2?.items && Array.isArray(data2.items)) {
             mapped = serverCartRowsToCartItems(
               data2.items as Parameters<typeof serverCartRowsToCartItems>[0],
@@ -262,14 +283,21 @@ export const useCart = () => {
             return { product_id: pid, quantity: q };
           })
           .filter((x) => x.product_id && x.quantity > 0);
-        const raw = await $fetch<unknown>(endpoint('cart/update'), {
+        const data = (await fetchYardsale('cart/update', {
           method: 'POST',
           headers: { ...authHeaders(), 'Content-Type': 'application/json' },
           body: { items: nextItems },
-        });
-        const data = unwrapYardsaleResponse(raw) as { items?: unknown[] } | null;
+        })) as { items?: unknown[] } | null;
+        if (yardsaleBodyIsFailure(data)) {
+          push.error(messageFromYardsaleBody(data, t('cart.update_error')));
+          return;
+        }
+        if (!Array.isArray(data?.items)) {
+          push.error(t('cart.update_error'));
+          return;
+        }
         const mapped = serverCartRowsToCartItems(
-          data?.items as Parameters<typeof serverCartRowsToCartItems>[0],
+          data.items as Parameters<typeof serverCartRowsToCartItems>[0],
           resolveMediaUrl
         ) as CartItem[];
         updateCart(mapped);
@@ -387,10 +415,10 @@ export const useCart = () => {
               );
               if (!pid) return item;
               try {
-                const raw = await $fetch<unknown>(endpoint(`product/${pid}`));
-                const data = unwrapYardsaleResponse(raw) as {
+                const data = (await fetchYardsale(`product/${pid}`)) as {
                   product?: Record<string, unknown>;
                 } | null;
+                if (yardsaleBodyIsFailure(data)) return item;
                 const p = data?.product ?? (data as Record<string, unknown> | null);
                 if (!p || typeof p !== 'object') return item;
                 const qty = item.quantity || 1;
@@ -404,12 +432,14 @@ export const useCart = () => {
           updateCart(next as CartItem[]);
           return true;
         }
-        const raw = await $fetch<unknown>(endpoint('refresh-cart-stock'), {
+        const data = (await fetchYardsale('refresh-cart-stock', {
           method: 'POST',
           headers: { ...authHeaders(), 'Content-Type': 'application/json' },
           body: {},
-        });
-        const data = unwrapYardsaleResponse(raw) as { items?: unknown[] } | null;
+        })) as { items?: unknown[] } | null;
+        if (yardsaleBodyIsFailure(data)) {
+          return false;
+        }
         if (data?.items && Array.isArray(data.items)) {
           const mapped = serverCartRowsToCartItems(
             data.items as Parameters<typeof serverCartRowsToCartItems>[0],
@@ -483,14 +513,21 @@ export const useCart = () => {
             quantity: i.quantity || 1,
           }))
           .filter((x) => x.product_id);
-        const raw = await $fetch<unknown>(endpoint('cart/update'), {
+        const data = (await fetchYardsale('cart/update', {
           method: 'POST',
           headers: { ...authHeaders(), 'Content-Type': 'application/json' },
           body: { items: nextItems },
-        });
-        const data = unwrapYardsaleResponse(raw) as { items?: unknown[] } | null;
+        })) as { items?: unknown[] } | null;
+        if (yardsaleBodyIsFailure(data)) {
+          push.error(messageFromYardsaleBody(data, t('cart.remove_error')));
+          return;
+        }
+        if (!Array.isArray(data?.items)) {
+          push.error(t('cart.remove_error'));
+          return;
+        }
         const mapped = serverCartRowsToCartItems(
-          data?.items as Parameters<typeof serverCartRowsToCartItems>[0],
+          data.items as Parameters<typeof serverCartRowsToCartItems>[0],
           resolveMediaUrl
         ) as CartItem[];
         updateCart(mapped);

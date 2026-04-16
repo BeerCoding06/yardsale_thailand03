@@ -1,13 +1,12 @@
 <script setup lang="ts">
 // Storefront layout: header, footer, category carousel (ไม่ใช้กับ CMS)
 const categoriesData = ref([]);
-const { hasRemoteApi, endpoint, unwrapYardsaleResponse, resolveMediaUrl } =
-  useStorefrontCatalog();
+const { hasRemoteApi, fetchYardsale, resolveMediaUrl } = useStorefrontCatalog();
 
 onMounted(async () => {
   try {
     const response = hasRemoteApi
-      ? unwrapYardsaleResponse(await $fetch(endpoint("categories")))
+      ? await fetchYardsale("categories")
       : await $fetch("/api/categories?parent=0&hide_empty=false");
     if (response?.productCategories?.nodes && Array.isArray(response.productCategories.nodes)) {
       const nodes = response.productCategories.nodes;

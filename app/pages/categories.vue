@@ -45,13 +45,12 @@ useHead(() => ({
   ],
 }));
 
-const { hasRemoteApi, endpoint, unwrapYardsaleResponse, resolveMediaUrl } =
-  useStorefrontCatalog();
+const { hasRemoteApi, fetchYardsale, resolveMediaUrl } = useStorefrontCatalog();
 
 onMounted(async () => {
   try {
     const response = hasRemoteApi
-      ? unwrapYardsaleResponse(await $fetch(endpoint("categories")))
+      ? await fetchYardsale("categories")
       : await $fetch("/api/categories?parent=0");
 
     // API already returns categories with parent=0, so use them directly

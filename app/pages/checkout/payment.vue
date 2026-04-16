@@ -2,6 +2,7 @@
 import { nextTick } from 'vue';
 import { push } from 'notivue';
 import { buildPromptPayQrDataUrl } from "~/utils/promptpayDynamicQr";
+import { messageFromYardsaleBody } from "~/utils/cmsApiEndpoint";
 
 definePageMeta({
   ssr: false,
@@ -474,6 +475,11 @@ const slipIsImage = computed(
 );
 
 function slipErrorMessage(err) {
+  const payload = err?.data ?? err?.response?._data;
+  if (payload && typeof payload === "object") {
+    const fromEnvelope = messageFromYardsaleBody(payload, "");
+    if (fromEnvelope) return fromEnvelope;
+  }
   const code =
     err?.data?.error?.code ||
     err?.data?.code ||

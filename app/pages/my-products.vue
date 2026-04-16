@@ -3,6 +3,7 @@
 import { push } from "notivue";
 import { useCmsApi } from "#imports";
 import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
+import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
 
 // แสดงเฉพาะสินค้าของ user ที่ login (API ใช้ JWT เท่านั้น ไม่ส่ง user_id – เซิร์ฟเวอร์ดึงจาก token)
 definePageMeta({
@@ -12,18 +13,11 @@ definePageMeta({
 
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
-const { endpoint, hasRemoteApi } = useCmsApi();
-const { resolveMediaUrl } = useStorefrontCatalog();
+const { hasRemoteApi } = useCmsApi();
+const { fetchYardsale, resolveMediaUrl } = useStorefrontCatalog();
 
-function cmsPath(rel: string) {
-  return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
-}
-
-function unwrapApi(res: any) {
-  if (res?.success === true && res.data != null && typeof res.data === "object") {
-    return res.data;
-  }
-  return res;
+function localMyProductsApiPath(rel: string) {
+  return `/api/${rel}`;
 }
 
 function parseModerationFeedback(raw: unknown) {
@@ -215,17 +209,24 @@ const fetchProducts = async () => {
     }
 
     // หน้าร้าน: own_only=1 — แม้ role admin ก็เห็นเฉพาะสินค้าของบัญชีนี้ (รายการทั้งระบบใช้แอดมิน /admin/products)
-    const raw = await $fetch(cmsPath("my-products"), {
-      headers: {
-        Authorization: `Bearer ${jwtToken}`,
-      },
-      query: {
-        own_only: "1",
-        ...paginationQuery(listPage.value, listSearch.value, PRODUCT_PAGE_SIZE),
-      },
-    });
-
-    const response = unwrapApi(raw);
+    const listQuery = {
+      own_only: "1",
+      ...paginationQuery(listPage.value, listSearch.value, PRODUCT_PAGE_SIZE),
+    };
+    const listHeaders = { Authorization: `Bearer ${jwtToken}` };
+    let response: any;
+    if (hasRemoteApi) {
+      response = await fetchYardsale("my-products", {
+        headers: listHeaders,
+        query: listQuery,
+      });
+    } else {
+      const raw = await $fetch(localMyProductsApiPath("my-products"), {
+        headers: listHeaders,
+        query: listQuery,
+      });
+      response = unwrapYardsaleResponse(raw) ?? raw;
+    }
     const requestedAsUserId = (response as any)?.requested_as_user_id;
     if (requestedAsUserId != null) {
       if (user.value?.id != null && Number(user.value.id) !== Number(requestedAsUserId)) {
@@ -326,19 +327,27 @@ const cancelProduct = async () => {
   try {
     isCancelling.value = true;
     const jwtToken = user.value?.token;
-    const cancelPath = hasRemoteApi ? "product/cancel" : "cancel-product";
-    const raw = await $fetch(cmsPath(cancelPath), {
-      method: "POST",
-      headers: {
-        ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
-        "Content-Type": "application/json",
-      },
-      body: hasRemoteApi
-        ? { product_id: String(productId) }
-        : { product_id: productId, user_id: user.value.id },
-    } as any);
-
-    const response = unwrapApi(raw);
+    let response: any;
+    if (hasRemoteApi) {
+      response = await fetchYardsale("product/cancel", {
+        method: "POST",
+        headers: {
+          ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
+          "Content-Type": "application/json",
+        },
+        body: { product_id: String(productId) },
+      });
+    } else {
+      const raw = await $fetch(localMyProductsApiPath("cancel-product"), {
+        method: "POST",
+        headers: {
+          ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
+          "Content-Type": "application/json",
+        },
+        body: { product_id: productId, user_id: user.value.id },
+      } as any);
+      response = unwrapYardsaleResponse(raw) ?? raw;
+    }
     const ok = response?.product != null || response?.success === true;
     if (ok) {
       const newStatus = response?.product?.status ?? "cancelled";
@@ -393,19 +402,27 @@ const restoreProduct = async () => {
   try {
     isRestoring.value = true;
     const jwtToken = user.value?.token;
-    const restorePath = hasRemoteApi ? "product/restore" : "restore-product";
-    const raw = await $fetch(cmsPath(restorePath), {
-      method: "POST",
-      headers: {
-        ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
-        "Content-Type": "application/json",
-      },
-      body: hasRemoteApi
-        ? { product_id: String(productId) }
-        : { product_id: productId, user_id: user.value.id },
-    } as any);
-
-    const response = unwrapApi(raw);
+    let response: any;
+    if (hasRemoteApi) {
+      response = await fetchYardsale("product/restore", {
+        method: "POST",
+        headers: {
+          ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
+          "Content-Type": "application/json",
+        },
+        body: { product_id: String(productId) },
+      });
+    } else {
+      const raw = await $fetch(localMyProductsApiPath("restore-product"), {
+        method: "POST",
+        headers: {
+          ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
+          "Content-Type": "application/json",
+        },
+        body: { product_id: productId, user_id: user.value.id },
+      } as any);
+      response = unwrapYardsaleResponse(raw) ?? raw;
+    }
     const ok = response?.product != null || response?.success === true;
     if (ok) {
       const newStatus = response?.product?.status ?? "publish";

@@ -1,6 +1,7 @@
 <!--app/components/user/FormCreateProducts.vue-->
 <script setup>
 import { useCmsApi } from "#imports";
+import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
 
 // Authentication
 const { user, isAuthenticated } = useAuth();
@@ -32,10 +33,7 @@ function cmsPath(rel) {
 
 /** Express ห่อ { success, data }; mock / เก่า อาจเป็นรูปแบบราบ */
 function unwrapApiPayload(res) {
-  if (res && typeof res === "object" && res.success === true && res.data != null) {
-    return res.data;
-  }
-  return res;
+  return unwrapYardsaleResponse(res) ?? res;
 }
 
 /** เก็บใน API เป็น path /uploads/... — ตัดโฮสต์ออกจาก URL เต็ม */

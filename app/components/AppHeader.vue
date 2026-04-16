@@ -16,8 +16,7 @@ const { canAccessSellerPortal } = useRoles();
 const localePath = useLocalePath();
 const {
   hasRemoteApi,
-  endpoint,
-  unwrapYardsaleResponse,
+  fetchYardsale,
   mapApiProductRow,
   storefrontProductPath,
   isStorefrontPublishedProduct,
@@ -98,14 +97,12 @@ async function fetch() {
     }
     
     const response = hasRemoteApi
-      ? unwrapYardsaleResponse(
-          await $fetch(endpoint("search"), {
-            query: { q: query, search: query },
-          }).catch((err) => {
-            console.error("[AppHeader] Search fetch error:", err);
-            throw err;
-          })
-        )
+      ? await fetchYardsale("search", {
+          query: { q: query, search: query },
+        }).catch((err) => {
+          console.error("[AppHeader] Search fetch error:", err);
+          throw err;
+        })
       : await $fetch("/api/search", {
           query: { search: query },
         }).catch((err) => {

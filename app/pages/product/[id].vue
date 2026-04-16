@@ -1,5 +1,6 @@
 <!--app/pages/product/[id].vue-->
 <script setup>
+import { yardsaleBodyIsFailure } from "~/utils/cmsApiEndpoint";
 import { Swiper, SwiperSlide } from "swiper/vue";
 import { Navigation, Pagination, Thumbs } from "swiper/modules";
 const { isOpenImageSliderModal } = useComponents();
@@ -23,8 +24,7 @@ const { locale } = useI18n();
 
 const {
   hasRemoteApi,
-  endpoint,
-  unwrapYardsaleResponse,
+  fetchYardsale,
   mapApiProductRow,
   isUuidString,
   isStorefrontPublishedProduct,
@@ -70,8 +70,11 @@ async function fetchProduct() {
   if (apiProductId) {
     isLoading.value = true;
     try {
-      const raw = await $fetch(endpoint(`product/${apiProductId}`));
-      const data = unwrapYardsaleResponse(raw);
+      const data = await fetchYardsale(`product/${apiProductId}`);
+      if (yardsaleBodyIsFailure(data)) {
+        productResult.value = {};
+        return;
+      }
       const p = data?.product ?? data;
       const mapped = mapApiProductRow(p) || {};
       productResult.value = isStorefrontPublishedProduct(mapped)

@@ -111,14 +111,15 @@ function sortMockProductList(list: AnyObj[], orderby: string, fieldby: string) {
 /** ออเดอร์ที่ชำระสลิปแล้ว (mock) — ให้ get-order แสดงสถานะ paid */
 const mockPaidOrderIds = new Set<string>();
 
-function pickOrder(orderId: number) {
-  const id = String(orderId);
+function pickOrder(orderKey: string) {
+  const id = String(orderKey || "1").trim() || "1";
   const paid = mockPaidOrderIds.has(id);
   const created = new Date(Date.now() - 86400000 * 2).toISOString();
-  const tracking = paid ? `KEX${orderId}TH` : "";
+  const trackingSuffix = /^\d+$/.test(id) ? id : id.replace(/-/g, "").slice(0, 10) || "0";
+  const tracking = paid ? `KEX${trackingSuffix}TH` : "";
   return {
-    id: orderId,
-    number: String(orderId),
+    id,
+    number: /^[0-9a-f-]{36}$/i.test(id) ? id.replace(/-/g, "").slice(0, 12) : id,
     status: paid ? "paid" : "pending",
     total: "0",
     total_price: "0",
@@ -580,10 +581,10 @@ export default defineNuxtPlugin(() => {
         };
       }
       if (orderId) mockPaidOrderIds.add(orderId);
+      /** รูปแบบเดียวกับ Express sendSuccess — ไม่ห่อ success ซ้อนใน data */
       return {
         success: true,
         data: {
-          success: true,
           order: {
             id: orderId,
             status: "paid",
@@ -594,8 +595,8 @@ export default defineNuxtPlugin(() => {
       };
     }
     if (p === "/api/get-order") {
-      const orderId = Number(query.get("order_id") || query.get("id") || 1);
-      return { success: true, order: pickOrder(orderId) };
+      const raw = String(query.get("order_id") || query.get("id") || "1").trim() || "1";
+      return { success: true, order: pickOrder(raw) };
     }
     if (p === "/api/my-orders-jwt" || p === "/api/my-orders" || p === "/api/seller-orders") {
       const { page, pageSize, q } = mockParseListPagination(query);

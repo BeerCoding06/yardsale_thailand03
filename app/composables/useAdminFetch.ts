@@ -1,6 +1,7 @@
 /**
  * $fetch ไปยัง Yardsale API พร้อม Authorization จาก user (JWT)
  */
+import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
 import { useCmsApi } from "./useCmsApi";
 
 export function useAdminFetch() {
@@ -33,7 +34,8 @@ export function useAdminFetch() {
         headers["Content-Type"] = "application/json";
       }
     }
-    return $fetch<T>(endpoint(path), { ...o, headers });
+    const raw = await $fetch<unknown>(endpoint(path), { ...o, headers });
+    return (unwrapYardsaleResponse(raw) ?? raw) as T;
   }
 
   return { adminFetch, authHeaders, endpoint };

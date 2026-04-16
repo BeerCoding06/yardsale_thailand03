@@ -1,6 +1,7 @@
 <!--app/pages/index.vue-->
 <script setup>
 import { pickPagination } from "~/utils/paginationResponse";
+import { yardsaleBodyIsFailure } from "~/utils/cmsApiEndpoint";
 
 const route = useRoute();
 const router = useRouter();
@@ -159,8 +160,7 @@ const productPagination = ref({
 
 const {
   hasRemoteApi,
-  endpoint,
-  unwrapYardsaleResponse,
+  fetchYardsale,
   mapApiProductRow,
   isStorefrontPublishedProduct,
 } = useStorefrontCatalog();
@@ -248,7 +248,7 @@ async function loadProducts() {
     };
 
     if (hasRemoteApi) {
-      const raw = await $fetch(endpoint("products"), {
+      const data = await fetchYardsale("products", {
         query: {
           q: variables.value.search,
           search: variables.value.search,
@@ -259,7 +259,18 @@ async function loadProducts() {
           page_size: PAGE_SIZE,
         },
       });
-      const data = unwrapYardsaleResponse(raw);
+      if (yardsaleBodyIsFailure(data)) {
+        if (gen !== loadProductsGeneration) return;
+        productsData.value = [];
+        productPagination.value = {
+          page,
+          page_size: PAGE_SIZE,
+          total: 0,
+          total_pages: 0,
+        };
+        hasFetched.value = true;
+        return;
+      }
       const rows = Array.isArray(data?.products) ? data.products : [];
       const nodes = rows
         .map((r) => mapApiProductRow(r))

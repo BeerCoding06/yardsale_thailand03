@@ -1,13 +1,5 @@
-export function unwrapAdminData(res: unknown): any {
-  const r = res as { success?: boolean; data?: unknown } | null;
-  if (r && typeof r === "object" && r.success === true && r.data != null) {
-    return r.data;
-  }
-  return res;
-}
-
 export function useAdminCategoryUpload() {
-  const { authHeaders, endpoint } = useAdminFetch();
+  const { adminFetch } = useAdminFetch();
   const isUploading = ref(false);
 
   async function uploadPickedFile(file: File): Promise<string | null> {
@@ -15,16 +7,12 @@ export function useAdminCategoryUpload() {
     try {
       const fd = new FormData();
       fd.append("image", file);
-      const raw = await $fetch(endpoint("upload-image"), {
+      const data = (await adminFetch<unknown>("upload-image", {
         method: "POST",
         body: fd,
-        headers: authHeaders(),
-      });
-      const data = unwrapAdminData(raw);
+      })) as Record<string, unknown> | null;
       const url =
-        (data as any)?.image?.sourceUrl ||
-        (raw as any)?.data?.image?.sourceUrl ||
-        (raw as any)?.image?.sourceUrl;
+        (data as { image?: { sourceUrl?: string } })?.image?.sourceUrl;
       return url ? String(url) : null;
     } finally {
       isUploading.value = false;

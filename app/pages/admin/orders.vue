@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { push } from "notivue";
-import { useCmsApi } from "#imports";
 import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
 import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
 import ShipmentTimeline from "~/components/ShipmentTimeline.vue";
@@ -14,7 +13,7 @@ definePageMeta({
 
 const { t } = useI18n();
 const { user, checkAuth } = useAuth();
-const { endpoint } = useCmsApi();
+const { adminFetch } = useAdminFetch();
 const { resolveMediaUrl } = useStorefrontCatalog();
 const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
 
@@ -132,13 +131,6 @@ function pickOrdersPayload(res: any): any[] {
   return [];
 }
 
-function unwrapApi(res: any) {
-  if (res?.success === true && res.data != null && typeof res.data === "object") {
-    return res.data;
-  }
-  return res;
-}
-
 function draftAdmin(order: any) {
   const id = order.id;
   if (!adminDrafts.value[id]) {
@@ -177,14 +169,12 @@ async function fetchOrders() {
   expandedId.value = null;
   adminDrafts.value = {};
   try {
-    const res = await $fetch<any>(endpoint("seller-orders"), {
-      headers: { Authorization: `Bearer ${jwt}` },
+    const body = (await adminFetch("seller-orders", {
       query: paginationQuery(listPage.value, listSearch.value, ORDER_PAGE_SIZE),
-    });
-    if (res && res.success !== false) {
-      orders.value = pickOrdersPayload(res).map(normalizeOrderRow);
-      const inner = unwrapApi(res);
-      const pg = pickPagination(inner);
+    })) as any;
+    if (body && body.success !== false) {
+      orders.value = pickOrdersPayload(body).map(normalizeOrderRow);
+      const pg = pickPagination(body);
       if (pg) {
         orderPagination.value = pg;
       } else {
@@ -196,7 +186,7 @@ async function fetchOrders() {
         };
       }
     } else {
-      error.value = res?.error || res?.message || t("seller_orders.error_loading");
+      error.value = body?.error || body?.message || t("seller_orders.error_loading");
       orders.value = [];
       orderPagination.value = {
         page: 1,
@@ -228,19 +218,14 @@ async function saveAdminFulfillment(order: any) {
   const d = draftAdmin(order);
   savingId.value = order.id;
   try {
-    const raw = await $fetch(endpoint(`seller-orders/${order.id}/fulfillment`), {
+    const inner = (await adminFetch(`seller-orders/${order.id}/fulfillment`, {
       method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        "Content-Type": "application/json",
-      },
       body: {
         tracking_number: d.tracking_number || "",
         shipping_status: d.shipping_status,
         courier_name: d.courier_name || "",
       },
-    });
-    const inner = unwrapApi(raw);
+    })) as any;
     const updated = inner?.order;
     if (updated) {
       const ix = orders.value.findIndex((row: any) => row.id === order.id);

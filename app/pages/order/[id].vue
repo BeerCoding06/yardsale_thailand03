@@ -5,7 +5,7 @@ definePageMeta({
   ssr: false,
 });
 
-import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
+import { messageFromYardsaleBody, yardsaleBodyIsFailure } from "~/utils/cmsApiEndpoint";
 import {
   buildShipmentTimelineSteps,
   getShipmentActiveStepIndex,
@@ -16,7 +16,7 @@ const route = useRoute();
 const router = useRouter();
 const { user, isAuthenticated, checkAuth } = useAuth();
 const { t, locale } = useI18n();
-const { hasRemoteApi, endpoint } = useStorefrontCatalog();
+const { hasRemoteApi, fetchYardsale } = useStorefrontCatalog();
 const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
 const { notify } = useNotification();
 
@@ -94,24 +94,28 @@ const fetchOrder = async () => {
 
     if (hasRemoteApi) {
       const id = encodeURIComponent(String(orderId.value));
-      const raw = await $fetch(endpoint(`get-order/${id}`), {
+      const inner = await fetchYardsale(`get-order/${id}`, {
         headers: {
           ...(user.value?.token
             ? { Authorization: `Bearer ${user.value.token}` }
             : {}),
         },
       });
-      const inner = unwrapYardsaleResponse(raw) ?? raw;
-      const o = inner?.order;
-      if (o) {
-        order.value = {
-          ...o,
-          total: String(o.total_price ?? o.total ?? 0),
-          date_created: o.created_at ?? o.date_created,
-        };
-        notifyShipmentFingerprintChange();
+      if (yardsaleBodyIsFailure(inner)) {
+        error.value = messageFromYardsaleBody(inner, t("order.error_loading"));
+        order.value = null;
       } else {
-        error.value = t("order.order_not_found");
+        const o = inner?.order;
+        if (o) {
+          order.value = {
+            ...o,
+            total: String(o.total_price ?? o.total ?? 0),
+            date_created: o.created_at ?? o.date_created,
+          };
+          notifyShipmentFingerprintChange();
+        } else {
+          error.value = t("order.order_not_found");
+        }
       }
     } else {
       const customerId = user.value.id || user.value.ID;

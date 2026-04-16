@@ -1,7 +1,7 @@
 <!--app/pages/payment-successful.vue-->
 <script setup>
 import { push } from "notivue";
-import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
+import { yardsaleBodyIsFailure } from "~/utils/cmsApiEndpoint";
 
 definePageMeta({
   ssr: false, // Disable SSR to prevent hydration mismatches
@@ -12,7 +12,7 @@ const { order } = useCheckout();
 const router = useRouter();
 const { t, locale } = useI18n();
 const loadingOrder = ref(false);
-const { hasRemoteApi, endpoint, resolveMediaUrl } = useStorefrontCatalog();
+const { hasRemoteApi, fetchYardsale, resolveMediaUrl } = useStorefrontCatalog();
 const { user } = useAuth();
 const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
 
@@ -28,24 +28,26 @@ function lineItemImageSrc(item) {
   return resolveMediaUrl(u) || u;
 }
 
-// เมื่อเข้ามาจากหน้าชำระ จะมี order_id ใน query แต่ไม่มี order ใน state – ให้โหลดออเดอร์
+// โหลดจาก API เมื่อมี order_id — ไม่พึ่งแค่ useState('order') เพราะอาจเป็นออเดอร์เก่า / id ไม่ตรงกับ URL หลังยืนยันสลิป
 onMounted(async () => {
-  const orderId = route.query.order_id;
-  if (orderId && (!order.value || !order.value.id)) {
+  const orderId =
+    route.query.order_id != null && String(route.query.order_id).trim() !== ""
+      ? String(route.query.order_id).trim()
+      : "";
+  if (orderId) {
     loadingOrder.value = true;
     try {
       if (hasRemoteApi) {
-        const id = encodeURIComponent(String(orderId));
-        const raw = await $fetch(endpoint(`get-order/${id}`), {
+        const id = encodeURIComponent(orderId);
+        const inner = await fetchYardsale(`get-order/${id}`, {
           headers: {
             ...(user.value?.token
               ? { Authorization: `Bearer ${user.value.token}` }
               : {}),
           },
         });
-        const inner = unwrapYardsaleResponse(raw) ?? raw;
-        const o = inner?.order;
-        if (o) {
+        if (!yardsaleBodyIsFailure(inner) && inner?.order) {
+          const o = inner.order;
           order.value = {
             ...o,
             number:
@@ -56,13 +58,13 @@ onMounted(async () => {
           };
         }
       } else {
-        const data = await $fetch('/api/get-order', { query: { order_id: orderId } });
+        const data = await $fetch("/api/get-order", { query: { order_id: orderId } });
         if (data?.order) {
           order.value = data.order;
         }
       }
     } catch (e) {
-      console.warn('[payment-successful] Failed to fetch order:', e);
+      console.warn("[payment-successful] Failed to fetch order:", e);
     } finally {
       loadingOrder.value = false;
     }

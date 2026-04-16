@@ -3,6 +3,7 @@
 import { push } from "notivue";
 import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
 import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
+import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
 
 definePageMeta({
   middleware: "seller",
@@ -11,7 +12,8 @@ definePageMeta({
 
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
-const { endpoint, hasRemoteApi } = useCmsApi();
+const { hasRemoteApi } = useCmsApi();
+const { fetchYardsale } = useStorefrontCatalog();
 const { paymentLabel, paymentColorClass, customerPaymentUiKey } =
   useCustomerPaymentStatus();
 
@@ -62,15 +64,8 @@ const formatDate = (dateString) => {
 
 const { t } = useI18n();
 
-function cmsPath(rel) {
-  return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
-}
-
-function unwrapApi(res) {
-  if (res?.success === true && res.data != null && typeof res.data === "object") {
-    return res.data;
-  }
-  return res;
+function localSellerApiPath(rel) {
+  return `/api/${rel}`;
 }
 
 function normalizeStatusKey(s) {
@@ -174,17 +169,34 @@ async function saveFulfillment(order) {
   const d = draftFor(order);
   savingFulfillmentId.value = order.id;
   try {
-    const raw = await $fetch(cmsPath(`seller-orders/${order.id}/fulfillment`), {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        "Content-Type": "application/json",
-      },
-      body: {
-        tracking_number: d.tracking_number || "",
-      },
-    });
-    const inner = unwrapApi(raw);
+    let inner;
+    if (hasRemoteApi) {
+      inner = await fetchYardsale(`seller-orders/${order.id}/fulfillment`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          "Content-Type": "application/json",
+        },
+        body: {
+          tracking_number: d.tracking_number || "",
+        },
+      });
+    } else {
+      const raw = await $fetch(
+        localSellerApiPath(`seller-orders/${order.id}/fulfillment`),
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${jwt}`,
+            "Content-Type": "application/json",
+          },
+          body: {
+            tracking_number: d.tracking_number || "",
+          },
+        }
+      );
+      inner = unwrapYardsaleResponse(raw) ?? raw;
+    }
     const updated = inner?.order;
     if (updated) {
       const ix = orders.value.findIndex((o) => o.id === order.id);
@@ -275,13 +287,25 @@ const fetchOrders = async () => {
       return;
     }
 
-    const raw = await $fetch(cmsPath("seller-orders"), {
-      headers: {
-        Authorization: `Bearer ${jwtToken}`,
-      },
-      query: paginationQuery(listPage.value, listSearch.value, ORDER_PAGE_SIZE),
-    });
-    const body = unwrapApi(raw);
+    const listQuery = paginationQuery(
+      listPage.value,
+      listSearch.value,
+      ORDER_PAGE_SIZE
+    );
+    const listHeaders = { Authorization: `Bearer ${jwtToken}` };
+    let body;
+    if (hasRemoteApi) {
+      body = await fetchYardsale("seller-orders", {
+        headers: listHeaders,
+        query: listQuery,
+      });
+    } else {
+      const raw = await $fetch(localSellerApiPath("seller-orders"), {
+        headers: listHeaders,
+        query: listQuery,
+      });
+      body = unwrapYardsaleResponse(raw) ?? raw;
+    }
     const list = Array.isArray(body?.orders)
       ? body.orders
       : Array.isArray(body?.data?.orders)
@@ -289,7 +313,11 @@ const fetchOrders = async () => {
         : [];
 
     if (body && body.success === false) {
-      error.value = body?.error?.message || body?.message || t("seller_orders.error_loading");
+      error.value =
+        (typeof body.error === "object" && body.error?.message) ||
+        body.message ||
+        (typeof body.error === "string" ? body.error : null) ||
+        t("seller_orders.error_loading");
       orders.value = [];
       orderPagination.value = {
         page: 1,
@@ -299,18 +327,17 @@ const fetchOrders = async () => {
       };
     } else {
       orders.value = list.map(normalizeSellerOrderRow);
-    }
-
-    const pg = pickPagination(body);
-    if (pg) {
-      orderPagination.value = pg;
-    } else {
-      orderPagination.value = {
-        page: listPage.value,
-        page_size: ORDER_PAGE_SIZE,
-        total: orders.value.length,
-        total_pages: orders.value.length ? 1 : 0,
-      };
+      const pg = pickPagination(body);
+      if (pg) {
+        orderPagination.value = pg;
+      } else {
+        orderPagination.value = {
+          page: listPage.value,
+          page_size: ORDER_PAGE_SIZE,
+          total: orders.value.length,
+          total_pages: orders.value.length ? 1 : 0,
+        };
+      }
     }
   } catch (err) {
     console.error("[seller-orders] Error fetching orders:", err);

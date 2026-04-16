@@ -40,6 +40,16 @@ export function useStorefrontCatalog() {
     return cmsEndpointFromPublic(pub, path, import.meta.client);
   }
 
+  /**
+   * GET/POST ไป Yardsale API แล้วแกะ envelope { success, data } อัตโนมัติ
+   * @param path เช่น `products`, `get-order/:id` (ไม่มี leading /)
+   */
+  async function fetchYardsale(path: string, init?: Record<string, unknown>) {
+    const p = String(path || "").replace(/^\//, "");
+    const raw = await $fetch(endpoint(p), init as any);
+    return unwrapYardsaleData(raw) ?? raw;
+  }
+
   function backendOrigin(): string {
     const raw = String(
       (config.public as { cmsApiBase?: string }).cmsApiBase || ""
@@ -167,6 +177,7 @@ export function useStorefrontCatalog() {
   return {
     hasRemoteApi,
     endpoint,
+    fetchYardsale,
     unwrapYardsaleResponse,
     resolveMediaUrl,
     mapApiProductRow,

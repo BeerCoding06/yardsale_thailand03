@@ -1,10 +1,24 @@
 import { isCartLineSalableBySnapshot } from '~/utils/cart-line-salable';
-import { unwrapYardsaleResponse } from '~/utils/cmsApiEndpoint';
+import {
+  messageFromYardsaleBody,
+  unwrapYardsaleResponse,
+  yardsaleBodyIsFailure,
+} from '~/utils/cmsApiEndpoint';
+
+function normalizeSlipPaymentPayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload;
+  const p = payload.paid;
+  const paid =
+    p === true ||
+    p === 1 ||
+    (typeof p === 'string' && ['true', '1', 'yes'].includes(p.trim().toLowerCase()));
+  return { ...payload, paid };
+}
 
 export const useCheckout = () => {
   const { cart, getCartItemsForStockApi } = useCart();
   const { user, isAuthenticated } = useAuth();
-  const { hasRemoteApi, endpoint } = useStorefrontCatalog();
+  const { hasRemoteApi, endpoint, fetchYardsale } = useStorefrontCatalog();
   const { t } = useI18n();
   const router = useRouter();
   const localePath = useLocalePath();
@@ -50,7 +64,7 @@ export const useCheckout = () => {
       body: fd,
       headers: jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {},
     });
-    return unwrapYardsaleResponse(raw) ?? raw;
+    return normalizeSlipPaymentPayload(unwrapYardsaleResponse(raw) ?? raw);
   };
 
   // Store customer billing data from profile
@@ -162,7 +176,7 @@ export const useCheckout = () => {
       try {
         const jwtToken = user.value?.token;
         if (hasRemoteApi) {
-          const raw = await $fetch(endpoint('check-cart-stock'), {
+          const inner = await fetchYardsale('check-cart-stock', {
             method: 'POST',
             body: { items },
             headers: {
@@ -170,7 +184,10 @@ export const useCheckout = () => {
               ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
             },
           });
-          const inner = unwrapYardsaleResponse(raw) ?? raw;
+          if (yardsaleBodyIsFailure(inner)) {
+            error.value = messageFromYardsaleBody(inner, t('checkout.error.stock_check_failed'));
+            return;
+          }
           if (inner?.valid === false && inner.errors?.length) {
             const er = inner.errors[0];
             error.value =
@@ -280,7 +297,7 @@ export const useCheckout = () => {
       const jwtToken = user.value?.token;
       let orderData;
       if (hasRemoteApi) {
-        const raw = await $fetch(endpoint('create-order'), {
+        const inner = await fetchYardsale('create-order', {
           method: 'POST',
           body: {
             line_items,
@@ -302,7 +319,11 @@ export const useCheckout = () => {
             ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
           },
         });
-        const inner = unwrapYardsaleResponse(raw) ?? raw;
+        if (yardsaleBodyIsFailure(inner)) {
+          error.value = messageFromYardsaleBody(inner, t('checkout.error.create_order_failed'));
+          checkoutStatus.value = 'order';
+          return null;
+        }
         orderData = inner?.order;
       } else {
         const res = await $fetch('/api/create-order', {
