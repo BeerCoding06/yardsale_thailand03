@@ -135,12 +135,24 @@ async function checkSlipWithSlipok(body, file) {
   } catch {
     /* no-op */
   }
-  if (!response.ok || !data?.success || !data?.data?.success) {
+  // SlipOK ตอบแบบ { success, data, message?, code? } — ไม่มี field data.success เสมอไป (ดู slipok-sdk)
+  const slipPayload = data?.data;
+  const nestedFail =
+    slipPayload != null &&
+    typeof slipPayload.success === 'boolean' &&
+    slipPayload.success === false;
+  if (
+    !response.ok ||
+    !data?.success ||
+    slipPayload == null ||
+    data?.code != null ||
+    nestedFail
+  ) {
     const msg = slipokErrorMessage(data);
     const code = slipokFailureCodeFromMessage(msg);
     throw new AppError(String(msg), 400, code);
   }
-  return data.data;
+  return slipPayload;
 }
 
 export async function getSlipokQuota() {
@@ -164,20 +176,49 @@ export async function getSlipokQuota() {
   return { quota: data.data };
 }
 
+function normalizeOrderIdForPayment(orderId) {
+  return String(orderId ?? '').trim();
+}
+
+function orderStatusNorm(row) {
+  return String(row?.status ?? '')
+    .toLowerCase()
+    .trim();
+}
+
 export async function mockPayment(userId, body, file) {
-  const orderId = body.order_id;
+  const orderId = normalizeOrderIdForPayment(body.order_id);
+  if (!orderId) {
+    throw new AppError('order_id is required', 422, 'VALIDATION_ERROR');
+  }
   const simulateFailure = parseBool(body.simulate_failure);
 
   const result = await withTransaction(async (client) => {
     const order = await orderModel.getOrderById(client, orderId);
     if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
-    if (order.user_id !== userId) {
+    if (String(order.user_id) !== String(userId)) {
       throw new AppError('Forbidden', 403, 'FORBIDDEN');
+    }
+
+    const st = orderStatusNorm(order);
+    if (st === 'canceled') {
+      throw new AppError('Order is canceled', 400, 'ORDER_CANCELED');
+    }
+    /** ชำระแล้ว — ไม่เรียก SlipOK ซ้ำ (สลิปเดิมมักถูกปฏิเสธครั้งถัดไป ทำให้สถานะค้าง pending + UI สับสน) */
+    if (st === 'paid') {
+      return {
+        order: orderService.formatOrderForApi(order),
+        paid: true,
+        already_paid: true,
+      };
     }
 
     if (simulateFailure) {
       await orderService.restoreStockForOrder(client, orderId);
       const updated = await orderModel.updateOrderStatus(client, orderId, 'payment_failed');
+      if (!updated) {
+        throw new AppError('Failed to update order', 500, 'ORDER_UPDATE_FAILED');
+      }
       return { order: orderService.formatOrderForApi(updated), paid: false };
     }
 
@@ -191,6 +232,9 @@ export async function mockPayment(userId, body, file) {
     const updated = await orderModel.updateOrderStatus(client, orderId, 'paid', {
       slipImageUrl: slipForOrderRow,
     });
+    if (!updated) {
+      throw new AppError('Failed to set order as paid (no row updated)', 500, 'ORDER_UPDATE_FAILED');
+    }
 
     try {
       await orderModel.insertOrderSlipSnapshot(client, {

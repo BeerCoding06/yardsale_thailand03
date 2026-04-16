@@ -6,7 +6,7 @@ import * as orderModel from '../models/order.model.js';
 import * as cartModel from '../models/cart.model.js';
 import * as seventeenTrack from './seventeenTrack.service.js';
 import * as trackingLogModel from '../models/trackingLog.model.js';
-import { notifySellersNewOrder } from './fcmOrderNotify.service.js';
+import { notifyBuyerOrderPaid, notifySellersNewOrder } from './fcmOrderNotify.service.js';
 
 function aggregateLineItems(lineItems) {
   const map = new Map();
@@ -396,6 +396,39 @@ export async function updateSellerOrderFulfillment(userId, orderId, body, role) 
   } finally {
     client.release();
   }
+}
+
+/**
+ * แอดมินยืนยันรับชำระเงิน — ใช้เมื่อ SlipOK/อัปโหลดสลิปอัตโนมัติไม่สำเร็จแต่ลูกค้าโอนจริง
+ * @param {string} orderId
+ * @param {{ slipImageUrl?: string }} [opts]
+ */
+export async function markOrderPaidAsAdmin(orderId, { slipImageUrl } = {}) {
+  const id = String(orderId ?? '').trim();
+  const payload = await withTransaction(async (client) => {
+    const order = await orderModel.getOrderById(client, id);
+    if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
+    const st = String(order.status || '').toLowerCase();
+    if (st === 'canceled') {
+      throw new AppError('Cannot mark canceled order as paid', 400, 'BAD_STATUS');
+    }
+    if (st === 'paid') {
+      return { order: formatOrderForApi(order), alreadyPaid: true };
+    }
+    const slip =
+      slipImageUrl != null && String(slipImageUrl).trim() !== ''
+        ? String(slipImageUrl).trim()
+        : order.slip_image_url || null;
+    const updated = await orderModel.updateOrderStatus(client, id, 'paid', {
+      slipImageUrl: slip,
+    });
+    if (!updated) throw new AppError('Failed to update order', 500, 'ORDER_UPDATE_FAILED');
+    return { order: formatOrderForApi(updated), alreadyPaid: false };
+  });
+  if (!payload.alreadyPaid && payload.order?.user_id && payload.order?.id) {
+    notifyBuyerOrderPaid(payload.order.user_id, payload.order.id).catch(() => {});
+  }
+  return payload;
 }
 
 /**

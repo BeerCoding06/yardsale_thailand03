@@ -31,6 +31,7 @@ const orders = ref<any[]>([]);
 const error = ref<string | null>(null);
 const expandedId = ref<string | null>(null);
 const savingId = ref<string | null>(null);
+const markingPaidId = ref<string | null>(null);
 /** แบบร่างแก้จัดส่งต่อออเดอร์ — key = order.id */
 const adminDrafts = ref<Record<string, any>>({});
 
@@ -257,6 +258,36 @@ async function saveAdminFulfillment(order: any) {
   }
 }
 
+function showAdminMarkPaid(order: any) {
+  const s = String(order?.status ?? "").toLowerCase();
+  return s === "pending" || customerPaymentUiKey(order) === "awaiting_payment";
+}
+
+async function markPaidAdmin(order: any) {
+  const id = String(order.id || order.order_id || "").trim();
+  if (!id) return;
+  if (!import.meta.client) return;
+  if (!window.confirm(String(t("admin.orders.mark_paid_confirm")))) return;
+  markingPaidId.value = id;
+  try {
+    await adminFetch(`admin/orders/${encodeURIComponent(id)}/mark-paid`, {
+      method: "POST",
+      body: {},
+    });
+    push.success(t("admin.orders.mark_paid_ok"));
+    await fetchOrders();
+  } catch (e: any) {
+    push.error(
+      e?.data?.error?.message ||
+        e?.data?.message ||
+        e?.message ||
+        t("admin.orders.mark_paid_fail")
+    );
+  } finally {
+    markingPaidId.value = null;
+  }
+}
+
 onMounted(() => {
   checkAuth();
   fetchOrders();
@@ -358,18 +389,30 @@ onMounted(() => {
                 {{ formatDate(o.created_at || o.date_created || o.createdAt || "") }}
               </td>
               <td class="py-3 text-right align-top">
-                <UButton
-                  size="xs"
-                  color="primary"
-                  variant="soft"
-                  @click="toggleExpand(String(o.id || o.order_id || ''))"
-                >
-                  {{
-                    expandedId === String(o.id || o.order_id)
-                      ? t("admin.orders.fulfillment_close")
-                      : t("admin.orders.fulfillment_open")
-                  }}
-                </UButton>
+                <div class="flex flex-col items-end gap-2">
+                  <UButton
+                    v-if="showAdminMarkPaid(o)"
+                    size="xs"
+                    color="success"
+                    variant="soft"
+                    :loading="markingPaidId === String(o.id || o.order_id || '')"
+                    @click="markPaidAdmin(o)"
+                  >
+                    {{ t("admin.orders.mark_paid") }}
+                  </UButton>
+                  <UButton
+                    size="xs"
+                    color="primary"
+                    variant="soft"
+                    @click="toggleExpand(String(o.id || o.order_id || ''))"
+                  >
+                    {{
+                      expandedId === String(o.id || o.order_id)
+                        ? t("admin.orders.fulfillment_close")
+                        : t("admin.orders.fulfillment_open")
+                    }}
+                  </UButton>
+                </div>
               </td>
             </tr>
             <tr

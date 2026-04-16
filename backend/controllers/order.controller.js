@@ -55,3 +55,14 @@ export const patchSellerOrderFulfillment = asyncHandler(async (req, res) => {
   );
   sendSuccess(res, data);
 });
+
+/** แอดมิน: ตั้งสถานะออเดอร์เป็น paid (ไม่ผ่าน SlipOK) */
+export const markOrderPaidAdmin = asyncHandler(async (req, res) => {
+  const slipRaw = req.body?.slip_image_url;
+  const slipImageUrl =
+    slipRaw != null && String(slipRaw).trim() !== '' ? String(slipRaw).trim() : undefined;
+  const data = await orderService.markOrderPaidAsAdmin(req.params.orderId, {
+    slipImageUrl,
+  });
+  sendSuccess(res, { success: true, ...data });
+});

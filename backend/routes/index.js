@@ -67,6 +67,13 @@ router.delete(
   validate(adminUserIdParamsSchema, 'params'),
   authController.adminDeleteUser
 );
+router.post(
+  '/admin/orders/:orderId/mark-paid',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(sellerOrderFulfillmentParamsSchema, 'params'),
+  orderController.markOrderPaidAdmin
+);
 router.post('/check-email', validate(checkEmailSchema), authController.checkEmail);
 
 /** Shipment tracking (17TRACK) — see backend/docs/TRACKING_API.md */

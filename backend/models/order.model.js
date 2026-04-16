@@ -55,40 +55,49 @@ export async function insertOrderItems(client, orderId, items) {
   }
 }
 
+/** ค่า UUID จาก FormData / query — cast ใน SQL กันค่า string ไม่ตรงชนิด */
+function asOrderUuid(orderId) {
+  return String(orderId ?? '').trim();
+}
+
 export async function getOrderById(client, orderId) {
+  const id = asOrderUuid(orderId);
   const r = await client.query(
     `SELECT ${ORDER_SELECT_BASE}
-     FROM orders WHERE id = $1`,
-    [orderId]
+     FROM orders WHERE id = $1::uuid`,
+    [id]
   );
   return r.rows[0] || null;
 }
 
 export async function getOrderItems(client, orderId) {
+  const id = asOrderUuid(orderId);
   const r = await client.query(
     `SELECT oi.product_id, oi.quantity, oi.price, p.name, p.image_url, p.image_urls
      FROM order_items oi
      JOIN products p ON p.id = oi.product_id
-     WHERE oi.order_id = $1`,
-    [orderId]
+     WHERE oi.order_id = $1::uuid`,
+    [id]
   );
   return r.rows.map(lineItemRowToApi);
 }
 
 export async function updateOrderStatus(client, orderId, status, { slipImageUrl } = {}) {
+  const id = asOrderUuid(orderId);
   const r = await client.query(
     `UPDATE orders
      SET status = $2::order_status,
          slip_image_url = COALESCE($3, slip_image_url)
-     WHERE id = $1
+     WHERE id = $1::uuid
      RETURNING ${ORDER_SELECT_BASE}`,
-    [orderId, status, slipImageUrl ?? null]
+    [id, status, slipImageUrl ?? null]
   );
   return r.rows[0] || null;
 }
 
 /** ผู้ขายที่มีสินค้าในออเดอร์ — อัปเดตสถานะจัดส่งและเลขพัสดุ */
 export async function updateOrderFulfillment(client, orderId, fields) {
+  const id = asOrderUuid(orderId);
   const r = await client.query(
     `UPDATE orders SET
       shipping_status = $2,
@@ -96,10 +105,10 @@ export async function updateOrderFulfillment(client, orderId, fields) {
       shipping_receipt_number = NULLIF(TRIM(COALESCE($4, '')), ''),
       courier_name = NULLIF(TRIM(COALESCE($5, '')), ''),
       fulfillment_updated_at = now()
-    WHERE id = $1
+    WHERE id = $1::uuid
     RETURNING ${ORDER_SELECT_BASE}`,
     [
-      orderId,
+      id,
       fields.shipping_status,
       fields.tracking_number ?? '',
       fields.shipping_receipt_number ?? '',
@@ -345,11 +354,12 @@ export async function mapLineItemsByOrderIds(client, orderIds) {
 
 /** เฉพาะบรรทัดที่ seller นี้เป็นผู้ขาย — ใช้หน้าผู้ขาย */
 export async function insertOrderSlipSnapshot(client, { orderId, imageUrl }) {
+  const id = asOrderUuid(orderId);
   const r = await client.query(
     `INSERT INTO order_slip_snapshots (order_id, image_url)
-     VALUES ($1, $2)
+     VALUES ($1::uuid, $2)
      RETURNING id, order_id, image_url, created_at`,
-    [orderId, imageUrl != null && String(imageUrl).trim() !== '' ? String(imageUrl).trim() : null]
+    [id, imageUrl != null && String(imageUrl).trim() !== '' ? String(imageUrl).trim() : null]
   );
   return r.rows[0] || null;
 }
