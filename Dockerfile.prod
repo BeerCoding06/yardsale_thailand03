@@ -1,7 +1,10 @@
 # Stage 1: Dependencies
+# แนะนำ: DOCKER_BUILDKIT=1 — cache mount ลดดาวน์โหลดซ้ำ; เพิ่ม build timeout ใน Dokploy ถ้ายังถูก cancel
 FROM node:20-alpine AS deps
 # บางเครือข่าย/registry มีปัญหา IPv6 → ECONNRESET
 ENV NODE_OPTIONS="--dns-result-order=ipv4first"
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 WORKDIR /app
 
@@ -17,8 +20,10 @@ RUN apk add --no-cache \
 COPY package.json ./
 COPY .npmrc* ./
 
-# Install dependencies (ไม่รัน postinstall ที่นี่ เพราะยังไม่มี nuxt.config / app/)
-RUN corepack pnpm install --shamefully-hoist --ignore-scripts
+# Install dependencies — store บน BuildKit cache mount (build ซ้ำไม่โหลด tarball ใหม่ทั้งหมด)
+# --store-dir ไม่เขียนลง .npmrc (builder COPY . จะทับไฟล์จาก context อยู่ดี)
+RUN --mount=type=cache,id=pnpm-store-yardsale,target=/pnpm/store \
+    corepack pnpm install --store-dir /pnpm/store --shamefully-hoist --ignore-scripts
 
 # Stage 2: Build
 FROM node:20-alpine AS builder
