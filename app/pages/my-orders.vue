@@ -13,13 +13,27 @@ import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
 const localePath = useLocalePath();
-const { paymentLabel, paymentColorClass, canCancelByPaymentRules, canPayOrder } =
-  useCustomerPaymentStatus();
+const {
+  paymentLabel,
+  paymentColorClass,
+  canCancelByPaymentRules,
+  canPayOrder,
+  customerPaymentUiKey,
+} = useCustomerPaymentStatus();
 const { hasRemoteApi } = useCmsApi();
 const { fetchYardsale, resolveMediaUrl } = useStorefrontCatalog();
 
 function localMyOrdersApiPath(rel) {
   return `/api/${rel}`;
+}
+
+function normalizeMyOrderRow(row) {
+  if (!row || typeof row !== "object") return row;
+  const o = { ...row };
+  if (o.status != null) o.status = String(o.status);
+  if (o.order_status != null) o.order_status = String(o.order_status);
+  o.is_paid = customerPaymentUiKey(o) === "paid";
+  return o;
 }
 
 // Client-side only state
@@ -310,7 +324,7 @@ const fetchOrders = async () => {
         ? body.data.orders
         : [];
 
-    orders.value = list;
+    orders.value = list.map(normalizeMyOrderRow);
 
     const pg = pickPagination(body);
     if (pg) {

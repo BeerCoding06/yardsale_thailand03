@@ -17,7 +17,8 @@ const router = useRouter();
 const { user, isAuthenticated, checkAuth } = useAuth();
 const { t, locale } = useI18n();
 const { hasRemoteApi, fetchYardsale } = useStorefrontCatalog();
-const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
+const { paymentLabel, paymentColorClass, customerPaymentUiKey } =
+  useCustomerPaymentStatus();
 const { notify } = useNotification();
 
 const orderId = computed(() => route.params.id);
@@ -109,14 +110,13 @@ const fetchOrder = async () => {
         if (o) {
           const prev =
             order.value && typeof order.value === "object" ? { ...order.value } : {};
+          const merged = { ...prev, ...o };
+          merged.status = merged.status ?? merged.order_status ?? prev.status ?? "";
+          merged.is_paid = customerPaymentUiKey(merged) === "paid";
           order.value = {
-            ...prev,
-            ...o,
-            status: o.status ?? o.order_status ?? prev.status,
-            is_paid:
-              o.is_paid !== undefined && o.is_paid !== null ? o.is_paid : prev.is_paid,
-            total: String(o.total_price ?? o.total ?? prev.total ?? 0),
-            date_created: o.created_at ?? o.date_created ?? prev.date_created,
+            ...merged,
+            total: String(merged.total_price ?? merged.total ?? prev.total ?? 0),
+            date_created: merged.created_at ?? merged.date_created ?? prev.date_created,
           };
           notifyShipmentFingerprintChange();
         } else {
@@ -133,7 +133,17 @@ const fetchOrder = async () => {
       const orderData = await $fetch(`/api/get-order?${queryParams.toString()}`);
 
       if (orderData.success && orderData.order) {
-        order.value = orderData.order;
+        const o = orderData.order;
+        const prev =
+          order.value && typeof order.value === "object" ? { ...order.value } : {};
+        const merged = { ...prev, ...o };
+        merged.status = merged.status ?? merged.order_status ?? prev.status ?? "";
+        merged.is_paid = customerPaymentUiKey(merged) === "paid";
+        order.value = {
+          ...merged,
+          total: String(merged.total_price ?? merged.total ?? prev.total ?? 0),
+          date_created: merged.created_at ?? merged.date_created ?? prev.date_created,
+        };
         notifyShipmentFingerprintChange();
       } else {
         error.value = t("order.order_not_found");

@@ -69,7 +69,8 @@ export function formatOrderForApi(row) {
       country: snap.country || 'TH',
     };
   }
-  const st = String(row.status ?? '')
+  const statusStr = row.status != null ? String(row.status) : '';
+  const st = String(statusStr)
     .toLowerCase()
     .trim()
     .replace(/-/g, '_');
@@ -82,6 +83,8 @@ export function formatOrderForApi(row) {
     st === 'partially_refunded';
   return {
     ...row,
+    /** บังคับเป็น string — กันบาง proxy/driver ส่ง enum แปลก ๆ */
+    status: statusStr || row.status,
     billing,
     date_created: row.created_at,
     total: row.total_price,

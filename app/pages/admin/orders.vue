@@ -15,7 +15,8 @@ const { t } = useI18n();
 const { user, checkAuth } = useAuth();
 const { adminFetch } = useAdminFetch();
 const { resolveMediaUrl } = useStorefrontCatalog();
-const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
+const { paymentLabel, paymentColorClass, customerPaymentUiKey } =
+  useCustomerPaymentStatus();
 
 const SHIP_STATUS_VALUES = [
   "pending",
@@ -73,6 +74,9 @@ function normalizeOrderRow(row: any) {
   o.shipping_status = normalizeShippingStatus(o.shipping_status);
   o.fulfillment_updated_at = o.fulfillment_updated_at ?? null;
   o.slip_snapshots = Array.isArray(o.slip_snapshots) ? o.slip_snapshots : [];
+  if (o.status != null) o.status = String(o.status);
+  if (o.order_status != null) o.order_status = String(o.order_status);
+  o.is_paid = customerPaymentUiKey(o) === "paid";
   return o;
 }
 

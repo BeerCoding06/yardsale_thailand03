@@ -26,14 +26,33 @@ function truthyPaidFlag(v: unknown): boolean {
   return false;
 }
 
+/** ดึงค่า status จากแถว API — รองรับ camelCase / enum object จากบาง driver */
+function coerceStatusRaw(order: {
+  status?: unknown;
+  order_status?: unknown;
+  orderStatus?: unknown;
+}): unknown {
+  return order?.status ?? order?.order_status ?? order?.orderStatus;
+}
+
+function rawToNormalizedStatus(raw: unknown): string {
+  if (raw == null) return "";
+  if (typeof raw === "object" && raw !== null) {
+    const o = raw as Record<string, unknown>;
+    if (typeof o.value === "string") return normalizeStatus(o.value);
+    if (typeof o.name === "string") return normalizeStatus(o.name);
+    return "";
+  }
+  return normalizeStatus(String(raw));
+}
+
 /** สถานะหลักของออเดอร์จากแหล่งต่างๆ (Express / Woo / headless) */
 function effectiveOrderStatus(order: {
   status?: string | null;
   order_status?: string | null;
+  orderStatus?: string | null;
 }): string {
-  const raw = order?.status ?? order?.order_status;
-  if (raw == null || typeof raw === "object") return "";
-  return normalizeStatus(String(raw));
+  return rawToNormalizedStatus(coerceStatusRaw(order));
 }
 
 function primaryStatusLooksPaid(s: string): boolean {
@@ -49,6 +68,7 @@ function primaryStatusLooksPaid(s: string): boolean {
 export function customerPaymentUiKey(order: {
   status?: string | null;
   order_status?: string | null;
+  orderStatus?: string | null;
   /** Woo / บาง API */
   set_paid?: boolean | null;
   is_paid?: boolean | null;

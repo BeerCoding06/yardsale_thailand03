@@ -14,7 +14,8 @@ const { t, locale } = useI18n();
 const loadingOrder = ref(false);
 const { hasRemoteApi, fetchYardsale, resolveMediaUrl } = useStorefrontCatalog();
 const { user } = useAuth();
-const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
+const { paymentLabel, paymentColorClass, customerPaymentUiKey } =
+  useCustomerPaymentStatus();
 
 function lineItemImageSrc(item) {
   if (!item) return "";
@@ -28,6 +29,24 @@ function lineItemImageSrc(item) {
   return resolveMediaUrl(u) || u;
 }
 
+function applyFetchedOrder(o, prev) {
+  const p = prev && typeof prev === "object" ? { ...prev } : {};
+  const merged = { ...p, ...o };
+  merged.status = merged.status ?? merged.order_status ?? p.status ?? "";
+  merged.is_paid = customerPaymentUiKey(merged) === "paid";
+  order.value = {
+    ...merged,
+    number:
+      merged.number ||
+      String(merged.id || "")
+        .replace(/-/g, "")
+        .slice(0, 12) ||
+      p.number,
+    total: String(merged.total_price ?? merged.total ?? p.total ?? 0),
+    date_created: merged.created_at ?? merged.date_created ?? p.date_created,
+  };
+}
+
 // โหลดจาก API เมื่อมี order_id — ไม่พึ่งแค่ useState('order') เพราะอาจเป็นออเดอร์เก่า / id ไม่ตรงกับ URL หลังยืนยันสลิป
 onMounted(async () => {
   const orderId =
@@ -36,47 +55,37 @@ onMounted(async () => {
       : "";
   if (orderId) {
     loadingOrder.value = true;
+    const slipOk = route.query.slip_verified === "1";
+    const maxAttempts = slipOk ? 3 : 1;
+    const delayMs = 700;
     try {
-      if (hasRemoteApi) {
-        const id = encodeURIComponent(orderId);
-        const inner = await fetchYardsale(`get-order/${id}`, {
-          headers: {
-            ...(user.value?.token
-              ? { Authorization: `Bearer ${user.value.token}` }
-              : {}),
-          },
-        });
-        if (!yardsaleBodyIsFailure(inner) && inner?.order) {
-          const o = inner.order;
-          const prev =
-            order.value && typeof order.value === "object" ? { ...order.value } : {};
-          order.value = {
-            ...prev,
-            ...o,
-            status: o.status ?? o.order_status ?? prev.status,
-            is_paid:
-              o.is_paid !== undefined && o.is_paid !== null ? o.is_paid : prev.is_paid,
-            number:
-              o.number ||
-              String(o.id).replace(/-/g, "").slice(0, 12) ||
-              prev.number,
-            total: String(o.total_price ?? o.total ?? prev.total ?? 0),
-            date_created: o.created_at ?? o.date_created ?? prev.date_created,
-          };
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        if (hasRemoteApi) {
+          const id = encodeURIComponent(orderId);
+          const inner = await fetchYardsale(`get-order/${id}`, {
+            headers: {
+              ...(user.value?.token
+                ? { Authorization: `Bearer ${user.value.token}` }
+                : {}),
+            },
+          });
+          if (!yardsaleBodyIsFailure(inner) && inner?.order) {
+            const prev =
+              order.value && typeof order.value === "object" ? { ...order.value } : {};
+            applyFetchedOrder(inner.order, prev);
+            if (customerPaymentUiKey(order.value) === "paid") break;
+          }
+        } else {
+          const data = await $fetch("/api/get-order", { query: { order_id: orderId } });
+          if (data?.order) {
+            const prev =
+              order.value && typeof order.value === "object" ? { ...order.value } : {};
+            applyFetchedOrder(data.order, prev);
+            if (customerPaymentUiKey(order.value) === "paid") break;
+          }
         }
-      } else {
-        const data = await $fetch("/api/get-order", { query: { order_id: orderId } });
-        if (data?.order) {
-          const o = data.order;
-          const prev =
-            order.value && typeof order.value === "object" ? { ...order.value } : {};
-          order.value = {
-            ...prev,
-            ...o,
-            status: o.status ?? o.order_status ?? prev.status,
-            is_paid:
-              o.is_paid !== undefined && o.is_paid !== null ? o.is_paid : prev.is_paid,
-          };
+        if (attempt < maxAttempts - 1) {
+          await new Promise((r) => setTimeout(r, delayMs));
         }
       }
     } catch (e) {
