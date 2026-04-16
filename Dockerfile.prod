@@ -1,5 +1,7 @@
 # Stage 1: Dependencies
 FROM node:20-alpine AS deps
+# บางเครือข่าย/registry มีปัญหา IPv6 → ECONNRESET
+ENV NODE_OPTIONS="--dns-result-order=ipv4first"
 RUN corepack enable
 WORKDIR /app
 
