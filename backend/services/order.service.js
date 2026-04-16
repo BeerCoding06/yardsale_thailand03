@@ -6,6 +6,7 @@ import * as orderModel from '../models/order.model.js';
 import * as cartModel from '../models/cart.model.js';
 import * as seventeenTrack from './seventeenTrack.service.js';
 import * as trackingLogModel from '../models/trackingLog.model.js';
+import { notifySellersNewOrder } from './fcmOrderNotify.service.js';
 
 function aggregateLineItems(lineItems) {
   const map = new Map();
@@ -152,6 +153,9 @@ export async function createOrder(userId, payload) {
 
     const items = await orderModel.getOrderItems(client, order.id);
     return { order: { ...formatOrderForApi(order), line_items: items } };
+  }).then((payload) => {
+    notifySellersNewOrder(payload.order.id).catch(() => {});
+    return payload;
   });
 }
 

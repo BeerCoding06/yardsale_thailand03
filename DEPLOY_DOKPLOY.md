@@ -54,6 +54,23 @@ Notes:
 - In production, avoid internal URLs for `NUXT_PUBLIC_*` variables.
 - `DATABASE_URL` is built automatically inside compose from `POSTGRES_*`.
 
+### Firebase push (optional)
+
+ใน Dokploy → Environment ของ stack นี้ (หรือแยก per-service ถ้าคุณแยก):
+
+**Backend (`backend` service)** — ใช้อย่างใดอย่างหนึ่ง:
+
+- `FIREBASE_PROJECT_ID` — โปรเจกต์ GCP/Firebase (ถ้าไม่ใส่ จะอ่านจาก JSON)
+- `FIREBASE_CREDENTIALS` — path ไฟล์ JSON **ใน container** (ต้อง mount volume ใส่ไฟล์นั้น) หรือ
+- `FIREBASE_CREDENTIALS_JSON` — วาง **เนื้อหา service account JSON ทั้งก้อน** เป็น secret ใน Dokploy (ไม่ต้อง mount ไฟล์; แนะนำ minify เป็นบรรทัดเดียว)
+
+**Frontend (`frontend` service)** — ให้เบราว์เซอร์ลงทะเบียน FCM และยิงไป API เดียวกับที่ลูกค้าใช้:
+
+- `NUXT_PUBLIC_LARAVEL_API_BASE` = URL โดเมนสาธารณะของ API เช่น `https://api.your-domain.com` (**ไม่**ใส่ `/api` ต่อท้าย — แอปจะต่อ `/api/save-token` ให้)
+- `NUXT_PUBLIC_FIREBASE_API_KEY`, `NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NUXT_PUBLIC_FIREBASE_PROJECT_ID`, `NUXT_PUBLIC_FIREBASE_STORAGE_BUCKET`, `NUXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NUXT_PUBLIC_FIREBASE_APP_ID`, `NUXT_PUBLIC_FIREBASE_VAPID_KEY` — จาก Firebase Console → Web app
+
+หลัง deploy ครั้งแรกที่เพิ่มตาราง FCM: รัน `npm run db:schema` ใน backend container อีกครั้ง (เหมือนขั้น schema เดิม) — ดู `docs/FIREBASE_PUSH_NOTIFICATION_SETUP.md` หมวด Express / Dokploy
+
 ## 4) Domain routing in Dokploy
 
 Recommended:

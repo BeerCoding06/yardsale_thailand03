@@ -23,4 +23,14 @@ export const config = {
     apiKey: process.env.SEVENTEEN_TRACK_API_KEY || '',
     baseUrl: (process.env.SEVENTEEN_TRACK_BASE_URL || 'https://api.17track.net').replace(/\/$/, ''),
   },
+  /**
+   * Firebase Cloud Messaging HTTP v1
+   * - FIREBASE_CREDENTIALS = path ไฟล์ JSON (local / volume mount)
+   * - FIREBASE_CREDENTIALS_JSON = เนื้อหา JSON ทั้งก้อน (เหมาะ Dokploy secret ไม่ต้อง mount ไฟล์)
+   */
+  fcm: {
+    credentialsPath: (process.env.FIREBASE_CREDENTIALS || '').trim(),
+    credentialsJson: (process.env.FIREBASE_CREDENTIALS_JSON || '').trim(),
+    projectId: (process.env.FIREBASE_PROJECT_ID || '').trim(),
+  },
 };

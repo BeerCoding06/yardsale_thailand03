@@ -295,3 +295,18 @@ export const trackShipmentSchema = Joi.object({
   /** Optional 17TRACK carrier key when auto-detect fails */
   carrier: Joi.number().integer().positive().optional(),
 });
+
+/** POST /api/save-token — FCM */
+export const saveFcmTokenSchema = Joi.object({
+  token: Joi.string().trim().min(10).max(4096).required(),
+  device: Joi.string().trim().max(50).allow('').optional(),
+});
+
+/** POST /api/send-notification — FCM (admin) */
+export const sendFcmNotificationSchema = Joi.object({
+  title: Joi.string().trim().max(255).required(),
+  body: Joi.string().trim().max(2000).required(),
+  data: Joi.object().optional().default({}),
+  user_ids: Joi.array().items(uuid).max(500).optional().default([]),
+  tokens: Joi.array().items(Joi.string().trim().min(10).max(4096)).max(500).optional().default([]),
+});

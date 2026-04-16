@@ -25,6 +25,8 @@ import {
   updateTagSchema,
   deleteTagSchema,
   trackShipmentSchema,
+  saveFcmTokenSchema,
+  sendFcmNotificationSchema,
 } from '../validators/schemas.js';
 import { uploadImage } from '../middlewares/upload.js';
 import * as authController from '../controllers/auth.controller.js';
@@ -36,6 +38,7 @@ import * as orderController from '../controllers/order.controller.js';
 import * as paymentController from '../controllers/payment.controller.js';
 import * as sellerController from '../controllers/seller.controller.js';
 import * as trackController from '../controllers/track.controller.js';
+import * as fcmController from '../controllers/fcm.controller.js';
 import { trackRateLimit } from '../middlewares/trackRateLimit.js';
 
 const router = Router();
@@ -68,6 +71,15 @@ router.post('/check-email', validate(checkEmailSchema), authController.checkEmai
 
 /** Shipment tracking (17TRACK) — see backend/docs/TRACKING_API.md */
 router.post('/track', trackRateLimit, validate(trackShipmentSchema), trackController.trackShipment);
+
+router.post('/save-token', authMiddleware, validate(saveFcmTokenSchema), fcmController.saveToken);
+router.post(
+  '/send-notification',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(sendFcmNotificationSchema),
+  fcmController.sendNotification
+);
 
 router.get('/products', productController.listProducts);
 router.get('/product/:id', optionalAuth, productController.getProduct);

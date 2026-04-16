@@ -1,5 +1,7 @@
 # Firebase Push Notification (Laravel + Vue/Nuxt)
 
+**FCM ยิงจาก:** `Laravel` | `Express`
+
 เอกสารนี้อธิบายการทำ Push Notification สำหรับ:
 - มีการสั่งซื้อสินค้าของร้าน
 - สถานะการตรวจสอบสินค้า (`inspection_status`) เปลี่ยน
@@ -102,13 +104,58 @@ Controller:
 php artisan queue:work --queue=notifications,default
 ```
 
+### Deploy: รัน queue worker จริง (Laravel เท่านั้น)
+
+- **systemd** (ตัวอย่าง unit สั้น ๆ): `ExecStart=/usr/bin/php /var/www/app/artisan queue:work --sleep=3 --tries=3 --queue=notifications,default`
+- **Supervisor**: สร้าง `[program:laravel-worker]` ชี้ `command=php /path/to/artisan queue:work ...` แล้ว `supervisorctl reread && supervisorctl update`
+- **Docker**: รัน service แยกหรือ `docker compose run --rm app php artisan queue:work --queue=notifications,default` (ชื่อ service/path ให้ตรงกับ image ของคุณ)
+
+ถ้าเลือก **Express** ในรีโปนี้ (`backend/`): ใช้คำสั่งด้านล่างแทน Laravel — ไม่ต้องรัน `php artisan queue:work`
+
+## 2b) Backend (Express — `backend/` ในรีโปนี้)
+
+### env
+
+ดู `backend/.env.example` — ตั้งอย่างน้อย:
+
+```env
+FIREBASE_CREDENTIALS=/absolute/path/to/service-account.json
+FIREBASE_PROJECT_ID=your-gcp-project-id
+```
+
+(`FIREBASE_PROJECT_ID` ไม่บังคับถ้า JSON มี `project_id`)
+
+### ติดตั้ง dependency + schema
+
+แนะนำ **Node.js 14+** (dependency `google-auth-library` v9)
+
+```bash
+cd backend && npm install && npm run db:schema
+```
+
+ตาราง: `backend/db/migrations/20260417_fcm_tokens.sql` (รวมใน `db/schema.sql` แล้ว)
+
+### API
+
+- `POST /api/save-token` — ต้องมี JWT ของผู้ใช้; body `{ "token": "...", "device": "web" }`
+- `POST /api/send-notification` — เฉพาะ **admin** + JWT; body `{ "title", "body", "data?", "user_ids?", "tokens?" }`
+- หลังสร้างออเดอร์: แจ้งผู้ขายที่มีสินค้าในออเดอร์อัตโนมัติ (ถ้า FCM ตั้งค่าแล้ว) — `backend/services/fcmOrderNotify.service.js`
+
+### Nuxt ชี้มาที่ Express
+
+```env
+NUXT_PUBLIC_LARAVEL_API_BASE=http://127.0.0.1:4000
+```
+
 ## 3) Example: ส่งแจ้งเตือนเมื่อมี Order ใหม่
 
-ไฟล์ตัวอย่าง:
+**Express (`backend/`):** หลังสร้างออเดอร์แล้วแจ้งผู้ขายอัตโนมัติ — `backend/services/fcmOrderNotify.service.js` (เรียกจาก `order.service.js`)
+
+**Laravel (ตัวอย่าง):** ไฟล์:
 - `app/Observers/OrderObserver.php`
 - `app/Providers/AppServiceProvider.php`
 
-พฤติกรรม:
+พฤติกรรม (Laravel เท่านั้น):
 - เมื่อสร้าง order ใหม่ (`created`) → แจ้ง seller ว่ามีออเดอร์ใหม่
 - เมื่อ `inspection_status` เปลี่ยน (`updated`) → แจ้ง buyer ว่าสถานะตรวจสอบสินค้าเปลี่ยน
 
