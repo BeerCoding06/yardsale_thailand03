@@ -205,7 +205,7 @@
       "bbl_bank_label": "Transferred from bank",
       "bbl_bank_placeholder": "— Select bank —",
       "bbl_bank_required": "Please select the bank you transferred from",
-      "bbl_bank_hint": "After you attach slip proof (file, URL, or data), the timer starts: BBL 8 minutes (with a reminder dialog). Other banks: about 15 seconds.",
+      "bbl_bank_hint": "The timer starts as soon as you select your bank: BBL 8 minutes (with a reminder dialog). Other banks: about 15 seconds.",
       "bank_options": {
         "BBL": "Bangkok Bank / BBL",
         "KBANK": "Kasikornbank / KBANK",

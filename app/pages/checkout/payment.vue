@@ -1,6 +1,5 @@
 <script setup>
 import { nextTick } from 'vue';
-import { watchDebounced } from '@vueuse/core';
 import { push } from 'notivue';
 import { buildPromptPayQrDataUrl } from "~/utils/promptpayDynamicQr";
 
@@ -96,14 +95,6 @@ const bankWatchPaused = ref(false);
 
 function transferBankCooldownMs(code) {
   return code === 'BBL' ? BBL_COOLDOWN_MS : OTHER_BANK_COOLDOWN_MS;
-}
-
-function hasSlipProof() {
-  return !!(
-    slipFile.value ||
-    String(slipUrl.value || '').trim() ||
-    String(slipData.value || '').trim()
-  );
 }
 
 function readTransferBankCode(uid) {
@@ -222,7 +213,7 @@ function restoreBblCooldownFromStorage() {
   if (uid) {
     let prefillT = readBblStored(`prefill_${uid}`);
     savedBank = readTransferBankCode(uid);
-    if (prefillT > now && (!hasSlipProof() || !savedBank)) {
+    if (prefillT > now && !savedBank) {
       try {
         sessionStorage.removeItem(`yardsale_bbl_prefill_${uid}`);
       } catch {
@@ -290,22 +281,8 @@ function recalculateAfterPrefillCleared() {
   applyOrderOnlyCooldownState();
 }
 
-/** ลบเฉพาะ prefill ธนาคาร — เก็บธนาคารที่เลือกไว้ (เมื่อลบสลิปออก) */
-function clearPrefillCooldownKeepBankSelection() {
-  if (!import.meta.client) return;
-  const uid = user.value?.id;
-  if (uid) {
-    try {
-      sessionStorage.removeItem(`yardsale_bbl_prefill_${uid}`);
-    } catch {
-      /* ignore */
-    }
-  }
-  applyOrderOnlyCooldownState();
-}
-
-/** คูลดาวน์ BBL / ธนาคารอื่น — เริ่มเมื่อมีทั้งธนาคารและหลักฐานสลิป */
-function tryArmBankSlipCooldown() {
+/** คูลดาวน์ BBL / ธนาคารอื่น — เริ่มทันทีเมื่อเลือกธนาคารใน select */
+function armBankSelectCooldown() {
   if (!import.meta.client || bankWatchPaused.value) return;
   const uid = user.value?.id;
   if (!uid) return;
@@ -329,11 +306,6 @@ function tryArmBankSlipCooldown() {
     sessionStorage.removeItem(`yardsale_bbl_prefill_${uid}`);
   } catch {
     /* ignore */
-  }
-
-  if (!hasSlipProof()) {
-    clearPrefillCooldownKeepBankSelection();
-    return;
   }
 
   const ms = transferBankCooldownMs(code);
@@ -362,22 +334,8 @@ watch(selectedBank, (code) => {
     return;
   }
   writeTransferBankCode(uid, code);
-  tryArmBankSlipCooldown();
+  armBankSelectCooldown();
 });
-
-watch(slipFile, () => {
-  if (!import.meta.client || bankWatchPaused.value) return;
-  tryArmBankSlipCooldown();
-});
-
-watchDebounced(
-  () => [String(slipUrl.value || '').trim(), String(slipData.value || '').trim()],
-  () => {
-    if (!import.meta.client || bankWatchPaused.value) return;
-    tryArmBankSlipCooldown();
-  },
-  { debounce: 600, maxWait: 4000 }
-);
 
 function revokeSlipPreview() {
   if (slipPreviewUrl.value) {
