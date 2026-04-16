@@ -84,6 +84,15 @@ export function customerPaymentUiKey(order: {
   if (s === "canceled" || s === "cancelled") return "cancelled";
   if (s === "payment_failed" || s === "failed") return "payment_failed";
 
+  /**
+   * Yardsale: slip_image_url ถูกตั้งเมื่อชำระสำเร็จ — ถ้า status ยัง pending/ว่าง
+   * (replica หรือ merge เก่า) ให้แสดงชำระแล้ว
+   */
+  const slipRow = String(order?.slip_image_url ?? "").trim();
+  if (slipRow.length > 0 && (s === "pending" || s === "")) {
+    return "paid";
+  }
+
   /** status หลัก = paid ก่อน flag — DB อัปเดตแล้วแต่ is_paid ใน merged object ยังเก่า */
   if (primaryStatusLooksPaid(s)) return "paid";
 

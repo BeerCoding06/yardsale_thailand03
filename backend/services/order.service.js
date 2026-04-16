@@ -179,7 +179,7 @@ export async function getOrder(orderId, userId, role) {
   try {
     const order = await orderModel.getOrderById(client, orderId);
     if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
-    if (order.user_id !== userId && role !== 'admin') {
+    if (String(order.user_id) !== String(userId) && role !== 'admin') {
       throw new AppError('Forbidden', 403, 'FORBIDDEN');
     }
     const items = await orderModel.getOrderItems(client, orderId);
@@ -438,7 +438,7 @@ export async function cancelOrder(orderId, userId, role) {
   return withTransaction(async (client) => {
     const order = await orderModel.getOrderById(client, orderId);
     if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
-    if (order.user_id !== userId && role !== 'admin') {
+    if (String(order.user_id) !== String(userId) && role !== 'admin') {
       throw new AppError('Forbidden', 403, 'FORBIDDEN');
     }
     if (order.status === 'canceled') {

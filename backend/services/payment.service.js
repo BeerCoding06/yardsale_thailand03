@@ -1,5 +1,5 @@
 import { AppError } from '../utils/AppError.js';
-import { withTransaction } from '../models/db.js';
+import { withTransaction, pool } from '../models/db.js';
 import * as orderModel from '../models/order.model.js';
 import * as orderService from './order.service.js';
 import { notifyBuyerOrderPaid } from './fcmOrderNotify.service.js';
@@ -219,41 +219,72 @@ export async function mockPayment(userId, body, file) {
   }
   const simulateFailure = parseBool(body.simulate_failure);
 
-  const result = await withTransaction(async (client) => {
-    const order = await orderModel.getOrderById(client, orderId);
-    if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
-    if (String(order.user_id) !== String(userId)) {
-      throw new AppError('Forbidden', 403, 'FORBIDDEN');
-    }
-
-    const st = orderStatusNorm(order);
-    if (st === 'canceled') {
-      throw new AppError('Order is canceled', 400, 'ORDER_CANCELED');
-    }
-    /** ชำระแล้ว — ไม่เรียก SlipOK ซ้ำ (สลิปเดิมมักถูกปฏิเสธครั้งถัดไป ทำให้สถานะค้าง pending + UI สับสน) */
-    if (st === 'paid') {
-      return {
-        order: orderService.formatOrderForApi(order),
-        paid: true,
-        already_paid: true,
-      };
-    }
-
-    if (simulateFailure) {
+  if (simulateFailure) {
+    return withTransaction(async (client) => {
+      const order = await orderModel.getOrderById(client, orderId);
+      if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
+      if (String(order.user_id) !== String(userId)) {
+        throw new AppError('Forbidden', 403, 'FORBIDDEN');
+      }
       await orderService.restoreStockForOrder(client, orderId);
       const updated = await orderModel.updateOrderStatus(client, orderId, 'payment_failed');
       if (!updated) {
         throw new AppError('Failed to update order', 500, 'ORDER_UPDATE_FAILED');
       }
       return { order: orderService.formatOrderForApi(updated), paid: false };
-    }
+    });
+  }
 
-    const slipChecked = await checkSlipWithSlipok(body, file);
-    const thisUploadUrl = await resolveSlipImageUrlForPayment(orderId, body, file);
-    const slipForOrderRow =
-      thisUploadUrl != null && String(thisUploadUrl).trim() !== ''
-        ? String(thisUploadUrl).trim()
-        : order.slip_image_url || null;
+  /** อ่านสถานะก่อน — อย่าเปิด transaction ค้างระหว่าง SlipOK (HTTP ช้า) / PgBouncer อาจทำให้ commit กับ read ไม่สอดคล้อง */
+  const reader = await pool.connect();
+  let orderBefore;
+  try {
+    orderBefore = await orderModel.getOrderById(reader, orderId);
+    if (!orderBefore) throw new AppError('Order not found', 404, 'NOT_FOUND');
+    if (String(orderBefore.user_id) !== String(userId)) {
+      throw new AppError('Forbidden', 403, 'FORBIDDEN');
+    }
+    const st0 = orderStatusNorm(orderBefore);
+    if (st0 === 'canceled') {
+      throw new AppError('Order is canceled', 400, 'ORDER_CANCELED');
+    }
+    if (st0 === 'paid') {
+      return {
+        order: orderService.formatOrderForApi(orderBefore),
+        paid: true,
+        already_paid: true,
+      };
+    }
+  } finally {
+    reader.release();
+  }
+
+  const slipChecked = await checkSlipWithSlipok(body, file);
+  const thisUploadUrl = await resolveSlipImageUrlForPayment(orderId, body, file);
+  const slipForOrderRow =
+    thisUploadUrl != null && String(thisUploadUrl).trim() !== ''
+      ? String(thisUploadUrl).trim()
+      : orderBefore.slip_image_url || null;
+
+  const result = await withTransaction(async (client) => {
+    const order = await orderModel.getOrderById(client, orderId);
+    if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
+    if (String(order.user_id) !== String(userId)) {
+      throw new AppError('Forbidden', 403, 'FORBIDDEN');
+    }
+    const st = orderStatusNorm(order);
+    if (st === 'canceled') {
+      throw new AppError('Order is canceled', 400, 'ORDER_CANCELED');
+    }
+    if (st === 'paid') {
+      return {
+        order: orderService.formatOrderForApi(order),
+        paid: true,
+        already_paid: true,
+        slip: slipChecked,
+        slip_verification: summarizeSlipokResult(slipChecked),
+      };
+    }
 
     const updated = await orderModel.updateOrderStatus(client, orderId, 'paid', {
       slipImageUrl: slipForOrderRow,

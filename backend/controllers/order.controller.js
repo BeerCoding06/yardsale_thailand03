@@ -1,5 +1,5 @@
 import { asyncHandler } from '../utils/asyncHandler.js';
-import { sendSuccess } from '../utils/response.js';
+import { sendSuccess, sendSuccessNoStore } from '../utils/response.js';
 import { AppError } from '../utils/AppError.js';
 import { parsePaginationQuery, parseSearchQuery } from '../utils/pagination.js';
 import * as orderService from '../services/order.service.js';
@@ -11,7 +11,7 @@ export const createOrder = asyncHandler(async (req, res) => {
 
 export const getOrder = asyncHandler(async (req, res) => {
   const data = await orderService.getOrder(req.params.id, req.user.id, req.user.role);
-  sendSuccess(res, data);
+  sendSuccessNoStore(res, data);
 });
 
 export const myOrders = asyncHandler(async (req, res) => {
@@ -23,7 +23,7 @@ export const myOrders = asyncHandler(async (req, res) => {
     offset,
     search,
   });
-  sendSuccess(res, { success: true, orders: data.orders, pagination: data.pagination });
+  sendSuccessNoStore(res, { success: true, orders: data.orders, pagination: data.pagination });
 });
 
 /** user/seller เห็นออเดอร์ที่มีสินค้าของตน; แอดมินเห็นทั้งระบบ */
@@ -38,7 +38,7 @@ export const sellerOrders = asyncHandler(async (req, res) => {
     role === 'admin'
       ? await orderService.listAllOrdersAdmin({ page, pageSize, offset, search })
       : await orderService.listSellerOrders(req.user.id, { page, pageSize, offset, search });
-  sendSuccess(res, { success: true, orders: data.orders, pagination: data.pagination });
+  sendSuccessNoStore(res, { success: true, orders: data.orders, pagination: data.pagination });
 });
 
 export const cancelOrder = asyncHandler(async (req, res) => {

@@ -46,7 +46,11 @@ export function useStorefrontCatalog() {
    */
   async function fetchYardsale(path: string, init?: Record<string, unknown>) {
     const p = String(path || "").replace(/^\//, "");
-    const raw = await $fetch(endpoint(p), init as any);
+    const method = String((init as { method?: string })?.method || "GET").toUpperCase();
+    const raw = await $fetch(endpoint(p), {
+      ...(init as object),
+      ...(method === "GET" ? { cache: "no-store" as RequestCache } : {}),
+    } as any);
     return unwrapYardsaleData(raw) ?? raw;
   }
 

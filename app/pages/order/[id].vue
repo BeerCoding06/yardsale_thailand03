@@ -15,12 +15,14 @@ import {
   getShipmentActiveStepIndex,
   orderShipmentFingerprint,
 } from "~/utils/shipmentTimeline";
+import { mergeOrderRowsPreferPaid } from "~/utils/orderPaymentMerge";
 
 const route = useRoute();
 const router = useRouter();
 const { user, isAuthenticated, checkAuth } = useAuth();
 const { t, locale } = useI18n();
 const { hasRemoteApi, fetchYardsale } = useStorefrontCatalog();
+const { order: checkoutOrder } = useCheckout();
 const { paymentLabel, paymentColorClass, customerPaymentUiKey } =
   useCustomerPaymentStatus();
 const { notify } = useNotification();
@@ -112,9 +114,18 @@ const fetchOrder = async () => {
       } else {
         const o = inner?.order;
         if (o) {
-          const prev =
+          let prev =
             order.value && typeof order.value === "object" ? { ...order.value } : {};
-          const merged = { ...prev, ...o };
+          const chk = checkoutOrder.value;
+          const oid = String(orderId.value);
+          if (
+            chk &&
+            String(chk.id) === oid &&
+            (!prev.id || Object.keys(prev).length < 2)
+          ) {
+            prev = { ...chk };
+          }
+          const merged = mergeOrderRowsPreferPaid(prev, o);
           merged.status = merged.status ?? merged.order_status ?? prev.status ?? "";
           merged.is_paid = customerPaymentUiKey(merged) === "paid";
           order.value = {
@@ -139,9 +150,18 @@ const fetchOrder = async () => {
       const o = orderData?.order ?? rawOrder?.order;
 
       if (o) {
-        const prev =
+        let prev =
           order.value && typeof order.value === "object" ? { ...order.value } : {};
-        const merged = { ...prev, ...o };
+        const chk = checkoutOrder.value;
+        const oid = String(orderId.value);
+        if (
+          chk &&
+          String(chk.id) === oid &&
+          (!prev.id || Object.keys(prev).length < 2)
+        ) {
+          prev = { ...chk };
+        }
+        const merged = mergeOrderRowsPreferPaid(prev, o);
         merged.status = merged.status ?? merged.order_status ?? prev.status ?? "";
         merged.is_paid = customerPaymentUiKey(merged) === "paid";
         order.value = {

@@ -2,6 +2,7 @@
 <script setup>
 import { push } from "notivue";
 import { unwrapYardsaleResponse, yardsaleBodyIsFailure } from "~/utils/cmsApiEndpoint";
+import { mergeOrderRowsPreferPaid } from "~/utils/orderPaymentMerge";
 
 definePageMeta({
   ssr: false, // Disable SSR to prevent hydration mismatches
@@ -31,7 +32,7 @@ function lineItemImageSrc(item) {
 
 function applyFetchedOrder(o, prev) {
   const p = prev && typeof prev === "object" ? { ...prev } : {};
-  const merged = { ...p, ...o };
+  const merged = mergeOrderRowsPreferPaid(p, o);
   merged.status = merged.status ?? merged.order_status ?? p.status ?? "";
   merged.is_paid = customerPaymentUiKey(merged) === "paid";
   order.value = {
