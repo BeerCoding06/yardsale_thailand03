@@ -32,7 +32,18 @@ function effectiveOrderStatus(order: {
   order_status?: string | null;
 }): string {
   const raw = order?.status ?? order?.order_status;
-  return normalizeStatus(raw);
+  if (raw == null || typeof raw === "object") return "";
+  return normalizeStatus(String(raw));
+}
+
+function primaryStatusLooksPaid(s: string): boolean {
+  return (
+    s === "paid" ||
+    s === "processing" ||
+    s === "completed" ||
+    s === "refunded" ||
+    s === "partially_refunded"
+  );
 }
 
 export function customerPaymentUiKey(order: {
@@ -44,9 +55,11 @@ export function customerPaymentUiKey(order: {
   /** บาง response แนบ paid แยกจาก status */
   paid?: unknown;
   financial_status?: string | null;
-  /** Shopify-style / บาง headless */
+  /** Shopify-style / บาง headless — ห้ามให้ "pending" ที่นี่ทับ status=paid ของ Yardsale */
   payment_status?: string | null;
 }): CustomerPaymentUiKey {
+  const s = effectiveOrderStatus(order);
+
   if (
     truthyPaidFlag(order?.set_paid) ||
     truthyPaidFlag(order?.is_paid) ||
@@ -55,32 +68,20 @@ export function customerPaymentUiKey(order: {
     return "paid";
   }
 
+  if (s === "canceled" || s === "cancelled") return "cancelled";
+  if (s === "payment_failed" || s === "failed") return "payment_failed";
+  if (primaryStatusLooksPaid(s)) return "paid";
+
   const fin = normalizeStatus(order?.financial_status);
   if (fin === "paid") return "paid";
   if (fin === "partially_paid") return "awaiting_payment";
 
   const pst = normalizeStatus(order?.payment_status);
   if (pst === "paid" || pst === "completed" || pst === "captured") return "paid";
-  if (pst === "partially_paid" || pst === "unpaid" || pst === "pending" || pst === "awaiting") {
-    return "awaiting_payment";
-  }
   if (pst === "failed" || pst === "voided" || pst === "declined") {
     return "payment_failed";
   }
 
-  const s = effectiveOrderStatus(order);
-  if (!s) return "unknown";
-  if (s === "canceled" || s === "cancelled") return "cancelled";
-  if (s === "payment_failed" || s === "failed") return "payment_failed";
-  if (
-    s === "paid" ||
-    s === "processing" ||
-    s === "completed" ||
-    s === "refunded" ||
-    s === "partially_refunded"
-  ) {
-    return "paid";
-  }
   if (s.startsWith("wc_")) {
     if (s.includes("cancel")) return "cancelled";
     if (s.includes("failed") || s.includes("refund")) return "payment_failed";
@@ -98,6 +99,12 @@ export function customerPaymentUiKey(order: {
   ) {
     return "awaiting_payment";
   }
+
+  if (pst === "partially_paid" || pst === "unpaid" || pst === "pending" || pst === "awaiting") {
+    return "awaiting_payment";
+  }
+
+  if (!s) return "unknown";
   return "unknown";
 }
 

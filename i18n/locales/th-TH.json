@@ -423,13 +423,13 @@
     "payment_status_customer": "สถานะการชำระเงิน",
     "customer_payment": {
       "awaiting_payment": "รอชำระเงิน",
-      "paid": "ชำระเงินแล้ว",
+      "paid": "ชำระเงินสำเร็จ",
       "payment_failed": "ชำระเงินไม่สำเร็จ",
       "cancelled": "ยกเลิกคำสั่งซื้อ",
       "unknown": "ไม่ระบุ"
     },
     "payment_method": "วิธีการชำระเงิน",
-    "paid": "ชำระเงินแล้ว",
+    "paid": "ชำระเงินสำเร็จ",
     "date_paid": "วันที่ชำระเงิน",
     "transaction_id": "Transaction ID",
     "current_step": "ขั้นตอนปัจจุบัน",

@@ -422,7 +422,7 @@
     "payment_status_customer": "Payment status",
     "customer_payment": {
       "awaiting_payment": "Awaiting payment",
-      "paid": "Paid",
+      "paid": "Payment successful",
       "payment_failed": "Payment failed",
       "cancelled": "Cancelled",
       "unknown": "Unknown"
