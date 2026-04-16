@@ -192,6 +192,23 @@ watch(orderId, (id) => {
   fetchOrder();
 });
 
+const { tick: orderPaidTick, lastPaid: lastPaidOrder } = useOrderPaymentSync();
+watch(orderPaidTick, () => {
+  const lp = lastPaidOrder.value;
+  if (!lp || String(lp.orderId) !== String(orderId.value)) return;
+  if (!isClient.value || !isAuthenticated.value || !user.value) return;
+  const prev = order.value && typeof order.value === "object" ? { ...order.value } : {};
+  const merged = mergeOrderRowsPreferPaid(prev, lp.order);
+  merged.status = merged.status ?? merged.order_status ?? prev.status ?? "";
+  merged.is_paid = customerPaymentUiKey(merged) === "paid";
+  order.value = {
+    ...merged,
+    total: String(merged.total_price ?? merged.total ?? prev.total ?? 0),
+    date_created: merged.created_at ?? merged.date_created ?? prev.date_created,
+  };
+  notifyShipmentFingerprintChange();
+});
+
 onMounted(async () => {
   isClient.value = true;
   checkAuth();

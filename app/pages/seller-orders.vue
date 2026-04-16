@@ -360,6 +360,11 @@ useRefetchWhenTabVisible(() => {
   if (isClient.value && isAuthenticated.value && user.value) fetchOrders();
 });
 
+const { tick: orderPaidTick } = useOrderPaymentSync();
+watch(orderPaidTick, () => {
+  if (isClient.value && isAuthenticated.value && user.value) fetchOrders();
+});
+
 onMounted(async () => {
   isClient.value = true;
   checkAuth();

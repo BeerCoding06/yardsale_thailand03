@@ -103,7 +103,15 @@ export const useCheckout = () => {
       body: fd,
       headers: jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {},
     });
-    return normalizeSlipPaymentPayload(unwrapYardsaleResponse(raw) ?? raw);
+    const out = normalizeSlipPaymentPayload(unwrapYardsaleResponse(raw) ?? raw);
+    if (out?.paid === true && out?.order && typeof out.order === 'object') {
+      try {
+        useOrderPaymentSync().notifyOrderPaidAfterMock(out.order);
+      } catch {
+        /* นอก Nuxt context */
+      }
+    }
+    return out;
   };
 
   // Store customer billing data from profile

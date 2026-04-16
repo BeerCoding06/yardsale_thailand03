@@ -218,6 +218,11 @@ useRefetchWhenTabVisible(() => {
   if (user.value?.token) void fetchOrders();
 });
 
+const { tick: orderPaidTick } = useOrderPaymentSync();
+watch(orderPaidTick, () => {
+  if (user.value?.token) void fetchOrders();
+});
+
 async function saveAdminFulfillment(order: any) {
   const jwt = user.value?.token;
   if (!jwt) {
@@ -279,6 +284,16 @@ async function markPaidAdmin(order: any) {
       body: {},
     });
     push.success(t("admin.orders.mark_paid_ok"));
+    try {
+      useOrderPaymentSync().notifyOrderPaidAfterMock({
+        ...order,
+        id: order.id,
+        status: "paid",
+        is_paid: true,
+      });
+    } catch {
+      /* ignore */
+    }
     await fetchOrders();
   } catch (e: any) {
     push.error(

@@ -75,7 +75,16 @@ onMounted(async () => {
             const prev =
               order.value && typeof order.value === "object" ? { ...order.value } : {};
             applyFetchedOrder(inner.order, prev);
-            if (customerPaymentUiKey(order.value) === "paid") break;
+            if (customerPaymentUiKey(order.value) === "paid") {
+              try {
+                useOrderPaymentSync().notifyOrderPaidAfterMock({
+                  ...(order.value && typeof order.value === "object" ? order.value : {}),
+                });
+              } catch {
+                /* ignore */
+              }
+              break;
+            }
           }
         } else {
           const raw = await $fetch("/api/get-order", { query: { order_id: orderId } });
@@ -85,7 +94,16 @@ onMounted(async () => {
             const prev =
               order.value && typeof order.value === "object" ? { ...order.value } : {};
             applyFetchedOrder(ord, prev);
-            if (customerPaymentUiKey(order.value) === "paid") break;
+            if (customerPaymentUiKey(order.value) === "paid") {
+              try {
+                useOrderPaymentSync().notifyOrderPaidAfterMock({
+                  ...(order.value && typeof order.value === "object" ? order.value : {}),
+                });
+              } catch {
+                /* ignore */
+              }
+              break;
+            }
           }
         }
         if (attempt < maxAttempts - 1) {
