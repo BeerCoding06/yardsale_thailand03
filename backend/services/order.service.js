@@ -69,12 +69,15 @@ export function formatOrderForApi(row) {
       country: snap.country || 'TH',
     };
   }
+  const st = String(row.status || '').toLowerCase();
   return {
     ...row,
     billing,
     date_created: row.created_at,
     total: row.total_price,
     shipping_status: row.shipping_status || 'pending',
+    /** ให้หน้าบ้าน/CMS ที่เช็ค is_paid สอดคล้องกับ enum ฐานข้อมูล */
+    is_paid: st === 'paid',
   };
 }
 

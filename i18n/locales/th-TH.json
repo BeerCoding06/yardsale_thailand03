@@ -834,6 +834,7 @@
       "col_id": "คำสั่งซื้อ",
       "col_buyer": "ผู้ซื้อ",
       "col_status": "สถานะ",
+      "col_payment_status": "การชำระเงิน",
       "col_total": "ยอดรวม",
       "col_date": "วันที่",
       "col_fulfillment": "จัดส่ง",

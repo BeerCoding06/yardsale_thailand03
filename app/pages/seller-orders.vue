@@ -12,7 +12,8 @@ definePageMeta({
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
 const { endpoint, hasRemoteApi } = useCmsApi();
-const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
+const { paymentLabel, paymentColorClass, customerPaymentUiKey } =
+  useCustomerPaymentStatus();
 
 const isClient = ref(false);
 const isLoading = ref(true);
@@ -79,17 +80,12 @@ function normalizeStatusKey(s) {
 }
 
 function orderPaid(order) {
-  return order.is_paid === true || normalizeStatusKey(order.status) === "paid";
+  return customerPaymentUiKey(order) === "paid";
 }
 
 function orderPaymentTerminated(order) {
-  const s = normalizeStatusKey(order.status);
-  return (
-    s === "cancelled" ||
-    s === "canceled" ||
-    s === "failed" ||
-    s === "payment_failed"
-  );
+  const key = customerPaymentUiKey(order);
+  return key === "cancelled" || key === "payment_failed";
 }
 
 /** แถวจาก Express: buyer_email / buyer_name, status ฯลฯ */
@@ -99,7 +95,7 @@ function normalizeSellerOrderRow(row) {
   o.date_created = o.date_created ?? o.created_at;
   o.total = o.total ?? o.total_price;
   o.seller_total = o.seller_total ?? o.total_price ?? o.total;
-  if (o.is_paid == null) o.is_paid = normalizeStatusKey(o.status) === "paid";
+  if (o.is_paid == null) o.is_paid = customerPaymentUiKey(o) === "paid";
   if (!o.billing && (o.buyer_email || o.buyer_name)) {
     const name = String(o.buyer_name || "").trim();
     const parts = name ? name.split(/\s+/) : [];
@@ -253,7 +249,7 @@ const getPaymentSteps = (order) => {
 const getCurrentStep = (order) => {
   if (orderPaymentTerminated(order)) return 0;
   if (orderPaid(order)) return 4;
-  if (normalizeStatusKey(order.status) === "pending") return 2;
+  if (customerPaymentUiKey(order) === "awaiting_payment") return 2;
   return 1;
 };
 

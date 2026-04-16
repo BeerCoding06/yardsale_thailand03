@@ -831,6 +831,7 @@
       "col_id": "Order",
       "col_buyer": "Buyer",
       "col_status": "Status",
+      "col_payment_status": "Payment",
       "col_total": "Total",
       "col_date": "Date",
       "col_fulfillment": "Shipping",

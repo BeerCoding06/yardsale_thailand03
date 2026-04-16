@@ -16,6 +16,7 @@ const { t } = useI18n();
 const { user, checkAuth } = useAuth();
 const { endpoint } = useCmsApi();
 const { resolveMediaUrl } = useStorefrontCatalog();
+const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
 
 const SHIP_STATUS_VALUES = [
   "pending",
@@ -327,7 +328,7 @@ onMounted(() => {
             >
               <th class="py-2 pr-4 font-medium">{{ t("admin.orders.col_id") }}</th>
               <th class="py-2 pr-4 font-medium">{{ t("admin.orders.col_buyer") }}</th>
-              <th class="py-2 pr-4 font-medium">{{ t("admin.orders.col_status") }}</th>
+              <th class="py-2 pr-4 font-medium">{{ t("admin.orders.col_payment_status") }}</th>
               <th class="py-2 pr-4 font-medium">{{ t("admin.orders.col_total") }}</th>
               <th class="py-2 pr-4 font-medium">{{ t("admin.orders.col_date") }}</th>
               <th class="py-2 font-medium text-right">{{ t("admin.orders.col_fulfillment") }}</th>
@@ -346,8 +347,20 @@ onMounted(() => {
               >
                 {{ o.buyer_email ?? "—" }}
               </td>
-              <td class="py-3 pr-4 capitalize align-top">
-                {{ o.status ?? o.order_status ?? "—" }}
+              <td class="py-3 pr-4 align-top">
+                <span
+                  :class="[
+                    'inline-flex px-2 py-0.5 rounded-full text-xs font-semibold capitalize',
+                    paymentColorClass(o),
+                  ]"
+                >
+                  {{ paymentLabel(o) }}
+                </span>
+                <p
+                  class="mt-1 text-[10px] font-mono text-neutral-500 dark:text-neutral-500 break-all max-w-[14rem]"
+                >
+                  {{ o.status ?? o.order_status ?? "—" }}
+                </p>
               </td>
               <td class="py-3 pr-4 align-top">
                 {{ o.total_price ?? o.total ?? o.grand_total ?? "—" }}

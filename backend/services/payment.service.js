@@ -178,7 +178,7 @@ export async function mockPayment(userId, body, file) {
     if (simulateFailure) {
       await orderService.restoreStockForOrder(client, orderId);
       const updated = await orderModel.updateOrderStatus(client, orderId, 'payment_failed');
-      return { order: updated, paid: false };
+      return { order: orderService.formatOrderForApi(updated), paid: false };
     }
 
     const slipChecked = await checkSlipWithSlipok(body, file);
@@ -201,7 +201,7 @@ export async function mockPayment(userId, body, file) {
       /* ตาราง order_slip_snapshots ยังไม่ migrate — ไม่บล็อกการชำระ */
     }
 
-    return { order: updated, paid: true, slip: slipChecked };
+    return { order: orderService.formatOrderForApi(updated), paid: true, slip: slipChecked };
   });
 
   if (result?.paid === true && result?.order?.id) {
