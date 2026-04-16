@@ -21,7 +21,8 @@ npm install firebase@9
 เติมค่าในไฟล์ `.env` จากตัวอย่างใน `env.example`:
 
 ```env
-NUXT_PUBLIC_LARAVEL_API_BASE=http://127.0.0.1:8000
+# ถ้าใช้ Express เดียวกับ Nuxt (เช่น NUXT_PUBLIC_CMS_API_BASE=/yardsale-api) ไม่ต้องใส่บรรทัดนี้ก็ได้
+# NUXT_PUBLIC_LARAVEL_API_BASE=http://127.0.0.1:4000
 
 NUXT_PUBLIC_FIREBASE_API_KEY=
 NUXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
@@ -41,7 +42,7 @@ NUXT_PUBLIC_FIREBASE_VAPID_KEY=
   - ส่ง token ไป backend (`POST /api/save-token`)
   - listen ข้อความตอนแอปเปิดอยู่ (foreground)
 - `app/plugins/fcm-push.client.ts`
-  - เรียก `initFcmPush()` อัตโนมัติเมื่อหน้าเว็บพร้อมใช้งาน
+  - `watch` (immediate) บน `user.id` + `user.token` — ขอ FCM หลัง state ผู้ใช้พร้อม และ **sync token หลังล็อกอิน** (แก้กรณี init ครั้งแรกก่อนมี JWT)
 - `public/firebase-messaging-sw.js`
   - รับข้อความ background และแสดง browser notification
 

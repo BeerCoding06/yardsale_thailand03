@@ -1,14 +1,9 @@
 import { useNotification } from "./useNotification";
+import { cmsEndpointFromPublic } from "~/utils/cmsApiEndpoint";
 
 type FcmUserId = number | string | null | undefined;
 
 type FirebaseMessagingModule = typeof import("firebase/messaging");
-
-function buildUrl(baseUrl: string, path: string): string {
-  const base = baseUrl.replace(/\/+$/, "");
-  const nextPath = path.startsWith("/") ? path : `/${path}`;
-  return `${base}${nextPath}`;
-}
 
 export function useFcmPush() {
   const initialized = useState("fcm:initialized", () => false);
@@ -17,9 +12,33 @@ export function useFcmPush() {
   const { notify } = useNotification();
   const config = useRuntimeConfig();
 
+  /** POST /api/save-token — laravelApiBase ถ้ามี ไม่งั้นใช้ cmsApiBase (Express ผ่าน proxy เดียวกับ Nuxt) */
+  function resolveFcmSaveTokenUrl(): string {
+    const pub = config.public as {
+      laravelApiBase?: string;
+      cmsApiBase?: string;
+      baseUrl?: string;
+    };
+    const laravel = String(pub.laravelApiBase || "").trim();
+    if (laravel) {
+      const origin = laravel.replace(/\/+$/, "").replace(/\/api\/?$/i, "");
+      return `${origin}/api/save-token`;
+    }
+    const cms = String(pub.cmsApiBase || "").trim();
+    if (!cms || !import.meta.client) return "";
+    return cmsEndpointFromPublic(pub, "save-token", true);
+  }
+
   async function saveTokenToBackend(token: string, userId?: FcmUserId) {
-    const apiBase = String(config.public.laravelApiBase || "").trim();
-    if (!apiBase) return;
+    const url = resolveFcmSaveTokenUrl();
+    if (!url) {
+      if (import.meta.dev) {
+        console.warn(
+          "[fcm] ไม่มี URL บันทึก token — ตั้ง NUXT_PUBLIC_LARAVEL_API_BASE หรือ NUXT_PUBLIC_CMS_API_BASE"
+        );
+      }
+      return;
+    }
 
     const payload: Record<string, unknown> = {
       token,
@@ -37,15 +56,19 @@ export function useFcmPush() {
       bearerToken = "";
     }
 
-    await $fetch(buildUrl(apiBase, "/api/save-token"), {
-      method: "POST",
-      body: payload,
-      headers: bearerToken ? { Authorization: `Bearer ${bearerToken}` } : undefined,
-    });
+    try {
+      await $fetch(url, {
+        method: "POST",
+        body: payload,
+        headers: bearerToken ? { Authorization: `Bearer ${bearerToken}` } : undefined,
+      });
+    } catch (e) {
+      console.warn("[fcm] save-token failed:", e);
+    }
   }
 
   async function initFcmPush(userId?: FcmUserId) {
-    if (!import.meta.client || initialized.value) return latestToken.value;
+    if (!import.meta.client) return null;
     if (!("serviceWorker" in navigator)) return null;
     if (!window.isSecureContext) return null;
 
@@ -59,10 +82,23 @@ export function useFcmPush() {
     };
     const vapidKey = String(config.public.firebaseVapidKey || "");
     const hasConfig = Object.values(firebaseConfig).every((v) => v.trim()) && !!vapidKey;
-    if (!hasConfig) return null;
+    if (!hasConfig) {
+      if (import.meta.dev) {
+        console.warn(
+          "[fcm] ยังไม่ตั้งค่า Firebase web + VAPID — ตรวจ NUXT_PUBLIC_FIREBASE_* และ NUXT_PUBLIC_FIREBASE_VAPID_KEY"
+        );
+      }
+      return null;
+    }
 
     const permission = await Notification.requestPermission();
     if (permission !== "granted") return null;
+
+    // ลงทะเบียน FCM แล้ว — แค่ sync token กับ backend อีกครั้ง (เช่น หลังล็อกอิน JWT พร้อม)
+    if (initialized.value && latestToken.value) {
+      await saveTokenToBackend(latestToken.value, userId);
+      return latestToken.value;
+    }
 
     const [{ getApps, initializeApp }, messagingModule] = await Promise.all([
       import("firebase/app"),
