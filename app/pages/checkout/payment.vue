@@ -1,5 +1,6 @@
 <script setup>
 import { nextTick } from 'vue';
+import { watchDebounced } from '@vueuse/core';
 import { push } from 'notivue';
 import { buildPromptPayQrDataUrl } from "~/utils/promptpayDynamicQr";
 
@@ -95,6 +96,14 @@ const bankWatchPaused = ref(false);
 
 function transferBankCooldownMs(code) {
   return code === 'BBL' ? BBL_COOLDOWN_MS : OTHER_BANK_COOLDOWN_MS;
+}
+
+function hasSlipProof() {
+  return !!(
+    slipFile.value ||
+    String(slipUrl.value || '').trim() ||
+    String(slipData.value || '').trim()
+  );
 }
 
 function readTransferBankCode(uid) {
@@ -213,7 +222,7 @@ function restoreBblCooldownFromStorage() {
   if (uid) {
     let prefillT = readBblStored(`prefill_${uid}`);
     savedBank = readTransferBankCode(uid);
-    if (prefillT > now && !savedBank) {
+    if (prefillT > now && (!hasSlipProof() || !savedBank)) {
       try {
         sessionStorage.removeItem(`yardsale_bbl_prefill_${uid}`);
       } catch {
@@ -245,17 +254,8 @@ function restoreBblCooldownFromStorage() {
   });
 }
 
-function recalculateAfterPrefillCleared() {
+function applyOrderOnlyCooldownState() {
   if (!import.meta.client) return;
-  const uid = user.value?.id;
-  if (uid) {
-    try {
-      sessionStorage.removeItem(`yardsale_bbl_prefill_${uid}`);
-    } catch {
-      /* ignore */
-    }
-    writeTransferBankCode(uid, '');
-  }
   const now = Date.now();
   let until = 0;
   const oid = String(orderId.value || '').trim();
@@ -275,10 +275,55 @@ function recalculateAfterPrefillCleared() {
   }
 }
 
-watch(selectedBank, (code) => {
+/** ล้างคูลดาวน์จากการเลือกธนาคาร + ล้างรหัสธนาคารใน session (เมื่อเลือกว่าง) */
+function recalculateAfterPrefillCleared() {
+  if (!import.meta.client) return;
+  const uid = user.value?.id;
+  if (uid) {
+    try {
+      sessionStorage.removeItem(`yardsale_bbl_prefill_${uid}`);
+    } catch {
+      /* ignore */
+    }
+    writeTransferBankCode(uid, '');
+  }
+  applyOrderOnlyCooldownState();
+}
+
+/** ลบเฉพาะ prefill ธนาคาร — เก็บธนาคารที่เลือกไว้ (เมื่อลบสลิปออก) */
+function clearPrefillCooldownKeepBankSelection() {
+  if (!import.meta.client) return;
+  const uid = user.value?.id;
+  if (uid) {
+    try {
+      sessionStorage.removeItem(`yardsale_bbl_prefill_${uid}`);
+    } catch {
+      /* ignore */
+    }
+  }
+  applyOrderOnlyCooldownState();
+}
+
+/** คูลดาวน์ BBL / ธนาคารอื่น — เริ่มเมื่อมีทั้งธนาคารและหลักฐานสลิป */
+function tryArmBankSlipCooldown() {
   if (!import.meta.client || bankWatchPaused.value) return;
   const uid = user.value?.id;
   if (!uid) return;
+
+  const code = String(selectedBank.value || '').trim();
+
+  if (!code) {
+    try {
+      sessionStorage.removeItem(`yardsale_bbl_prefill_${uid}`);
+    } catch {
+      /* ignore */
+    }
+    writeTransferBankCode(uid, '');
+    applyOrderOnlyCooldownState();
+    return;
+  }
+
+  writeTransferBankCode(uid, code);
 
   try {
     sessionStorage.removeItem(`yardsale_bbl_prefill_${uid}`);
@@ -286,13 +331,10 @@ watch(selectedBank, (code) => {
     /* ignore */
   }
 
-  if (!code) {
-    writeTransferBankCode(uid, '');
-    recalculateAfterPrefillCleared();
+  if (!hasSlipProof()) {
+    clearPrefillCooldownKeepBankSelection();
     return;
   }
-
-  writeTransferBankCode(uid, code);
 
   const ms = transferBankCooldownMs(code);
   const now = Date.now();
@@ -308,7 +350,34 @@ watch(selectedBank, (code) => {
   bblCooldownUntil.value = finalUntil;
   bblModalOpen.value = code === 'BBL' || dominatedByOrder;
   startBblTick();
+}
+
+watch(selectedBank, (code) => {
+  if (!import.meta.client || bankWatchPaused.value) return;
+  const uid = user.value?.id;
+  if (!uid) return;
+
+  if (!code) {
+    recalculateAfterPrefillCleared();
+    return;
+  }
+  writeTransferBankCode(uid, code);
+  tryArmBankSlipCooldown();
 });
+
+watch(slipFile, () => {
+  if (!import.meta.client || bankWatchPaused.value) return;
+  tryArmBankSlipCooldown();
+});
+
+watchDebounced(
+  () => [String(slipUrl.value || '').trim(), String(slipData.value || '').trim()],
+  () => {
+    if (!import.meta.client || bankWatchPaused.value) return;
+    tryArmBankSlipCooldown();
+  },
+  { debounce: 600, maxWait: 4000 }
+);
 
 function revokeSlipPreview() {
   if (slipPreviewUrl.value) {
