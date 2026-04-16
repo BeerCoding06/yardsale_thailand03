@@ -48,19 +48,35 @@ onMounted(async () => {
         });
         if (!yardsaleBodyIsFailure(inner) && inner?.order) {
           const o = inner.order;
+          const prev =
+            order.value && typeof order.value === "object" ? { ...order.value } : {};
           order.value = {
+            ...prev,
             ...o,
+            status: o.status ?? o.order_status ?? prev.status,
+            is_paid:
+              o.is_paid !== undefined && o.is_paid !== null ? o.is_paid : prev.is_paid,
             number:
               o.number ||
-              String(o.id).replace(/-/g, '').slice(0, 12),
-            total: String(o.total_price ?? o.total ?? 0),
-            date_created: o.created_at ?? o.date_created,
+              String(o.id).replace(/-/g, "").slice(0, 12) ||
+              prev.number,
+            total: String(o.total_price ?? o.total ?? prev.total ?? 0),
+            date_created: o.created_at ?? o.date_created ?? prev.date_created,
           };
         }
       } else {
         const data = await $fetch("/api/get-order", { query: { order_id: orderId } });
         if (data?.order) {
-          order.value = data.order;
+          const o = data.order;
+          const prev =
+            order.value && typeof order.value === "object" ? { ...order.value } : {};
+          order.value = {
+            ...prev,
+            ...o,
+            status: o.status ?? o.order_status ?? prev.status,
+            is_paid:
+              o.is_paid !== undefined && o.is_paid !== null ? o.is_paid : prev.is_paid,
+          };
         }
       }
     } catch (e) {

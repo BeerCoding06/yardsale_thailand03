@@ -15,11 +15,11 @@ const router = useRouter();
 const localePath = useLocalePath();
 const { paymentLabel, paymentColorClass, canCancelByPaymentRules, canPayOrder } =
   useCustomerPaymentStatus();
-const { endpoint, hasRemoteApi } = useCmsApi();
-const { resolveMediaUrl } = useStorefrontCatalog();
+const { hasRemoteApi } = useCmsApi();
+const { fetchYardsale, resolveMediaUrl } = useStorefrontCatalog();
 
-function cmsPath(rel) {
-  return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
+function localMyOrdersApiPath(rel) {
+  return `/api/${rel}`;
 }
 
 // Client-side only state
@@ -273,13 +273,21 @@ const fetchOrders = async () => {
     }
 
     // เรียก Yardsale GET /my-orders (หรือ /api/my-orders ตอน mock) — user จาก JWT เท่านั้น
-    const raw = await $fetch(cmsPath("my-orders"), {
-      headers: {
-        Authorization: `Bearer ${jwtToken}`,
-      },
-      query: paginationQuery(listPage.value, listSearch.value, ORDER_PAGE_SIZE),
-    });
-    const body = unwrapYardsaleResponse(raw) ?? raw;
+    const listQuery = paginationQuery(listPage.value, listSearch.value, ORDER_PAGE_SIZE);
+    const listHeaders = { Authorization: `Bearer ${jwtToken}` };
+    let body;
+    if (hasRemoteApi) {
+      body = await fetchYardsale("my-orders", {
+        headers: listHeaders,
+        query: listQuery,
+      });
+    } else {
+      const raw = await $fetch(localMyOrdersApiPath("my-orders"), {
+        headers: listHeaders,
+        query: listQuery,
+      });
+      body = unwrapYardsaleResponse(raw) ?? raw;
+    }
     if (body && body.success === false) {
       error.value =
         (typeof body.error === "object" && body.error?.message) ||
@@ -412,15 +420,27 @@ const cancelOrder = async () => {
     cancellingOrderId.value = orderId;
     cancelMessage.value = null;
 
-    const rawCancel = await $fetch(cmsPath("cancel-order"), {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${user.value?.token || ""}`,
-        "Content-Type": "application/json",
-      },
-      body: { order_id: orderId },
-    });
-    const response = unwrapYardsaleResponse(rawCancel) ?? rawCancel;
+    let response;
+    if (hasRemoteApi) {
+      response = await fetchYardsale("cancel-order", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${user.value?.token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: { order_id: orderId },
+      });
+    } else {
+      const rawCancel = await $fetch(localMyOrdersApiPath("cancel-order"), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${user.value?.token || ""}`,
+          "Content-Type": "application/json",
+        },
+        body: { order_id: orderId },
+      });
+      response = unwrapYardsaleResponse(rawCancel) ?? rawCancel;
+    }
 
     if (response?.success !== false && (response?.success === true || response?.order != null)) {
       cancelMessage.value = {

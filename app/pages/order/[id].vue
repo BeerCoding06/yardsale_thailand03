@@ -107,10 +107,16 @@ const fetchOrder = async () => {
       } else {
         const o = inner?.order;
         if (o) {
+          const prev =
+            order.value && typeof order.value === "object" ? { ...order.value } : {};
           order.value = {
+            ...prev,
             ...o,
-            total: String(o.total_price ?? o.total ?? 0),
-            date_created: o.created_at ?? o.date_created,
+            status: o.status ?? o.order_status ?? prev.status,
+            is_paid:
+              o.is_paid !== undefined && o.is_paid !== null ? o.is_paid : prev.is_paid,
+            total: String(o.total_price ?? o.total ?? prev.total ?? 0),
+            date_created: o.created_at ?? o.date_created ?? prev.date_created,
           };
           notifyShipmentFingerprintChange();
         } else {

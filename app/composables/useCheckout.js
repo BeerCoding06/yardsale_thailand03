@@ -5,13 +5,32 @@ import {
   yardsaleBodyIsFailure,
 } from '~/utils/cmsApiEndpoint';
 
+function orderLooksPaidInPayload(order) {
+  if (!order || typeof order !== 'object') return false;
+  const ip = order.is_paid;
+  if (ip === true || ip === 1) return true;
+  if (typeof ip === 'string' && ['true', '1', 'yes'].includes(ip.trim().toLowerCase())) return true;
+  const s = String(order.status ?? order.order_status ?? '')
+    .toLowerCase()
+    .trim()
+    .replace(/-/g, '_');
+  return (
+    s === 'paid' ||
+    s === 'processing' ||
+    s === 'completed' ||
+    s === 'refunded' ||
+    s === 'partially_refunded'
+  );
+}
+
 function normalizeSlipPaymentPayload(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload;
   const p = payload.paid;
-  const paid =
+  let paid =
     p === true ||
     p === 1 ||
     (typeof p === 'string' && ['true', '1', 'yes'].includes(p.trim().toLowerCase()));
+  if (!paid && orderLooksPaidInPayload(payload.order)) paid = true;
   return { ...payload, paid };
 }
 
