@@ -98,6 +98,8 @@ ENV NUXT_HOST=0.0.0.0
 ENV NUXT_PORT=3000
 # Nitro proxy → Express ใน compose (ชื่อ service `backend`)
 ENV NUXT_YARDSALE_PROXY_TARGET=http://backend:4000
+# ลดโอกาส Node เลือก IPv6 ของชื่อ `backend` แล้วเชื่อมไม่ได้ใน Docker
+ENV NODE_OPTIONS="--dns-result-order=ipv4first"
 
 # Copy built Nuxt application from builder stage
 COPY --from=builder /app/.output ./.output

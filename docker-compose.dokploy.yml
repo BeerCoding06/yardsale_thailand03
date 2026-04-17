@@ -52,6 +52,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     # รอแค่ backend ขึ้น container — ไม่รอ service_healthy (healthcheck ล้มบ่อยจาก timing/IPv4 ทำให้ deploy ทั้ง stack fail)
     depends_on:
@@ -59,6 +61,7 @@ services:
         condition: service_started
     environment:
       NODE_ENV: production
+      NODE_OPTIONS: "--dns-result-order=ipv4first"
       BASE_URL: ${BASE_URL}
       # Nitro proxy → backend (ชื่อ service ใน compose — ใช้ได้แค่ใน container ไม่ใช่ในเบราว์เซอร์)
       NUXT_YARDSALE_PROXY_TARGET: http://backend:4000
