@@ -125,6 +125,27 @@ function moderationIssueLabel(key: string) {
   return translated === path ? key : translated;
 }
 
+/** ป้ายมุมขวา: ยกเลิก → ไม่ผ่านตรวจ (มี moderation) → สถานะเผยแพร่/รอตรวจ/ซ่อน */
+function myProductStatusBadgeClass(p: any) {
+  if (p?.status === "cancelled") return "bg-red-500 text-white";
+  if (p?.moderation) {
+    return "bg-alizarin-crimson-600 text-white shadow-md dark:bg-alizarin-crimson-500";
+  }
+  if (p?.status === "pending") return "bg-yellow-500 text-white";
+  if (p?.status === "publish") return "bg-green-500 text-white";
+  if (p?.status === "hidden") return "bg-neutral-600 text-white";
+  return "bg-neutral-500 text-white";
+}
+
+function myProductStatusBadgeLabel(p: any) {
+  if (p?.status === "cancelled") return t("my_products.status.cancelled");
+  if (p?.moderation) return t("my_products.status.not_passed_review");
+  if (p?.status === "pending") return t("my_products.status.pending");
+  if (p?.status === "publish") return t("my_products.status.published");
+  if (p?.status === "hidden") return t("my_products.status.hidden");
+  return t("my_products.status.pending");
+}
+
 const moderationProductCount = computed(
   () => products.value.filter((p: any) => p?.moderation).length
 );
@@ -652,23 +673,10 @@ watch(isAuthenticated, (newVal: boolean) => {
                   {{ $t("my_products.moderation_badge") }}
                 </div>
                 <div
-                  class="absolute top-2 right-2 px-3 py-1 rounded-full text-xs font-semibold"
-                  :class="{
-                    'bg-yellow-500 text-white': product.status === 'pending',
-                    'bg-green-500 text-white': product.status === 'publish',
-                    'bg-neutral-600 text-white': product.status === 'hidden',
-                    'bg-red-500 text-white': product.status === 'cancelled',
-                  }"
+                  class="absolute top-2 right-2 max-w-[min(12rem,calc(100%-5rem))] px-3 py-1 rounded-full text-xs font-semibold text-center leading-tight"
+                  :class="myProductStatusBadgeClass(product)"
                 >
-                  {{
-                    product.status === "pending"
-                      ? $t('my_products.status.pending')
-                      : product.status === "publish"
-                      ? $t('my_products.status.published')
-                      : product.status === "hidden"
-                      ? $t('my_products.status.hidden')
-                      : $t('my_products.status.cancelled')
-                  }}
+                  {{ myProductStatusBadgeLabel(product) }}
                 </div>
               </div>
 

@@ -282,7 +282,8 @@
       "published": "Published",
       "hidden": "Hidden from store",
       "cancelled": "Cancelled",
-      "draft": "Draft"
+      "draft": "Draft",
+      "not_passed_review": "Did not pass review"
     },
     "na": "N/A",
     "login_required_create": "Please log in before creating a product",

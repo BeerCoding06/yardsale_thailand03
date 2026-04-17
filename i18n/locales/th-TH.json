@@ -287,7 +287,8 @@
       "published": "เผยแพร่",
       "hidden": "ปิดการมองเห็น",
       "cancelled": "ยกเลิกแล้ว",
-      "draft": "ร่าง"
+      "draft": "ร่าง",
+      "not_passed_review": "ไม่ผ่านการตรวจสอบ"
     },
     "na": "ไม่มี",
     "login_required_create": "กรุณาเข้าสู่ระบบก่อนสร้างสินค้า",
