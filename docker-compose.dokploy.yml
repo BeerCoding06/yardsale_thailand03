@@ -34,7 +34,8 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       UPLOAD_DIR: ${UPLOAD_DIR:-./uploads}
       PUBLIC_UPLOAD_BASE: ${PUBLIC_UPLOAD_BASE:-/uploads}
-      CORS_ORIGINS: ${CORS_ORIGINS}
+      # ค่า default รวม www — ถ้าเว้นว่างเหมือนเดิม บราว์เซอร์จาก www จะไม่ได้ Access-Control-Allow-Origin
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://yardsaleth.com,https://www.yardsaleth.com}
       # FCM (optional) — path ใน container หรือ JSON ทั้งก้อน (Dokploy secret)
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
       FIREBASE_CREDENTIALS: ${FIREBASE_CREDENTIALS:-}

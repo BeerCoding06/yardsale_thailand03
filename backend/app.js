@@ -13,10 +13,39 @@ const uploadAbs = path.isAbsolute(config.uploadDir)
 
 const app = express();
 
-const corsOrigins =
-  process.env.CORS_ORIGINS?.split(',')
+function parseCorsOrigins(raw) {
+  if (raw == null || String(raw).trim() === '') return null;
+  const list = String(raw)
+    .split(',')
     .map((s) => s.trim())
-    .filter(Boolean) || null;
+    .filter(Boolean);
+  return list.length ? list : null;
+}
+
+/** เพิ่มคู่ apex ↔ www ให้ทุก origin ที่ parse ได้ — กัน Dokploy ใส่แค่ฝั่งเดียวแล้ว www โดน CORS block */
+function expandApexWwwPair(origins) {
+  const out = new Set(origins);
+  for (const o of origins) {
+    try {
+      const u = new URL(o);
+      const { protocol, hostname, port } = u;
+      if (hostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) continue;
+      const p = port ? `:${port}` : '';
+      if (hostname.startsWith('www.')) {
+        const apex = hostname.slice(4);
+        if (apex) out.add(`${protocol}//${apex}${p}`);
+      } else {
+        out.add(`${protocol}//www.${hostname}${p}`);
+      }
+    } catch {
+      /* ignore invalid URL */
+    }
+  }
+  return [...out];
+}
+
+const corsOriginsList = parseCorsOrigins(process.env.CORS_ORIGINS);
+const corsOrigins = corsOriginsList ? expandApexWwwPair(corsOriginsList) : null;
 
 app.use(
   cors({
