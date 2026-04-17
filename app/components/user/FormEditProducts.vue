@@ -1,5 +1,9 @@
 <!--app/components/user/FormEditProducts.vue-->
 <script setup>
+import { parseModerationFeedback } from "~/utils/moderationFeedback";
+
+const { t, locale } = useI18n();
+
 // Props
 const props = defineProps({
   product: {
@@ -35,6 +39,26 @@ const form = ref({
 const isSubmitting = ref(false);
 const message = ref(null);
 const isDragging = ref(false);
+
+const moderation = computed(() =>
+  parseModerationFeedback(props.product?.moderation_feedback)
+);
+
+function formatModAt(iso) {
+  if (iso == null || typeof iso !== "string") return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(
+    String(locale.value || "th").startsWith("th") ? "th-TH" : "en-GB",
+    { dateStyle: "medium", timeStyle: "short" }
+  );
+}
+
+function modIssueLabel(key) {
+  const path = `my_products.moderation_issue_${key}`;
+  const translated = t(path);
+  return translated === path ? key : translated;
+}
 
 // Validation errors
 const errors = ref({
@@ -1270,6 +1294,38 @@ const handleSubmit = async (e) => {
       <h1 class="text-3xl font-bold mb-6 text-black dark:text-white">
         แก้ไขสินค้า
       </h1>
+
+      <div
+        v-if="moderation"
+        class="mb-6 p-4 rounded-2xl border-2 border-amber-400/80 bg-amber-50 dark:bg-amber-950/35 dark:border-amber-700"
+      >
+        <p class="text-sm font-semibold text-amber-950 dark:text-amber-100 mb-2">
+          {{ $t("my_products.moderation_notice_title") }}
+        </p>
+        <p
+          v-if="moderation.at && formatModAt(moderation.at)"
+          class="text-xs text-amber-900/90 dark:text-amber-200/90 mb-2"
+        >
+          {{ $t("my_products.moderation_reviewed_at") }}: {{ formatModAt(moderation.at) }}
+        </p>
+        <p class="text-xs text-amber-900/90 dark:text-amber-200/90 mb-3">
+          {{ $t("my_products.moderation_action_hint") }}
+        </p>
+        <ul
+          v-if="moderation.issues.length"
+          class="list-disc list-inside text-sm text-amber-950 dark:text-amber-100 space-y-1 mb-3"
+        >
+          <li v-for="issue in moderation.issues" :key="issue">
+            {{ modIssueLabel(issue) }}
+          </li>
+        </ul>
+        <p
+          v-if="moderation.message"
+          class="text-sm text-amber-950 dark:text-amber-100 whitespace-pre-wrap rounded-xl bg-white/60 dark:bg-black/30 px-3 py-2 border border-amber-200/80 dark:border-amber-800"
+        >
+          {{ moderation.message }}
+        </p>
+      </div>
 
       <form @submit.prevent="handleSubmit" class="space-y-6">
         <!-- Basic Information -->

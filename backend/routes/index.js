@@ -91,7 +91,7 @@ router.post(
 router.get('/products', productController.listProducts);
 router.get('/product/:id', optionalAuth, productController.getProduct);
 router.get('/search', productController.search);
-router.get('/wp-post', productController.wpPost);
+router.get('/wp-post', optionalAuth, productController.wpPost);
 
 router.get('/categories', categoryController.categories);
 router.get('/wp-categories', categoryController.wpCategories);

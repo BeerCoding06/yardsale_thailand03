@@ -2,10 +2,11 @@
 <script setup>
 import { useCmsApi } from "#imports";
 import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
+import { parseModerationFeedback } from "~/utils/moderationFeedback";
 
 // Authentication
 const { user, isAuthenticated } = useAuth();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const router = useRouter();
 const localePath = useLocalePath();
 const { endpoint, hasRemoteApi } = useCmsApi();
@@ -24,6 +25,28 @@ const isEditMode = computed(() =>
 
 const loadedApiProduct = ref(null);
 const isLoadingEditProduct = ref(false);
+
+const editModeration = computed(() =>
+  isEditMode.value
+    ? parseModerationFeedback(loadedApiProduct.value?.moderation_feedback)
+    : null
+);
+
+function formatEditModAt(iso) {
+  if (iso == null || typeof iso !== "string") return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(
+    String(locale.value || "th").startsWith("th") ? "th-TH" : "en-GB",
+    { dateStyle: "medium", timeStyle: "short" }
+  );
+}
+
+function editModIssueLabel(key) {
+  const path = `my_products.moderation_issue_${key}`;
+  const translated = t(path);
+  return translated === path ? key : translated;
+}
 /** โหมดแก้ไข: ผู้ใช้ลบรูปในฟอร์มแล้ว — ต้องส่ง image_url: null ไม่ดึงรูปเดิมจากเซิร์ฟเวอร์ */
 const imageUserCleared = ref(false);
 
@@ -1387,6 +1410,39 @@ const handleSubmit = async (e) => {
               : $t('create_product.title')
         }}
       </h1>
+
+      <div
+        v-if="isEditMode && editModeration"
+        class="mb-6 p-4 rounded-2xl border-2 border-amber-400/80 bg-amber-50 dark:bg-amber-950/35 dark:border-amber-700"
+      >
+        <p class="text-sm font-semibold text-amber-950 dark:text-amber-100 mb-2">
+          {{ $t("my_products.moderation_notice_title") }}
+        </p>
+        <p
+          v-if="editModeration.at && formatEditModAt(editModeration.at)"
+          class="text-xs text-amber-900/90 dark:text-amber-200/90 mb-2"
+        >
+          {{ $t("my_products.moderation_reviewed_at") }}:
+          {{ formatEditModAt(editModeration.at) }}
+        </p>
+        <p class="text-xs text-amber-900/90 dark:text-amber-200/90 mb-3">
+          {{ $t("my_products.moderation_action_hint") }}
+        </p>
+        <ul
+          v-if="editModeration.issues.length"
+          class="list-disc list-inside text-sm text-amber-950 dark:text-amber-100 space-y-1 mb-3"
+        >
+          <li v-for="issue in editModeration.issues" :key="issue">
+            {{ editModIssueLabel(issue) }}
+          </li>
+        </ul>
+        <p
+          v-if="editModeration.message"
+          class="text-sm text-amber-950 dark:text-amber-100 whitespace-pre-wrap rounded-xl bg-white/60 dark:bg-black/30 px-3 py-2 border border-amber-200/80 dark:border-amber-800"
+        >
+          {{ editModeration.message }}
+        </p>
+      </div>
 
       <form @submit.prevent="handleSubmit" class="space-y-6">
         <!-- Basic Information -->

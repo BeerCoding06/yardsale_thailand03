@@ -1,7 +1,9 @@
 <!--app/components/ProductCard.vue-->
 <script setup>
 const localePath = useLocalePath();
+const { t } = useI18n();
 const { isUuidString, storefrontProductPath } = useStorefrontCatalog();
+const { handleAddToCart } = useCart();
 
 defineProps({
   products: {
@@ -9,6 +11,33 @@ defineProps({
     required: true,
   },
 });
+
+const cartBusyKey = ref(null);
+
+function cartProductKey(product) {
+  return String(product?.databaseId ?? product?.id ?? "");
+}
+
+function isOutOfStock(product) {
+  const st = String(product?.stockStatus || "")
+    .toUpperCase()
+    .replace(/\s/g, "_");
+  if (st === "OUT_OF_STOCK" || st === "OUTOFSTOCK") return true;
+  const q = product?.stockQuantity;
+  if (q === null || q === undefined) return false;
+  return Number(q) <= 0;
+}
+
+async function onAddCart(product) {
+  const key = cartProductKey(product);
+  if (!key || isOutOfStock(product)) return;
+  cartBusyKey.value = key;
+  try {
+    await handleAddToCart(key);
+  } finally {
+    cartBusyKey.value = null;
+  }
+}
 
 function productLink(product) {
   const id = product.databaseId ?? product.id;
@@ -37,6 +66,29 @@ function productLink(product) {
             <div
               class="relative aspect-[3/4] dark:shadow-[0_8px_24px_rgba(0,0,0,.5)] rounded-2xl overflow-hidden"
             >
+              <div
+                class="absolute top-2 right-2 z-20 flex items-center gap-1.5"
+                @click.stop
+              >
+                <button
+                  type="button"
+                  class="w-11 h-11 rounded-full flex items-center justify-center bg-white/95 dark:bg-neutral-900/95 shadow-md border border-neutral-200/90 dark:border-neutral-700 hover:bg-white dark:hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed transition active:scale-95"
+                  :disabled="isOutOfStock(product) || cartBusyKey === cartProductKey(product)"
+                  :title="t('cart.add_to_cart')"
+                  :aria-label="t('cart.add_to_cart')"
+                  @click.stop="onAddCart(product)"
+                >
+                  <UIcon
+                    :name="
+                      cartBusyKey === cartProductKey(product)
+                        ? 'i-svg-spinners-90-ring-with-bg'
+                        : 'i-heroicons-shopping-cart'
+                    "
+                    class="w-5 h-5 text-neutral-900 dark:text-neutral-100"
+                  />
+                </button>
+                <ButtonWishlist :product="product" compact />
+              </div>
               <template v-if="product.galleryImages?.nodes?.length > 0">
                 <StorefrontImg
                   :alt="product.name"

@@ -34,8 +34,12 @@ const fetchProduct = async () => {
     isLoadingProduct.value = true;
     error.value = null;
 
-    // Fetch product via server API endpoint (which has access to WP_BASIC_AUTH)
-    const productData = await $fetch(`/api/wp-post?id=${productId.value}`);
+    const jwtToken = user.value?.token;
+    const raw = await $fetch(`/api/wp-post?id=${productId.value}`, {
+      ...(jwtToken ? { headers: { Authorization: `Bearer ${jwtToken}` } } : {}),
+    });
+    const body = raw?.data !== undefined ? raw.data : raw;
+    const productData = body?.product ?? body?.post ?? body;
 
     // Verify ownership
     // Check via meta_data first
@@ -55,6 +59,13 @@ const fetchProduct = async () => {
       }
     } else if (postAuthor && postAuthor !== user.value?.id) {
       throw new Error(t('my_products.no_permission_edit'));
+    }
+
+    const uid = user.value?.id ?? user.value?.ID;
+    if (productData?.seller_id != null && uid != null) {
+      if (String(productData.seller_id) !== String(uid)) {
+        throw new Error(t('my_products.no_permission_edit'));
+      }
     }
 
     product.value = productData;

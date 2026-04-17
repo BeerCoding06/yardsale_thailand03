@@ -29,6 +29,10 @@ export const wpPost = asyncHandler(async (req, res) => {
   if (!id) {
     throw new AppError('Query id is required', 400, 'VALIDATION_ERROR');
   }
-  const data = await productService.getWpPost(id);
+  const u = req.user;
+  const data = await productService.getWpPost(id, {
+    viewerUserId: u?.id ?? null,
+    viewerRole: u?.role ?? null,
+  });
   sendSuccess(res, data);
 });

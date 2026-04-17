@@ -4,6 +4,7 @@ import { push } from "notivue";
 import { useCmsApi } from "#imports";
 import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
 import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
+import { parseModerationFeedback } from "~/utils/moderationFeedback";
 
 // แสดงเฉพาะสินค้าของ user ที่ login (API ใช้ JWT เท่านั้น ไม่ส่ง user_id – เซิร์ฟเวอร์ดึงจาก token)
 definePageMeta({
@@ -18,31 +19,6 @@ const { fetchYardsale, resolveMediaUrl } = useStorefrontCatalog();
 
 function localMyProductsApiPath(rel: string) {
   return `/api/${rel}`;
-}
-
-function parseModerationFeedback(raw: unknown) {
-  let v = raw;
-  if (v == null) return null;
-  if (typeof v === "string") {
-    try {
-      v = JSON.parse(v);
-    } catch {
-      return null;
-    }
-  }
-  if (typeof v !== "object" || v === null || Array.isArray(v)) return null;
-  const o = v as Record<string, unknown>;
-  const issues = Array.isArray(o.issues)
-    ? o.issues.filter((x): x is string => typeof x === "string")
-    : [];
-  const message = typeof o.message === "string" ? o.message.trim() : "";
-  if (!issues.length && !message) return null;
-  const at = typeof o.at === "string" ? o.at : null;
-  return {
-    issues,
-    message,
-    at,
-  };
 }
 
 /** Express: listing_status + is_cancelled / price / created_at */

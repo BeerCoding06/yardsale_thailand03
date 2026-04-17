@@ -125,14 +125,19 @@ export async function searchProducts(q, query = {}) {
   }
 }
 
-/** Compatibility: wp-post style by id */
-export async function getWpPost(id) {
+/**
+ * Compatibility: wp-post style by id (แก้ไขสินค้าใน Nuxt)
+ * ถ้ามี JWT ของเจ้าของสินค้า — โหลดได้แม้ listing_status ไม่ใช่ published (เช่น hidden หลังไม่ผ่านตรวจ)
+ * และได้รับ moderation_feedback เพื่อแสดงข้อความจากแอดมิน
+ */
+export async function getWpPost(id, { viewerUserId, viewerRole } = {}) {
   const client = await pool.connect();
   try {
+    const isAdmin = viewerRole === 'admin';
     const p = await productModel.getProductById(client, id, {
-      includeCancelled: false,
-      requirePublished: true,
-      viewerSellerId: null,
+      includeCancelled: isAdmin,
+      requirePublished: !isAdmin,
+      viewerSellerId: !isAdmin && viewerUserId ? viewerUserId : null,
     });
     if (!p) throw new AppError('Product not found', 404, 'NOT_FOUND');
     return { post: p, product: p };

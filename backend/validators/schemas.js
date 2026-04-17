@@ -8,6 +8,19 @@ const productListingStatus = Joi.string()
   .valid('pending_review', 'published', 'hidden')
   .optional();
 
+/** ต้องตรงกับ MODERATION_ISSUE_KEYS ใน product.model.js และแอดมิน review modal */
+const moderationIssueKeySchema = Joi.string().valid(
+  'photos',
+  'title_name',
+  'description',
+  'price',
+  'category',
+  'stock',
+  'tags',
+  'illegal_or_prohibited',
+  'other'
+);
+
 export const loginSchema = Joi.object({
   username: Joi.string().trim().optional(),
   email: emailRule.optional(),
@@ -188,6 +201,9 @@ export const updateProductSchema = Joi.object({
   /** Admin only: publish / hide from storefront */
   listing_status: productListingStatus,
   tag_ids: Joi.array().items(uuid).max(100).optional(),
+  /** Admin only: บันทึกเป็น moderation_feedback ให้ผู้ขายเห็นใน my-products / แก้ไขสินค้า */
+  moderation_issue_keys: Joi.array().items(moderationIssueKeySchema).max(20).optional(),
+  moderation_message: Joi.string().trim().allow('', null).max(10000).optional(),
 })
   .or(
     'name',
@@ -200,7 +216,9 @@ export const updateProductSchema = Joi.object({
     'image_url',
     'image_urls',
     'listing_status',
-    'tag_ids'
+    'tag_ids',
+    'moderation_issue_keys',
+    'moderation_message'
   )
   .messages({
     'object.missing': 'at least one field to update is required',

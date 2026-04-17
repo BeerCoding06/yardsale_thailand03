@@ -13,6 +13,7 @@ definePageMeta({
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
 const { endpoint, hasRemoteApi } = useCmsApi();
+const { resolveMediaUrl } = useStorefrontCatalog();
 const { paymentLabel, paymentColorClass, customerPaymentUiKey } =
   useCustomerPaymentStatus();
 
@@ -114,6 +115,18 @@ function sellerLineItemName(item) {
   return n || t("common.product");
 }
 
+/** รายการบรรทัดในการ์ด — ผู้ขายได้ seller_line_items / line_items; แอดมินได้ line_items ทั้งออเดอร์ */
+function sellerOrderLineItems(order) {
+  const raw = order?.line_items ?? order?.seller_line_items;
+  return Array.isArray(raw) ? raw : [];
+}
+
+function sellerLineItemDisplaySrc(item) {
+  const raw = sellerLineItemImage(item);
+  if (!raw) return null;
+  return hasRemoteApi ? resolveMediaUrl(raw) ?? raw : raw;
+}
+
 function draftFor(order) {
   const id = order.id;
   if (!fulfillmentDrafts.value[id]) {
@@ -162,10 +175,12 @@ async function saveFulfillment(order) {
     if (updated) {
       const ix = orders.value.findIndex((o) => o.id === order.id);
       if (ix >= 0) {
-        orders.value[ix] = normalizeSellerOrderRow({
-          ...orders.value[ix],
-          ...updated,
-        });
+        const prev = orders.value[ix];
+        const merged = { ...prev, ...updated };
+        if (!Array.isArray(merged.line_items) || merged.line_items.length === 0) {
+          merged.line_items = prev.line_items ?? prev.seller_line_items ?? [];
+        }
+        orders.value[ix] = normalizeSellerOrderRow(merged);
       }
       delete fulfillmentDrafts.value[order.id];
       push.success(t("seller_orders.fulfillment_saved"));
@@ -472,6 +487,47 @@ onMounted(async () => {
                           <span class="font-semibold">{{ $t('order.date_paid') }}:</span>
                           <span class="ml-2">{{ formatDate(order.date_paid) }}</span>
                         </p>
+                      </div>
+                    </div>
+
+                    <div
+                      v-if="sellerOrderLineItems(order).length > 0"
+                      class="mb-4 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900/40 border-2 border-neutral-200 dark:border-neutral-800"
+                    >
+                      <p class="text-sm font-semibold text-neutral-700 dark:text-neutral-300 mb-3">
+                        {{ $t('order.order_items') }}
+                      </p>
+                      <div class="flex flex-col gap-3">
+                        <div
+                          v-for="(item, index) in sellerOrderLineItems(order)"
+                          :key="item.id || item.product_id || index"
+                          class="flex items-center gap-3 text-sm"
+                        >
+                          <StorefrontImg
+                            v-if="sellerLineItemDisplaySrc(item)"
+                            :src="sellerLineItemDisplaySrc(item)"
+                            :alt="sellerLineItemName(item)"
+                            class="w-14 h-14 shrink-0 object-cover rounded-xl border-2 border-neutral-200 dark:border-neutral-700"
+                            loading="lazy"
+                          />
+                          <div
+                            v-else
+                            class="w-14 h-14 shrink-0 bg-neutral-200 dark:bg-neutral-700 rounded-xl flex items-center justify-center"
+                          >
+                            <UIcon
+                              name="i-heroicons-photo"
+                              class="w-7 h-7 text-neutral-400 dark:text-neutral-500"
+                            />
+                          </div>
+                          <div class="min-w-0 flex-1">
+                            <p class="font-medium text-black dark:text-white leading-snug break-words">
+                              {{ sellerLineItemName(item) }}
+                            </p>
+                            <p class="text-neutral-500 dark:text-neutral-400 text-xs mt-0.5">
+                              ×{{ item.quantity }} · ฿{{ Number(item.price || 0).toFixed(2) }}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
 

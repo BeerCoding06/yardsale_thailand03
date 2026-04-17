@@ -1,5 +1,6 @@
 import { AppError } from '../utils/AppError.js';
 import { withTransaction, pool } from '../models/db.js';
+import { paginationMeta } from '../utils/pagination.js';
 import * as productModel from '../models/product.model.js';
 import * as orderModel from '../models/order.model.js';
 import * as cartModel from '../models/cart.model.js';
@@ -217,11 +218,29 @@ export async function listSellerOrders(sellerId) {
   }
 }
 
-export async function listAllOrdersAdmin() {
+export async function listAllOrdersAdmin(opts = {}) {
   const client = await pool.connect();
   try {
-    const orders = await orderModel.listAllOrders(client);
-    return { orders: orders.map(formatOrderForApi) };
+    const page = opts.page ?? 1;
+    const pageSize = opts.pageSize ?? 20;
+    const offset = opts.offset ?? 0;
+    const search = opts.search ?? '';
+    const total = await orderModel.countAllOrders(client, search);
+    const orders = await orderModel.listAllOrdersPaged(client, {
+      limit: pageSize,
+      offset,
+      search,
+    });
+    const ids = orders.map((o) => o.id);
+    const lineItemsByOrder =
+      ids.length > 0 ? await orderModel.mapLineItemsByOrderIds(client, ids) : new Map();
+    return {
+      orders: orders.map((o) => ({
+        ...formatOrderForApi(o),
+        line_items: lineItemsByOrder.get(o.id) || [],
+      })),
+      pagination: paginationMeta({ page, pageSize, total }),
+    };
   } finally {
     client.release();
   }

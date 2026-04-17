@@ -469,7 +469,12 @@ const submitButtonText = computed(() => {
           </p>
           <div class="grid grid-cols-2 gap-3 billing">
             <div class="col-span-full">
+              <label
+                for="payment-billing-email"
+                class="block text-sm font-medium text-black dark:text-white mb-1 form-required-after"
+              >{{ $t('checkout.form.email') }}</label>
               <input
+                id="payment-billing-email"
                 v-model="userDetails.email"
                 required
                 type="email"
@@ -477,7 +482,12 @@ const submitButtonText = computed(() => {
               />
             </div>
             <div class="col-span-1">
+              <label
+                for="payment-billing-firstname"
+                class="block text-sm font-medium text-black dark:text-white mb-1 form-required-after"
+              >{{ $t('checkout.form.first_name') }}</label>
               <input
+                id="payment-billing-firstname"
                 v-model="userDetails.firstName"
                 required
                 type="text"
@@ -485,7 +495,12 @@ const submitButtonText = computed(() => {
               />
             </div>
             <div class="col-span-1">
+              <label
+                for="payment-billing-lastname"
+                class="block text-sm font-medium text-black dark:text-white mb-1 form-required-after"
+              >{{ $t('checkout.form.last_name') }}</label>
               <input
+                id="payment-billing-lastname"
                 v-model="userDetails.lastName"
                 required
                 type="text"
@@ -493,7 +508,12 @@ const submitButtonText = computed(() => {
               />
             </div>
             <div class="col-span-1">
+              <label
+                for="payment-billing-phone"
+                class="block text-sm font-medium text-black dark:text-white mb-1 form-required-after"
+              >{{ $t('checkout.form.phone') }}</label>
               <input
+                id="payment-billing-phone"
                 v-model="userDetails.phone"
                 required
                 type="tel"
@@ -501,7 +521,12 @@ const submitButtonText = computed(() => {
               />
             </div>
             <div class="col-span-1">
+              <label
+                for="payment-billing-city"
+                class="block text-sm font-medium text-black dark:text-white mb-1 form-required-after"
+              >{{ $t('checkout.form.city') }}</label>
               <input
+                id="payment-billing-city"
                 v-model="userDetails.city"
                 required
                 type="text"
@@ -509,7 +534,12 @@ const submitButtonText = computed(() => {
               />
             </div>
             <div class="col-span-full">
+              <label
+                for="payment-billing-address1"
+                class="block text-sm font-medium text-black dark:text-white mb-1 form-required-after"
+              >{{ $t('checkout.form.address') }}</label>
               <textarea
+                id="payment-billing-address1"
                 v-model="userDetails.address1"
                 required
                 rows="2"
@@ -517,21 +547,36 @@ const submitButtonText = computed(() => {
               />
             </div>
             <div class="col-span-full">
+              <label
+                for="payment-billing-address2"
+                class="block text-sm font-medium text-black dark:text-white mb-1"
+              >{{ $t('checkout.form.address2') }}</label>
               <input
+                id="payment-billing-address2"
                 v-model="userDetails.address2"
                 type="text"
                 :placeholder="$t('checkout.form.address2')"
               />
             </div>
             <div class="col-span-1">
+              <label
+                for="payment-billing-state"
+                class="block text-sm font-medium text-black dark:text-white mb-1"
+              >{{ $t('checkout.form.state') }}</label>
               <input
+                id="payment-billing-state"
                 v-model="userDetails.state"
                 type="text"
                 :placeholder="$t('checkout.form.state')"
               />
             </div>
             <div class="col-span-1">
+              <label
+                for="payment-billing-postcode"
+                class="block text-sm font-medium text-black dark:text-white mb-1"
+              >{{ $t('checkout.form.postcode') }}</label>
               <input
+                id="payment-billing-postcode"
                 v-model="userDetails.postcode"
                 type="text"
                 :placeholder="$t('checkout.form.postcode')"
@@ -651,7 +696,7 @@ const submitButtonText = computed(() => {
 
           <div>
             <label
-              class="block text-sm font-medium text-black dark:text-white mb-1"
+              class="block text-sm font-medium text-black dark:text-white mb-1 form-required-after"
               for="payment-transfer-bank"
             >
               {{ $t('checkout.payment_slip.bbl_bank_label') }}
@@ -659,6 +704,7 @@ const submitButtonText = computed(() => {
             <select
               id="payment-transfer-bank"
               v-model="transferBankKey"
+              required
               class="payment-slip-select w-full rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-black/30 px-4 py-3 text-sm text-black dark:text-white"
               @change="onTransferBankChange"
             >
@@ -677,10 +723,14 @@ const submitButtonText = computed(() => {
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-black dark:text-white mb-1">
+            <label
+              for="payment-slip-file"
+              class="block text-sm font-medium text-black dark:text-white mb-1 form-required-after"
+            >
               {{ $t('checkout.payment_slip.file_label') }}
             </label>
             <input
+              id="payment-slip-file"
               type="file"
               accept="image/jpeg,image/png,image/webp,application/pdf"
               class="block w-full text-sm text-neutral-600 dark:text-neutral-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-alizarin-crimson-600 file:text-white"
