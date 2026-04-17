@@ -4,6 +4,7 @@ import { push } from "notivue";
 import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
 import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
 import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
+import { mergeOrderRowsPreferPaid } from "~/utils/orderPaymentMerge";
 
 definePageMeta({
   middleware: "seller",
@@ -328,7 +329,22 @@ const fetchOrders = async () => {
         total_pages: 0,
       };
     } else {
-      orders.value = list.map(normalizeSellerOrderRow);
+      const lp = lastPaidOrder.value;
+      const lpFresh =
+        lp && Date.now() - lp.at < 120000 ? lp : null;
+
+      orders.value = list.map((row) => {
+        if (
+          lpFresh &&
+          row &&
+          String(row.id) === lpFresh.orderId
+        ) {
+          return normalizeSellerOrderRow(
+            mergeOrderRowsPreferPaid(row, lpFresh.order)
+          );
+        }
+        return normalizeSellerOrderRow(row);
+      });
       const pg = pickPagination(body);
       if (pg) {
         orderPagination.value = pg;
@@ -360,7 +376,7 @@ useRefetchWhenTabVisible(() => {
   if (isClient.value && isAuthenticated.value && user.value) fetchOrders();
 });
 
-const { tick: orderPaidTick } = useOrderPaymentSync();
+const { tick: orderPaidTick, lastPaid: lastPaidOrder } = useOrderPaymentSync();
 watch(orderPaidTick, () => {
   if (isClient.value && isAuthenticated.value && user.value) fetchOrders();
 });
