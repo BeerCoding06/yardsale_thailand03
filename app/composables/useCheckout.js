@@ -1,94 +1,10 @@
 import { isCartLineSalableBySnapshot } from '~/utils/cart-line-salable';
-import { customerPaymentUiKey } from '~/composables/useCustomerPaymentStatus';
-import {
-  messageFromYardsaleBody,
-  unwrapYardsaleResponse,
-  yardsaleBodyIsFailure,
-} from '~/utils/cmsApiEndpoint';
-
-function orderLooksPaidInPayload(order) {
-  if (!order || typeof order !== 'object') return false;
-  const ip = order.is_paid;
-  if (ip === true || ip === 1) return true;
-  if (typeof ip === 'string' && ['true', '1', 'yes'].includes(ip.trim().toLowerCase())) return true;
-  const s = String(order.status ?? order.order_status ?? '')
-    .toLowerCase()
-    .trim()
-    .replace(/-/g, '_');
-  return (
-    s === 'paid' ||
-    s === 'processing' ||
-    s === 'completed' ||
-    s === 'refunded' ||
-    s === 'partially_refunded'
-  );
-}
-
-/** มีผลตรวจ SlipOK ใน response — กันหน้า success ทั้งที่ API ไม่ยืนยันสลิป */
-function slipOkResponsePresent(payload) {
-  if (!payload || typeof payload !== 'object') return false;
-  if (payload.already_paid === true) return true;
-  if (payload.slip_verification?.verified === true) return true;
-  const s = payload.slip;
-  if (s && typeof s === 'object' && !Array.isArray(s) && Object.keys(s).length > 0) return true;
-  return false;
-}
-
-function normalizeSlipPaymentPayload(payload) {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload;
-  const p = payload.paid;
-  let paid =
-    p === true ||
-    p === 1 ||
-    (typeof p === 'string' && ['true', '1', 'yes'].includes(p.trim().toLowerCase()));
-  const hasProof = slipOkResponsePresent(payload);
-  if (!paid && orderLooksPaidInPayload(payload.order) && hasProof) {
-    paid = true;
-  }
-  /** เซิร์ฟเวอร์ยืนยัน paid แล้ว แต่บาง proxy ตัด slip / slip_verification ออก — อย่าตัด paid ถ้า order บ่งชัดว่าชำระแล้ว */
-  const orderReflectsPaid =
-    payload?.order &&
-    typeof payload.order === 'object' &&
-    !Array.isArray(payload.order) &&
-    customerPaymentUiKey(payload.order) === 'paid';
-  let slipVerificationIncomplete = false;
-  if (paid && !hasProof && !orderReflectsPaid) {
-    slipVerificationIncomplete = true;
-    paid = false;
-  }
-  const out = { ...payload, paid };
-  if (slipVerificationIncomplete) out.slip_verification_incomplete = true;
-  /**
-   * บางครั้ง envelope บอก paid + slip ผ่าน แต่ order.status ใน JSON ยัง pending (replica/merge เก่า)
-   * — ให้ object ที่ส่งต่อไป notify / UI สอดคล้องกับ paid
-   */
-  if (
-    paid &&
-    (hasProof || orderReflectsPaid) &&
-    out.order &&
-    typeof out.order === 'object' &&
-    !Array.isArray(out.order)
-  ) {
-    const st = String(out.order.status ?? out.order.order_status ?? '')
-      .toLowerCase()
-      .trim()
-      .replace(/-/g, '_');
-    if (st === 'pending' || st === '' || st === 'on_hold') {
-      out.order = {
-        ...out.order,
-        status: 'paid',
-        order_status: 'paid',
-        is_paid: true,
-      };
-    }
-  }
-  return out;
-}
+import { unwrapYardsaleResponse } from '~/utils/cmsApiEndpoint';
 
 export const useCheckout = () => {
   const { cart, getCartItemsForStockApi } = useCart();
   const { user, isAuthenticated } = useAuth();
-  const { hasRemoteApi, endpoint, fetchYardsale } = useStorefrontCatalog();
+  const { hasRemoteApi, endpoint } = useStorefrontCatalog();
   const { t } = useI18n();
   const router = useRouter();
   const localePath = useLocalePath();
@@ -108,7 +24,7 @@ export const useCheckout = () => {
   const checkoutStatus = ref('order');
   const error = ref(null);
   const isLoadingCustomerData = ref(false);
-  const paymentMethod = ref('bank_transfer');
+  const paymentMethod = ref('cod');
   const showPaymentChoiceModal = ref(false);
 
   /** อัปโหลดสลิป → POST /api/payment/mock (multipart / slip_url / slip_data) */
@@ -134,15 +50,7 @@ export const useCheckout = () => {
       body: fd,
       headers: jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {},
     });
-    const out = normalizeSlipPaymentPayload(unwrapYardsaleResponse(raw) ?? raw);
-    if (out?.paid === true && out?.order && typeof out.order === 'object') {
-      try {
-        useOrderPaymentSync().notifyOrderPaidAfterMock(out.order);
-      } catch {
-        /* นอก Nuxt context */
-      }
-    }
-    return out;
+    return unwrapYardsaleResponse(raw) ?? raw;
   };
 
   // Store customer billing data from profile
@@ -254,7 +162,7 @@ export const useCheckout = () => {
       try {
         const jwtToken = user.value?.token;
         if (hasRemoteApi) {
-          const inner = await fetchYardsale('check-cart-stock', {
+          const raw = await $fetch(endpoint('check-cart-stock'), {
             method: 'POST',
             body: { items },
             headers: {
@@ -262,10 +170,7 @@ export const useCheckout = () => {
               ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
             },
           });
-          if (yardsaleBodyIsFailure(inner)) {
-            error.value = messageFromYardsaleBody(inner, t('checkout.error.stock_check_failed'));
-            return;
-          }
+          const inner = unwrapYardsaleResponse(raw) ?? raw;
           if (inner?.valid === false && inner.errors?.length) {
             const er = inner.errors[0];
             error.value =
@@ -296,14 +201,11 @@ export const useCheckout = () => {
 
   /**
    * สร้างออเดอร์จากตะกร้า (ไม่ navigate) — ใช้หน้า payment หลังกรอกฟอร์มผู้สั่งซื้อ
-   * @param {'bank_transfer'} method
-   * @param {{ clearCart?: boolean }} [opts] clearCart=true ค่าเริ่ม — ถ้าสร้างออเดอร์แล้วส่งสลิปบนหน้าเดียวกัน ใช้ false แล้วล้างตะกร้าหลังชำระสำเร็จ
    * @returns {Promise<object|null>} order row หรือ null เมื่อล้มเหลว
    */
-  const createOrderFromCart = async (method, opts = {}) => {
-    const clearCart = opts.clearCart !== false;
-    if (method !== 'bank_transfer') return null;
-    paymentMethod.value = 'bank_transfer';
+  const createOrderFromCart = async (method) => {
+    if (method !== 'cod' && method !== 'bank_transfer') return null;
+    paymentMethod.value = method;
     showPaymentChoiceModal.value = false;
     checkoutStatus.value = 'processing';
     error.value = null;
@@ -353,7 +255,10 @@ export const useCheckout = () => {
       }
 
       const customerId = user.value.id || user.value.ID;
-      const paymentTitle = t('checkout.payment_title.bank_transfer');
+      const paymentTitle =
+        method === 'cod'
+          ? t('checkout.payment_title.cod')
+          : t('checkout.payment_title.bank_transfer');
       const checkoutData = {
         customer_id: customerId,
         billing: {
@@ -378,7 +283,7 @@ export const useCheckout = () => {
       const jwtToken = user.value?.token;
       let orderData;
       if (hasRemoteApi) {
-        const inner = await fetchYardsale('create-order', {
+        const raw = await $fetch(endpoint('create-order'), {
           method: 'POST',
           body: {
             line_items,
@@ -400,11 +305,7 @@ export const useCheckout = () => {
             ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
           },
         });
-        if (yardsaleBodyIsFailure(inner)) {
-          error.value = messageFromYardsaleBody(inner, t('checkout.error.create_order_failed'));
-          checkoutStatus.value = 'order';
-          return null;
-        }
+        const inner = unwrapYardsaleResponse(raw) ?? raw;
         orderData = inner?.order;
       } else {
         const res = await $fetch('/api/create-order', {
@@ -417,19 +318,21 @@ export const useCheckout = () => {
       if (orderData?.id) {
         /** ยอดโอน: จาก API จริง หรือคำนวณจากตะกร้าก่อนล้าง (mock ไม่มี total_price) */
         let slipAmount = '';
-        if (hasRemoteApi) {
-          slipAmount = String(orderData.total_price ?? orderData.total ?? '');
-        } else {
-          let sum = 0;
-          for (const item of cart.value || []) {
-            const node = item.variation?.node || item.product?.node || {};
-            const regularPrice = parsePrice(node.regularPrice);
-            const salePrice = parsePrice(node.salePrice);
-            const price =
-              salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
-            sum += price * (item.quantity || 1);
+        if (method === 'bank_transfer') {
+          if (hasRemoteApi) {
+            slipAmount = String(orderData.total_price ?? orderData.total ?? '');
+          } else {
+            let sum = 0;
+            for (const item of cart.value || []) {
+              const node = item.variation?.node || item.product?.node || {};
+              const regularPrice = parsePrice(node.regularPrice);
+              const salePrice = parsePrice(node.salePrice);
+              const price =
+                salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
+              sum += price * (item.quantity || 1);
+            }
+            slipAmount = sum.toFixed(2);
           }
-          slipAmount = sum.toFixed(2);
         }
 
         order.value = {
@@ -440,10 +343,8 @@ export const useCheckout = () => {
           total: String(orderData.total_price ?? orderData.total ?? 0),
           date_created: orderData.created_at ?? orderData.date_created,
         };
-        if (clearCart) {
-          cart.value = [];
-          if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
-        }
+        cart.value = [];
+        if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
         checkoutStatus.value = 'order';
         return orderData;
       }
@@ -464,20 +365,33 @@ export const useCheckout = () => {
   };
 
   /** สร้างออเดอร์แล้วไปหน้าถัดไป (ใช้น้อย — flow หลักไปผ่านหน้า payment) */
-  const executeCheckout = async () => {
-    const orderData = await createOrderFromCart('bank_transfer');
+  const executeCheckout = async (method) => {
+    const orderData = await createOrderFromCart(method);
     if (!orderData?.id) return;
 
-    const slipAmount = String(orderData.total_price ?? orderData.total ?? '');
-    await router.push(
-      localePath({
-        path: '/checkout/payment',
-        query: {
-          order_id: String(orderData.id),
-          amount: slipAmount,
-        },
-      })
-    );
+    const slipAmount =
+      method === 'bank_transfer'
+        ? String(orderData.total_price ?? orderData.total ?? '')
+        : '';
+
+    if (method === 'cod') {
+      await router.push(
+        localePath({
+          path: '/payment-successful',
+          query: { order_id: String(orderData.id) },
+        })
+      );
+    } else {
+      await router.push(
+        localePath({
+          path: '/checkout/payment',
+          query: {
+            order_id: String(orderData.id),
+            amount: slipAmount,
+          },
+        })
+      );
+    }
   };
 
   const closePaymentChoiceModal = () => {

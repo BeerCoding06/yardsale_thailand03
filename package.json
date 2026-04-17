@@ -14,8 +14,7 @@
     "generate": "NUXT_GENERATE=true nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "deploy": "bumpp && nuxthub deploy",
-    "db:check-payment": "npm run db:check-payment --prefix backend --"
+    "deploy": "bumpp && nuxthub deploy"
   },
   "dependencies": {
     "@nuxt/image": "^1.11.0",

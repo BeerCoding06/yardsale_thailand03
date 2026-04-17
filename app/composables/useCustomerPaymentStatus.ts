@@ -1,8 +1,6 @@
 /**
  * สถานะการชำระเงินฝั่งลูกค้า — แมปจาก order.status (Yardsale / Woo-style)
  */
-import { coerceOrderStatusRawToString } from "~/utils/orderStatus";
-
 export type CustomerPaymentUiKey =
   | "awaiting_payment"
   | "paid"
@@ -17,121 +15,15 @@ function normalizeStatus(raw: string | undefined | null): string {
     .replace(/-/g, "_");
 }
 
-/** บาง CMS ส่งเป็น string "true" / 1 */
-function truthyPaidFlag(v: unknown): boolean {
-  if (v === true) return true;
-  if (v === 1) return true;
-  if (typeof v === "string") {
-    const t = v.trim().toLowerCase();
-    if (t === "true" || t === "1" || t === "yes") return true;
-  }
-  return false;
-}
-
-/** ดึงค่า status จากแถว API — รองรับ camelCase / enum object จากบาง driver */
-function coerceStatusRaw(order: {
-  status?: unknown;
-  order_status?: unknown;
-  orderStatus?: unknown;
-}): unknown {
-  return order?.status ?? order?.order_status ?? order?.orderStatus;
-}
-
-function rawToNormalizedStatus(raw: unknown): string {
-  return normalizeStatus(coerceOrderStatusRawToString(raw));
-}
-
-/** สถานะหลักของออเดอร์จากแหล่งต่างๆ (Express / Woo / headless) */
-function effectiveOrderStatus(order: {
-  status?: string | null;
-  order_status?: string | null;
-  orderStatus?: string | null;
-}): string {
-  return rawToNormalizedStatus(coerceStatusRaw(order));
-}
-
-function primaryStatusLooksPaid(s: string): boolean {
-  return (
-    s === "paid" ||
-    s === "processing" ||
-    s === "completed" ||
-    s === "refunded" ||
-    s === "partially_refunded"
-  );
-}
-
 export function customerPaymentUiKey(order: {
   status?: string | null;
-  order_status?: string | null;
-  orderStatus?: string | null;
-  /** Woo / บาง API */
-  set_paid?: boolean | null;
-  is_paid?: boolean | null;
-  /** บาง response แนบ paid แยกจาก status */
-  paid?: unknown;
-  financial_status?: string | null;
-  /** Shopify-style / บาง headless — ห้ามให้ "pending" ที่นี่ทับ status=paid ของ Yardsale */
-  payment_status?: string | null;
 }): CustomerPaymentUiKey {
-  const s = effectiveOrderStatus(order);
-
-  /** ยกเลิก / ล้มเหลว ก่อน — กัน is_paid ค้างจาก cache */
+  const s = normalizeStatus(order?.status);
+  if (!s) return "unknown";
   if (s === "canceled" || s === "cancelled") return "cancelled";
   if (s === "payment_failed" || s === "failed") return "payment_failed";
-
-  /**
-   * Yardsale: slip_image_url ถูกตั้งเมื่อชำระสำเร็จ — ถ้า status ยัง pending/ว่าง
-   * (replica หรือ merge เก่า) ให้แสดงชำระแล้ว
-   */
-  const slipRow = String(order?.slip_image_url ?? "").trim();
-  if (slipRow.length > 0 && (s === "pending" || s === "")) {
-    return "paid";
-  }
-
-  /** status หลัก = paid ก่อน flag — DB อัปเดตแล้วแต่ is_paid ใน merged object ยังเก่า */
-  if (primaryStatusLooksPaid(s)) return "paid";
-
-  if (
-    truthyPaidFlag(order?.set_paid) ||
-    truthyPaidFlag(order?.is_paid) ||
-    truthyPaidFlag(order?.paid)
-  ) {
-    return "paid";
-  }
-
-  const fin = normalizeStatus(order?.financial_status);
-  if (fin === "paid") return "paid";
-  if (fin === "partially_paid") return "awaiting_payment";
-
-  const pst = normalizeStatus(order?.payment_status);
-  if (pst === "paid" || pst === "completed" || pst === "captured") return "paid";
-  if (pst === "failed" || pst === "voided" || pst === "declined") {
-    return "payment_failed";
-  }
-
-  if (s.startsWith("wc_")) {
-    if (s.includes("cancel")) return "cancelled";
-    if (s.includes("failed") || s.includes("refund")) return "payment_failed";
-    if (s.includes("completed") || s.includes("processing")) return "paid";
-    if (s.includes("pending") || s.includes("on_hold")) return "awaiting_payment";
-  }
-  if (
-    s === "pending" ||
-    s === "on_hold" ||
-    s === "onhold" ||
-    s === "awaiting_payment" ||
-    s === "checkout" ||
-    s === "draft" ||
-    s === "auto_draft"
-  ) {
-    return "awaiting_payment";
-  }
-
-  if (pst === "partially_paid" || pst === "unpaid" || pst === "pending" || pst === "awaiting") {
-    return "awaiting_payment";
-  }
-
-  if (!s) return "unknown";
+  if (s === "paid" || s === "processing" || s === "completed") return "paid";
+  if (s === "pending" || s === "on_hold" || s === "onhold") return "awaiting_payment";
   return "unknown";
 }
 
@@ -168,9 +60,9 @@ export function useCustomerPaymentStatus() {
     return true;
   }
 
-  /** โอน/อัปโหลดสลิป — ยังรอชำระ (รวม on_hold / draft จาก CMS) */
-  function canPayOrder(order: { status?: string | null; order_status?: string | null }) {
-    return customerPaymentUiKey(order) === "awaiting_payment";
+  /** โอน/อัปโหลดสลิป — ยังรอชำระ (Yardsale: pending) */
+  function canPayOrder(order: { status?: string | null }): boolean {
+    return normalizeStatus(order?.status) === "pending";
   }
 
   return {

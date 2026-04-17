@@ -5,27 +5,19 @@ definePageMeta({
   ssr: false,
 });
 
-import {
-  messageFromYardsaleBody,
-  unwrapYardsaleResponse,
-  yardsaleBodyIsFailure,
-} from "~/utils/cmsApiEndpoint";
+import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
 import {
   buildShipmentTimelineSteps,
   getShipmentActiveStepIndex,
   orderShipmentFingerprint,
 } from "~/utils/shipmentTimeline";
-import { mergeOrderRowsPreferPaid } from "~/utils/orderPaymentMerge";
 
 const route = useRoute();
 const router = useRouter();
-const localePath = useLocalePath();
 const { user, isAuthenticated, checkAuth } = useAuth();
 const { t, locale } = useI18n();
-const { hasRemoteApi, fetchYardsale } = useStorefrontCatalog();
-const { order: checkoutOrder } = useCheckout();
-const { paymentLabel, paymentColorClass, customerPaymentUiKey } =
-  useCustomerPaymentStatus();
+const { hasRemoteApi, endpoint } = useStorefrontCatalog();
+const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
 const { notify } = useNotification();
 
 const orderId = computed(() => route.params.id);
@@ -102,51 +94,24 @@ const fetchOrder = async () => {
 
     if (hasRemoteApi) {
       const id = encodeURIComponent(String(orderId.value));
-      const inner = await fetchYardsale(`get-order/${id}`, {
+      const raw = await $fetch(endpoint(`get-order/${id}`), {
         headers: {
           ...(user.value?.token
             ? { Authorization: `Bearer ${user.value.token}` }
             : {}),
         },
       });
-      if (yardsaleBodyIsFailure(inner)) {
-        error.value = messageFromYardsaleBody(inner, t("order.error_loading"));
-        order.value = null;
+      const inner = unwrapYardsaleResponse(raw) ?? raw;
+      const o = inner?.order;
+      if (o) {
+        order.value = {
+          ...o,
+          total: String(o.total_price ?? o.total ?? 0),
+          date_created: o.created_at ?? o.date_created,
+        };
+        notifyShipmentFingerprintChange();
       } else {
-        const o = inner?.order;
-        if (o) {
-          let prev =
-            order.value && typeof order.value === "object" ? { ...order.value } : {};
-          const chk = checkoutOrder.value;
-          const oid = String(orderId.value);
-          if (
-            chk &&
-            String(chk.id) === oid &&
-            (!prev.id || Object.keys(prev).length < 2)
-          ) {
-            prev = { ...chk };
-          }
-          const merged = mergeOrderRowsPreferPaid(prev, o);
-          merged.status = merged.status ?? merged.order_status ?? prev.status ?? "";
-          merged.is_paid = customerPaymentUiKey(merged) === "paid";
-          order.value = {
-            ...merged,
-            total: String(merged.total_price ?? merged.total ?? prev.total ?? 0),
-            date_created: merged.created_at ?? merged.date_created ?? prev.date_created,
-          };
-          notifyShipmentFingerprintChange();
-          if (import.meta.client && customerPaymentUiKey(o) === "paid") {
-            try {
-              useOrderPaymentSync().clearClientPaidHintIfMatches(
-                String(orderId.value)
-              );
-            } catch {
-              /* ignore */
-            }
-          }
-        } else {
-          error.value = t("order.order_not_found");
-        }
+        error.value = t("order.order_not_found");
       }
     } else {
       const customerId = user.value.id || user.value.ID;
@@ -155,40 +120,11 @@ const fetchOrder = async () => {
         ...(customerId ? { customer_id: String(customerId) } : {}),
       });
 
-      const rawOrder = await $fetch(`/api/get-order?${queryParams.toString()}`);
-      const orderData = unwrapYardsaleResponse(rawOrder) ?? rawOrder;
-      const o = orderData?.order ?? rawOrder?.order;
+      const orderData = await $fetch(`/api/get-order?${queryParams.toString()}`);
 
-      if (o) {
-        let prev =
-          order.value && typeof order.value === "object" ? { ...order.value } : {};
-        const chk = checkoutOrder.value;
-        const oid = String(orderId.value);
-        if (
-          chk &&
-          String(chk.id) === oid &&
-          (!prev.id || Object.keys(prev).length < 2)
-        ) {
-          prev = { ...chk };
-        }
-        const merged = mergeOrderRowsPreferPaid(prev, o);
-        merged.status = merged.status ?? merged.order_status ?? prev.status ?? "";
-        merged.is_paid = customerPaymentUiKey(merged) === "paid";
-        order.value = {
-          ...merged,
-          total: String(merged.total_price ?? merged.total ?? prev.total ?? 0),
-          date_created: merged.created_at ?? merged.date_created ?? prev.date_created,
-        };
+      if (orderData.success && orderData.order) {
+        order.value = orderData.order;
         notifyShipmentFingerprintChange();
-        if (import.meta.client && customerPaymentUiKey(o) === "paid") {
-          try {
-            useOrderPaymentSync().clearClientPaidHintIfMatches(
-              String(orderId.value)
-            );
-          } catch {
-            /* ignore */
-          }
-        }
       } else {
         error.value = t("order.order_not_found");
       }
@@ -202,18 +138,13 @@ const fetchOrder = async () => {
   }
 };
 
-watch(orderId, (id) => {
-  if (!isClient.value || !isAuthenticated.value || !user.value || !id) return;
-  fetchOrder();
-});
-
 onMounted(async () => {
   isClient.value = true;
   checkAuth();
   await nextTick();
 
   if (!isAuthenticated.value || !user.value) {
-    router.push(localePath("/login"));
+    router.push("/login");
     return;
   }
 
@@ -252,7 +183,7 @@ onMounted(async () => {
                 {{ $t('order.retry') }}
               </button>
               <NuxtLink
-                :to="localePath('/my-orders')"
+                to="/my-orders"
                 class="px-6 py-3 bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white rounded-xl font-semibold hover:bg-neutral-300 dark:hover:bg-neutral-700 transition"
               >
                 {{ $t('order.back_to_orders') }}
@@ -269,7 +200,7 @@ onMounted(async () => {
               {{ $t('order.order_details') }}
             </h1>
             <NuxtLink
-              :to="localePath('/my-orders')"
+              to="/my-orders"
               class="px-4 py-2 bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white rounded-xl font-semibold hover:bg-neutral-300 dark:hover:bg-neutral-700 transition"
             >
               {{ $t('order.back_to_orders') }}
@@ -289,9 +220,7 @@ onMounted(async () => {
                 <span class="text-neutral-600 dark:text-neutral-400"
                   >{{ $t('order.order_number') }}:</span
                 >
-                <span
-                  class="font-semibold text-lg text-black dark:text-white"
-                  :title="String(order.id || '')"
+                <span class="font-semibold text-lg text-black dark:text-white"
                   >#{{ order.number || order.id }}</span
                 >
               </div>

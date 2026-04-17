@@ -7,37 +7,23 @@ definePageMeta({
 });
 
 import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
-import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
-import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
-import { mergeOrderRowsPreferPaid } from "~/utils/orderPaymentMerge";
-import { coerceOrderStatusRawToString } from "~/utils/orderStatus";
-import { CLIENT_PAID_HINT_MERGE_MS } from "~/composables/useOrderPaymentSync";
 
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
 const localePath = useLocalePath();
-const {
-  paymentLabel,
-  paymentColorClass,
-  canCancelByPaymentRules,
-  canPayOrder,
-  customerPaymentUiKey,
-} = useCustomerPaymentStatus();
-const { hasRemoteApi } = useCmsApi();
-const { fetchYardsale, resolveMediaUrl } = useStorefrontCatalog();
+const { paymentLabel, paymentColorClass, canCancelByPaymentRules, canPayOrder } =
+  useCustomerPaymentStatus();
+const { endpoint, hasRemoteApi } = useCmsApi();
 
-function localMyOrdersApiPath(rel) {
-  return `/api/${rel}`;
+function cmsPath(rel) {
+  return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
 }
 
-function normalizeMyOrderRow(row) {
-  if (!row || typeof row !== "object") return row;
-  const o = { ...row };
-  if (o.status != null) o.status = coerceOrderStatusRawToString(o.status);
-  if (o.order_status != null)
-    o.order_status = coerceOrderStatusRawToString(o.order_status);
-  o.is_paid = customerPaymentUiKey(o) === "paid";
-  return o;
+function unwrapApi(res) {
+  if (res?.success === true && res.data != null && typeof res.data === "object") {
+    return res.data;
+  }
+  return res;
 }
 
 // Client-side only state
@@ -50,30 +36,6 @@ const cancellingOrderId = ref(null);
 const cancelMessage = ref(null);
 const showCancelModal = ref(false);
 const orderToCancel = ref(null);
-
-const ORDER_PAGE_SIZE = 20;
-const listPage = ref(1);
-const listSearch = ref("");
-const orderPagination = ref({
-  page: 1,
-  page_size: ORDER_PAGE_SIZE,
-  total: 0,
-  total_pages: 0,
-});
-
-function onOrderSearch(q) {
-  const tq = String(q || "").trim();
-  if (tq === listSearch.value) return;
-  listSearch.value = tq;
-  listPage.value = 1;
-  fetchOrders();
-}
-
-function onOrderPage(p) {
-  if (p === listPage.value) return;
-  listPage.value = p;
-  fetchOrders();
-}
 
 // Format order date
 const formatDate = (dateString) => {
@@ -156,10 +118,7 @@ const fetchProductImageFromCatalog = async (productId) => {
 // Get item image URL (ข้อมูลออเดอร์ หรือแคตตาล็อกจำลอง)
 const getItemImage = (item) => {
   if (!item) return null;
-
-  const fromApi = item.image_url != null ? String(item.image_url).trim() : "";
-  if (fromApi) return fromApi;
-
+  
   // First, try WooCommerce image data (immediate)
   if (item.images && Array.isArray(item.images) && item.images.length > 0) {
     const img = item.images[0];
@@ -198,14 +157,6 @@ const getItemImage = (item) => {
   }
   
   return null;
-};
-
-/** รูปจาก API อาจเป็น `/uploads/...` ต้องแปลงเป็น origin ของ backend */
-const itemImageDisplayUrl = (item) => {
-  const raw = getItemImage(item);
-  if (!raw || typeof raw !== "string") return null;
-  if (hasRemoteApi) return resolveMediaUrl(raw) ?? raw;
-  return raw;
 };
 
 // Computed for cancel button text
@@ -291,89 +242,31 @@ const fetchOrders = async () => {
     }
 
     // เรียก Yardsale GET /my-orders (หรือ /api/my-orders ตอน mock) — user จาก JWT เท่านั้น
-    const listQuery = paginationQuery(listPage.value, listSearch.value, ORDER_PAGE_SIZE);
-    const listHeaders = { Authorization: `Bearer ${jwtToken}` };
-    let body;
-    if (hasRemoteApi) {
-      body = await fetchYardsale("my-orders", {
-        headers: listHeaders,
-        query: listQuery,
-      });
-    } else {
-      const raw = await $fetch(localMyOrdersApiPath("my-orders"), {
-        headers: listHeaders,
-        query: listQuery,
-      });
-      body = unwrapYardsaleResponse(raw) ?? raw;
-    }
-    if (body && body.success === false) {
-      error.value =
-        (typeof body.error === "object" && body.error?.message) ||
-        body.message ||
-        (typeof body.error === "string" ? body.error : null) ||
-        t("order.error_loading");
-      orders.value = [];
-      orderPagination.value = {
-        page: 1,
-        page_size: ORDER_PAGE_SIZE,
-        total: 0,
-        total_pages: 0,
-      };
-      return;
-    }
-
-    const list = Array.isArray(body?.orders)
+    const raw = await $fetch(cmsPath("my-orders"), {
+      headers: {
+        Authorization: `Bearer ${jwtToken}`,
+      },
+    });
+    const body = unwrapApi(raw);
+    let list = Array.isArray(body?.orders)
       ? body.orders
       : Array.isArray(body?.data?.orders)
         ? body.data.orders
         : [];
 
-    const lp = lastPaidOrder.value;
-    const lpFresh =
-      lp && Date.now() - lp.at < CLIENT_PAID_HINT_MERGE_MS ? lp : null;
-
-    orders.value = list.map((row) => {
-      if (
-        lpFresh &&
-        row &&
-        String(row.id) === lpFresh.orderId
-      ) {
-        return normalizeMyOrderRow(
-          mergeOrderRowsPreferPaid(row, lpFresh.order)
-        );
-      }
-      return normalizeMyOrderRow(row);
-    });
-
-    if (import.meta.client && lpFresh) {
-      const raw = list.find((r) => r && String(r.id) === String(lpFresh.orderId));
-      if (raw && customerPaymentUiKey(raw) === "paid") {
-        clearClientPaidHintIfMatches(lpFresh.orderId);
-      }
+    const uid = user.value?.id ?? user.value?.ID;
+    if (uid != null && uid !== "") {
+      list = list.filter((o) => String(o?.user_id ?? o?.userId) === String(uid));
     }
 
-    const pg = pickPagination(body);
-    if (pg) {
-      orderPagination.value = pg;
-    } else {
-      orderPagination.value = {
-        page: listPage.value,
-        page_size: ORDER_PAGE_SIZE,
-        total: list.length,
-        total_pages: list.length ? 1 : 0,
-      };
-    }
+    orders.value = list;
 
     // Fetch product images from WordPress REST API for line items without images (in background)
     const productIds = new Set();
     orders.value.forEach(order => {
       if (order.line_items && Array.isArray(order.line_items)) {
         order.line_items.forEach(item => {
-          const hasUrl =
-            (item.image_url != null && String(item.image_url).trim() !== "") ||
-            (typeof item.image === "string" && item.image.trim() !== "") ||
-            (item.images && item.images.length > 0);
-          if (item.product_id && !hasUrl) {
+          if (item.product_id && (!item.images || item.images.length === 0) && !item.image) {
             productIds.add(item.product_id);
           }
         });
@@ -390,19 +283,10 @@ const fetchOrders = async () => {
     console.error("[my-orders] Error fetching orders:", err);
     error.value = err?.message || t('order.error_loading');
     orders.value = [];
-    orderPagination.value = {
-      page: 1,
-      page_size: ORDER_PAGE_SIZE,
-      total: 0,
-      total_pages: 0,
-    };
   } finally {
     isLoading.value = false;
   }
 };
-
-const { lastPaid: lastPaidOrder, clearClientPaidHintIfMatches } =
-  useOrderPaymentSync();
 
 // Redirect to login if not authenticated (client-side only)
 onMounted(async () => {
@@ -463,27 +347,16 @@ const cancelOrder = async () => {
     cancellingOrderId.value = orderId;
     cancelMessage.value = null;
 
-    let response;
-    if (hasRemoteApi) {
-      response = await fetchYardsale("cancel-order", {
+    const response = unwrapApi(
+      await $fetch(cmsPath("cancel-order"), {
         method: "POST",
         headers: {
           Authorization: `Bearer ${user.value?.token || ""}`,
           "Content-Type": "application/json",
         },
         body: { order_id: orderId },
-      });
-    } else {
-      const rawCancel = await $fetch(localMyOrdersApiPath("cancel-order"), {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${user.value?.token || ""}`,
-          "Content-Type": "application/json",
-        },
-        body: { order_id: orderId },
-      });
-      response = unwrapYardsaleResponse(rawCancel) ?? rawCancel;
-    }
+      })
+    );
 
     if (response?.success !== false && (response?.success === true || response?.order != null)) {
       cancelMessage.value = {
@@ -581,17 +454,6 @@ function payOrderLink(order) {
             </NuxtLink>
           </div>
 
-          <ListPaginationBar
-            :page="orderPagination.page"
-            :total-pages="orderPagination.total_pages"
-            :total="orderPagination.total"
-            :page-size="orderPagination.page_size"
-            :loading="isLoading"
-            :search="listSearch"
-            @update:page="onOrderPage"
-            @update:search="onOrderSearch"
-          />
-
           <template v-if="orders.length === 0">
             <div
               class="bg-white/80 dark:bg-black/20 rounded-2xl p-12 text-center border-2 border-neutral-200 dark:border-neutral-800"
@@ -601,21 +463,12 @@ function payOrderLink(order) {
                 class="w-16 h-16 mx-auto mb-4 text-neutral-400 dark:text-neutral-600"
               />
               <p class="text-xl font-semibold text-black dark:text-white mb-2">
-                {{
-                  listSearch.trim()
-                    ? $t('order.no_orders_search')
-                    : $t('order.no_orders')
-                }}
+                {{ $t('order.no_orders') }}
               </p>
               <p class="text-neutral-500 dark:text-neutral-400 mb-6">
-                {{
-                  listSearch.trim()
-                    ? $t('order.no_orders_search_hint')
-                    : $t('order.start_shopping')
-                }}
+                {{ $t('order.start_shopping') }}
               </p>
               <NuxtLink
-                v-if="!listSearch.trim()"
                 to="/"
                 class="inline-block px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg"
               >
@@ -868,8 +721,8 @@ function payOrderLink(order) {
                       class="flex items-center gap-3 text-sm"
                     >
                       <StorefrontImg
-                        v-if="itemImageDisplayUrl(item)"
-                        :src="itemImageDisplayUrl(item)"
+                        v-if="getItemImage(item)"
+                        :src="getItemImage(item)"
                         :alt="item.name || $t('common.product')"
                         class="w-12 h-12 object-cover rounded-lg border-2 border-neutral-200 dark:border-neutral-700"
                         loading="lazy"

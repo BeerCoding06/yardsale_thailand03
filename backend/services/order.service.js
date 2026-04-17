@@ -1,12 +1,8 @@
 import { AppError } from '../utils/AppError.js';
-import { paginationMeta } from '../utils/pagination.js';
 import { withTransaction, pool } from '../models/db.js';
 import * as productModel from '../models/product.model.js';
 import * as orderModel from '../models/order.model.js';
 import * as cartModel from '../models/cart.model.js';
-import * as seventeenTrack from './seventeenTrack.service.js';
-import * as trackingLogModel from '../models/trackingLog.model.js';
-import { notifyBuyerOrderPaid, notifySellersNewOrder } from './fcmOrderNotify.service.js';
 
 function aggregateLineItems(lineItems) {
   const map = new Map();
@@ -50,17 +46,6 @@ function parseBillingSnapshot(row) {
   return typeof snap === 'object' && snap ? snap : null;
 }
 
-/** Postgres enum / driver บางตัวคืนเป็น object — ห้ามใช้ String() ตรงๆ กับ status */
-export function coerceOrderStatusText(raw) {
-  if (raw == null || raw === '') return '';
-  if (typeof raw === 'object' && raw !== null) {
-    const o = raw;
-    if (typeof o.value === 'string' && o.value.trim()) return o.value.trim();
-    if (typeof o.name === 'string' && o.name.trim()) return o.name.trim();
-  }
-  return String(raw).trim();
-}
-
 /** แปลงแถว DB → API (billing, aliases) */
 export function formatOrderForApi(row) {
   if (!row) return row;
@@ -80,27 +65,12 @@ export function formatOrderForApi(row) {
       country: snap.country || 'TH',
     };
   }
-  const statusStr = coerceOrderStatusText(row.status);
-  const st = String(statusStr)
-    .toLowerCase()
-    .trim()
-    .replace(/-/g, '_');
-  /** สอดคล้องกับ customerPaymentUiKey — ออเดอร์ที่ชำระแล้วอาจเป็น paid / processing / completed ฯลฯ */
-  const isPaidFlag =
-    st === 'paid' ||
-    st === 'processing' ||
-    st === 'completed' ||
-    st === 'refunded' ||
-    st === 'partially_refunded';
   return {
     ...row,
-    /** บังคับเป็น string — กันบาง proxy/driver ส่ง enum แปลก ๆ */
-    status: statusStr || row.status,
     billing,
     date_created: row.created_at,
     total: row.total_price,
     shipping_status: row.shipping_status || 'pending',
-    is_paid: isPaidFlag,
   };
 }
 
@@ -179,9 +149,6 @@ export async function createOrder(userId, payload) {
 
     const items = await orderModel.getOrderItems(client, order.id);
     return { order: { ...formatOrderForApi(order), line_items: items } };
-  }).then((payload) => {
-    notifySellersNewOrder(payload.order.id).catch(() => {});
-    return payload;
   });
 }
 
@@ -190,7 +157,7 @@ export async function getOrder(orderId, userId, role) {
   try {
     const order = await orderModel.getOrderById(client, orderId);
     if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
-    if (String(order.user_id) !== String(userId) && role !== 'admin') {
+    if (order.user_id !== userId && role !== 'admin') {
       throw new AppError('Forbidden', 403, 'FORBIDDEN');
     }
     const items = await orderModel.getOrderItems(client, orderId);
@@ -200,246 +167,54 @@ export async function getOrder(orderId, userId, role) {
   }
 }
 
-export async function listMyOrders(userId, { page, pageSize, offset, search } = {}) {
+export async function listMyOrders(userId) {
   const client = await pool.connect();
   try {
-    const total = await orderModel.countOrdersForUser(client, userId, search);
-    const rows = await orderModel.listOrdersForUserPaged(client, userId, {
-      limit: pageSize,
-      offset,
-      search,
-    });
-    const ids = rows.map((o) => o.id);
-    const lineMap = await orderModel.mapLineItemsByOrderIds(client, ids);
-    return {
-      orders: rows.map((row) => ({
-        ...formatOrderForApi(row),
-        line_items: lineMap.get(row.id) || [],
-      })),
-      pagination: paginationMeta({ page, pageSize, total }),
-    };
+    const orders = await orderModel.listOrdersForUser(client, userId);
+    return { orders: orders.map(formatOrderForApi) };
   } finally {
     client.release();
   }
 }
 
-export async function listSellerOrders(sellerId, { page, pageSize, offset, search } = {}) {
+export async function listSellerOrders(sellerId) {
   const client = await pool.connect();
   try {
-    const total = await orderModel.countOrdersForSeller(client, sellerId, search);
-    const orders = await orderModel.listOrdersForSellerPaged(client, sellerId, {
-      limit: pageSize,
-      offset,
-      search,
-    });
-    const ids = orders.map((o) => o.id);
-    const lineMap = await orderModel.mapSellerLineItemsByOrderIds(client, sellerId, ids);
-    let snapMap = new Map();
-    try {
-      snapMap = await orderModel.mapSlipSnapshotsByOrderIds(client, ids);
-    } catch {
-      /* order_slip_snapshots ยังไม่มีในฐานข้อมูล */
-    }
-    return {
-      orders: orders.map((row) => ({
-        ...formatOrderForApi(row),
-        line_items: lineMap.get(row.id) || [],
-        slip_snapshots: snapMap.get(row.id) || [],
-      })),
-      pagination: paginationMeta({ page, pageSize, total }),
-    };
+    const orders = await orderModel.listOrdersForSeller(client, sellerId);
+    return { orders: orders.map(formatOrderForApi) };
   } finally {
     client.release();
   }
 }
 
-export async function listAllOrdersAdmin({ page, pageSize, offset, search } = {}) {
+export async function listAllOrdersAdmin() {
   const client = await pool.connect();
   try {
-    const total = await orderModel.countAllOrders(client, search);
-    const orders = await orderModel.listAllOrdersPaged(client, {
-      limit: pageSize,
-      offset,
-      search,
-    });
-    const ids = orders.map((o) => o.id);
-    const lineMap = await orderModel.mapLineItemsByOrderIds(client, ids);
-    let snapMap = new Map();
-    try {
-      snapMap = await orderModel.mapSlipSnapshotsByOrderIds(client, ids);
-    } catch {
-      /* order_slip_snapshots ยังไม่มีในฐานข้อมูล */
-    }
-    return {
-      orders: orders.map((row) => ({
-        ...formatOrderForApi(row),
-        line_items: lineMap.get(row.id) || [],
-        slip_snapshots: snapMap.get(row.id) || [],
-      })),
-      pagination: paginationMeta({ page, pageSize, total }),
-    };
+    const orders = await orderModel.listAllOrders(client);
+    return { orders: orders.map(formatOrderForApi) };
   } finally {
     client.release();
   }
 }
 
-const FULFILLMENT_STATUSES = new Set([
-  'pending',
-  'preparing',
-  'shipped',
-  'out_for_delivery',
-  'delivered',
-]);
-
-function normalizeFulfillmentStatus(s) {
-  const v = String(s || 'pending')
-    .toLowerCase()
-    .trim()
-    .replace(/-/g, '_');
-  return FULFILLMENT_STATUSES.has(v) ? v : 'pending';
-}
-
-/** ผู้ขายกรอกเลข Tracking — 17TRACK ถ้ามี key. แอดมินแก้ทุกออเดอร์ได้ + ตั้ง shipping_status/courier เอง */
-export async function updateSellerOrderFulfillment(userId, orderId, body, role) {
+/** ผู้ขาย (เจ้าของสินค้าในออเดอร์) เท่านั้นที่อัปเดตไทม์ไลน์จัดส่ง + เลขพัสดุ — แอดมินที่ไม่มีสินค้าในออเดอร์ทำไม่ได้ */
+export async function updateSellerOrderFulfillment(userId, orderId, body) {
   const client = await pool.connect();
   try {
     const order = await orderModel.getOrderById(client, orderId);
     if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
-
-    const isAdmin = role === 'admin';
-    if (!isAdmin) {
-      const ok = await orderModel.orderHasSellerProduct(client, orderId, userId);
-      if (!ok) throw new AppError('Forbidden', 403, 'FORBIDDEN');
-    }
-
-    if (isAdmin) {
-      let tn =
-        body.tracking_number !== undefined
-          ? String(body.tracking_number ?? '').trim()
-          : String(order.tracking_number || '').trim();
-      let courier_name =
-        body.courier_name !== undefined
-          ? String(body.courier_name ?? '').trim()
-          : String(order.courier_name || '').trim();
-      let shipping_receipt_number =
-        body.shipping_receipt_number !== undefined
-          ? String(body.shipping_receipt_number ?? '').trim()
-          : String(order.shipping_receipt_number || '').trim();
-      let shipping_status = normalizeFulfillmentStatus(
-        body.shipping_status !== undefined ? body.shipping_status : order.shipping_status
-      );
-
-      if (tn) {
-        const resolved = await seventeenTrack.tryResolveTrackingForFulfillment(tn, body.carrier);
-        if (resolved) {
-          if (body.shipping_status === undefined) {
-            shipping_status = seventeenTrack.mapNormalizedToShippingStatus(resolved.normalized);
-          }
-          if (body.courier_name === undefined) {
-            const fromTrack = resolved.normalized.carrier || '';
-            if (fromTrack) courier_name = fromTrack;
-          }
-          try {
-            await trackingLogModel.insertTrackingLog(client, {
-              trackingNumber: resolved.normalized.trackingNumber,
-              carrier: resolved.normalized.carrier,
-              status: resolved.normalized.currentStatus,
-              rawResponse: resolved.upstream,
-            });
-          } catch {
-            /* noop */
-          }
-        } else if (body.shipping_status === undefined) {
-          shipping_status = 'shipped';
-        }
-      } else {
-        if (body.courier_name === undefined) courier_name = '';
-        if (body.shipping_receipt_number === undefined) shipping_receipt_number = '';
-        if (body.shipping_status === undefined) shipping_status = 'pending';
-      }
-
-      const updated = await orderModel.updateOrderFulfillment(client, orderId, {
-        shipping_status,
-        tracking_number: tn,
-        shipping_receipt_number,
-        courier_name,
-      });
-      return { order: formatOrderForApi(updated) };
-    }
-
-    const tn = String(body.tracking_number ?? '').trim();
-    let shipping_status = 'pending';
-    let courier_name = String(body.courier_name ?? '').trim();
-    let shipping_receipt_number = String(body.shipping_receipt_number ?? '').trim();
-
-    if (tn) {
-      const resolved = await seventeenTrack.tryResolveTrackingForFulfillment(tn, body.carrier);
-      if (resolved) {
-        shipping_status = seventeenTrack.mapNormalizedToShippingStatus(resolved.normalized);
-        if (!courier_name) {
-          courier_name = resolved.normalized.carrier || '';
-        }
-        try {
-          await trackingLogModel.insertTrackingLog(client, {
-            trackingNumber: resolved.normalized.trackingNumber,
-            carrier: resolved.normalized.carrier,
-            status: resolved.normalized.currentStatus,
-            rawResponse: resolved.upstream,
-          });
-        } catch {
-          /* tracking_logs ไม่มีหรือ insert ล้ม — ไม่บล็อก fulfillment */
-        }
-      } else {
-        shipping_status = 'shipped';
-      }
-    } else {
-      courier_name = '';
-      shipping_receipt_number = '';
-    }
-
+    const ok = await orderModel.orderHasSellerProduct(client, orderId, userId);
+    if (!ok) throw new AppError('Forbidden', 403, 'FORBIDDEN');
     const updated = await orderModel.updateOrderFulfillment(client, orderId, {
-      shipping_status,
-      tracking_number: tn,
-      shipping_receipt_number,
-      courier_name,
+      shipping_status: body.shipping_status,
+      tracking_number: body.tracking_number ?? '',
+      shipping_receipt_number: body.shipping_receipt_number ?? '',
+      courier_name: body.courier_name ?? '',
     });
     return { order: formatOrderForApi(updated) };
   } finally {
     client.release();
   }
-}
-
-/**
- * แอดมินยืนยันรับชำระเงิน — ใช้เมื่อ SlipOK/อัปโหลดสลิปอัตโนมัติไม่สำเร็จแต่ลูกค้าโอนจริง
- * @param {string} orderId
- * @param {{ slipImageUrl?: string }} [opts]
- */
-export async function markOrderPaidAsAdmin(orderId, { slipImageUrl } = {}) {
-  const id = String(orderId ?? '').trim();
-  const payload = await withTransaction(async (client) => {
-    const order = await orderModel.getOrderById(client, id);
-    if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
-    const st = String(order.status || '').toLowerCase();
-    if (st === 'canceled') {
-      throw new AppError('Cannot mark canceled order as paid', 400, 'BAD_STATUS');
-    }
-    if (st === 'paid') {
-      return { order: formatOrderForApi(order), alreadyPaid: true };
-    }
-    const slip =
-      slipImageUrl != null && String(slipImageUrl).trim() !== ''
-        ? String(slipImageUrl).trim()
-        : order.slip_image_url || null;
-    const updated = await orderModel.updateOrderStatus(client, id, 'paid', {
-      slipImageUrl: slip,
-    });
-    if (!updated) throw new AppError('Failed to update order', 500, 'ORDER_UPDATE_FAILED');
-    return { order: formatOrderForApi(updated), alreadyPaid: false };
-  });
-  if (!payload.alreadyPaid && payload.order?.user_id && payload.order?.id) {
-    notifyBuyerOrderPaid(payload.order.user_id, payload.order.id).catch(() => {});
-  }
-  return payload;
 }
 
 /**
@@ -449,7 +224,7 @@ export async function cancelOrder(orderId, userId, role) {
   return withTransaction(async (client) => {
     const order = await orderModel.getOrderById(client, orderId);
     if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
-    if (String(order.user_id) !== String(userId) && role !== 'admin') {
+    if (order.user_id !== userId && role !== 'admin') {
       throw new AppError('Forbidden', 403, 'FORBIDDEN');
     }
     if (order.status === 'canceled') {

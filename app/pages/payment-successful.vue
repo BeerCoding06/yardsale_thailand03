@@ -1,8 +1,6 @@
 <!--app/pages/payment-successful.vue-->
 <script setup>
-import { push } from "notivue";
-import { unwrapYardsaleResponse, yardsaleBodyIsFailure } from "~/utils/cmsApiEndpoint";
-import { mergeOrderRowsPreferPaid } from "~/utils/orderPaymentMerge";
+import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
 
 definePageMeta({
   ssr: false, // Disable SSR to prevent hydration mismatches
@@ -11,122 +9,51 @@ definePageMeta({
 const route = useRoute();
 const { order } = useCheckout();
 const router = useRouter();
-const localePath = useLocalePath();
 const { t, locale } = useI18n();
 const loadingOrder = ref(false);
-const { hasRemoteApi, fetchYardsale, resolveMediaUrl } = useStorefrontCatalog();
+const { hasRemoteApi, endpoint } = useStorefrontCatalog();
 const { user } = useAuth();
-const { paymentLabel, paymentColorClass, customerPaymentUiKey } =
-  useCustomerPaymentStatus();
+const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
 
-function lineItemImageSrc(item) {
-  if (!item) return "";
-  let u = "";
-  if (item.image_url != null) u = String(item.image_url).trim();
-  if (!u && item.image && typeof item.image === "object") {
-    u = String(item.image.src || item.image.sourceUrl || "").trim();
-  }
-  if (!u && typeof item.image === "string") u = String(item.image).trim();
-  if (!u) return "";
-  return resolveMediaUrl(u) || u;
-}
-
-function applyFetchedOrder(o, prev) {
-  const p = prev && typeof prev === "object" ? { ...prev } : {};
-  const merged = mergeOrderRowsPreferPaid(p, o);
-  merged.status = merged.status ?? merged.order_status ?? p.status ?? "";
-  merged.is_paid = customerPaymentUiKey(merged) === "paid";
-  order.value = {
-    ...merged,
-    number:
-      merged.number ||
-      String(merged.id || "")
-        .replace(/-/g, "")
-        .slice(0, 12) ||
-      p.number,
-    total: String(merged.total_price ?? merged.total ?? p.total ?? 0),
-    date_created: merged.created_at ?? merged.date_created ?? p.date_created,
-  };
-}
-
-// โหลดจาก API เมื่อมี order_id — ไม่พึ่งแค่ useState('order') เพราะอาจเป็นออเดอร์เก่า / id ไม่ตรงกับ URL หลังยืนยันสลิป
+// เมื่อเข้ามาจากหน้าชำระ จะมี order_id ใน query แต่ไม่มี order ใน state – ให้โหลดออเดอร์
 onMounted(async () => {
-  const orderId =
-    route.query.order_id != null && String(route.query.order_id).trim() !== ""
-      ? String(route.query.order_id).trim()
-      : "";
-  if (orderId) {
+  const orderId = route.query.order_id;
+  if (orderId && (!order.value || !order.value.id)) {
     loadingOrder.value = true;
-    const slipOk = route.query.slip_verified === "1";
-    /** หลังชำระเงิน DB/replica อาจตามช้า — โพลนานขึ้นเมื่อมาจากสลิปสำเร็จ */
-    const maxAttempts = slipOk ? 18 : 1;
-    const delayMs = slipOk ? 500 : 0;
     try {
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        if (hasRemoteApi) {
-          const id = encodeURIComponent(orderId);
-          const inner = await fetchYardsale(`get-order/${id}`, {
-            headers: {
-              ...(user.value?.token
-                ? { Authorization: `Bearer ${user.value.token}` }
-                : {}),
-            },
-          });
-          if (!yardsaleBodyIsFailure(inner) && inner?.order) {
-            const prev =
-              order.value && typeof order.value === "object" ? { ...order.value } : {};
-            applyFetchedOrder(inner.order, prev);
-            if (customerPaymentUiKey(order.value) === "paid") {
-              try {
-                useOrderPaymentSync().clearClientPaidHintIfMatches(orderId);
-              } catch {
-                /* ignore */
-              }
-              break;
-            }
-          }
-        } else {
-          const raw = await $fetch("/api/get-order", { query: { order_id: orderId } });
-          const data = unwrapYardsaleResponse(raw) ?? raw;
-          const ord = data?.order ?? raw?.order;
-          if (ord) {
-            const prev =
-              order.value && typeof order.value === "object" ? { ...order.value } : {};
-            applyFetchedOrder(ord, prev);
-            if (customerPaymentUiKey(order.value) === "paid") {
-              try {
-                useOrderPaymentSync().clearClientPaidHintIfMatches(orderId);
-              } catch {
-                /* ignore */
-              }
-              break;
-            }
-          }
+      if (hasRemoteApi) {
+        const id = encodeURIComponent(String(orderId));
+        const raw = await $fetch(endpoint(`get-order/${id}`), {
+          headers: {
+            ...(user.value?.token
+              ? { Authorization: `Bearer ${user.value.token}` }
+              : {}),
+          },
+        });
+        const inner = unwrapYardsaleResponse(raw) ?? raw;
+        const o = inner?.order;
+        if (o) {
+          order.value = {
+            ...o,
+            number:
+              o.number ||
+              String(o.id).replace(/-/g, '').slice(0, 12),
+            total: String(o.total_price ?? o.total ?? 0),
+            date_created: o.created_at ?? o.date_created,
+          };
         }
-        if (attempt < maxAttempts - 1) {
-          await new Promise((r) => setTimeout(r, delayMs));
+      } else {
+        const data = await $fetch('/api/get-order', { query: { order_id: orderId } });
+        if (data?.order) {
+          order.value = data.order;
         }
       }
     } catch (e) {
-      console.warn("[payment-successful] Failed to fetch order:", e);
+      console.warn('[payment-successful] Failed to fetch order:', e);
     } finally {
       loadingOrder.value = false;
     }
   }
-
-  /** มือถือมัก redirect เร็ว — toast จากหน้า checkout อาจไม่ทันเห็น; แสดงซ้ำเมื่อมาจากสลิปสำเร็จ */
-  if (import.meta.client && route.query.slip_verified === "1" && orderId) {
-    const key = `yardsale_pay_ok_toast_${String(orderId)}`;
-    try {
-      if (!sessionStorage.getItem(key)) {
-        sessionStorage.setItem(key, "1");
-        push.success(t("checkout.payment_slip.verify_success_toast"));
-      }
-    } catch {
-      push.success(t("checkout.payment_slip.verify_success_toast"));
-    }
-  }
-
   if (!order.value?.id && !orderId) {
     console.warn('[payment-successful] No order data, redirecting to home');
     router.push('/');
@@ -148,7 +75,7 @@ const formattedDate = computed(() => {
 });
 
 const paymentMethodDisplay = computed(() =>
-  order.value?.payment_method_title || t('order.payment_method_unknown')
+  order.value?.payment_method_title || t('order.payment_method_cod')
 );
 
 // Format total price
@@ -320,14 +247,13 @@ const formattedTotal = computed(() => {
               class="flex gap-4 pb-4 border-b border-neutral-200 dark:border-neutral-800 last:border-0"
             >
               <div
-                v-if="lineItemImageSrc(item)"
+                v-if="item.image"
                 class="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0"
               >
-                <StorefrontImg
-                  :src="lineItemImageSrc(item)"
-                  :alt="item.name || $t('common.product')"
+                <img
+                  :src="item.image.src || item.image"
+                  :alt="item.name"
                   class="w-full h-full object-cover"
-                  loading="lazy"
                 />
               </div>
               <div class="flex-1">
@@ -348,13 +274,13 @@ const formattedTotal = computed(() => {
         <!-- Action Buttons -->
         <div class="flex flex-col sm:flex-row gap-4">
           <NuxtLink
-            :to="localePath('/')"
+            to="/"
             class="flex-1 px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg hover:shadow-xl text-center"
           >
             {{ $t('payment_success.back_home') }}
           </NuxtLink>
           <NuxtLink
-            :to="localePath('/my-orders')"
+            to="/my-orders"
             class="flex-1 px-6 py-3 bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white rounded-xl font-semibold hover:bg-neutral-300 dark:hover:bg-neutral-700 transition text-center"
           >
             {{ $t('payment_success.my_orders') }}
@@ -378,7 +304,7 @@ const formattedTotal = computed(() => {
             {{ $t('payment_success.no_order_message') }}
           </p>
           <NuxtLink
-            :to="localePath('/')"
+            to="/"
             class="inline-block px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg"
           >
             {{ $t('payment_success.back_home') }}

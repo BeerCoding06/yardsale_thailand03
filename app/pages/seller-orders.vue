@@ -2,26 +2,16 @@
 <script setup>
 import { push } from "notivue";
 import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
-import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
-import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
-import { mergeOrderRowsPreferPaid } from "~/utils/orderPaymentMerge";
-import { coerceOrderStatusRawToString } from "~/utils/orderStatus";
-import { CLIENT_PAID_HINT_MERGE_MS } from "~/composables/useOrderPaymentSync";
 
 definePageMeta({
-  middleware: "seller",
+  middleware: "auth",
   ssr: false,
 });
 
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
-const { hasRemoteApi } = useCmsApi();
-const { fetchYardsale } = useStorefrontCatalog();
-const {
-  paymentLabel,
-  paymentColorClass,
-  customerPaymentUiKey,
-} = useCustomerPaymentStatus();
+const { endpoint, hasRemoteApi } = useCmsApi();
+const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
 
 const isClient = ref(false);
 const isLoading = ref(true);
@@ -30,30 +20,6 @@ const error = ref(null);
 /** แบบร่างอัปเดตจัดส่งต่อออเดอร์ — key = order.id */
 const fulfillmentDrafts = ref({});
 const savingFulfillmentId = ref(null);
-
-const ORDER_PAGE_SIZE = 20;
-const listPage = ref(1);
-const listSearch = ref("");
-const orderPagination = ref({
-  page: 1,
-  page_size: ORDER_PAGE_SIZE,
-  total: 0,
-  total_pages: 0,
-});
-
-function onOrderSearch(q) {
-  const tq = String(q || "").trim();
-  if (tq === listSearch.value) return;
-  listSearch.value = tq;
-  listPage.value = 1;
-  fetchOrders();
-}
-
-function onOrderPage(p) {
-  if (p === listPage.value) return;
-  listPage.value = p;
-  fetchOrders();
-}
 
 // Format order date
 const formatDate = (dateString) => {
@@ -70,8 +36,15 @@ const formatDate = (dateString) => {
 
 const { t } = useI18n();
 
-function localSellerApiPath(rel) {
-  return `/api/${rel}`;
+function cmsPath(rel) {
+  return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
+}
+
+function unwrapApi(res) {
+  if (res?.success === true && res.data != null && typeof res.data === "object") {
+    return res.data;
+  }
+  return res;
 }
 
 function normalizeStatusKey(s) {
@@ -81,12 +54,17 @@ function normalizeStatusKey(s) {
 }
 
 function orderPaid(order) {
-  return customerPaymentUiKey(order) === "paid";
+  return order.is_paid === true || normalizeStatusKey(order.status) === "paid";
 }
 
 function orderPaymentTerminated(order) {
-  const key = customerPaymentUiKey(order);
-  return key === "cancelled" || key === "payment_failed";
+  const s = normalizeStatusKey(order.status);
+  return (
+    s === "cancelled" ||
+    s === "canceled" ||
+    s === "failed" ||
+    s === "payment_failed"
+  );
 }
 
 /** แถวจาก Express: buyer_email / buyer_name, status ฯลฯ */
@@ -96,10 +74,7 @@ function normalizeSellerOrderRow(row) {
   o.date_created = o.date_created ?? o.created_at;
   o.total = o.total ?? o.total_price;
   o.seller_total = o.seller_total ?? o.total_price ?? o.total;
-  if (o.status != null) o.status = coerceOrderStatusRawToString(o.status);
-  if (o.order_status != null)
-    o.order_status = coerceOrderStatusRawToString(o.order_status);
-  o.is_paid = customerPaymentUiKey(o) === "paid";
+  if (o.is_paid == null) o.is_paid = normalizeStatusKey(o.status) === "paid";
   if (!o.billing && (o.buyer_email || o.buyer_name)) {
     const name = String(o.buyer_name || "").trim();
     const parts = name ? name.split(/\s+/) : [];
@@ -132,39 +107,26 @@ function normalizeShippingStatus(s) {
   return SHIPPING_STATUS_KEYS.includes(v) ? v : "pending";
 }
 
-function getLineItemImage(item) {
-  if (!item) return null;
-  const u = item.image_url != null ? String(item.image_url).trim() : "";
-  if (u) return u;
-  if (item.images && Array.isArray(item.images) && item.images.length > 0) {
-    const img = item.images[0];
-    if (img?.src) return img.src;
-    if (img?.sourceUrl) return img.sourceUrl;
-  }
-  if (typeof item.image === "string" && item.image.trim() !== "") return item.image;
-  if (item.image && typeof item.image === "object" && item.image.sourceUrl) {
-    return item.image.sourceUrl;
-  }
-  if (item.image?.src) return item.image.src;
-  return null;
-}
-
 function draftFor(order) {
   const id = order.id;
   if (!fulfillmentDrafts.value[id]) {
     fulfillmentDrafts.value[id] = reactive({
+      shipping_status: normalizeShippingStatus(order.shipping_status),
       tracking_number: String(order.tracking_number || ""),
+      shipping_receipt_number: String(order.shipping_receipt_number || ""),
+      courier_name: String(order.courier_name || ""),
     });
   }
   return fulfillmentDrafts.value[id];
 }
 
 function shipmentStepsForOrder(order) {
+  const d = draftFor(order);
   return buildShipmentTimelineSteps({
     status: order.status,
     date_created: order.date_created || order.created_at,
     created_at: order.created_at || order.date_created,
-    shipping_status: normalizeShippingStatus(order.shipping_status),
+    shipping_status: d.shipping_status,
     fulfillment_updated_at: order.fulfillment_updated_at,
   });
 }
@@ -178,43 +140,27 @@ async function saveFulfillment(order) {
   const d = draftFor(order);
   savingFulfillmentId.value = order.id;
   try {
-    let inner;
-    if (hasRemoteApi) {
-      inner = await fetchYardsale(`seller-orders/${order.id}/fulfillment`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-          "Content-Type": "application/json",
-        },
-        body: {
-          tracking_number: d.tracking_number || "",
-        },
-      });
-    } else {
-      const raw = await $fetch(
-        localSellerApiPath(`seller-orders/${order.id}/fulfillment`),
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${jwt}`,
-            "Content-Type": "application/json",
-          },
-          body: {
-            tracking_number: d.tracking_number || "",
-          },
-        }
-      );
-      inner = unwrapYardsaleResponse(raw) ?? raw;
-    }
+    const raw = await $fetch(cmsPath(`seller-orders/${order.id}/fulfillment`), {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        "Content-Type": "application/json",
+      },
+      body: {
+        shipping_status: d.shipping_status,
+        tracking_number: d.tracking_number || "",
+        shipping_receipt_number: d.shipping_receipt_number || "",
+        courier_name: d.courier_name || "",
+      },
+    });
+    const inner = unwrapApi(raw);
     const updated = inner?.order;
     if (updated) {
       const ix = orders.value.findIndex((o) => o.id === order.id);
       if (ix >= 0) {
-        const prev = orders.value[ix];
         orders.value[ix] = normalizeSellerOrderRow({
-          ...prev,
+          ...orders.value[ix],
           ...updated,
-          line_items: prev.line_items,
         });
       }
       delete fulfillmentDrafts.value[order.id];
@@ -270,7 +216,7 @@ const getPaymentSteps = (order) => {
 const getCurrentStep = (order) => {
   if (orderPaymentTerminated(order)) return 0;
   if (orderPaid(order)) return 4;
-  if (customerPaymentUiKey(order) === "awaiting_payment") return 2;
+  if (normalizeStatusKey(order.status) === "pending") return 2;
   return 1;
 };
 
@@ -296,25 +242,12 @@ const fetchOrders = async () => {
       return;
     }
 
-    const listQuery = paginationQuery(
-      listPage.value,
-      listSearch.value,
-      ORDER_PAGE_SIZE
-    );
-    const listHeaders = { Authorization: `Bearer ${jwtToken}` };
-    let body;
-    if (hasRemoteApi) {
-      body = await fetchYardsale("seller-orders", {
-        headers: listHeaders,
-        query: listQuery,
-      });
-    } else {
-      const raw = await $fetch(localSellerApiPath("seller-orders"), {
-        headers: listHeaders,
-        query: listQuery,
-      });
-      body = unwrapYardsaleResponse(raw) ?? raw;
-    }
+    const raw = await $fetch(cmsPath("seller-orders"), {
+      headers: {
+        Authorization: `Bearer ${jwtToken}`,
+      },
+    });
+    const body = unwrapApi(raw);
     const list = Array.isArray(body?.orders)
       ? body.orders
       : Array.isArray(body?.data?.orders)
@@ -322,72 +255,19 @@ const fetchOrders = async () => {
         : [];
 
     if (body && body.success === false) {
-      error.value =
-        (typeof body.error === "object" && body.error?.message) ||
-        body.message ||
-        (typeof body.error === "string" ? body.error : null) ||
-        t("seller_orders.error_loading");
+      error.value = body?.error?.message || body?.message || t("seller_orders.error_loading");
       orders.value = [];
-      orderPagination.value = {
-        page: 1,
-        page_size: ORDER_PAGE_SIZE,
-        total: 0,
-        total_pages: 0,
-      };
     } else {
-      const lp = lastPaidOrder.value;
-      const lpFresh =
-        lp && Date.now() - lp.at < CLIENT_PAID_HINT_MERGE_MS ? lp : null;
-
-      orders.value = list.map((row) => {
-        if (
-          lpFresh &&
-          row &&
-          String(row.id) === lpFresh.orderId
-        ) {
-          return normalizeSellerOrderRow(
-            mergeOrderRowsPreferPaid(row, lpFresh.order)
-          );
-        }
-        return normalizeSellerOrderRow(row);
-      });
-
-      if (import.meta.client && lpFresh) {
-        const raw = list.find((r) => r && String(r.id) === String(lpFresh.orderId));
-        if (raw && customerPaymentUiKey(raw) === "paid") {
-          clearClientPaidHintIfMatches(lpFresh.orderId);
-        }
-      }
-
-      const pg = pickPagination(body);
-      if (pg) {
-        orderPagination.value = pg;
-      } else {
-        orderPagination.value = {
-          page: listPage.value,
-          page_size: ORDER_PAGE_SIZE,
-          total: orders.value.length,
-          total_pages: orders.value.length ? 1 : 0,
-        };
-      }
+      orders.value = list.map(normalizeSellerOrderRow);
     }
   } catch (err) {
     console.error("[seller-orders] Error fetching orders:", err);
     error.value = err?.message || t('seller_orders.error_loading');
     orders.value = [];
-    orderPagination.value = {
-      page: 1,
-      page_size: ORDER_PAGE_SIZE,
-      total: 0,
-      total_pages: 0,
-    };
   } finally {
     isLoading.value = false;
   }
 };
-
-const { lastPaid: lastPaidOrder, clearClientPaidHintIfMatches } =
-  useOrderPaymentSync();
 
 onMounted(async () => {
   isClient.value = true;
@@ -450,17 +330,6 @@ onMounted(async () => {
             </NuxtLink>
           </div>
 
-          <ListPaginationBar
-            :page="orderPagination.page"
-            :total-pages="orderPagination.total_pages"
-            :total="orderPagination.total"
-            :page-size="orderPagination.page_size"
-            :loading="isLoading"
-            :search="listSearch"
-            @update:page="onOrderPage"
-            @update:search="onOrderSearch"
-          />
-
           <template v-if="orders.length === 0">
             <div
               class="bg-white/80 dark:bg-black/20 rounded-2xl p-12 text-center border-2 border-neutral-200 dark:border-neutral-800"
@@ -470,18 +339,10 @@ onMounted(async () => {
                 class="w-16 h-16 mx-auto mb-4 text-neutral-400 dark:text-neutral-600"
               />
               <p class="text-xl font-semibold text-black dark:text-white mb-2">
-                {{
-                  listSearch.trim()
-                    ? $t('seller_orders.no_orders_search')
-                    : $t('seller_orders.no_orders')
-                }}
+                {{ $t('seller_orders.no_orders') }}
               </p>
               <p class="text-neutral-500 dark:text-neutral-400 mb-4">
-                {{
-                  listSearch.trim()
-                    ? $t('seller_orders.no_orders_search_hint')
-                    : $t('seller_orders.no_customers')
-                }}
+                {{ $t('seller_orders.no_customers') }}
               </p>
             </div>
           </template>
@@ -525,49 +386,6 @@ onMounted(async () => {
                           {{ paymentLabel(order) }}
                         </span>
                       </div>
-                    </div>
-
-                    <div
-                      v-if="order.line_items?.length"
-                      class="mb-4 p-4 rounded-xl bg-violet-50/90 dark:bg-violet-950/25 border-2 border-violet-200 dark:border-violet-900"
-                    >
-                      <p
-                        class="text-sm font-semibold text-violet-900 dark:text-violet-200 mb-2"
-                      >
-                        {{ $t("seller_orders.products_in_order") }}
-                      </p>
-                      <ul class="space-y-2 text-sm text-neutral-800 dark:text-neutral-200">
-                        <li
-                          v-for="li in order.line_items"
-                          :key="`${order.id}-${li.product_id}`"
-                          class="flex items-center gap-3"
-                        >
-                          <StorefrontImg
-                            v-if="getLineItemImage(li)"
-                            :src="getLineItemImage(li)"
-                            :alt="li.name || $t('common.product')"
-                            class="w-12 h-12 shrink-0 object-cover rounded-lg border-2 border-violet-200 dark:border-violet-800"
-                            loading="lazy"
-                          />
-                          <div
-                            v-else
-                            class="w-12 h-12 shrink-0 rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center border-2 border-violet-200 dark:border-violet-800"
-                          >
-                            <UIcon
-                              name="i-heroicons-photo"
-                              class="w-6 h-6 text-violet-400 dark:text-violet-500"
-                            />
-                          </div>
-                          <div class="min-w-0 flex-1">
-                            <p class="font-medium text-neutral-900 dark:text-neutral-100 truncate">
-                              {{ li.name || $t("common.product") }}
-                            </p>
-                            <p class="text-neutral-500 dark:text-neutral-400 text-xs tabular-nums">
-                              × {{ li.quantity }}
-                            </p>
-                          </div>
-                        </li>
-                      </ul>
                     </div>
 
                     <!-- Customer Information Card -->
@@ -801,9 +619,32 @@ onMounted(async () => {
                       <p class="text-sm font-semibold text-teal-900 dark:text-teal-100 mb-3">
                         {{ $t('seller_orders.fulfillment_section') }}
                       </p>
+                      <p class="text-xs text-teal-800/90 dark:text-teal-200/90 mb-3">
+                        {{ $t('seller_orders.tracking_seller_only_hint') }}
+                      </p>
                       <ShipmentTimeline :steps="shipmentStepsForOrder(order)" />
                       <div class="mt-4 grid gap-3 sm:grid-cols-2">
                         <div class="sm:col-span-2">
+                          <label
+                            class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
+                            :for="`seller-shipping-status-${order.id}`"
+                          >
+                            {{ $t('seller_orders.shipping_status_field') }}
+                          </label>
+                          <select
+                            :id="`seller-shipping-status-${order.id}`"
+                            :name="`shipping_status_${order.id}`"
+                            v-model="draftFor(order).shipping_status"
+                            class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
+                          >
+                            <option value="pending">{{ $t('shipping.pending') }}</option>
+                            <option value="preparing">{{ $t('shipping.preparing') }}</option>
+                            <option value="shipped">{{ $t('shipping.shipped') }}</option>
+                            <option value="out_for_delivery">{{ $t('order.shipment_timeline.out_for_delivery') }}</option>
+                            <option value="delivered">{{ $t('shipping.delivered') }}</option>
+                          </select>
+                        </div>
+                        <div>
                           <label
                             class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
                             :for="`seller-tracking-${order.id}`"
@@ -818,6 +659,40 @@ onMounted(async () => {
                             autocomplete="off"
                             class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
                             :placeholder="$t('seller_orders.tracking_placeholder')"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
+                            :for="`seller-receipt-${order.id}`"
+                          >
+                            {{ $t('seller_orders.shipping_receipt_number') }}
+                          </label>
+                          <input
+                            :id="`seller-receipt-${order.id}`"
+                            :name="`shipping_receipt_${order.id}`"
+                            v-model="draftFor(order).shipping_receipt_number"
+                            type="text"
+                            autocomplete="off"
+                            class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
+                            :placeholder="$t('seller_orders.shipping_receipt_placeholder')"
+                          />
+                        </div>
+                        <div class="sm:col-span-2">
+                          <label
+                            class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
+                            :for="`seller-courier-${order.id}`"
+                          >
+                            {{ $t('seller_orders.courier_name') }}
+                          </label>
+                          <input
+                            :id="`seller-courier-${order.id}`"
+                            :name="`courier_name_${order.id}`"
+                            v-model="draftFor(order).courier_name"
+                            type="text"
+                            autocomplete="organization"
+                            class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
+                            :placeholder="$t('seller_orders.courier_placeholder')"
                           />
                         </div>
                         <div class="sm:col-span-2 flex flex-wrap items-center gap-3">
@@ -864,15 +739,15 @@ onMounted(async () => {
                       <div class="space-y-3">
                         <div
                           v-for="item in (order.seller_line_items || order.line_items)"
-                          :key="`${order.id}-${item.product_id}`"
+                          :key="item.id"
                           class="flex items-center gap-3 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-800"
                         >
                           <!-- Product Image -->
                           <div class="flex-shrink-0">
                             <StorefrontImg
-                              v-if="getLineItemImage(item)"
-                              :src="getLineItemImage(item)"
-                              :alt="item.name || $t('common.product')"
+                              v-if="item.image?.src || item.image"
+                              :src="item.image?.src || item.image"
+                              :alt="item.name"
                               class="w-16 h-16 rounded-lg object-cover border border-neutral-200 dark:border-neutral-700"
                             />
                             <div
@@ -885,13 +760,13 @@ onMounted(async () => {
                           <!-- Product Info -->
                           <div class="flex-1 min-w-0">
                             <p class="text-sm font-semibold text-black dark:text-white truncate">
-                              {{ item.name || $t('common.product') }}
+                              {{ item.name }}
                             </p>
                             <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                               {{ $t('order.quantity') }}: {{ item.quantity }}
                             </p>
                             <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                              {{ $t('order.unit_price') }}: ฿{{ parseFloat(item.price != null ? item.price : (item.total || 0) / (item.quantity || 1)).toFixed(2) }}
+                              {{ $t('order.unit_price') }}: ฿{{ parseFloat((item.total || 0) / (item.quantity || 1)).toFixed(2) }}
                             </p>
                           </div>
                           <!-- Product Total -->

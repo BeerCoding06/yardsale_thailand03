@@ -8,18 +8,6 @@ const productListingStatus = Joi.string()
   .valid('pending_review', 'published', 'hidden')
   .optional();
 
-const moderationIssueKey = Joi.string().valid(
-  'photos',
-  'title_name',
-  'description',
-  'price',
-  'category',
-  'stock',
-  'tags',
-  'illegal_or_prohibited',
-  'other'
-);
-
 export const loginSchema = Joi.object({
   username: Joi.string().trim().optional(),
   email: emailRule.optional(),
@@ -101,27 +89,14 @@ export const sellerOrderFulfillmentParamsSchema = Joi.object({
   orderId: uuid.required(),
 });
 
-/** ผู้ขาย: ส่งเลขพัสดุเป็นหลัก — shipping_status จาก 17TRACK ถ้ามี key. แอดมิน: ส่ง shipping_status / courier_name ได้ (merge กับของเดิม) */
 export const patchSellerOrderFulfillmentSchema = Joi.object({
-  tracking_number: Joi.string().trim().allow('', null).optional(),
-  /** optional 17TRACK carrier key เมื่อระบบเดาขนส่งไม่ได้ */
-  carrier: Joi.number().integer().positive().optional(),
-  shipping_receipt_number: Joi.string().trim().allow('', null).optional(),
-  courier_name: Joi.string().trim().max(200).allow('', null).optional(),
   shipping_status: Joi.string()
     .valid('pending', 'preparing', 'shipped', 'out_for_delivery', 'delivered')
-    .optional(),
-})
-  .or(
-    'tracking_number',
-    'shipping_status',
-    'courier_name',
-    'shipping_receipt_number',
-    'carrier'
-  )
-  .messages({
-    'object.missing': 'at least one fulfillment field is required',
-  });
+    .required(),
+  tracking_number: Joi.string().trim().allow('', null).optional(),
+  shipping_receipt_number: Joi.string().trim().allow('', null).optional(),
+  courier_name: Joi.string().trim().allow('', null).optional(),
+});
 
 export const paymentMockSchema = Joi.object({
   order_id: uuid.required(),
@@ -134,15 +109,9 @@ export const paymentMockBodySchema = Joi.object({
   simulate_failure: Joi.alternatives()
     .try(Joi.boolean(), Joi.string().valid('true', 'false', '1', '0'))
     .default('false'),
-  /** FormData ส่ง amount เป็นสตริงเสมอ */
-  amount: Joi.alternatives()
-    .try(Joi.number().positive(), Joi.string().pattern(/^\d+(\.\d+)?$/), Joi.valid(null, ''))
-    .optional(),
+  amount: Joi.alternatives().try(Joi.number().positive(), Joi.valid(null, '')),
   slip_data: Joi.string().trim().allow('', null).optional(),
-  /** ว่างไม่บังคับ uri; ไม่ใส่ scheme ให้ controller เติม https:// ก่อน validate */
-  slip_url: Joi.alternatives()
-    .try(Joi.valid('', null), Joi.string().uri({ scheme: ['http', 'https'] }))
-    .optional(),
+  slip_url: Joi.string().uri({ scheme: ['http', 'https'] }).allow('', null).optional(),
   log: Joi.alternatives()
     .try(Joi.boolean(), Joi.string().valid('true', 'false', '1', '0'))
     .optional(),
@@ -215,9 +184,6 @@ export const updateProductSchema = Joi.object({
     .optional(),
   /** Admin only: publish / hide from storefront */
   listing_status: productListingStatus,
-  /** Admin only: เหตุผลที่ไม่ผ่านการตรวจ — เก็บเป็น JSON ใน products.moderation_feedback */
-  moderation_issue_keys: Joi.array().items(moderationIssueKey).max(20).optional(),
-  moderation_message: Joi.string().trim().max(2000).allow('', null).optional(),
   tag_ids: Joi.array().items(uuid).max(100).optional(),
 })
   .or(
@@ -231,8 +197,6 @@ export const updateProductSchema = Joi.object({
     'image_url',
     'image_urls',
     'listing_status',
-    'moderation_issue_keys',
-    'moderation_message',
     'tag_ids'
   )
   .messages({
@@ -300,19 +264,4 @@ export const trackShipmentSchema = Joi.object({
   trackingNumber: Joi.string().trim().min(3).max(100).required(),
   /** Optional 17TRACK carrier key when auto-detect fails */
   carrier: Joi.number().integer().positive().optional(),
-});
-
-/** POST /api/save-token — FCM */
-export const saveFcmTokenSchema = Joi.object({
-  token: Joi.string().trim().min(10).max(4096).required(),
-  device: Joi.string().trim().max(50).allow('').optional(),
-});
-
-/** POST /api/send-notification — FCM (admin) */
-export const sendFcmNotificationSchema = Joi.object({
-  title: Joi.string().trim().max(255).required(),
-  body: Joi.string().trim().max(2000).required(),
-  data: Joi.object().optional().default({}),
-  user_ids: Joi.array().items(uuid).max(500).optional().default([]),
-  tokens: Joi.array().items(Joi.string().trim().min(10).max(4096)).max(500).optional().default([]),
 });
