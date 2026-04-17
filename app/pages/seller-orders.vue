@@ -4,8 +4,6 @@ import { push } from "notivue";
 import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
 import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
 import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
-import { mergeOrderRowsPreferPaid } from "~/utils/orderPaymentMerge";
-import { CLIENT_PAID_HINT_MERGE_MS } from "~/composables/useOrderPaymentSync";
 
 definePageMeta({
   middleware: "auth",
@@ -15,7 +13,8 @@ definePageMeta({
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
 const { endpoint, hasRemoteApi } = useCmsApi();
-const { paymentLabel, paymentColorClass } = useCustomerPaymentStatus();
+const { paymentLabel, paymentColorClass, customerPaymentUiKey } =
+  useCustomerPaymentStatus();
 
 const isClient = ref(false);
 const isLoading = ref(true);

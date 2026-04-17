@@ -8,19 +8,27 @@ definePageMeta({
 
 import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
 import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
-import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
-import { mergeOrderRowsPreferPaid } from "~/utils/orderPaymentMerge";
-import { CLIENT_PAID_HINT_MERGE_MS } from "~/composables/useOrderPaymentSync";
-
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
 const localePath = useLocalePath();
-const { paymentLabel, paymentColorClass, canCancelByPaymentRules, canPayOrder } =
-  useCustomerPaymentStatus();
+const {
+  paymentLabel,
+  paymentColorClass,
+  canCancelByPaymentRules,
+  canPayOrder,
+  customerPaymentUiKey,
+} = useCustomerPaymentStatus();
 const { endpoint, hasRemoteApi } = useCmsApi();
 
 function cmsPath(rel) {
   return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
+}
+
+function unwrapApi(res) {
+  if (res?.success === true && res.data != null && typeof res.data === "object") {
+    return res.data;
+  }
+  return res;
 }
 
 function normalizeMyOrderRow(row) {
@@ -265,7 +273,7 @@ const fetchOrders = async () => {
       list = list.filter((o) => String(o?.user_id ?? o?.userId) === String(uid));
     }
 
-    orders.value = list;
+    orders.value = list.map(normalizeMyOrderRow);
 
     // Fetch product images from WordPress REST API for line items without images (in background)
     const productIds = new Set();

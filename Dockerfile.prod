@@ -69,7 +69,7 @@ ENV NUXT_IMAGE_DOMAINS=${NUXT_IMAGE_DOMAINS}
 # Note: DB_PASSWORD should be set via docker-compose.yml or runtime environment, not in Dockerfile
 
 # Prepare build environment (generate types; may fail if app not fully copied yet)
-RUN pnpm prepare || true
+RUN pnpm run predev || true
 
 # Build the application (เพิ่ม memory สำหรับ build; ไม่ซ่อน error จริง)
 ENV NUXT_TELEMETRY_DISABLED=1
