@@ -90,13 +90,14 @@ export const sellerOrderFulfillmentParamsSchema = Joi.object({
 });
 
 export const patchSellerOrderFulfillmentSchema = Joi.object({
+  /** ไม่ใช้จากฝั่งผู้ขายแล้ว — สถานะคำนวณจากเลขพัสดุ + 17TRACK ที่เซิร์ฟเวอร์ */
   shipping_status: Joi.string()
     .valid('pending', 'preparing', 'shipped', 'out_for_delivery', 'delivered')
-    .required(),
+    .optional(),
   tracking_number: Joi.string().trim().allow('', null).optional(),
   shipping_receipt_number: Joi.string().trim().allow('', null).optional(),
   courier_name: Joi.string().trim().allow('', null).optional(),
-});
+}).or('tracking_number', 'shipping_receipt_number', 'courier_name', 'shipping_status');
 
 export const paymentMockSchema = Joi.object({
   order_id: uuid.required(),
@@ -110,6 +111,8 @@ export const paymentMockBodySchema = Joi.object({
     .try(Joi.boolean(), Joi.string().valid('true', 'false', '1', '0'))
     .default('false'),
   amount: Joi.alternatives().try(Joi.number().positive(), Joi.valid(null, '')),
+  /** ธนาคารที่ลูกค้าโอนมา (รหัสเดียวกับ bank_options ในหน้า payment) */
+  transfer_bank: Joi.string().trim().max(32).allow('', null).optional(),
   slip_data: Joi.string().trim().allow('', null).optional(),
   slip_url: Joi.string().uri({ scheme: ['http', 'https'] }).allow('', null).optional(),
   log: Joi.alternatives()

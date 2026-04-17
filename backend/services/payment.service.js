@@ -51,7 +51,7 @@ async function checkSlipWithSlipok(body, file) {
 
   const picked = resolveSlipokPayload(body, file);
   if (!picked) {
-    throw new AppError('Provide one of slip_data, slip_url, or slip_image file', 422, 'VALIDATION_ERROR');
+    throw new AppError('Please upload your payment slip file (slip_image).', 422, 'FILE_REQUIRED');
   }
 
   const base = String(config.slipok.apiBase || 'https://api.slipok.com').replace(/\/$/, '');

@@ -99,24 +99,25 @@ function normalizeSellerOrderRow(row) {
   return o;
 }
 
-const SHIPPING_STATUS_KEYS = [
-  "pending",
-  "preparing",
-  "shipped",
-  "out_for_delivery",
-  "delivered",
-];
+function sellerLineItemImage(item) {
+  if (!item) return null;
+  const u = item.image_url ?? item.imageUrl;
+  if (typeof u === "string" && u.trim() !== "") return u.trim();
+  if (item.image?.src) return item.image.src;
+  if (typeof item.image === "string" && item.image.trim() !== "") return item.image.trim();
+  return null;
+}
 
-function normalizeShippingStatus(s) {
-  const v = String(s || "pending").toLowerCase().replace(/-/g, "_");
-  return SHIPPING_STATUS_KEYS.includes(v) ? v : "pending";
+function sellerLineItemName(item) {
+  if (!item) return "";
+  const n = String(item.name || item.product_name || "").trim();
+  return n || t("common.product");
 }
 
 function draftFor(order) {
   const id = order.id;
   if (!fulfillmentDrafts.value[id]) {
     fulfillmentDrafts.value[id] = reactive({
-      shipping_status: normalizeShippingStatus(order.shipping_status),
       tracking_number: String(order.tracking_number || ""),
       shipping_receipt_number: String(order.shipping_receipt_number || ""),
       courier_name: String(order.courier_name || ""),
@@ -126,12 +127,11 @@ function draftFor(order) {
 }
 
 function shipmentStepsForOrder(order) {
-  const d = draftFor(order);
   return buildShipmentTimelineSteps({
     status: order.status,
     date_created: order.date_created || order.created_at,
     created_at: order.created_at || order.date_created,
-    shipping_status: d.shipping_status,
+    shipping_status: order.shipping_status,
     fulfillment_updated_at: order.fulfillment_updated_at,
   });
 }
@@ -152,7 +152,6 @@ async function saveFulfillment(order) {
         "Content-Type": "application/json",
       },
       body: {
-        shipping_status: d.shipping_status,
         tracking_number: d.tracking_number || "",
         shipping_receipt_number: d.shipping_receipt_number || "",
         courier_name: d.courier_name || "",
@@ -628,27 +627,12 @@ onMounted(async () => {
                         {{ $t('seller_orders.tracking_seller_only_hint') }}
                       </p>
                       <ShipmentTimeline :steps="shipmentStepsForOrder(order)" />
+                      <p
+                        class="text-xs text-teal-800/90 dark:text-teal-200/90 mb-3"
+                      >
+                        {{ $t('seller_orders.shipping_status_from_tracking_hint') }}
+                      </p>
                       <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                        <div class="sm:col-span-2">
-                          <label
-                            class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
-                            :for="`seller-shipping-status-${order.id}`"
-                          >
-                            {{ $t('seller_orders.shipping_status_field') }}
-                          </label>
-                          <select
-                            :id="`seller-shipping-status-${order.id}`"
-                            :name="`shipping_status_${order.id}`"
-                            v-model="draftFor(order).shipping_status"
-                            class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
-                          >
-                            <option value="pending">{{ $t('shipping.pending') }}</option>
-                            <option value="preparing">{{ $t('shipping.preparing') }}</option>
-                            <option value="shipped">{{ $t('shipping.shipped') }}</option>
-                            <option value="out_for_delivery">{{ $t('order.shipment_timeline.out_for_delivery') }}</option>
-                            <option value="delivered">{{ $t('shipping.delivered') }}</option>
-                          </select>
-                        </div>
                         <div>
                           <label
                             class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
@@ -744,15 +728,15 @@ onMounted(async () => {
                       <div class="space-y-3">
                         <div
                           v-for="item in (order.seller_line_items || order.line_items)"
-                          :key="item.id"
+                          :key="item.id || `${order.id}-${item.product_id}`"
                           class="flex items-center gap-3 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-800"
                         >
                           <!-- Product Image -->
                           <div class="flex-shrink-0">
                             <StorefrontImg
-                              v-if="item.image?.src || item.image"
-                              :src="item.image?.src || item.image"
-                              :alt="item.name"
+                              v-if="sellerLineItemImage(item)"
+                              :src="sellerLineItemImage(item)"
+                              :alt="sellerLineItemName(item)"
                               class="w-16 h-16 rounded-lg object-cover border border-neutral-200 dark:border-neutral-700"
                             />
                             <div
@@ -765,7 +749,7 @@ onMounted(async () => {
                           <!-- Product Info -->
                           <div class="flex-1 min-w-0">
                             <p class="text-sm font-semibold text-black dark:text-white truncate">
-                              {{ item.name }}
+                              {{ sellerLineItemName(item) }}
                             </p>
                             <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                               {{ $t('order.quantity') }}: {{ item.quantity }}

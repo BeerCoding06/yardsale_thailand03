@@ -3,6 +3,7 @@ import { withTransaction, pool } from '../models/db.js';
 import * as productModel from '../models/product.model.js';
 import * as orderModel from '../models/order.model.js';
 import * as cartModel from '../models/cart.model.js';
+import * as seventeenTrack from './seventeenTrack.service.js';
 
 function aggregateLineItems(lineItems) {
   const map = new Map();
@@ -182,7 +183,14 @@ export async function listMyOrders(userId) {
   const client = await pool.connect();
   try {
     const orders = await orderModel.listOrdersForUser(client, userId);
-    return { orders: orders.map(formatOrderForApi) };
+    const ids = orders.map((o) => o.id);
+    const lineItemsByOrder = await orderModel.mapLineItemsByOrderIds(client, ids);
+    return {
+      orders: orders.map((o) => ({
+        ...formatOrderForApi(o),
+        line_items: lineItemsByOrder.get(o.id) || [],
+      })),
+    };
   } finally {
     client.release();
   }
@@ -192,7 +200,18 @@ export async function listSellerOrders(sellerId) {
   const client = await pool.connect();
   try {
     const orders = await orderModel.listOrdersForSeller(client, sellerId);
-    return { orders: orders.map(formatOrderForApi) };
+    const ids = orders.map((o) => o.id);
+    const sellerLinesByOrder = await orderModel.mapSellerLineItemsByOrderIds(client, sellerId, ids);
+    return {
+      orders: orders.map((o) => {
+        const sellerLineItems = sellerLinesByOrder.get(o.id) || [];
+        return {
+          ...formatOrderForApi(o),
+          seller_line_items: sellerLineItems,
+          line_items: sellerLineItems,
+        };
+      }),
+    };
   } finally {
     client.release();
   }
@@ -216,11 +235,42 @@ export async function updateSellerOrderFulfillment(userId, orderId, body) {
     if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
     const ok = await orderModel.orderHasSellerProduct(client, orderId, userId);
     if (!ok) throw new AppError('Forbidden', 403, 'FORBIDDEN');
+
+    const prevTn = String(order.tracking_number || '').trim();
+    const nextTn =
+      body.tracking_number !== undefined ? String(body.tracking_number || '').trim() : prevTn;
+
+    const nextReceipt =
+      body.shipping_receipt_number !== undefined
+        ? String(body.shipping_receipt_number || '').trim()
+        : String(order.shipping_receipt_number || '').trim();
+
+    let nextCourier =
+      body.courier_name !== undefined
+        ? String(body.courier_name || '').trim()
+        : String(order.courier_name || '').trim();
+
+    let shippingStatus = String(order.shipping_status || 'pending');
+
+    if (nextTn) {
+      const resolved = await seventeenTrack.tryResolveTrackingForFulfillment(nextTn, undefined);
+      if (resolved?.normalized) {
+        shippingStatus = seventeenTrack.mapNormalizedToShippingStatus(resolved.normalized);
+        if (!nextCourier) {
+          nextCourier = String(resolved.normalized.carrier || '').trim();
+        }
+      } else {
+        shippingStatus = 'shipped';
+      }
+    } else if (prevTn && !nextTn) {
+      shippingStatus = 'pending';
+    }
+
     const updated = await orderModel.updateOrderFulfillment(client, orderId, {
-      shipping_status: body.shipping_status,
-      tracking_number: body.tracking_number ?? '',
-      shipping_receipt_number: body.shipping_receipt_number ?? '',
-      courier_name: body.courier_name ?? '',
+      shipping_status: shippingStatus,
+      tracking_number: nextTn,
+      shipping_receipt_number: nextReceipt,
+      courier_name: nextCourier,
     });
     return { order: formatOrderForApi(updated) };
   } finally {

@@ -132,7 +132,12 @@ const fetchProductImageFromCatalog = async (productId) => {
 // Get item image URL (ข้อมูลออเดอร์ หรือแคตตาล็อกจำลอง)
 const getItemImage = (item) => {
   if (!item) return null;
-  
+
+  const fromApi = item.image_url ?? item.imageUrl;
+  if (typeof fromApi === "string" && fromApi.trim() !== "") {
+    return fromApi.trim();
+  }
+
   // First, try WooCommerce image data (immediate)
   if (item.images && Array.isArray(item.images) && item.images.length > 0) {
     const img = item.images[0];
@@ -277,10 +282,16 @@ const fetchOrders = async () => {
 
     // Fetch product images from WordPress REST API for line items without images (in background)
     const productIds = new Set();
-    orders.value.forEach(order => {
+    orders.value.forEach((order) => {
       if (order.line_items && Array.isArray(order.line_items)) {
-        order.line_items.forEach(item => {
-          if (item.product_id && (!item.images || item.images.length === 0) && !item.image) {
+        order.line_items.forEach((item) => {
+          if (
+            item.product_id &&
+            (!item.images || item.images.length === 0) &&
+            !item.image &&
+            !item.image_url &&
+            !item.imageUrl
+          ) {
             productIds.add(item.product_id);
           }
         });
@@ -731,13 +742,13 @@ function payOrderLink(order) {
                   <div class="flex flex-wrap gap-3">
                     <div
                       v-for="(item, index) in order.line_items.slice(0, 3)"
-                      :key="index"
+                      :key="item.id || item.product_id || index"
                       class="flex items-center gap-3 text-sm"
                     >
                       <StorefrontImg
                         v-if="getItemImage(item)"
                         :src="getItemImage(item)"
-                        :alt="item.name || $t('common.product')"
+                        :alt="item.name || item.product_name || $t('common.product')"
                         class="w-12 h-12 object-cover rounded-lg border-2 border-neutral-200 dark:border-neutral-700"
                         loading="lazy"
                       />
@@ -753,7 +764,7 @@ function payOrderLink(order) {
                       <div class="flex flex-col">
                         <span
                           class="text-neutral-600 dark:text-neutral-400 font-medium"
-                          >{{ item.name }}</span
+                          >{{ item.name || item.product_name || $t('common.product') }}</span
                         >
                         <span
                           class="text-neutral-400 dark:text-neutral-600 text-xs"

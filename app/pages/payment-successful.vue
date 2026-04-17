@@ -74,8 +74,10 @@ const formattedDate = computed(() => {
   }).format(date);
 });
 
-const paymentMethodDisplay = computed(() =>
-  order.value?.payment_method_title || t('order.payment_method_cod')
+const paymentMethodDisplay = computed(
+  () =>
+    order.value?.payment_method_title ||
+    t('checkout.payment_title.bank_transfer')
 );
 
 // Format total price

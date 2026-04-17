@@ -14,6 +14,7 @@
     "generate": "NUXT_GENERATE=true nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
+    "i18n:merge-partials": "node scripts/merge-i18n-from-en.cjs",
     "deploy": "bumpp && nuxthub deploy"
   },
   "dependencies": {

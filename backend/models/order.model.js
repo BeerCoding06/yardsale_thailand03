@@ -18,8 +18,12 @@ function primaryProductImageUrl(row) {
 export function lineItemRowToApi(row) {
   const qty = Number(row.quantity);
   const price = Number(row.price);
+  const oid = row.order_id;
+  const pid = row.product_id;
+  const idKey = oid && pid ? `${oid}-${pid}` : pid;
   return {
-    product_id: row.product_id,
+    id: idKey,
+    product_id: pid,
     quantity: qty,
     price,
     name: row.name,
@@ -73,7 +77,7 @@ export async function getOrderById(client, orderId) {
 export async function getOrderItems(client, orderId) {
   const id = asOrderUuid(orderId);
   const r = await client.query(
-    `SELECT oi.product_id, oi.quantity, oi.price, p.name, p.image_url, p.image_urls
+    `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name, p.image_url, p.image_urls
      FROM order_items oi
      JOIN products p ON p.id = oi.product_id
      WHERE oi.order_id = $1::uuid`,

@@ -24,16 +24,19 @@ export const useCheckout = () => {
   const checkoutStatus = ref('order');
   const error = ref(null);
   const isLoadingCustomerData = ref(false);
-  const paymentMethod = ref('cod');
+  const paymentMethod = ref('bank_transfer');
   const showPaymentChoiceModal = ref(false);
 
   /** อัปโหลดสลิป → POST /api/payment/mock (multipart / slip_url / slip_data) */
-  const submitBankSlip = async ({ orderId, amount, file, slipUrl, slipData }) => {
+  const submitBankSlip = async ({ orderId, amount, file, slipUrl, slipData, transferBank }) => {
     const jwtToken = user.value?.token;
     const fd = new FormData();
     fd.append('order_id', String(orderId));
     if (amount != null && amount !== '') {
       fd.append('amount', String(amount));
+    }
+    if (transferBank != null && String(transferBank).trim() !== '') {
+      fd.append('transfer_bank', String(transferBank).trim());
     }
     if (slipData && String(slipData).trim()) {
       fd.append('slip_data', String(slipData).trim());
@@ -194,7 +197,7 @@ export const useCheckout = () => {
     await router.push(
       localePath({
         path: '/checkout/payment',
-        query: { method: paymentMethod.value },
+        query: { method: 'bank_transfer' },
       })
     );
   };
@@ -204,8 +207,8 @@ export const useCheckout = () => {
    * @returns {Promise<object|null>} order row หรือ null เมื่อล้มเหลว
    */
   const createOrderFromCart = async (method) => {
-    if (method !== 'cod' && method !== 'bank_transfer') return null;
-    paymentMethod.value = method;
+    if (method !== 'bank_transfer') return null;
+    paymentMethod.value = 'bank_transfer';
     showPaymentChoiceModal.value = false;
     checkoutStatus.value = 'processing';
     error.value = null;
@@ -255,10 +258,7 @@ export const useCheckout = () => {
       }
 
       const customerId = user.value.id || user.value.ID;
-      const paymentTitle =
-        method === 'cod'
-          ? t('checkout.payment_title.cod')
-          : t('checkout.payment_title.bank_transfer');
+      const paymentTitle = t('checkout.payment_title.bank_transfer');
       const checkoutData = {
         customer_id: customerId,
         billing: {
@@ -318,21 +318,19 @@ export const useCheckout = () => {
       if (orderData?.id) {
         /** ยอดโอน: จาก API จริง หรือคำนวณจากตะกร้าก่อนล้าง (mock ไม่มี total_price) */
         let slipAmount = '';
-        if (method === 'bank_transfer') {
-          if (hasRemoteApi) {
-            slipAmount = String(orderData.total_price ?? orderData.total ?? '');
-          } else {
-            let sum = 0;
-            for (const item of cart.value || []) {
-              const node = item.variation?.node || item.product?.node || {};
-              const regularPrice = parsePrice(node.regularPrice);
-              const salePrice = parsePrice(node.salePrice);
-              const price =
-                salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
-              sum += price * (item.quantity || 1);
-            }
-            slipAmount = sum.toFixed(2);
+        if (hasRemoteApi) {
+          slipAmount = String(orderData.total_price ?? orderData.total ?? '');
+        } else {
+          let sum = 0;
+          for (const item of cart.value || []) {
+            const node = item.variation?.node || item.product?.node || {};
+            const regularPrice = parsePrice(node.regularPrice);
+            const salePrice = parsePrice(node.salePrice);
+            const price =
+              salePrice > 0 && salePrice < regularPrice ? salePrice : regularPrice;
+            sum += price * (item.quantity || 1);
           }
+          slipAmount = sum.toFixed(2);
         }
 
         order.value = {
@@ -369,29 +367,16 @@ export const useCheckout = () => {
     const orderData = await createOrderFromCart(method);
     if (!orderData?.id) return;
 
-    const slipAmount =
-      method === 'bank_transfer'
-        ? String(orderData.total_price ?? orderData.total ?? '')
-        : '';
-
-    if (method === 'cod') {
-      await router.push(
-        localePath({
-          path: '/payment-successful',
-          query: { order_id: String(orderData.id) },
-        })
-      );
-    } else {
-      await router.push(
-        localePath({
-          path: '/checkout/payment',
-          query: {
-            order_id: String(orderData.id),
-            amount: slipAmount,
-          },
-        })
-      );
-    }
+    const slipAmount = String(orderData.total_price ?? orderData.total ?? '');
+    await router.push(
+      localePath({
+        path: '/checkout/payment',
+        query: {
+          order_id: String(orderData.id),
+          amount: slipAmount,
+        },
+      })
+    );
   };
 
   const closePaymentChoiceModal = () => {

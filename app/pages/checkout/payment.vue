@@ -18,7 +18,6 @@ const {
   isLoadingCustomerData,
   createOrderFromCart,
   error,
-  paymentMethod,
 } = useCheckout();
 const { isAuthenticated, checkAuth } = useAuth();
 const { cart } = useCart();
@@ -35,12 +34,6 @@ const isNewCheckout = computed(() => !isResumePay.value);
 
 /** แสดงบล็อกข้อมูลผู้สั่งซื้อ: สั่งใหม่ หรือกลับมาอัปโหลดสลิป (โหลดจากบัญชี) */
 const showBuyerForm = computed(() => isNewCheckout.value || isResumePay.value);
-
-const methodForOrder = computed(() => {
-  const m = String(route.query.method || '').toLowerCase();
-  if (m === 'cod') return 'cod';
-  return 'bank_transfer';
-});
 
 /** รูป QR สำรองเมื่อไม่ได้ตั้ง NUXT_PUBLIC_PROMPTPAY_ID หรือสร้าง QR ไม่สำเร็จ */
 const fallbackQrSrc = computed(() => {
@@ -61,9 +54,73 @@ const bankTransferDisplay = computed(() => {
 });
 
 const slipFile = ref(null);
-const slipUrl = ref('');
-const slipData = ref('');
 const submitting = ref(false);
+
+/** รหัสธนาคาร — ต้องตรงกับคีย์ใน i18n `checkout.payment_slip.bank_options.*` */
+const TRANSFER_BANK_KEYS = [
+  'BBL',
+  'KBANK',
+  'SCB',
+  'KTB',
+  'BAY',
+  'TTB',
+  'CIMBT',
+  'UOBT',
+  'LHBANK',
+  'ICBCT',
+  'GSB',
+  'BAAC',
+  'GHB',
+  'EXIM',
+  'IBANK',
+  'SME',
+];
+
+const BBL_COOLDOWN_MS = 8 * 60 * 1000;
+const OTHER_BANK_COOLDOWN_MS = 15 * 1000;
+
+const transferBankKey = ref('');
+/** เวลาที่อนุญาตให้กดส่งสลิปได้ (epoch ms) */
+const cooldownUntilMs = ref(0);
+const nowMs = ref(Date.now());
+let cooldownTicker = null;
+
+const cooldownRemainingMs = computed(() =>
+  Math.max(0, cooldownUntilMs.value - nowMs.value)
+);
+
+function formatCooldown(ms) {
+  const sec = Math.ceil(ms / 1000);
+  if (sec <= 0) return '0';
+  const mm = Math.floor(sec / 60);
+  const ss = sec % 60;
+  return mm > 0 ? `${mm}:${String(ss).padStart(2, '0')}` : `${sec}`;
+}
+
+function onTransferBankChange() {
+  error.value = null;
+  const key = transferBankKey.value;
+  if (!key) {
+    cooldownUntilMs.value = 0;
+    return;
+  }
+  const wait = key === 'BBL' ? BBL_COOLDOWN_MS : OTHER_BANK_COOLDOWN_MS;
+  cooldownUntilMs.value = Date.now() + wait;
+}
+
+function assertBankAndCooldown() {
+  if (!transferBankKey.value) {
+    error.value = t('checkout.payment_slip.bbl_bank_required');
+    return false;
+  }
+  if (cooldownRemainingMs.value > 0) {
+    error.value = t('checkout.payment_slip.bbl_submit_wait', {
+      time: formatCooldown(cooldownRemainingMs.value),
+    });
+    return false;
+  }
+  return true;
+}
 
 const parsePrice = (priceString) => {
   if (!priceString) return 0;
@@ -127,6 +184,9 @@ watch(
 );
 
 onMounted(async () => {
+  cooldownTicker = setInterval(() => {
+    nowMs.value = Date.now();
+  }, 250);
   checkAuth();
   if (!isAuthenticated.value) {
     router.replace(localePath('/'));
@@ -144,8 +204,14 @@ onMounted(async () => {
     router.replace(localePath('/'));
     return;
   }
-  paymentMethod.value = methodForOrder.value;
   await loadCustomerData();
+});
+
+onUnmounted(() => {
+  if (cooldownTicker) {
+    clearInterval(cooldownTicker);
+    cooldownTicker = null;
+  }
 });
 
 async function copyToClipboard(text) {
@@ -209,11 +275,9 @@ function validateBuyerForm() {
 /** ส่งสลิปเมื่อมี order อยู่แล้ว  */
 async function onSubmitResumeOnly() {
   error.value = null;
-  const hasFile = !!slipFile.value;
-  const hasUrl = !!String(slipUrl.value || '').trim();
-  const hasData = !!String(slipData.value || '').trim();
-  if (!hasFile && !hasUrl && !hasData) {
-    error.value = t('checkout.payment_slip.errors.PAYMENT_PROOF_REQUIRED');
+  if (!assertBankAndCooldown()) return;
+  if (!slipFile.value) {
+    error.value = t('checkout.payment_slip.errors.FILE_REQUIRED');
     return;
   }
   submitting.value = true;
@@ -222,8 +286,7 @@ async function onSubmitResumeOnly() {
       orderId: orderId.value,
       amount: amountFromQuery.value,
       file: slipFile.value || undefined,
-      slipUrl: slipUrl.value,
-      slipData: slipData.value,
+      transferBank: transferBankKey.value,
     });
     const paid = res?.paid === true;
     if (paid) {
@@ -261,32 +324,17 @@ async function onSubmitNew() {
     return;
   }
 
-  const method = methodForOrder.value;
+  if (!assertBankAndCooldown()) return;
 
-  if (method === 'bank_transfer') {
-    const hasFile = !!slipFile.value;
-    const hasUrl = !!String(slipUrl.value || '').trim();
-    const hasData = !!String(slipData.value || '').trim();
-    if (!hasFile && !hasUrl && !hasData) {
-      error.value = t('checkout.payment_slip.errors.PAYMENT_PROOF_REQUIRED');
-      return;
-    }
+  if (!slipFile.value) {
+    error.value = t('checkout.payment_slip.errors.FILE_REQUIRED');
+    return;
   }
 
   submitting.value = true;
   try {
-    const orderData = await createOrderFromCart(method);
+    const orderData = await createOrderFromCart('bank_transfer');
     if (!orderData?.id) {
-      return;
-    }
-
-    if (method === 'cod') {
-      await router.push(
-        localePath({
-          path: '/payment-successful',
-          query: { order_id: String(orderData.id) },
-        })
-      );
       return;
     }
 
@@ -295,8 +343,7 @@ async function onSubmitNew() {
       orderId: String(orderData.id),
       amount: amt,
       file: slipFile.value || undefined,
-      slipUrl: slipUrl.value,
-      slipData: slipData.value,
+      transferBank: transferBankKey.value,
     });
     const paid = res?.paid === true;
     if (paid) {
@@ -336,7 +383,6 @@ async function onSubmit() {
 
 const submitLabel = computed(() => {
   if (isResumePay.value) return t('checkout.payment_slip.upload_btn');
-  if (methodForOrder.value === 'cod') return t('checkout.payment_slip.submit_place_order_cod');
   return t('checkout.payment_slip.submit_place_order_bank');
 });
 </script>
@@ -454,15 +500,7 @@ const submitLabel = computed(() => {
               />
             </div>
           </div>
-          <p v-if="isNewCheckout" class="mt-3 text-xs text-neutral-500">
-            {{ $t('checkout.payment_slip.method_label') }}:
-            <span class="font-semibold text-black dark:text-white">{{
-              methodForOrder === 'cod'
-                ? $t('checkout.payment_method.cod')
-                : $t('checkout.payment_method.bank_transfer')
-            }}</span>
-          </p>
-          <p v-else class="mt-3 text-xs text-neutral-500">
+          <p v-if="showBuyerForm" class="mt-3 text-xs text-neutral-500">
             {{ $t('checkout.payment_slip.method_label') }}:
             <span class="font-semibold text-black dark:text-white">{{
               $t('checkout.payment_method.bank_transfer')
@@ -478,7 +516,6 @@ const submitLabel = computed(() => {
 
         <!-- QR + บัญชี — เฉพาะโอนเงิน -->
         <div
-          v-if="isResumePay || methodForOrder === 'bank_transfer'"
           class="mb-6 p-4 sm:p-5 rounded-2xl bg-white/90 dark:bg-black/40 border-2 border-neutral-200 dark:border-neutral-700"
         >
           <h2 class="text-sm font-semibold text-black dark:text-white mb-4">
@@ -542,14 +579,6 @@ const submitLabel = computed(() => {
           >{{ bankTransferDisplay }}</pre>
         </div>
 
-        <!-- COD: ไม่มีสลิป -->
-        <div
-          v-if="isNewCheckout && methodForOrder === 'cod'"
-          class="mb-6 p-4 rounded-xl bg-neutral-100 dark:bg-neutral-900/50 border border-neutral-200 dark:border-neutral-700 text-sm text-neutral-700 dark:text-neutral-300"
-        >
-          {{ $t('checkout.payment_slip.cod_hint') }}
-        </div>
-
         <form class="space-y-4" @submit.prevent="onSubmit">
           <p class="text-xs text-neutral-500 dark:text-neutral-400 px-1">
             {{ $t('checkout.payment_slip.outcome_hint') }}
@@ -572,7 +601,7 @@ const submitLabel = computed(() => {
           <div>
             <label class="block text-sm font-medium text-black dark:text-white mb-1">
               {{
-                isNewCheckout && methodForOrder === 'cod'
+                isNewCheckout
                   ? $t('checkout.payment_slip.cart_total_preview')
                   : $t('checkout.payment_slip.amount_label')
               }}
@@ -582,53 +611,73 @@ const submitLabel = computed(() => {
             </p>
           </div>
 
-          <template v-if="!isNewCheckout || methodForOrder === 'bank_transfer'">
-            <div>
-              <label class="block text-sm font-medium text-black dark:text-white mb-1">
-                {{ $t('checkout.payment_slip.slip_data_label') }}
-              </label>
-              <textarea
-                v-model="slipData"
-                rows="4"
-                class="w-full rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-black/30 px-4 py-3 text-black dark:text-white text-sm font-mono leading-relaxed"
-                :placeholder="$t('checkout.payment_slip.slip_data_placeholder')"
-              />
-              <p class="mt-1 text-xs text-neutral-500">
-                {{ $t('checkout.payment_slip.slip_data_hint') }}
+          <div>
+            <label
+              class="block text-sm font-medium text-black dark:text-white mb-1"
+              for="payment-transfer-bank"
+            >
+              {{ $t('checkout.payment_slip.bbl_bank_label') }}
+            </label>
+            <select
+              id="payment-transfer-bank"
+              v-model="transferBankKey"
+              class="payment-slip-select w-full rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-black/30 px-4 py-3 text-sm text-black dark:text-white"
+              @change="onTransferBankChange"
+            >
+              <option value="">{{ $t('checkout.payment_slip.bbl_bank_placeholder') }}</option>
+              <option
+                v-for="bk in TRANSFER_BANK_KEYS"
+                :key="bk"
+                :value="bk"
+              >
+                {{ $t(`checkout.payment_slip.bank_options.${bk}`) }}
+              </option>
+            </select>
+            <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              {{ $t('checkout.payment_slip.bbl_bank_hint') }}
+            </p>
+            <div
+              v-if="transferBankKey && cooldownRemainingMs > 0"
+              class="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/35 border border-amber-200 dark:border-amber-800 text-sm text-amber-950 dark:text-amber-100"
+            >
+              <p class="font-semibold mb-1">
+                {{ $t('checkout.payment_slip.bbl_countdown_label') }}:
+                {{ formatCooldown(cooldownRemainingMs) }}
+              </p>
+              <p class="text-xs leading-relaxed opacity-95">
+                {{
+                  transferBankKey === 'BBL'
+                    ? $t('checkout.payment_slip.bbl_modal_body')
+                    : $t('checkout.payment_slip.cooldown_other_banks_hint')
+                }}
               </p>
             </div>
+          </div>
 
-            <div>
-              <label class="block text-sm font-medium text-black dark:text-white mb-1">
-                {{ $t('checkout.payment_slip.file_label') }}
-              </label>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,application/pdf"
-                class="block w-full text-sm text-neutral-600 dark:text-neutral-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-alizarin-crimson-600 file:text-white"
-                @change="onFileChange"
-              />
-              <p class="mt-1 text-xs text-neutral-500">
-                {{ $t('checkout.payment_slip.file_hint') }}
-              </p>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-black dark:text-white mb-1">
-                {{ $t('checkout.payment_slip.optional_url') }}
-              </label>
-              <input
-                v-model="slipUrl"
-                type="url"
-                class="w-full rounded-2xl border-2 border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-black/30 px-4 py-3 text-black dark:text-white text-sm"
-                :placeholder="$t('checkout.payment_slip.url_placeholder')"
-              />
-            </div>
-          </template>
+          <div>
+            <label class="block text-sm font-medium text-black dark:text-white mb-1">
+              {{ $t('checkout.payment_slip.file_label') }}
+            </label>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              class="block w-full text-sm text-neutral-600 dark:text-neutral-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-alizarin-crimson-600 file:text-white"
+              @change="onFileChange"
+            />
+            <p class="mt-1 text-xs text-neutral-500">
+              {{ $t('checkout.payment_slip.file_hint') }}
+            </p>
+          </div>
 
           <button
             type="submit"
-            :disabled="submitting || (showBuyerForm && isLoadingCustomerData)"
+            :disabled="
+              submitting ||
+              (showBuyerForm && isLoadingCustomerData) ||
+              !transferBankKey ||
+              cooldownRemainingMs > 0 ||
+              !slipFile
+            "
             class="w-full py-3 rounded-xl font-semibold text-white bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 hover:bg-alizarin-crimson-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             <span v-if="!submitting">{{ submitLabel }}</span>
@@ -672,6 +721,10 @@ select:-webkit-autofill {
 .billing input,
 .billing textarea {
   @apply block bg-white/80 dark:bg-black/20 dark:border-white/20 w-full shadow font-semibold border-2 border-transparent transition hover:border-black dark:hover:border-white rounded-2xl py-3 px-4 text-black dark:text-white placeholder:text-neutral-400 text-sm leading-6 focus-visible:outline-none focus-visible:border-black focus-visible:dark:border-white;
+}
+
+.payment-slip-select {
+  @apply focus-visible:outline-none focus-visible:border-alizarin-crimson-600 dark:focus-visible:border-alizarin-crimson-500;
 }
 
 textarea {

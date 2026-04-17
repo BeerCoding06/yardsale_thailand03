@@ -145,7 +145,26 @@ function pickOrder(orderKey: string) {
       postcode: "10110",
       country: "TH",
     },
-    line_items: [],
+    line_items: [
+      {
+        id: `${id}-${MOCK_CMS_A}`,
+        product_id: MOCK_CMS_A,
+        name: "Mock CMS Product A",
+        quantity: 1,
+        price: 199.5,
+        total: 199.5,
+        image_url: "https://picsum.photos/seed/cms-a/400/400",
+      },
+      {
+        id: `${id}-${MOCK_CMS_B}`,
+        product_id: MOCK_CMS_B,
+        name: "Mock CMS Product B",
+        quantity: 2,
+        price: 49,
+        total: 98,
+        image_url: null,
+      },
+    ],
   };
 }
 
@@ -530,8 +549,7 @@ export default defineNuxtPlugin(() => {
     if (fulfillMatch && String(opts?.method || "GET").toUpperCase() === "PATCH") {
       const bo = (body as AnyObj) || {};
       const tn = String(bo.tracking_number ?? "").trim();
-      const hasStatus = bo.shipping_status != null && String(bo.shipping_status).trim() !== "";
-      let shipping_status = hasStatus ? String(bo.shipping_status).trim() : tn ? "shipped" : "pending";
+      const shipping_status = tn ? "shipped" : "pending";
       const courier =
         bo.courier_name != null && String(bo.courier_name).trim() !== ""
           ? String(bo.courier_name).trim()
@@ -559,24 +577,19 @@ export default defineNuxtPlugin(() => {
       let hasProof = false;
       if (b instanceof FormData) {
         orderId = String(b.get("order_id") || "");
-        const slipData = String(b.get("slip_data") || "").trim();
-        const slipUrl = String(b.get("slip_url") || "").trim();
         const slipFile = b.get("slip_image");
-        hasProof = !!(slipData || slipUrl || (slipFile && typeof slipFile !== "string"));
+        hasProof = !!(slipFile && typeof slipFile !== "string");
       } else if (b && typeof b === "object") {
         const bo = b as AnyObj;
         orderId = String(bo.order_id || "");
-        hasProof = !!(
-          String(bo.slip_data || "").trim() ||
-          String(bo.slip_url || "").trim()
-        );
+        hasProof = Boolean(bo.slip_image);
       }
       if (orderId && !hasProof) {
         return {
           success: false,
           error: {
-            message: "Provide slip_data, slip_url, or slip_image",
-            code: "PAYMENT_PROOF_REQUIRED",
+            message: "Upload slip_image (payment slip file)",
+            code: "FILE_REQUIRED",
           },
         };
       }
