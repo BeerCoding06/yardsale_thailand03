@@ -56,6 +56,8 @@ services:
         condition: service_healthy
     environment:
       PORT: 4000
+      # บังคับ IPv4 ทุก interface — ถ้า Dokploy ใส่ HOST อื่น อาจ bind แค่ IPv6 แล้ว healthcheck 127.0.0.1 ล้ม
+      HOST: "0.0.0.0"
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-yardsale}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-yardsale}
       JWT_SECRET: ${JWT_SECRET:-changeme}
@@ -77,17 +79,17 @@ services:
     # กัน port scan ได้ด้วย firewall บน VPS (อนุญาตแค่ Cloudflare / IP คุณถ้าต้องการ)
     ports:
       - "4000:4000"
-    # ใช้ /health ไม่ใช้ /api/products — list ชน DB ถ้า schema/connection ยังไม่พร้อมจะ 500 แล้วทั้ง stack รอ healthy ไม่ผ่าน
+    # /health ไม่แตะ DB — ใช้ module http (ไม่พึ่ง fetch) ลดโอกาส probe ล้มบน Alpine
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "node -e \"fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+          "node -e \"require('http').get('http://127.0.0.1:'+(process.env.PORT||4000)+'/health',(r)=>{r.resume();r.on('end',()=>process.exit(r.statusCode===200?0:1));}).on('error',()=>process.exit(1))\"",
         ]
       interval: 15s
       timeout: 5s
-      retries: 10
-      start_period: 40s
+      retries: 15
+      start_period: 90s
 
   app:
     build:
@@ -108,9 +110,10 @@ services:
     restart: unless-stopped
     networks:
       - dokploy-network
+    # รอแค่ backend ขึ้น process — ไม่รอ service_healthy (probe กับ timing/Dokploy ทำให้ deploy ค้างได้)
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     environment:
       NODE_ENV: production
       NUXT_HOST: 0.0.0.0
