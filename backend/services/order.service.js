@@ -51,7 +51,7 @@ function parseBillingSnapshot(row) {
 }
 
 /** Postgres enum / driver บางตัวคืนเป็น object — ห้ามใช้ String() ตรงๆ กับ status */
-function coerceOrderStatusText(raw) {
+export function coerceOrderStatusText(raw) {
   if (raw == null || raw === '') return '';
   if (typeof raw === 'object' && raw !== null) {
     const o = raw;

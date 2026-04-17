@@ -276,7 +276,7 @@ function normalizeOrderIdForPayment(orderId) {
 }
 
 function orderStatusNorm(row) {
-  return String(row?.status ?? '')
+  return String(orderService.coerceOrderStatusText(row?.status) ?? '')
     .toLowerCase()
     .trim();
 }

@@ -4,6 +4,7 @@ import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
 import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
 import ShipmentTimeline from "~/components/ShipmentTimeline.vue";
 import StorefrontImg from "~/components/StorefrontImg.vue";
+import { coerceOrderStatusRawToString } from "~/utils/orderStatus";
 
 definePageMeta({
   layout: "admin",
@@ -75,8 +76,9 @@ function normalizeOrderRow(row: any) {
   o.shipping_status = normalizeShippingStatus(o.shipping_status);
   o.fulfillment_updated_at = o.fulfillment_updated_at ?? null;
   o.slip_snapshots = Array.isArray(o.slip_snapshots) ? o.slip_snapshots : [];
-  if (o.status != null) o.status = String(o.status);
-  if (o.order_status != null) o.order_status = String(o.order_status);
+  if (o.status != null) o.status = coerceOrderStatusRawToString(o.status);
+  if (o.order_status != null)
+    o.order_status = coerceOrderStatusRawToString(o.order_status);
   o.is_paid = customerPaymentUiKey(o) === "paid";
   return o;
 }

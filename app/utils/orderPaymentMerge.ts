@@ -1,10 +1,4 @@
-/** แมปสถานะออเดอร์หลัก → ถือว่าชำระแล้วใน UI */
-function normStatus(raw: unknown): string {
-  return String(raw ?? "")
-    .toLowerCase()
-    .trim()
-    .replace(/-/g, "_");
-}
+import { normalizeOrderStatusKey } from "~/utils/orderStatus";
 
 function statusLooksPaid(s: string): boolean {
   return (
@@ -38,9 +32,9 @@ export function mergeOrderRowsPreferPaid<T extends Record<string, unknown>>(
   }
   const p = prev && typeof prev === "object" ? { ...prev } : {};
   const merged = { ...p, ...incoming } as T;
-  const inc = normStatus(merged.status ?? merged.order_status);
+  const inc = normalizeOrderStatusKey(merged.status ?? merged.order_status);
   const prevPaid =
-    statusLooksPaid(normStatus(p.status ?? p.order_status)) ||
+    statusLooksPaid(normalizeOrderStatusKey(p.status ?? p.order_status)) ||
     truthyPaid(p.is_paid) ||
     truthyPaid(p.set_paid) ||
     truthyPaid(p.paid) ||

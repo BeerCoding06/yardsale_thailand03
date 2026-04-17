@@ -1,6 +1,8 @@
 /**
  * สถานะการชำระเงินฝั่งลูกค้า — แมปจาก order.status (Yardsale / Woo-style)
  */
+import { coerceOrderStatusRawToString } from "~/utils/orderStatus";
+
 export type CustomerPaymentUiKey =
   | "awaiting_payment"
   | "paid"
@@ -36,14 +38,7 @@ function coerceStatusRaw(order: {
 }
 
 function rawToNormalizedStatus(raw: unknown): string {
-  if (raw == null) return "";
-  if (typeof raw === "object" && raw !== null) {
-    const o = raw as Record<string, unknown>;
-    if (typeof o.value === "string") return normalizeStatus(o.value);
-    if (typeof o.name === "string") return normalizeStatus(o.name);
-    return "";
-  }
-  return normalizeStatus(String(raw));
+  return normalizeStatus(coerceOrderStatusRawToString(raw));
 }
 
 /** สถานะหลักของออเดอร์จากแหล่งต่างๆ (Express / Woo / headless) */
