@@ -19,6 +19,7 @@ import { mergeOrderRowsPreferPaid } from "~/utils/orderPaymentMerge";
 
 const route = useRoute();
 const router = useRouter();
+const localePath = useLocalePath();
 const { user, isAuthenticated, checkAuth } = useAuth();
 const { t, locale } = useI18n();
 const { hasRemoteApi, fetchYardsale } = useStorefrontCatalog();
@@ -194,7 +195,7 @@ onMounted(async () => {
   await nextTick();
 
   if (!isAuthenticated.value || !user.value) {
-    router.push("/login");
+    router.push(localePath("/login"));
     return;
   }
 
@@ -233,7 +234,7 @@ onMounted(async () => {
                 {{ $t('order.retry') }}
               </button>
               <NuxtLink
-                to="/my-orders"
+                :to="localePath('/my-orders')"
                 class="px-6 py-3 bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white rounded-xl font-semibold hover:bg-neutral-300 dark:hover:bg-neutral-700 transition"
               >
                 {{ $t('order.back_to_orders') }}
@@ -250,7 +251,7 @@ onMounted(async () => {
               {{ $t('order.order_details') }}
             </h1>
             <NuxtLink
-              to="/my-orders"
+              :to="localePath('/my-orders')"
               class="px-4 py-2 bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white rounded-xl font-semibold hover:bg-neutral-300 dark:hover:bg-neutral-700 transition"
             >
               {{ $t('order.back_to_orders') }}

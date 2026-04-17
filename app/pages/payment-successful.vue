@@ -11,6 +11,7 @@ definePageMeta({
 const route = useRoute();
 const { order } = useCheckout();
 const router = useRouter();
+const localePath = useLocalePath();
 const { t, locale } = useI18n();
 const loadingOrder = ref(false);
 const { hasRemoteApi, fetchYardsale, resolveMediaUrl } = useStorefrontCatalog();
@@ -351,13 +352,13 @@ const formattedTotal = computed(() => {
         <!-- Action Buttons -->
         <div class="flex flex-col sm:flex-row gap-4">
           <NuxtLink
-            to="/"
+            :to="localePath('/')"
             class="flex-1 px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg hover:shadow-xl text-center"
           >
             {{ $t('payment_success.back_home') }}
           </NuxtLink>
           <NuxtLink
-            to="/my-orders"
+            :to="localePath('/my-orders')"
             class="flex-1 px-6 py-3 bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white rounded-xl font-semibold hover:bg-neutral-300 dark:hover:bg-neutral-700 transition text-center"
           >
             {{ $t('payment_success.my_orders') }}
@@ -381,7 +382,7 @@ const formattedTotal = computed(() => {
             {{ $t('payment_success.no_order_message') }}
           </p>
           <NuxtLink
-            to="/"
+            :to="localePath('/')"
             class="inline-block px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg"
           >
             {{ $t('payment_success.back_home') }}

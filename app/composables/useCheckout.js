@@ -1,4 +1,5 @@
 import { isCartLineSalableBySnapshot } from '~/utils/cart-line-salable';
+import { customerPaymentUiKey } from '~/composables/useCustomerPaymentStatus';
 import {
   messageFromYardsaleBody,
   unwrapYardsaleResponse,
@@ -44,13 +45,43 @@ function normalizeSlipPaymentPayload(payload) {
   if (!paid && orderLooksPaidInPayload(payload.order) && hasProof) {
     paid = true;
   }
+  /** เซิร์ฟเวอร์ยืนยัน paid แล้ว แต่บาง proxy ตัด slip / slip_verification ออก — อย่าตัด paid ถ้า order บ่งชัดว่าชำระแล้ว */
+  const orderReflectsPaid =
+    payload?.order &&
+    typeof payload.order === 'object' &&
+    !Array.isArray(payload.order) &&
+    customerPaymentUiKey(payload.order) === 'paid';
   let slipVerificationIncomplete = false;
-  if (paid && !hasProof) {
+  if (paid && !hasProof && !orderReflectsPaid) {
     slipVerificationIncomplete = true;
     paid = false;
   }
   const out = { ...payload, paid };
   if (slipVerificationIncomplete) out.slip_verification_incomplete = true;
+  /**
+   * บางครั้ง envelope บอก paid + slip ผ่าน แต่ order.status ใน JSON ยัง pending (replica/merge เก่า)
+   * — ให้ object ที่ส่งต่อไป notify / UI สอดคล้องกับ paid
+   */
+  if (
+    paid &&
+    (hasProof || orderReflectsPaid) &&
+    out.order &&
+    typeof out.order === 'object' &&
+    !Array.isArray(out.order)
+  ) {
+    const st = String(out.order.status ?? out.order.order_status ?? '')
+      .toLowerCase()
+      .trim()
+      .replace(/-/g, '_');
+    if (st === 'pending' || st === '' || st === 'on_hold') {
+      out.order = {
+        ...out.order,
+        status: 'paid',
+        order_status: 'paid',
+        is_paid: true,
+      };
+    }
+  }
   return out;
 }
 
