@@ -690,6 +690,9 @@ watch(isAuthenticated, (newVal: boolean) => {
                       class="mt-0.5 h-5 w-5 shrink-0 text-alizarin-crimson-600 dark:text-alizarin-crimson-400"
                     />
                     <div class="min-w-0 flex-1">
+                      <p class="text-xs font-semibold uppercase tracking-wide text-alizarin-crimson-700 dark:text-alizarin-crimson-300">
+                        {{ $t("my_products.moderation_why_title") }}
+                      </p>
                       <p class="font-bold text-alizarin-crimson-900 dark:text-alizarin-crimson-100">
                         {{ $t("my_products.moderation_notice_title") }}
                       </p>
@@ -722,6 +725,17 @@ watch(isAuthenticated, (newVal: boolean) => {
                       </p>
                     </div>
                   </div>
+                </div>
+                <div
+                  v-else-if="product.status === 'pending' || product.status === 'hidden'"
+                  class="mb-3 rounded-xl border border-amber-200 bg-amber-50/90 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-50"
+                >
+                  <p class="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                    {{ $t("my_products.moderation_why_title") }}
+                  </p>
+                  <p class="mt-1 text-sm text-amber-950 dark:text-amber-100">
+                    {{ $t("my_products.moderation_no_admin_details") }}
+                  </p>
                 </div>
 
                 <div class="flex items-center gap-2 mb-3">

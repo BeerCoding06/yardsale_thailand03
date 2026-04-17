@@ -314,7 +314,9 @@
     "moderation_issue_illegal_or_prohibited": "สินค้าต้องห้าม ละเมิดลิขสิทธิ์ หรือไม่ตรงนโยบาย",
     "moderation_issue_other": "อื่น ๆ (ดูรายละเอียดในข้อความด้านล่าง)",
     "moderation_filter_rejected_only": "ดูเฉพาะที่ไม่ผ่านการตรวจสอบ",
-    "moderation_filter_show_all": "แสดงสินค้าทั้งหมด"
+    "moderation_filter_show_all": "แสดงสินค้าทั้งหมด",
+    "moderation_why_title": "สาเหตุที่ไม่ผ่าน / รอตรวจ",
+    "moderation_no_admin_details": "ยังไม่มีรายละเอียดจากแอดมินในระบบ (เช่น อยู่ระหว่างรอตรวจ หรือถูกซ่อนโดยไม่มีข้อความแนบ) หากมีข้อสงสัยให้ติดต่อผู้ดูแลร้าน"
   },
   "product": {
     "originally": "เดิม",

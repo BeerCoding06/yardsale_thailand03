@@ -314,7 +314,9 @@
     "moderation_issue_illegal_or_prohibited": "Prohibited item, copyright issue, or policy violation",
     "moderation_issue_other": "Other (see message below)",
     "moderation_filter_rejected_only": "Show only listings that did not pass review",
-    "moderation_filter_show_all": "Show all my listings"
+    "moderation_filter_show_all": "Show all my listings",
+    "moderation_why_title": "Why it did not pass / pending review",
+    "moderation_no_admin_details": "No admin notes are stored for this listing yet (for example it may still be in review or was hidden without a message). Contact the store admin if you need details."
   },
   "product": {
     "originally": "Originally",
