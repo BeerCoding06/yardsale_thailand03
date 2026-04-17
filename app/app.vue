@@ -59,7 +59,7 @@ useHead({
     { rel: "dns-prefetch", href: "//api.yardsaleth.com" },
     { rel: "preconnect", href: "https://api.yardsaleth.com", crossorigin: "" },
     /** PWA — Safari iOS 16.4+ รับ Web Push ได้ดีขึ้นเมื่อ “เพิ่มไปที่หน้าจอโฮม” แล้วเปิดจากไอคอน */
-    { rel: "manifest", href: "/site.webmanifest" },
+    { rel: "manifest", href: "/manifest.json" },
     { rel: "apple-touch-icon", href: "/logo.png", sizes: "180x180" },
   ],
   meta: [
@@ -94,6 +94,10 @@ useSeoMeta({
   <NuxtLayout>
     <NuxtPage />
   </NuxtLayout>
+  <ClientOnly>
+    <FcmIosInstallPrompt />
+    <FcmGestureHint />
+  </ClientOnly>
   <Notivue v-slot="item">
     <Notification :item="item" :theme="materialTheme" />
   </Notivue>

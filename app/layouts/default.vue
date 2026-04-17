@@ -52,12 +52,14 @@ const categories = computed(() => categoriesData.value);
 </script>
 
 <template>
-  <AppHeader />
-  <main class="pt-[90px] lg:pt-20 min-h-[calc(100vh-90px)]">
-    <slot />
-  </main>
-  <AppFooter />
-  <ClientOnly>
-    <CarouselCategories :categories="categories" />
-  </ClientOnly>
+  <div class="contents">
+    <AppHeader />
+    <main class="pt-[90px] lg:pt-20 min-h-[calc(100vh-90px)]">
+      <slot />
+    </main>
+    <AppFooter />
+    <ClientOnly>
+      <CarouselCategories :categories="categories" />
+    </ClientOnly>
+  </div>
 </template>

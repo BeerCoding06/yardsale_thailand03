@@ -13,4 +13,11 @@ export default defineNuxtPlugin(() => {
     },
     { immediate: true }
   );
+
+  /** กลับจากพื้นหลัง / เปิดจาก PWA หลังเพิ่มหน้าจอโฮม — ลองลงทะเบียน FCM อีกครั้ง */
+  if (import.meta.client) {
+    window.addEventListener("pageshow", () => {
+      void initFcmPush(resolveUserId());
+    });
+  }
 });

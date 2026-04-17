@@ -5,6 +5,17 @@
     "loading": "Laden...",
     "go_back": "Ga terug"
   },
+  "fcm_ios": {
+    "prompt_title": "Enable notifications on iPhone / iPad",
+    "prompt_body": "In the Safari tab, web push works reliably after you add this site to your Home Screen and open it from the app icon (iOS 16.4+).",
+    "step_share": "Tap the Share button (square with arrow up)",
+    "step_add": "Choose “Add to Home Screen”",
+    "step_open": "Open Yardsale from the Home Screen icon, then tap “Enable notifications”",
+    "dismiss": "Dismiss",
+    "gesture_hint": "This browser only allows the notification prompt after you tap the button below.",
+    "enable_notifications": "Enable notifications",
+    "not_now": "Not now"
+  },
   "theme": {
     "dark": "Donker",
     "light": "Licht",

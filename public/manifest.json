@@ -1,10 +1,12 @@
 {
   "name": "YardsaleThailand",
   "short_name": "Yardsale",
-  "description": "YardsaleThailand",
-  "start_url": "/",
+  "description": "Second-hand marketplace — YardsaleThailand",
+  "id": "/",
+  "start_url": "/?utm_source=pwa",
   "scope": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#fafafa",
   "theme_color": "#dc2626",
   "icons": [
@@ -20,5 +22,6 @@
       "type": "image/png",
       "purpose": "any"
     }
-  ]
+  ],
+  "categories": ["shopping", "lifestyle"]
 }

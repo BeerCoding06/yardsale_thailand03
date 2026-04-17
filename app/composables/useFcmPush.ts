@@ -1,45 +1,70 @@
 import { useNotification } from "./useNotification";
 import { cmsEndpointFromPublic } from "~/utils/cmsApiEndpoint";
+import {
+  iosFcmBlockedOutsideStandalone,
+  isDesktopSafari,
+  isIOSDevice,
+  isStandaloneDisplayMode,
+} from "~/utils/fcmIosContext";
 
 type FcmUserId = number | string | null | undefined;
 
 type FirebaseMessagingModule = typeof import("firebase/messaging");
 
-/** Safari / WebKit — การขอสิทธิ์แจ้งเตือนต้องมาหลัง user gesture (โดยเฉพาะ iOS) */
-function isSafariFamilyForPush(): boolean {
+const FCM_GESTURE_DISMISS_SESSION_KEY = "yardsale_fcm_gesture_dismissed";
+
+function isFcmGestureDismissedThisSession(): boolean {
   if (!import.meta.client) return false;
-  const ua = navigator.userAgent || "";
-  const isIOS =
-    /iPad|iPhone|iPod/.test(ua) ||
-    (navigator.platform === "MacIntel" && (navigator.maxTouchPoints ?? 0) > 1);
-  if (isIOS) {
-    return /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+  try {
+    return sessionStorage.getItem(FCM_GESTURE_DISMISS_SESSION_KEY) === "1";
+  } catch {
+    return false;
   }
-  return /^((?!chrome|android|chromium|edg).)*safari/i.test(ua);
 }
 
+function setFcmGestureDismissedThisSession() {
+  if (!import.meta.client) return;
+  try {
+    sessionStorage.setItem(FCM_GESTURE_DISMISS_SESSION_KEY, "1");
+  } catch {
+    /* private mode */
+  }
+}
+
+function clearFcmGestureDismissedThisSession() {
+  if (!import.meta.client) return;
+  try {
+    sessionStorage.removeItem(FCM_GESTURE_DISMISS_SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** ขอสิทธิ์แจ้งเตือนหลัง user gesture (Safari เดสก์ท็อป + iOS PWA) */
 function pushPermissionShouldWaitForGesture(): boolean {
   if (!import.meta.client) return false;
   if (typeof Notification === "undefined") return false;
   if (Notification.permission !== "default") return false;
-  return isSafariFamilyForPush();
+  if (isDesktopSafari()) return true;
+  if (isIOSDevice() && isStandaloneDisplayMode()) return true;
+  return false;
 }
 
 export function useFcmPush() {
   const initialized = useState("fcm:initialized", () => false);
   const foregroundBound = useState("fcm:foreground-bound", () => false);
   const latestToken = useState<string | null>("fcm:latest-token", () => null);
-  /** รอแตะครั้งแรก (Safari) ก่อนขอสิทธิ์ — ให้ UI แสดงคำแนะนำได้ */
   const awaitingSafariGesture = useState("fcm:awaiting-safari-gesture", () => false);
-  const safariGestureHooked = useState("fcm:safari-gesture-hooked", () => false);
   const pendingGestureUserId = useState<FcmUserId | undefined>(
     "fcm:pending-gesture-user-id",
     () => undefined
   );
+  /** iOS แท็บเบราว์เซอร์ — แสดง UI แนะนำ Add to Home Screen */
+  const installBannerReason = useState<"ios" | null>("fcm:install-banner-reason", () => null);
+
   const { notify } = useNotification();
   const config = useRuntimeConfig();
 
-  /** POST /api/save-token — laravelApiBase ถ้ามี ไม่งั้นใช้ cmsApiBase (Express ผ่าน proxy เดียวกับ Nuxt) */
   function resolveFcmSaveTokenUrl(): string {
     const pub = config.public as {
       laravelApiBase?: string;
@@ -95,6 +120,13 @@ export function useFcmPush() {
   }
 
   async function registerMessagingAndToken(userId?: FcmUserId) {
+    if (iosFcmBlockedOutsideStandalone()) {
+      if (import.meta.dev) {
+        console.info("[fcm] ข้ามลงทะเบียน: บน iOS ต้องเปิดจากแอปหน้าจอโฮม (PWA)");
+      }
+      return null;
+    }
+
     const firebaseConfig = {
       apiKey: String(config.public.firebaseApiKey || ""),
       authDomain: String(config.public.firebaseAuthDomain || ""),
@@ -127,8 +159,10 @@ export function useFcmPush() {
     });
     const registration = await navigator.serviceWorker.register(swUrl.toString(), {
       type: "classic",
+      scope: "/",
       updateViaCache: "none",
     });
+    await registration.update?.();
 
     const messaging = messagingApi.getMessaging(app);
     const token = await messagingApi.getToken(messaging, {
@@ -163,40 +197,30 @@ export function useFcmPush() {
     }
 
     initialized.value = true;
+    installBannerReason.value = null;
     return token;
   }
 
-  function scheduleSafariGestureInit(userId?: FcmUserId) {
+  /** Safari / iOS PWA ต้องขอสิทธิ์หลัง user gesture — แสดงปุ่มใน `FcmGestureHint` */
+  function schedulePermissionAfterGesture(userId?: FcmUserId) {
     pendingGestureUserId.value = userId;
-    if (safariGestureHooked.value) return;
-    safariGestureHooked.value = true;
     awaitingSafariGesture.value = true;
+  }
 
-    if (import.meta.dev) {
-      console.info(
-        "[fcm] Safari: แตะหรือคลิกที่หน้าเว็บครั้งหนึ่งเพื่อขอสิทธิ์แจ้งเตือน (ข้อกำหนดของเบราว์เซอร์)"
-      );
-    }
+  function dismissPushPermissionPrompt() {
+    awaitingSafariGesture.value = false;
+    setFcmGestureDismissedThisSession();
+  }
 
-    let fired = false;
-    const run = () => {
-      if (fired) return;
-      fired = true;
-      window.removeEventListener("pointerdown", run, true);
-      window.removeEventListener("click", run, true);
-      safariGestureHooked.value = false;
-      awaitingSafariGesture.value = false;
-      void (async () => {
-        try {
-          await registerMessagingAndToken(pendingGestureUserId.value);
-        } catch (e) {
-          console.warn("[fcm] register after gesture failed:", e);
-        }
-      })();
-    };
-
-    window.addEventListener("pointerdown", run, { capture: true, passive: true });
-    window.addEventListener("click", run, { capture: true, passive: true });
+  /**
+   * เรียกจากปุ่มใน UI (iOS PWA / Safari) — ขอสิทธิ์และลงทะเบียน FCM ทันทีหลัง user gesture
+   */
+  async function enablePushFromUserGesture(userId?: FcmUserId) {
+    if (iosFcmBlockedOutsideStandalone()) return null;
+    clearFcmGestureDismissedThisSession();
+    awaitingSafariGesture.value = false;
+    const resolved = userId ?? pendingGestureUserId.value;
+    return registerMessagingAndToken(resolved);
   }
 
   async function initFcmPush(userId?: FcmUserId) {
@@ -214,7 +238,9 @@ export function useFcmPush() {
     };
     const vapidKey = String(config.public.firebaseVapidKey || "");
     const hasConfig = Object.values(firebaseConfig).every((v) => v.trim()) && !!vapidKey;
+
     if (!hasConfig) {
+      installBannerReason.value = null;
       if (import.meta.dev) {
         console.warn(
           "[fcm] ยังไม่ตั้งค่า Firebase web + VAPID — ตรวจ NUXT_PUBLIC_FIREBASE_* และ NUXT_PUBLIC_FIREBASE_VAPID_KEY"
@@ -223,13 +249,27 @@ export function useFcmPush() {
       return null;
     }
 
+    if (iosFcmBlockedOutsideStandalone()) {
+      installBannerReason.value = "ios";
+      if (import.meta.dev) {
+        console.info(
+          "[fcm] iOS: เปิดจากแอปหน้าจอโฮมแล้วค่อยลงทะเบียนแจ้งเตือน (ดูคำแนะนำบนหน้าจอ)"
+        );
+      }
+      return null;
+    }
+
+    installBannerReason.value = null;
+
     if (initialized.value && latestToken.value) {
       await saveTokenToBackend(latestToken.value, userId);
       return latestToken.value;
     }
 
     if (pushPermissionShouldWaitForGesture()) {
-      scheduleSafariGestureInit(userId);
+      if (!isFcmGestureDismissedThisSession()) {
+        schedulePermissionAfterGesture(userId);
+      }
       return null;
     }
 
@@ -241,9 +281,20 @@ export function useFcmPush() {
     }
   }
 
+  const iosNeedsHomeScreen = computed(
+    () => installBannerReason.value === "ios"
+  );
+
   return {
     initFcmPush,
+    enablePushFromUserGesture,
+    dismissPushPermissionPrompt,
     latestToken: readonly(latestToken),
     awaitingSafariGesture: readonly(awaitingSafariGesture),
+    installBannerReason: readonly(installBannerReason),
+    iosNeedsHomeScreen,
+    isIOSDevice: () => (import.meta.client ? isIOSDevice() : false),
+    isStandaloneDisplayMode: () =>
+      import.meta.client ? isStandaloneDisplayMode() : false,
   };
 }
