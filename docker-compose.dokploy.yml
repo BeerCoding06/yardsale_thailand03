@@ -60,9 +60,12 @@ services:
     environment:
       NODE_ENV: production
       BASE_URL: ${BASE_URL}
-      NUXT_PUBLIC_CMS_API_BASE: ${NUXT_PUBLIC_CMS_API_BASE:-http://backend:4000/api}
-      NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN: ${NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN:-http://backend:4000}
-      NUXT_IMAGE_DOMAINS: ${NUXT_IMAGE_DOMAINS:-backend}
+      # Nitro proxy → backend (ชื่อ service ใน compose — ใช้ได้แค่ใน container ไม่ใช่ในเบราว์เซอร์)
+      NUXT_YARDSALE_PROXY_TARGET: http://backend:4000
+      # default same-origin: เบราว์เซอร์ยิง www…/yardsale-api/* → ไม่พึ่ง api subdomain (กัน Caddy 502 + CORS ปลอม)
+      NUXT_PUBLIC_CMS_API_BASE: ${NUXT_PUBLIC_CMS_API_BASE:-/yardsale-api}
+      NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN: ${NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN:-}
+      NUXT_IMAGE_DOMAINS: ${NUXT_IMAGE_DOMAINS:-backend,www.yardsaleth.com,yardsaleth.com}
       # FCM: URL ฝั่งเบราว์เซอร์ชี้ API ที่มี /api/save-token (production = https://api... ไม่ใช้ชื่อ service Docker)
       NUXT_PUBLIC_LARAVEL_API_BASE: ${NUXT_PUBLIC_LARAVEL_API_BASE:-}
       NUXT_PUBLIC_FIREBASE_API_KEY: ${NUXT_PUBLIC_FIREBASE_API_KEY:-}

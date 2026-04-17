@@ -118,6 +118,8 @@ services:
       NODE_ENV: production
       NUXT_HOST: 0.0.0.0
       NUXT_PORT: 3000
+      # ให้ Nitro proxy /yardsale-api และ /uploads ไปที่ Express ใน stack เดียวกัน
+      NUXT_YARDSALE_PROXY_TARGET: http://backend:4000
       BASE_URL: ${BASE_URL:-https://yardsaleth.com}
       DB_HOST: ${DB_HOST:-157.85.98.150:3306}
       DB_NAME: ${DB_NAME:-nuxtcommerce_db}
