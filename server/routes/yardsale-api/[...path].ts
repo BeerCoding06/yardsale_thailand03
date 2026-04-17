@@ -9,7 +9,7 @@ import {
   getRouterParam,
   proxyRequest,
 } from "h3";
-import { getYardsaleUpstreamBase } from "../../utils/yardsaleUpstream";
+import { getYardsaleUpstreamBases } from "../../utils/yardsaleUpstream";
 
 export default defineEventHandler(async (event) => {
   const param = getRouterParam(event, "path");
@@ -18,28 +18,43 @@ export default defineEventHandler(async (event) => {
       /^\/+/,
       ""
     );
-  const backend = getYardsaleUpstreamBase(event);
-  const base = `${backend.replace(/\/$/, "")}/api/${sub}`;
   const reqUrl = getRequestURL(event);
-  const url = `${base}${reqUrl.search || ""}`;
+  const search = reqUrl.search || "";
+  const method = String(event.method || "GET").toUpperCase();
+  /** มี body หลายครั้งอาจอ่าน stream ไม่ได้ — retry เฉพาะ GET/HEAD */
+  const bases =
+    method === "GET" || method === "HEAD"
+      ? getYardsaleUpstreamBases(event)
+      : [getYardsaleUpstreamBases(event)[0]].filter(Boolean);
 
-  try {
-    return await proxyRequest(event, url);
-  } catch (err: any) {
-    const upstream =
-      Number(err?.statusCode || err?.status || err?.response?.status) || 0;
-    const statusCode =
-      upstream >= 400 && upstream < 600 ? upstream : 502;
-    const code =
-      statusCode === 502 ? "UPSTREAM_UNAVAILABLE" : "PROXY_ERROR";
-    const message = String(err?.message || "Proxy error");
-    throw createError({
-      statusCode,
-      statusMessage: message,
-      data: {
-        success: false,
-        error: { message, code },
-      },
-    });
+  let lastErr: unknown;
+  for (const backend of bases) {
+    const url = `${backend}/api/${sub}${search}`;
+    try {
+      return await proxyRequest(event, url);
+    } catch (err: unknown) {
+      lastErr = err;
+    }
   }
+
+  const err = lastErr as {
+    statusCode?: number;
+    status?: number;
+    response?: { status?: number };
+    message?: string;
+  };
+  const upstream =
+    Number(err?.statusCode || err?.status || err?.response?.status) || 0;
+  const statusCode =
+    upstream >= 400 && upstream < 600 ? upstream : 502;
+  const code = statusCode === 502 ? "UPSTREAM_UNAVAILABLE" : "PROXY_ERROR";
+  const message = String(err?.message || "Proxy error");
+  throw createError({
+    statusCode,
+    statusMessage: message,
+    data: {
+      success: false,
+      error: { message, code },
+    },
+  });
 });

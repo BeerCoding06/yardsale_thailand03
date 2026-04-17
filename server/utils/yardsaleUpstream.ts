@@ -1,19 +1,38 @@
 import type { H3Event } from "h3";
-import { useRuntimeConfig } from "#imports";
+
+function dedupeBases(urls: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const u of urls) {
+    const s = String(u || "")
+      .trim()
+      .replace(/\/$/, "");
+    if (!s || seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+  }
+  return out;
+}
 
 /**
- * URL ฐานของ Express สำหรับ Nitro proxy — ห้ามคืนค่าว่าง (จะทำให้ไป 127.0.0.1 แล้ว 502 ใน Docker)
+ * รายการ URL ฐานของ Express ที่ Nitro จะลอง proxy ตามลำดับ
+ * ใช้แค่ process.env — หลีกเลี่ยงปัญหา runtimeConfig ใน bundle Nitro บางเคส
  */
-export function getYardsaleUpstreamBase(event: H3Event): string {
-  const cfg = useRuntimeConfig(event) as { yardsaleProxyTarget?: string };
-  const fromCfg = String(cfg.yardsaleProxyTarget ?? "").trim();
+export function getYardsaleUpstreamBases(_event?: H3Event): string[] {
   const fromEnv = String(process.env.NUXT_YARDSALE_PROXY_TARGET ?? "").trim();
-  const chosen = fromCfg || fromEnv;
-  if (chosen) return chosen.replace(/\/$/, "");
-
   if (process.env.NODE_ENV === "production") {
-    // Compose service name — ถ้า split deploy ให้ตั้ง NUXT_YARDSALE_PROXY_TARGET เอง
-    return "http://backend:4000";
+    return dedupeBases([
+      fromEnv,
+      "http://backend:4000",
+      "http://host.docker.internal:4000",
+      "http://172.17.0.1:4000",
+    ]);
   }
-  return "http://127.0.0.1:4000";
+  return dedupeBases([fromEnv, "http://127.0.0.1:4000"]);
+}
+
+/** ค่าแรกที่ใช้ได้ (สำหรับ log / header ฯลฯ) */
+export function getYardsaleUpstreamBase(event?: H3Event): string {
+  const bases = getYardsaleUpstreamBases(event);
+  return bases[0] || "http://127.0.0.1:4000";
 }
