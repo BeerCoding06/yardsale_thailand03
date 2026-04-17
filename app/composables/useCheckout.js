@@ -265,9 +265,12 @@ export const useCheckout = () => {
 
   /**
    * สร้างออเดอร์จากตะกร้า (ไม่ navigate) — ใช้หน้า payment หลังกรอกฟอร์มผู้สั่งซื้อ
+   * @param {'bank_transfer'} method
+   * @param {{ clearCart?: boolean }} [opts] clearCart=true ค่าเริ่ม — ถ้าสร้างออเดอร์แล้วส่งสลิปบนหน้าเดียวกัน ใช้ false แล้วล้างตะกร้าหลังชำระสำเร็จ
    * @returns {Promise<object|null>} order row หรือ null เมื่อล้มเหลว
    */
-  const createOrderFromCart = async (method) => {
+  const createOrderFromCart = async (method, opts = {}) => {
+    const clearCart = opts.clearCart !== false;
     if (method !== 'bank_transfer') return null;
     paymentMethod.value = 'bank_transfer';
     showPaymentChoiceModal.value = false;
@@ -406,8 +409,10 @@ export const useCheckout = () => {
           total: String(orderData.total_price ?? orderData.total ?? 0),
           date_created: orderData.created_at ?? orderData.date_created,
         };
-        cart.value = [];
-        if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
+        if (clearCart) {
+          cart.value = [];
+          if (import.meta.client) localStorage.setItem('cart', JSON.stringify(cart.value));
+        }
         checkoutStatus.value = 'order';
         return orderData;
       }

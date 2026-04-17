@@ -2,6 +2,13 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+function envFlag(name) {
+  const v = String(process.env[name] ?? '')
+    .trim()
+    .toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
 export const config = {
   port: Number(process.env.PORT) || 4000,
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -33,4 +40,9 @@ export const config = {
     credentialsJson: (process.env.FIREBASE_CREDENTIALS_JSON || '').trim(),
     projectId: (process.env.FIREBASE_PROJECT_ID || '').trim(),
   },
+  /**
+   * บรรทัด log [payment-audit] … สำหรับไล่ production (ไม่ล็อก slip/base64)
+   * เปิดชั่วคราว: PAYMENT_AUDIT_LOG=1
+   */
+  paymentAuditLog: envFlag('PAYMENT_AUDIT_LOG'),
 };

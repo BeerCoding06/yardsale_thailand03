@@ -134,9 +134,15 @@ export const paymentMockBodySchema = Joi.object({
   simulate_failure: Joi.alternatives()
     .try(Joi.boolean(), Joi.string().valid('true', 'false', '1', '0'))
     .default('false'),
-  amount: Joi.alternatives().try(Joi.number().positive(), Joi.valid(null, '')),
+  /** FormData ส่ง amount เป็นสตริงเสมอ */
+  amount: Joi.alternatives()
+    .try(Joi.number().positive(), Joi.string().pattern(/^\d+(\.\d+)?$/), Joi.valid(null, ''))
+    .optional(),
   slip_data: Joi.string().trim().allow('', null).optional(),
-  slip_url: Joi.string().uri({ scheme: ['http', 'https'] }).allow('', null).optional(),
+  /** ว่างไม่บังคับ uri; ไม่ใส่ scheme ให้ controller เติม https:// ก่อน validate */
+  slip_url: Joi.alternatives()
+    .try(Joi.valid('', null), Joi.string().uri({ scheme: ['http', 'https'] }))
+    .optional(),
   log: Joi.alternatives()
     .try(Joi.boolean(), Joi.string().valid('true', 'false', '1', '0'))
     .optional(),

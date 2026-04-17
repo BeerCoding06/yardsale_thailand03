@@ -546,6 +546,14 @@ async function onSubmitResumeOnly() {
           date_created: o.created_at ?? o.date_created,
         };
       }
+      cart.value = [];
+      if (import.meta.client) {
+        try {
+          localStorage.setItem('cart', JSON.stringify([]));
+        } catch {
+          /* private mode */
+        }
+      }
       push.success(t('checkout.payment_slip.verify_success_toast'));
       await router.push(
         localePath({
@@ -591,7 +599,7 @@ async function onSubmitNew() {
   submitting.value = true;
   let createdOrderId = null;
   try {
-    const orderData = await createOrderFromCart('bank_transfer');
+    const orderData = await createOrderFromCart('bank_transfer', { clearCart: false });
     if (!orderData?.id) {
       return;
     }
@@ -615,6 +623,14 @@ async function onSubmitNew() {
           total: String(o.total_price ?? o.total ?? 0),
           date_created: o.created_at ?? o.date_created,
         };
+      }
+      cart.value = [];
+      if (import.meta.client) {
+        try {
+          localStorage.setItem('cart', JSON.stringify([]));
+        } catch {
+          /* private mode */
+        }
       }
       push.success(t('checkout.payment_slip.verify_success_toast'));
       await router.push(
