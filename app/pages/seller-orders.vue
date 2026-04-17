@@ -2,6 +2,10 @@
 <script setup>
 import { push } from "notivue";
 import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
+import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
+import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
+import { mergeOrderRowsPreferPaid } from "~/utils/orderPaymentMerge";
+import { CLIENT_PAID_HINT_MERGE_MS } from "~/composables/useOrderPaymentSync";
 
 definePageMeta({
   middleware: "auth",
@@ -74,7 +78,9 @@ function normalizeSellerOrderRow(row) {
   o.date_created = o.date_created ?? o.created_at;
   o.total = o.total ?? o.total_price;
   o.seller_total = o.seller_total ?? o.total_price ?? o.total;
-  if (o.is_paid == null) o.is_paid = normalizeStatusKey(o.status) === "paid";
+  if (o.status != null) o.status = String(o.status);
+  if (o.order_status != null) o.order_status = String(o.order_status);
+  o.is_paid = customerPaymentUiKey(o) === "paid";
   if (!o.billing && (o.buyer_email || o.buyer_name)) {
     const name = String(o.buyer_name || "").trim();
     const parts = name ? name.split(/\s+/) : [];

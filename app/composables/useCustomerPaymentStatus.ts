@@ -15,6 +15,56 @@ function normalizeStatus(raw: string | undefined | null): string {
     .replace(/-/g, "_");
 }
 
+/** บาง CMS ส่งเป็น string "true" / 1 */
+function truthyPaidFlag(v: unknown): boolean {
+  if (v === true) return true;
+  if (v === 1) return true;
+  if (typeof v === "string") {
+    const t = v.trim().toLowerCase();
+    if (t === "true" || t === "1" || t === "yes") return true;
+  }
+  return false;
+}
+
+/** ดึงค่า status จากแถว API — รองรับ camelCase / enum object จากบาง driver */
+function coerceStatusRaw(order: {
+  status?: unknown;
+  order_status?: unknown;
+  orderStatus?: unknown;
+}): unknown {
+  return order?.status ?? order?.order_status ?? order?.orderStatus;
+}
+
+function rawToNormalizedStatus(raw: unknown): string {
+  if (raw == null) return "";
+  if (typeof raw === "object" && raw !== null) {
+    const o = raw as Record<string, unknown>;
+    if (typeof o.value === "string") return normalizeStatus(o.value);
+    if (typeof o.name === "string") return normalizeStatus(o.name);
+    return "";
+  }
+  return normalizeStatus(String(raw));
+}
+
+/** สถานะหลักของออเดอร์จากแหล่งต่างๆ (Express / Woo / headless) */
+function effectiveOrderStatus(order: {
+  status?: string | null;
+  order_status?: string | null;
+  orderStatus?: string | null;
+}): string {
+  return rawToNormalizedStatus(coerceStatusRaw(order));
+}
+
+function primaryStatusLooksPaid(s: string): boolean {
+  return (
+    s === "paid" ||
+    s === "processing" ||
+    s === "completed" ||
+    s === "refunded" ||
+    s === "partially_refunded"
+  );
+}
+
 export function customerPaymentUiKey(order: {
   status?: string | null;
 }): CustomerPaymentUiKey {

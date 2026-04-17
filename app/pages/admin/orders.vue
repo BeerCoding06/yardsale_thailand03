@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { useCmsApi } from "#imports";
+import { push } from "notivue";
+import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
+import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
+import ShipmentTimeline from "~/components/ShipmentTimeline.vue";
+import StorefrontImg from "~/components/StorefrontImg.vue";
 
 definePageMeta({
   layout: "admin",
@@ -15,7 +19,89 @@ const isLoading = ref(true);
 const orders = ref<any[]>([]);
 const error = ref<string | null>(null);
 
-const formatDate = (dateString: string) => {
+const ORDER_PAGE_SIZE = 20;
+const listPage = ref(1);
+const listSearch = ref("");
+const orderPagination = ref({
+  page: 1,
+  page_size: ORDER_PAGE_SIZE,
+  total: 0,
+  total_pages: 0,
+});
+
+function onOrderSearch(q: string) {
+  const tq = String(q || "").trim();
+  if (tq === listSearch.value) return;
+  listSearch.value = tq;
+  listPage.value = 1;
+  fetchOrders();
+}
+
+function onOrderPage(p: number) {
+  if (p === listPage.value) return;
+  listPage.value = p;
+  fetchOrders();
+}
+
+function normalizeShippingStatus(s: unknown): string {
+  const v = String(s || "pending")
+    .toLowerCase()
+    .replace(/-/g, "_");
+  return (SHIP_STATUS_VALUES as readonly string[]).includes(v) ? v : "pending";
+}
+
+function normalizeOrderRow(row: any) {
+  if (!row || typeof row !== "object") return row;
+  const o = { ...row };
+  o.date_created = o.date_created ?? o.created_at;
+  o.tracking_number = o.tracking_number ?? "";
+  o.courier_name = o.courier_name ?? "";
+  o.shipping_status = normalizeShippingStatus(o.shipping_status);
+  o.fulfillment_updated_at = o.fulfillment_updated_at ?? null;
+  o.slip_snapshots = Array.isArray(o.slip_snapshots) ? o.slip_snapshots : [];
+  if (o.status != null) o.status = String(o.status);
+  if (o.order_status != null) o.order_status = String(o.order_status);
+  o.is_paid = customerPaymentUiKey(o) === "paid";
+  return o;
+}
+
+function resolveSlipHref(path: string): string {
+  if (!path || typeof path !== "string") return "";
+  const p = path.trim();
+  if (!p) return "";
+  if (/^https?:\/\//i.test(p)) return p;
+  return resolveMediaUrl(p) || p;
+}
+
+function isPdfSlip(path: string): boolean {
+  if (!path) return false;
+  return /\.pdf(\?|#|$)/i.test(path);
+}
+
+/** แสดงในคำสั่งซื้อ: ประวัติสลิป หรือ slip_image_url เดิม */
+function slipGalleryForOrder(order: any) {
+  const snaps = Array.isArray(order.slip_snapshots) ? order.slip_snapshots : [];
+  if (snaps.length) {
+    return snaps.map((s: any) => ({
+      key: String(s.id || s.created_at || Math.random()),
+      url: s.image_url ? String(s.image_url).trim() : "",
+      created_at: s.created_at || null,
+    }));
+  }
+  const legacy = order.slip_image_url ? String(order.slip_image_url).trim() : "";
+  if (legacy) {
+    return [
+      {
+        key: "legacy-slip",
+        url: legacy,
+        created_at: order.created_at || order.date_created || null,
+      },
+    ];
+  }
+  return [];
+}
+
+function formatDate(dateString: string) {
   if (!dateString) return "";
   return new Intl.DateTimeFormat("th-TH", {
     year: "numeric",

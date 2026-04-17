@@ -7,6 +7,10 @@ definePageMeta({
 });
 
 import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
+import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
+import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
+import { mergeOrderRowsPreferPaid } from "~/utils/orderPaymentMerge";
+import { CLIENT_PAID_HINT_MERGE_MS } from "~/composables/useOrderPaymentSync";
 
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
@@ -19,11 +23,13 @@ function cmsPath(rel) {
   return hasRemoteApi ? endpoint(rel) : `/api/${rel}`;
 }
 
-function unwrapApi(res) {
-  if (res?.success === true && res.data != null && typeof res.data === "object") {
-    return res.data;
-  }
-  return res;
+function normalizeMyOrderRow(row) {
+  if (!row || typeof row !== "object") return row;
+  const o = { ...row };
+  if (o.status != null) o.status = String(o.status);
+  if (o.order_status != null) o.order_status = String(o.order_status);
+  o.is_paid = customerPaymentUiKey(o) === "paid";
+  return o;
 }
 
 // Client-side only state

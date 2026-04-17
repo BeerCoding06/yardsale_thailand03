@@ -46,6 +46,17 @@ function parseBillingSnapshot(row) {
   return typeof snap === 'object' && snap ? snap : null;
 }
 
+/** Postgres enum / driver บางตัวคืนเป็น object — ห้ามใช้ String() ตรงๆ กับ status */
+function coerceOrderStatusText(raw) {
+  if (raw == null || raw === '') return '';
+  if (typeof raw === 'object' && raw !== null) {
+    const o = raw;
+    if (typeof o.value === 'string' && o.value.trim()) return o.value.trim();
+    if (typeof o.name === 'string' && o.name.trim()) return o.name.trim();
+  }
+  return String(raw).trim();
+}
+
 /** แปลงแถว DB → API (billing, aliases) */
 export function formatOrderForApi(row) {
   if (!row) return row;

@@ -118,6 +118,16 @@ export async function getSlipokQuota() {
   return { quota: data.data };
 }
 
+function normalizeOrderIdForPayment(orderId) {
+  return String(orderId ?? '').trim();
+}
+
+function orderStatusNorm(row) {
+  return String(row?.status ?? '')
+    .toLowerCase()
+    .trim();
+}
+
 export async function mockPayment(userId, body, file) {
   const orderId = body.order_id;
   const simulateFailure = parseBool(body.simulate_failure);
