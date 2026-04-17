@@ -1,6 +1,6 @@
 /**
- * Production / Nitro: โยง /uploads/* → Express static (รูปสลิป / สินค้า)
- * คู่กับ cmsApiBase แบบ `/yardsale-api` — resolveMediaUrl ใช้ origin เดียวกับหน้าเว็บ
+ * Production / Nitro: โยง /uploads/* → Express static
+ * GET/HEAD: fetch + return Response; อื่น ๆ: proxyRequest
  */
 import {
   createError,
@@ -9,7 +9,11 @@ import {
   getRouterParam,
   proxyRequest,
 } from "h3";
-import { getYardsaleUpstreamBases } from "../../utils/yardsaleUpstream";
+import {
+  getYardsaleUpstreamBases,
+  isLikelyNetworkError,
+  yardsaleFetchFromBases,
+} from "../../utils/yardsaleUpstream";
 
 export default defineEventHandler(async (event) => {
   const param = getRouterParam(event, "path");
@@ -26,29 +30,61 @@ export default defineEventHandler(async (event) => {
       ? getYardsaleUpstreamBases(event)
       : [getYardsaleUpstreamBases(event)[0]].filter(Boolean);
 
+  const expressPath = `/uploads/${sub}`;
+
+  if (method === "GET" || method === "HEAD") {
+    try {
+      return await yardsaleFetchFromBases(event, bases, expressPath, search);
+    } catch (err: unknown) {
+      const message = String(
+        (err as { message?: string })?.message || "Upstream unavailable"
+      );
+      throw createError({
+        statusCode: 502,
+        statusMessage: message,
+        data: {
+          success: false,
+          error: { message, code: "UPSTREAM_UNAVAILABLE" },
+        },
+      });
+    }
+  }
+
   let lastErr: unknown;
   for (const backend of bases) {
-    const url = `${backend}/uploads/${sub}${search}`;
+    const url = `${backend.replace(/\/$/, "")}${expressPath}${search}`;
     try {
       return await proxyRequest(event, url);
     } catch (err: unknown) {
       lastErr = err;
+      if (!isLikelyNetworkError(err)) {
+        const e = err as {
+          statusCode?: number;
+          status?: number;
+          response?: { status?: number };
+          message?: string;
+        };
+        const upstream =
+          Number(e?.statusCode || e?.status || e?.response?.status) || 0;
+        const statusCode =
+          upstream >= 400 && upstream < 600 ? upstream : 502;
+        const message = String(e?.message || "Proxy error");
+        throw createError({
+          statusCode,
+          statusMessage: message,
+          data: {
+            success: false,
+            error: { message, code: "UPSTREAM_UNAVAILABLE" },
+          },
+        });
+      }
     }
   }
 
-  const e = lastErr as {
-    statusCode?: number;
-    status?: number;
-    response?: { status?: number };
-    message?: string;
-  };
-  const upstream =
-    Number(e?.statusCode || e?.status || e?.response?.status) || 0;
-  const statusCode =
-    upstream >= 400 && upstream < 600 ? upstream : 502;
-  const message = String(e?.message || "Proxy error");
+  const err = lastErr as { message?: string };
+  const message = String(err?.message || "Upstream unavailable");
   throw createError({
-    statusCode,
+    statusCode: 502,
     statusMessage: message,
     data: {
       success: false,
