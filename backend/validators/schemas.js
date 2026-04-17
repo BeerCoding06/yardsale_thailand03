@@ -266,17 +266,4 @@ export const trackShipmentSchema = Joi.object({
   carrier: Joi.number().integer().positive().optional(),
 });
 
-/** POST /api/save-token — FCM device token (auth required; user from JWT) */
-export const saveFcmTokenSchema = Joi.object({
-  token: Joi.string().trim().min(1).max(4096).required(),
-  device: Joi.string().trim().max(64).optional().default('web'),
-});
-
-/** POST /api/send-notification — admin only */
-export const sendFcmNotificationSchema = Joi.object({
-  title: Joi.string().trim().min(1).max(200).required(),
-  body: Joi.string().trim().min(1).max(4000).required(),
-  data: Joi.object().optional().default({}),
-  user_ids: Joi.array().items(uuid).optional().default([]),
-  tokens: Joi.array().items(Joi.string().trim().min(1).max(4096)).optional().default([]),
-});
+export { saveFcmTokenSchema, sendFcmNotificationSchema } from './fcmSchemas.js';
