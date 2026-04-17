@@ -391,14 +391,7 @@ const fetchOrders = async () => {
   }
 };
 
-useRefetchWhenTabVisible(() => {
-  if (isClient.value && isAuthenticated.value && user.value) fetchOrders();
-});
-
-const { tick: orderPaidTick, lastPaid: lastPaidOrder } = useOrderPaymentSync();
-watch(orderPaidTick, () => {
-  if (isClient.value && isAuthenticated.value && user.value) fetchOrders();
-});
+const { lastPaid: lastPaidOrder } = useOrderPaymentSync();
 
 // Redirect to login if not authenticated (client-side only)
 onMounted(async () => {

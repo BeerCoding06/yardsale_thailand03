@@ -512,6 +512,28 @@ function validateBuyerForm() {
   );
 }
 
+/** ออเดอร์ถูกสร้างแล้วแต่สลิปไม่ผ่าน — ล็อก URL เป็น resume กันสร้างออเดอร์ซ้ำ + ล้างตะกร้า (สต็อกหักไปแล้ว) */
+async function switchToResumeAfterOrderCreated(id, amount) {
+  cart.value = [];
+  if (import.meta.client) {
+    try {
+      localStorage.setItem('cart', JSON.stringify([]));
+    } catch {
+      /* private mode */
+    }
+  }
+  await router.replace(
+    localePath({
+      path: '/checkout/payment',
+      query: {
+        order_id: String(id),
+        amount: String(amount ?? ''),
+        method: 'bank_transfer',
+      },
+    })
+  );
+}
+
 /** ส่งสลิปเมื่อมี order อยู่แล้ว  */
 async function onSubmitResumeOnly() {
   error.value = null;
@@ -598,6 +620,7 @@ async function onSubmitNew() {
 
   submitting.value = true;
   let createdOrderId = null;
+  let createdAmount = '';
   try {
     const orderData = await createOrderFromCart('bank_transfer', { clearCart: false });
     if (!orderData?.id) {
@@ -606,6 +629,7 @@ async function onSubmitNew() {
     createdOrderId = String(orderData.id);
 
     const amt = String(orderData.total_price ?? orderData.total ?? '');
+    createdAmount = amt;
     const res = await submitBankSlip({
       orderId: String(orderData.id),
       amount: amt,
@@ -644,10 +668,14 @@ async function onSubmitNew() {
     error.value = res?.slip_verification_incomplete
       ? t('checkout.payment_slip.errors.VERIFY_RESPONSE_MISSING')
       : t('checkout.payment_slip.errors.generic');
+    await switchToResumeAfterOrderCreated(createdOrderId, createdAmount);
   } catch (err) {
     error.value = slipErrorMessage(err);
     if (slipErrorCode(err) === 'SLIP_BANK_DELAY' && createdOrderId) {
       armOrderBblCooldown(`order_${createdOrderId}`);
+    }
+    if (createdOrderId) {
+      await switchToResumeAfterOrderCreated(createdOrderId, createdAmount);
     }
   } finally {
     submitting.value = false;

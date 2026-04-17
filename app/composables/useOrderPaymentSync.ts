@@ -1,6 +1,5 @@
 /**
- * แจ้งทุกหน้าที่ subscribe ว่าออเดอร์ชำระเงินแล้ว (POST payment/mock หรือแอดมิน mark-paid)
- * — ใช้ useState เพื่อซิงค์ระหว่าง route โดยไม่ต้องพึ่งแท็บโฟกัส
+ * เก็บออเดอร์ล่าสุดที่ชำระแล้ว — ใช้ merge ตอน fetch รายการ (ไม่ใช้ watch ฟังทุกครั้ง)
  */
 export type OrderPaidBroadcast = {
   orderId: string;
@@ -9,7 +8,6 @@ export type OrderPaidBroadcast = {
 };
 
 export function useOrderPaymentSync() {
-  const tick = useState<number>("yardsale_order_paid_tick", () => 0);
   const lastPaid = useState<OrderPaidBroadcast | null>(
     "yardsale_order_paid_last",
     () => null
@@ -22,8 +20,7 @@ export function useOrderPaymentSync() {
     const now = Date.now();
     if (prev?.orderId === id && now - prev.at < 2500) return;
     lastPaid.value = { orderId: id, order: { ...order }, at: now };
-    tick.value += 1;
   }
 
-  return { tick, lastPaid, notifyOrderPaidAfterMock };
+  return { lastPaid, notifyOrderPaidAfterMock };
 }

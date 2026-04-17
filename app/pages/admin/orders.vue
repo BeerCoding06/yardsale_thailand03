@@ -214,15 +214,6 @@ async function fetchOrders() {
   }
 }
 
-useRefetchWhenTabVisible(() => {
-  if (user.value?.token) void fetchOrders();
-});
-
-const { tick: orderPaidTick } = useOrderPaymentSync();
-watch(orderPaidTick, () => {
-  if (user.value?.token) void fetchOrders();
-});
-
 async function saveAdminFulfillment(order: any) {
   const jwt = user.value?.token;
   if (!jwt) {

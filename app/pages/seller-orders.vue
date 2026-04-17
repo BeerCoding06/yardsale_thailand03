@@ -372,14 +372,7 @@ const fetchOrders = async () => {
   }
 };
 
-useRefetchWhenTabVisible(() => {
-  if (isClient.value && isAuthenticated.value && user.value) fetchOrders();
-});
-
-const { tick: orderPaidTick, lastPaid: lastPaidOrder } = useOrderPaymentSync();
-watch(orderPaidTick, () => {
-  if (isClient.value && isAuthenticated.value && user.value) fetchOrders();
-});
+const { lastPaid: lastPaidOrder } = useOrderPaymentSync();
 
 onMounted(async () => {
   isClient.value = true;
