@@ -6,6 +6,36 @@ type PublicCmsConfig = {
   baseUrl?: string;
 };
 
+function stripCommonSubdomain(hostname: string): string {
+  return String(hostname || "")
+    .toLowerCase()
+    .replace(/^(www|api)\./, "");
+}
+
+/**
+ * Production hardening:
+ * ถ้า cmsApiBase เป็นโดเมน `api.*` ที่อยู่ไซต์เดียวกับหน้าเว็บ (`www.*`) ให้ยิงผ่าน same-origin `/yardsale-api`
+ * เพื่อลดปัญหา Caddy/edge คืน 502 แล้วเบราว์เซอร์ฟ้อง CORS ซ้ำ.
+ */
+function resolveClientCmsBase(base: string, isClient: boolean): string {
+  if (!isClient || typeof window === "undefined" || !/^https?:\/\//i.test(base)) {
+    return base;
+  }
+  try {
+    const current = new URL(window.location.origin);
+    const target = new URL(base);
+    const currentRoot = stripCommonSubdomain(current.hostname);
+    const targetRoot = stripCommonSubdomain(target.hostname);
+    const isSameSite = !!currentRoot && currentRoot === targetRoot;
+    if (isSameSite && target.hostname.toLowerCase().startsWith("api.")) {
+      return "/yardsale-api";
+    }
+  } catch {
+    // keep original base on parse errors
+  }
+  return base;
+}
+
 export function hasRemoteCmsApi(publicCfg: PublicCmsConfig): boolean {
   return !!(String(publicCfg.cmsApiBase || "").trim());
 }
@@ -57,7 +87,8 @@ export function cmsEndpointFromPublic(
   path: string,
   isClient: boolean
 ): string {
-  const base = String(publicCfg.cmsApiBase || "").trim().replace(/\/$/, "");
+  const rawBase = String(publicCfg.cmsApiBase || "").trim().replace(/\/$/, "");
+  const base = resolveClientCmsBase(rawBase, isClient);
   const p = path.replace(/^\//, "");
   if (!base) return `/api/${p}`;
 
