@@ -1,6 +1,7 @@
 <!--app/pages/product/[id].vue-->
 <script setup>
 import { yardsaleBodyIsFailure } from "~/utils/cmsApiEndpoint";
+import { parseModerationFeedback } from "~/utils/moderationFeedback";
 import { Swiper, SwiperSlide } from "swiper/vue";
 import { Navigation, Pagination, Thumbs } from "swiper/modules";
 const { isOpenImageSliderModal } = useComponents();
@@ -20,7 +21,8 @@ const modules = [Navigation, Pagination, Thumbs];
 const route = useRoute();
 const url = useRequestURL();
 const config = useRuntimeConfig();
-const { locale } = useI18n();
+const { locale, t, te } = useI18n();
+const { user } = useAuth();
 
 const {
   hasRemoteApi,
@@ -54,6 +56,21 @@ const productResult = ref({});
 const selectedVariation = ref(null);
 const isLoading = ref(true);
 
+function yardsaleAuthHeaders() {
+  const tok = user.value?.token;
+  return tok ? { Authorization: `Bearer ${tok}` } : {};
+}
+
+function applyProductVisibilityFilter(rawMapped) {
+  const mapped = rawMapped && typeof rawMapped === "object" ? rawMapped : {};
+  const published = isStorefrontPublishedProduct(mapped);
+  const owner =
+    user.value?.id != null &&
+    mapped.seller_id != null &&
+    String(user.value.id) === String(mapped.seller_id);
+  return published || owner ? mapped : {};
+}
+
 async function fetchProduct() {
   const routeId = String(idParam.value || "");
   const rawQueryId = route.query.id;
@@ -70,16 +87,16 @@ async function fetchProduct() {
   if (apiProductId) {
     isLoading.value = true;
     try {
-      const data = await fetchYardsale(`product/${apiProductId}`);
+      const data = await fetchYardsale(`product/${apiProductId}`, {
+        headers: yardsaleAuthHeaders(),
+      });
       if (yardsaleBodyIsFailure(data)) {
         productResult.value = {};
         return;
       }
       const p = data?.product ?? data;
       const mapped = mapApiProductRow(p) || {};
-      productResult.value = isStorefrontPublishedProduct(mapped)
-        ? mapped
-        : {};
+      productResult.value = applyProductVisibilityFilter(mapped);
     } catch (error) {
       console.error("[product] Error fetching product (API):", error);
       productResult.value = {};
@@ -114,9 +131,12 @@ async function fetchProduct() {
       if (rawId && /^\d+$/.test(String(rawId))) query.id = Number(rawId);
       else if (!s && k && /^\d+$/.test(k)) query.id = Number(k);
     }
-    const data = await $fetch("/api/product", { query });
+    const data = await $fetch("/api/product", {
+      query,
+      headers: yardsaleAuthHeaders(),
+    });
     const prod = data?.product || {};
-    productResult.value = isStorefrontPublishedProduct(prod) ? prod : {};
+    productResult.value = applyProductVisibilityFilter(prod);
   } catch (error) {
     console.error("[product] Error fetching product:", error);
     productResult.value = {};
@@ -129,12 +149,52 @@ onMounted(() => {
   fetchProduct();
 });
 
-// Refetch เมื่อเปลี่ยน product (เปลี่ยน URL หรือ query.id)
-watch([slug, sku, () => route.query.id, idParam], () => {
+// Refetch เมื่อเปลี่ยน product (เปลี่ยน URL หรือ query.id) หรือ login แล้วมี JWT (ดูสินค้าที่ยังไม่เผยแพร่ของตัวเอง)
+watch([slug, sku, () => route.query.id, idParam, () => user.value?.token], () => {
   fetchProduct();
 });
 
 const product = computed(() => productResult.value);
+
+const isPublicStorefrontListing = computed(() => {
+  if (!product.value?.name) return false;
+  return isStorefrontPublishedProduct(product.value);
+});
+
+const sellerOwnsThisProduct = computed(() => {
+  if (!product.value?.name || user.value?.id == null) return false;
+  const sid = product.value.seller_id;
+  if (sid == null) return false;
+  return String(user.value.id) === String(sid);
+});
+
+const isOwnerPrivatePreview = computed(
+  () =>
+    Boolean(product.value?.name) &&
+    !isPublicStorefrontListing.value &&
+    sellerOwnsThisProduct.value
+);
+
+const productModeration = computed(() =>
+  parseModerationFeedback(product.value?.moderation_feedback)
+);
+
+function formatModerationAt(iso) {
+  if (iso == null || typeof iso !== "string") return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(
+    String(locale.value || "th").toLowerCase().startsWith("th")
+      ? "th-TH"
+      : "en-GB",
+    { dateStyle: "medium", timeStyle: "short" }
+  );
+}
+
+function moderationIssueLabel(key) {
+  const path = `my_products.moderation_issue_${key}`;
+  return te(path) ? t(path) : key;
+}
 
 const productCanonical = computed(() => {
   const base = config.public?.baseUrl || url.origin;
@@ -217,6 +277,7 @@ function firstFiniteNumber(...values) {
 
 const productJsonLd = computed(() => {
   const p = product.value || {};
+  if (!isPublicStorefrontListing.value) return null;
   const name = String(p.name || "").trim();
   if (!name) return null;
 
@@ -342,7 +403,7 @@ useSeoMeta(() => ({
   twitterDescription: productSeo.value.description,
   twitterImage: productImage.value,
   twitterCard: "summary_large_image",
-  robots: "index, follow",
+  robots: isPublicStorefrontListing.value ? "index, follow" : "noindex, nofollow",
 }));
 
 useHead(() => ({
@@ -439,6 +500,7 @@ const variationUnsalable = (variation) => {
 };
 
 const canAddToCart = computed(() => {
+  if (!isPublicStorefrontListing.value) return false;
   if (isCancelled.value) return false;
   const node = addToCartStockNode.value;
   if (!node || !product.value?.name) return false;
@@ -552,6 +614,65 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
               :sale-price="product.salePrice"
               :regular-price="product.regularPrice"
             />
+            <div
+              v-if="isOwnerPrivatePreview"
+              class="mt-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-50"
+              role="status"
+            >
+              <p class="font-bold">
+                {{ $t("product.private_preview_banner") }}
+              </p>
+              <p class="mt-1 text-xs opacity-90">
+                {{ $t("product.private_preview_hint") }}
+              </p>
+            </div>
+            <div
+              v-if="isOwnerPrivatePreview && productModeration"
+              class="mt-3 rounded-xl border-2 border-alizarin-crimson-200 bg-alizarin-crimson-50/90 p-3 text-sm shadow-sm dark:border-alizarin-crimson-900 dark:bg-alizarin-crimson-950/40 dark:text-alizarin-crimson-50"
+            >
+              <div
+                class="flex items-start gap-2 border-l-4 border-alizarin-crimson-600 pl-3 dark:border-alizarin-crimson-400"
+              >
+                <UIcon
+                  name="i-heroicons-chat-bubble-left-ellipsis"
+                  class="mt-0.5 h-5 w-5 shrink-0 text-alizarin-crimson-600 dark:text-alizarin-crimson-400"
+                />
+                <div class="min-w-0 flex-1">
+                  <p
+                    class="font-bold text-alizarin-crimson-900 dark:text-alizarin-crimson-100"
+                  >
+                    {{ $t("product.moderation_detail_title") }}
+                  </p>
+                  <p
+                    v-if="
+                      productModeration.at &&
+                      formatModerationAt(productModeration.at)
+                    "
+                    class="mt-0.5 text-xs text-neutral-600 dark:text-neutral-400"
+                  >
+                    {{ $t("my_products.moderation_reviewed_at") }}:
+                    {{ formatModerationAt(productModeration.at) }}
+                  </p>
+                  <ul
+                    v-if="productModeration.issues.length"
+                    class="mt-2 list-disc space-y-0.5 ps-4 text-neutral-900 dark:text-neutral-100"
+                  >
+                    <li
+                      v-for="issue in productModeration.issues"
+                      :key="issue"
+                    >
+                      {{ moderationIssueLabel(issue) }}
+                    </li>
+                  </ul>
+                  <p
+                    v-if="productModeration.message"
+                    class="mt-2 whitespace-pre-wrap text-neutral-800 dark:text-neutral-200"
+                  >
+                    {{ productModeration.message }}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
           <template
             v-for="(variation, i) in product.productTypes?.nodes"
@@ -723,7 +844,9 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
                     {{
                       canAddToCart
                         ? $t("cart.add_to_cart")
-                        : $t("cart.out_of_stock")
+                        : isOwnerPrivatePreview
+                          ? $t("product.not_listed_for_sale")
+                          : $t("cart.out_of_stock")
                     }}
                   </div>
                   <UIcon
@@ -740,7 +863,15 @@ const { handleAddToCart, addToCartButtonStatus } = useCart();
                   </div>
                 </Transition>
               </button>
-              <ButtonWishlist :product="product" />
+              <div
+                :class="[
+                  !isPublicStorefrontListing
+                    ? 'pointer-events-none opacity-40'
+                    : '',
+                ]"
+              >
+                <ButtonWishlist :product="product" />
+              </div>
             </div>
           </div>
           <div class="px-3 lg:px-0 overflow-scroll h-[500px]">

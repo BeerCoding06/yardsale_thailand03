@@ -18,12 +18,18 @@ export const myProducts = asyncHandler(async (req, res) => {
     maxPageSize: 100,
   });
   const search = parseSearchQuery(req.query);
+  const modQ = req.query?.moderation_only;
+  const moderationOnly =
+    modQ === '1' ||
+    modQ === 'true' ||
+    (Array.isArray(modQ) && (modQ[0] === '1' || modQ[0] === 'true'));
   const data = await sellerService.myProducts(req.user.id, userRole(req), {
     ownOnly,
     page,
     pageSize,
     offset,
     search,
+    moderationOnly,
   });
   sendSuccess(res, { success: true, ...data });
 });

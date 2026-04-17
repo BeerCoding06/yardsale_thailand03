@@ -520,7 +520,8 @@ export async function listProductsBySeller(client, sellerId) {
   return r.rows;
 }
 
-export async function countProductsBySeller(client, sellerId, search) {
+export async function countProductsBySeller(client, sellerId, search, { moderationOnly = false } = {}) {
+  const hasMod = await hasModerationFeedbackColumn(client);
   const like = ilikeContainsPattern(search);
   const params = [sellerId];
   let extra = '';
@@ -532,14 +533,21 @@ export async function countProductsBySeller(client, sellerId, search) {
       OR CAST(p.id AS TEXT) ILIKE $2 ESCAPE '\\'
     )`;
   }
+  let modExtra = '';
+  if (hasMod && moderationOnly) {
+    modExtra = ` AND p.moderation_feedback IS NOT NULL AND (
+      jsonb_array_length(COALESCE(p.moderation_feedback->'issues','[]'::jsonb)) > 0
+      OR length(trim(COALESCE(p.moderation_feedback->>'message',''))) > 0
+    )`;
+  }
   const r = await client.query(
-    `SELECT COUNT(*)::int AS c FROM products p WHERE p.seller_id = $1::uuid ${extra}`,
+    `SELECT COUNT(*)::int AS c FROM products p WHERE p.seller_id = $1::uuid ${extra}${modExtra}`,
     params
   );
   return r.rows[0]?.c ?? 0;
 }
 
-export async function listProductsBySellerPaged(client, sellerId, { limit, offset, search }) {
+export async function listProductsBySellerPaged(client, sellerId, { limit, offset, search, moderationOnly = false }) {
   const hasLs = await hasListingStatusColumn(client);
   const hasPb = await hasProductPriceBreakdown(client);
   const hasImgs = await hasProductImageUrlsColumn(client);
@@ -559,12 +567,19 @@ export async function listProductsBySellerPaged(client, sellerId, { limit, offse
       OR CAST(p.id AS TEXT) ILIKE $2 ESCAPE '\\'
     )`;
   }
+  let modExtra = '';
+  if (hasMod && moderationOnly) {
+    modExtra = ` AND p.moderation_feedback IS NOT NULL AND (
+      jsonb_array_length(COALESCE(p.moderation_feedback->'issues','[]'::jsonb)) > 0
+      OR length(trim(COALESCE(p.moderation_feedback->>'message',''))) > 0
+    )`;
+  }
   const lim = Math.min(Math.max(Number(limit) || 20, 1), 100);
   const off = Math.max(Number(offset) || 0, 0);
   params.push(lim, off);
   const r = await client.query(
     `SELECT id, name, description, ${priceCols} stock, category_id, seller_id, ${imgCols} is_cancelled${lsCol}${modCol}, created_at
-     FROM products p WHERE p.seller_id = $1::uuid ${extra}
+     FROM products p WHERE p.seller_id = $1::uuid ${extra}${modExtra}
      ORDER BY p.created_at DESC
      LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params

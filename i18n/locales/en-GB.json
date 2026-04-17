@@ -312,7 +312,9 @@
     "moderation_issue_stock": "Stock quantity is unclear or inaccurate",
     "moderation_issue_tags": "Tags are inappropriate or misleading",
     "moderation_issue_illegal_or_prohibited": "Prohibited item, copyright issue, or policy violation",
-    "moderation_issue_other": "Other (see message below)"
+    "moderation_issue_other": "Other (see message below)",
+    "moderation_filter_rejected_only": "Show only listings that did not pass review",
+    "moderation_filter_show_all": "Show all my listings"
   },
   "product": {
     "originally": "Originally",
@@ -334,7 +336,11 @@
     "cancel_success": "Product cancelled successfully",
     "cancel_error": "Failed to cancel product",
     "restore_success": "Product restored successfully. The product will return to pending status.",
-    "restore_error": "Failed to restore product"
+    "restore_error": "Failed to restore product",
+    "private_preview_banner": "This listing is not public — only you (the seller) can open this page.",
+    "private_preview_hint": "It will not appear in the storefront or search until it is published.",
+    "moderation_detail_title": "Why it did not pass review",
+    "not_listed_for_sale": "Not available for public purchase"
   },
   "cart": {
     "empty": "Your cart is empty",

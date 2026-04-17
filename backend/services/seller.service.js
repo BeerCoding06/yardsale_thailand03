@@ -8,7 +8,7 @@ import {
   normalizeProductPricesForCreate,
 } from '../utils/productPrices.js';
 
-export async function myProducts(userId, role, { ownOnly = false, page, pageSize, offset, search } = {}) {
+export async function myProducts(userId, role, { ownOnly = false, page, pageSize, offset, search, moderationOnly = false } = {}) {
   const client = await pool.connect();
   try {
     if (role === 'admin' && !ownOnly) {
@@ -24,11 +24,12 @@ export async function myProducts(userId, role, { ownOnly = false, page, pageSize
         pagination: paginationMeta({ page, pageSize, total }),
       };
     }
-    const total = await productModel.countProductsBySeller(client, userId, search);
+    const total = await productModel.countProductsBySeller(client, userId, search, { moderationOnly });
     const products = await productModel.listProductsBySellerPaged(client, userId, {
       limit: pageSize,
       offset,
       search,
+      moderationOnly,
     });
     return {
       products,

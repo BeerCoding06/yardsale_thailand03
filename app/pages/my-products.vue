@@ -14,6 +14,7 @@ definePageMeta({
 
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
+const route = useRoute();
 const { hasRemoteApi } = useCmsApi();
 const { fetchYardsale, resolveMediaUrl } = useStorefrontCatalog();
 
@@ -61,12 +62,46 @@ const MODERATION_TOAST_SIG_KEY = "yardsale_my_products_moderation_sig";
 const PRODUCT_PAGE_SIZE = 20;
 const listPage = ref(1);
 const listSearch = ref("");
+/** เฉพาะสินค้าที่แอดมินแจ้งไม่ผ่าน (มี moderation_feedback) — ส่งเป็น query ไป API */
+const moderationOnly = ref(
+  route.query.moderation_only === "1" || route.query.moderation === "1"
+);
 const productPagination = ref({
   page: 1,
   page_size: PRODUCT_PAGE_SIZE,
   total: 0,
   total_pages: 0,
 });
+
+function syncModerationOnlyFromRoute() {
+  moderationOnly.value =
+    route.query.moderation_only === "1" || route.query.moderation === "1";
+}
+
+function toggleModerationOnly() {
+  listPage.value = 1;
+  const nextOn = !(
+    route.query.moderation_only === "1" || route.query.moderation === "1"
+  );
+  const next = { ...route.query } as Record<string, string>;
+  if (nextOn) {
+    next.moderation_only = "1";
+    delete next.moderation;
+  } else {
+    delete next.moderation_only;
+    delete next.moderation;
+  }
+  router.replace({ path: route.path, query: next });
+}
+
+watch(
+  () => [route.query.moderation_only, route.query.moderation],
+  () => {
+    syncModerationOnlyFromRoute();
+    listPage.value = 1;
+    if (isClient.value && isAuthenticated.value) fetchProducts();
+  }
+);
 
 function onProductSearch(q: string) {
   const tq = String(q || "").trim();
@@ -187,6 +222,7 @@ const fetchProducts = async () => {
     // หน้าร้าน: own_only=1 — แม้ role admin ก็เห็นเฉพาะสินค้าของบัญชีนี้ (รายการทั้งระบบใช้แอดมิน /admin/products)
     const listQuery = {
       own_only: "1",
+      ...(moderationOnly.value ? { moderation_only: "1" } : {}),
       ...paginationQuery(listPage.value, listSearch.value, PRODUCT_PAGE_SIZE),
     };
     const listHeaders = { Authorization: `Bearer ${jwtToken}` };
@@ -463,17 +499,37 @@ watch(isAuthenticated, (newVal: boolean) => {
   <ClientOnly>
     <div class="min-h-screen bg-neutral-50 dark:bg-black">
       <div class="max-w-7xl mx-auto p-6">
-        <div class="flex items-center justify-between mb-6">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
           <h1 class="text-3xl font-bold text-black dark:text-white">
             {{ $t('auth.my_products') }}
           </h1>
-          <NuxtLink
-            to="/create-product"
-            class="flex items-center gap-2 px-4 py-2 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg"
-          >
-            <UIcon name="i-heroicons-plus-circle" class="w-5 h-5" />
-            <span>{{ $t('my_products.create_new') }}</span>
-          </NuxtLink>
+          <div class="flex flex-wrap items-center gap-2 justify-end">
+            <button
+              v-if="moderationProductCount > 0"
+              type="button"
+              class="inline-flex items-center gap-2 rounded-xl border-2 px-3 py-2 text-sm font-semibold transition shadow-sm"
+              :class="
+                moderationOnly
+                  ? 'border-alizarin-crimson-600 bg-alizarin-crimson-600 text-white dark:border-alizarin-crimson-500 dark:bg-alizarin-crimson-500'
+                  : 'border-alizarin-crimson-300 bg-white text-alizarin-crimson-900 hover:bg-alizarin-crimson-50 dark:border-alizarin-crimson-800 dark:bg-black/30 dark:text-alizarin-crimson-100 dark:hover:bg-alizarin-crimson-950/40'
+              "
+              @click="toggleModerationOnly"
+            >
+              <UIcon name="i-heroicons-eye-slash" class="h-5 w-5 shrink-0" />
+              {{
+                moderationOnly
+                  ? $t('my_products.moderation_filter_show_all')
+                  : $t('my_products.moderation_filter_rejected_only')
+              }}
+            </button>
+            <NuxtLink
+              to="/create-product"
+              class="flex items-center gap-2 px-4 py-2 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg"
+            >
+              <UIcon name="i-heroicons-plus-circle" class="w-5 h-5" />
+              <span>{{ $t('my_products.create_new') }}</span>
+            </NuxtLink>
+          </div>
         </div>
 
         <div
