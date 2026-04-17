@@ -135,6 +135,15 @@ const fetchOrder = async () => {
             date_created: merged.created_at ?? merged.date_created ?? prev.date_created,
           };
           notifyShipmentFingerprintChange();
+          if (import.meta.client && customerPaymentUiKey(o) === "paid") {
+            try {
+              useOrderPaymentSync().clearClientPaidHintIfMatches(
+                String(orderId.value)
+              );
+            } catch {
+              /* ignore */
+            }
+          }
         } else {
           error.value = t("order.order_not_found");
         }
@@ -171,6 +180,15 @@ const fetchOrder = async () => {
           date_created: merged.created_at ?? merged.date_created ?? prev.date_created,
         };
         notifyShipmentFingerprintChange();
+        if (import.meta.client && customerPaymentUiKey(o) === "paid") {
+          try {
+            useOrderPaymentSync().clearClientPaidHintIfMatches(
+              String(orderId.value)
+            );
+          } catch {
+            /* ignore */
+          }
+        }
       } else {
         error.value = t("order.order_not_found");
       }

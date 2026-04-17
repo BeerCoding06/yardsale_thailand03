@@ -78,9 +78,7 @@ onMounted(async () => {
             applyFetchedOrder(inner.order, prev);
             if (customerPaymentUiKey(order.value) === "paid") {
               try {
-                useOrderPaymentSync().notifyOrderPaidAfterMock({
-                  ...(order.value && typeof order.value === "object" ? order.value : {}),
-                });
+                useOrderPaymentSync().clearClientPaidHintIfMatches(orderId);
               } catch {
                 /* ignore */
               }
@@ -97,9 +95,7 @@ onMounted(async () => {
             applyFetchedOrder(ord, prev);
             if (customerPaymentUiKey(order.value) === "paid") {
               try {
-                useOrderPaymentSync().notifyOrderPaidAfterMock({
-                  ...(order.value && typeof order.value === "object" ? order.value : {}),
-                });
+                useOrderPaymentSync().clearClientPaidHintIfMatches(orderId);
               } catch {
                 /* ignore */
               }

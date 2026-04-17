@@ -5,6 +5,7 @@ import { buildShipmentTimelineSteps } from "~/utils/shipmentTimeline";
 import { pickPagination, paginationQuery } from "~/utils/paginationResponse";
 import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
 import { mergeOrderRowsPreferPaid } from "~/utils/orderPaymentMerge";
+import { CLIENT_PAID_HINT_MERGE_MS } from "~/composables/useOrderPaymentSync";
 
 definePageMeta({
   middleware: "seller",
@@ -15,8 +16,11 @@ const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
 const { hasRemoteApi } = useCmsApi();
 const { fetchYardsale } = useStorefrontCatalog();
-const { paymentLabel, paymentColorClass, customerPaymentUiKey } =
-  useCustomerPaymentStatus();
+const {
+  paymentLabel,
+  paymentColorClass,
+  customerPaymentUiKey,
+} = useCustomerPaymentStatus();
 
 const isClient = ref(false);
 const isLoading = ref(true);
@@ -331,7 +335,7 @@ const fetchOrders = async () => {
     } else {
       const lp = lastPaidOrder.value;
       const lpFresh =
-        lp && Date.now() - lp.at < 120000 ? lp : null;
+        lp && Date.now() - lp.at < CLIENT_PAID_HINT_MERGE_MS ? lp : null;
 
       orders.value = list.map((row) => {
         if (
@@ -345,6 +349,14 @@ const fetchOrders = async () => {
         }
         return normalizeSellerOrderRow(row);
       });
+
+      if (import.meta.client && lpFresh) {
+        const raw = list.find((r) => r && String(r.id) === String(lpFresh.orderId));
+        if (raw && customerPaymentUiKey(raw) === "paid") {
+          clearClientPaidHintIfMatches(lpFresh.orderId);
+        }
+      }
+
       const pg = pickPagination(body);
       if (pg) {
         orderPagination.value = pg;
@@ -372,7 +384,8 @@ const fetchOrders = async () => {
   }
 };
 
-const { lastPaid: lastPaidOrder } = useOrderPaymentSync();
+const { lastPaid: lastPaidOrder, clearClientPaidHintIfMatches } =
+  useOrderPaymentSync();
 
 onMounted(async () => {
   isClient.value = true;
