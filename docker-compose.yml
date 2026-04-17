@@ -95,8 +95,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
       args:
         DB_HOST: ${DB_HOST:-157.85.98.150:3306}
         DB_NAME: ${DB_NAME:-nuxtcommerce_db}
@@ -109,6 +107,8 @@ services:
         NUXT_PUBLIC_PROMPTPAY_ID: ${NUXT_PUBLIC_PROMPTPAY_ID:-}
         NUXT_PUBLIC_PROMPTPAY_QR_INCLUDE_AMOUNT: ${NUXT_PUBLIC_PROMPTPAY_QR_INCLUDE_AMOUNT:-false}
         NUXT_IMAGE_DOMAINS: ${NUXT_IMAGE_DOMAINS:-api.yardsaleth.com,yardsaleth.com,www.yardsaleth.com}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     networks:
       - dokploy-network
