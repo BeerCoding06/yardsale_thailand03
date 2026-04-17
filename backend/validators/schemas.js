@@ -287,4 +287,8 @@ export const trackShipmentSchema = Joi.object({
   carrier: Joi.number().integer().positive().optional(),
 });
 
-export { saveFcmTokenSchema, sendFcmNotificationSchema } from './fcmSchemas.js';
+export {
+  saveFcmTokenSchema,
+  sendFcmNotificationSchema,
+  broadcastFcmSchema,
+} from './fcmSchemas.js';

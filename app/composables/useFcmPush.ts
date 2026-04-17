@@ -144,7 +144,20 @@ export function useFcmPush() {
       messagingApi.onMessage(messaging, (payload) => {
         const title = payload.notification?.title || "New notification";
         const body = payload.notification?.body || "";
-        notify(body ? `${title}: ${body}` : title, "info");
+        const link =
+          (payload.data &&
+            typeof payload.data === "object" &&
+            (payload.data as { click_action?: string }).click_action) ||
+          "";
+        const text =
+          body && link
+            ? `${title}: ${body}\n${link}`
+            : body
+              ? `${title}: ${body}`
+              : link
+                ? `${title}\n${link}`
+                : title;
+        notify(text, "info");
       });
       foregroundBound.value = true;
     }

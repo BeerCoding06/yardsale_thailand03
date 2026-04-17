@@ -15,4 +15,15 @@ export const sendFcmNotificationSchema = Joi.object({
   data: Joi.object().optional().default({}),
   user_ids: Joi.array().items(uuid).optional().default([]),
   tokens: Joi.array().items(Joi.string().trim().min(1).max(4096)).optional().default([]),
+  image: Joi.string().trim().max(2048).optional().allow('', null),
+  click_action: Joi.string().trim().max(2048).optional().allow('', null),
+});
+
+/** POST /api/broadcast — admin only */
+export const broadcastFcmSchema = Joi.object({
+  title: Joi.string().trim().min(1).max(200).required(),
+  body: Joi.string().trim().min(1).max(4000).required(),
+  data: Joi.object().optional().default({}),
+  image: Joi.string().trim().max(2048).optional().allow('', null),
+  click_action: Joi.string().trim().max(2048).optional().allow('', null),
 });

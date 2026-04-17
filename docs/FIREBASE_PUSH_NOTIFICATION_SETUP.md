@@ -140,8 +140,7 @@ cd backend && npm install && npm run db:schema
 
 - `POST /api/save-token` — ต้องมี JWT ของผู้ใช้; body `{ "token": "...", "device": "web" }`
 - `POST /api/send-notification` — เฉพาะ **admin** + JWT; body `{ "title", "body", "data?", "user_ids?", "tokens?" }`
-- หลังสร้างออเดอร์: แจ้งผู้ขายที่มีสินค้าในออเดอร์อัตโนมัติ — `notifySellersNewOrder`
-- หลังชำระเงินสำเร็จ (`/api/payment/mock` → `paid`): แจ้งผู้ซื้อ — `notifyBuyerOrderPaid` (ต้องมี FCM token ของผู้ซื้อใน `fcm_tokens`)
+- หลังชำระเงินสำเร็จ (`/api/payment/mock` → `paid`): แจ้ง **ผู้ขาย** ที่มีสินค้าในออเดอร์ — `notifySellersOrderPaid` (ต้องมี FCM token ของผู้ขายใน `fcm_tokens`)
 
 ### Nuxt ชี้มาที่ Express
 
@@ -149,9 +148,9 @@ cd backend && npm install && npm run db:schema
 NUXT_PUBLIC_LARAVEL_API_BASE=http://127.0.0.1:4000
 ```
 
-## 3) Example: ส่งแจ้งเตือนเมื่อมี Order ใหม่
+## 3) Example: ส่งแจ้งเตือนผู้ขายเมื่อผู้ซื้อชำระเงินสำเร็จ
 
-**Express (`backend/`):** หลังสร้างออเดอร์แล้วแจ้งผู้ขายอัตโนมัติ — `backend/services/fcmOrderNotify.service.js` (เรียกจาก `order.service.js`)
+**Express (`backend/`):** หลังออเดอร์เป็น `paid` แล้วแจ้งผู้ขายอัตโนมัติ — `backend/services/fcmOrderNotify.service.js` (`notifySellersOrderPaid` เรียกจาก `payment.service.js`)
 
 **Laravel (ตัวอย่าง):** ไฟล์:
 - `app/Observers/OrderObserver.php`

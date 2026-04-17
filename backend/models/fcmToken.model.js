@@ -44,3 +44,10 @@ export async function listSellerIdsForOrder(client, orderId) {
   );
   return r.rows.map((row) => row.seller_id).filter(Boolean);
 }
+
+/** ลบ token ที่ FCM แจ้งว่าใช้ไม่ได้ (invalid / unregistered) */
+export async function deleteTokensByValues(client, tokens) {
+  if (!tokens?.length) return 0;
+  const r = await client.query(`DELETE FROM fcm_tokens WHERE token = ANY($1::text[])`, [tokens]);
+  return r.rowCount ?? 0;
+}

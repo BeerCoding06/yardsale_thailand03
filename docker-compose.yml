@@ -73,6 +73,12 @@ services:
       SEVENTEEN_TRACK_API_KEY: ${SEVENTEEN_TRACK_API_KEY:-}
       SEVENTEEN_TRACK_BASE_URL: ${SEVENTEEN_TRACK_BASE_URL:-https://api.17track.net}
       TRACK_API_RATE_LIMIT_PER_MINUTE: ${TRACK_API_RATE_LIMIT_PER_MINUTE:-30}
+      # FCM (optional) — ดู backend/.env.example และ backend/docs/FCM_SETUP.md
+      # PUBLIC_WEB_URL: ${PUBLIC_WEB_URL:-https://www.yardsaleth.com}
+      # FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      # FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:-}
+      # FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:-}
+      # หรือ FIREBASE_CREDENTIALS_JSON / FIREBASE_CREDENTIALS (path ใน volume)
     volumes:
       - yardsale_uploads:/app/uploads
     # ต้อง publish 0.0.0.0:4000 เพื่อให้ Caddy (container) ยิงมาที่ 172.17.0.1:4000 ได้ — ถ้าใช้ 127.0.0.1:4000 อย่างเดียว bridge จะ connection refused

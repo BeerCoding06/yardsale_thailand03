@@ -27,6 +27,7 @@ import {
   trackShipmentSchema,
   saveFcmTokenSchema,
   sendFcmNotificationSchema,
+  broadcastFcmSchema,
 } from '../validators/schemas.js';
 import { uploadImage } from '../middlewares/upload.js';
 import * as authController from '../controllers/auth.controller.js';
@@ -40,6 +41,7 @@ import * as sellerController from '../controllers/seller.controller.js';
 import * as trackController from '../controllers/track.controller.js';
 import * as fcmController from '../controllers/fcm.controller.js';
 import { trackRateLimit } from '../middlewares/trackRateLimit.js';
+import { fcmBroadcastRateLimit, fcmSendNotificationRateLimit } from '../middlewares/fcmRateLimit.js';
 
 const router = Router();
 
@@ -81,11 +83,26 @@ router.post('/track', trackRateLimit, validate(trackShipmentSchema), trackContro
 
 router.post('/save-token', authMiddleware, validate(saveFcmTokenSchema), fcmController.saveToken);
 router.post(
+  '/save-fcm-token',
+  authMiddleware,
+  validate(saveFcmTokenSchema),
+  fcmController.saveToken
+);
+router.post(
   '/send-notification',
   authMiddleware,
   requireRoles('admin'),
+  fcmSendNotificationRateLimit,
   validate(sendFcmNotificationSchema),
   fcmController.sendNotification
+);
+router.post(
+  '/broadcast',
+  authMiddleware,
+  requireRoles('admin'),
+  fcmBroadcastRateLimit,
+  validate(broadcastFcmSchema),
+  fcmController.broadcast
 );
 
 router.get('/products', productController.listProducts);

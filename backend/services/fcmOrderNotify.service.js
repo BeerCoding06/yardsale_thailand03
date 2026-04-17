@@ -1,12 +1,18 @@
+import { config } from '../config/index.js';
 import { pool } from '../models/db.js';
 import * as fcmTokenModel from '../models/fcmToken.model.js';
 import * as firebaseMessaging from './firebaseMessaging.service.js';
 
+function ordersUrlForPush() {
+  const base = String(config.publicWebUrl || '').replace(/\/$/, '') || 'http://localhost:3000';
+  return `${base}/my-orders`;
+}
+
 /**
- * แจ้งผู้ขายเมื่อมีออเดอร์ใหม่ (ไม่ throw — log เท่านั้น)
+ * แจ้งผู้ขายเมื่อผู้ซื้อชำระเงินสำเร็จ (ไม่ throw — log เท่านั้น)
  * @param {string} orderId UUID
  */
-export async function notifySellersNewOrder(orderId) {
+export async function notifySellersOrderPaid(orderId) {
   if (!firebaseMessaging.isFcmConfigured()) return;
 
   const client = await pool.connect();
@@ -22,42 +28,17 @@ export async function notifySellersNewOrder(orderId) {
     const tokens = [...tokenSet];
     if (!tokens.length) return;
 
-    await firebaseMessaging.sendToDevices(
-      tokens,
-      'New order',
-      `You have a new order (#${orderId})`,
-      { type: 'new_order', order_id: String(orderId) }
-    );
-  } catch (e) {
-    console.warn('[fcm] notifySellersNewOrder:', e?.message || e);
-  } finally {
-    client.release();
-  }
-}
-
-/**
- * แจ้งผู้ซื้อเมื่อชำระเงิน / ยืนยันสลิปสำเร็จ (order status = paid)
- * @param {string} buyerUserId UUID
- * @param {string} orderId UUID
- */
-export async function notifyBuyerOrderPaid(buyerUserId, orderId) {
-  if (!firebaseMessaging.isFcmConfigured()) return;
-  if (!buyerUserId || !orderId) return;
-
-  const client = await pool.connect();
-  try {
-    const tokens = await fcmTokenModel.listTokensForUser(client, buyerUserId);
-    if (!tokens.length) return;
-
     const shortRef = String(orderId).replace(/-/g, '').slice(0, 12);
+    const click = ordersUrlForPush();
     await firebaseMessaging.sendToDevices(
       tokens,
-      'Payment successful',
-      `Your order is confirmed (#${shortRef}).`,
-      { type: 'payment_paid', order_id: String(orderId) }
+      'Payment received',
+      `A buyer paid for order #${shortRef}.`,
+      { type: 'order_paid', order_id: String(orderId), click_action: click },
+      { clickAction: click }
     );
   } catch (e) {
-    console.warn('[fcm] notifyBuyerOrderPaid:', e?.message || e);
+    console.warn('[fcm] notifySellersOrderPaid:', e?.message || e);
   } finally {
     client.release();
   }

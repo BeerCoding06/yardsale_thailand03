@@ -39,7 +39,17 @@ export const config = {
     credentialsPath: (process.env.FIREBASE_CREDENTIALS || '').trim(),
     credentialsJson: (process.env.FIREBASE_CREDENTIALS_JSON || '').trim(),
     projectId: (process.env.FIREBASE_PROJECT_ID || '').trim(),
+    clientEmail: (process.env.FIREBASE_CLIENT_EMAIL || '').trim(),
+    privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').trim(),
   },
+  /** URL หน้าเว็บหลัก (ลิงก์ใน push) — ไม่ตั้ง = ใช้ origin แรกจาก CORS_ORIGINS หรือ localhost */
+  publicWebUrl: (() => {
+    const u = (process.env.PUBLIC_WEB_URL || '').trim().replace(/\/$/, '');
+    if (u) return u;
+    const raw = (process.env.CORS_ORIGINS || '').split(',')[0]?.trim().replace(/\/$/, '');
+    if (raw) return raw;
+    return 'http://localhost:3000';
+  })(),
   /**
    * บรรทัด log [payment-audit] … สำหรับไล่ production (ไม่ล็อก slip/base64)
    * เปิดชั่วคราว: PAYMENT_AUDIT_LOG=1

@@ -151,5 +151,14 @@ export async function mockPayment(userId, body, file) {
       slipImageUrl: slipUrl,
     });
     return { order: updated, paid: true, slip: slipChecked };
+  }).then((result) => {
+    if (result.paid && orderId) {
+      void import('./fcmOrderNotify.service.js').then(({ notifySellersOrderPaid }) =>
+        notifySellersOrderPaid(orderId).catch((e) => {
+          console.warn('[fcm] notifySellersOrderPaid:', e?.message || e);
+        })
+      );
+    }
+    return result;
   });
 }

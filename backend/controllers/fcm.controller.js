@@ -4,6 +4,7 @@ import { AppError } from '../utils/AppError.js';
 import { pool } from '../models/db.js';
 import * as fcmTokenModel from '../models/fcmToken.model.js';
 import * as firebaseMessaging from '../services/firebaseMessaging.service.js';
+import * as fcmBroadcast from '../services/fcmBroadcast.service.js';
 
 export const saveToken = asyncHandler(async (req, res) => {
   const { token, device } = req.body;
@@ -27,11 +28,13 @@ export const sendNotification = asyncHandler(async (req, res) => {
     data = {},
     user_ids: userIds = [],
     tokens: explicitTokens = [],
+    image,
+    click_action: clickAction,
   } = req.body;
 
   if (!firebaseMessaging.isFcmConfigured()) {
     throw new AppError(
-      'FCM not configured: set FIREBASE_CREDENTIALS (file path) or FIREBASE_CREDENTIALS_JSON (Dokploy secret)',
+      'FCM not configured: set FIREBASE_CREDENTIALS / FIREBASE_CREDENTIALS_JSON or FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY',
       503,
       'FCM_DISABLED'
     );
@@ -49,7 +52,10 @@ export const sendNotification = asyncHandler(async (req, res) => {
       return;
     }
 
-    const results = await firebaseMessaging.sendToDevices(merged, title, body, data);
+    const results = await firebaseMessaging.sendToDevices(merged, title, body, data, {
+      image,
+      clickAction,
+    });
     const sent = results.filter((r) => r.ok).length;
     sendSuccess(res, {
       message: 'Notifications sent',
@@ -60,4 +66,36 @@ export const sendNotification = asyncHandler(async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+/** แอดมิน: ส่งไปทุก device ที่ลงทะเบียนไว้ */
+export const broadcast = asyncHandler(async (req, res) => {
+  const {
+    title,
+    body,
+    data = {},
+    image,
+    click_action: clickAction,
+  } = req.body;
+
+  if (!firebaseMessaging.isFcmConfigured()) {
+    throw new AppError(
+      'FCM not configured: set Firebase service account env vars',
+      503,
+      'FCM_DISABLED'
+    );
+  }
+
+  const summary = await fcmBroadcast.broadcastToAllTokens({
+    title,
+    body,
+    image,
+    click_action: clickAction,
+    data,
+  });
+
+  sendSuccess(res, {
+    message: 'Broadcast finished',
+    ...summary,
+  });
 });
