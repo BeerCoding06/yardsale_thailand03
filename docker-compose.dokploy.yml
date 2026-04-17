@@ -27,6 +27,7 @@ services:
         condition: service_healthy
     environment:
       PORT: 4000
+      HOST: "0.0.0.0"
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-yardsale}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-yardsale}
       JWT_SECRET: ${JWT_SECRET:-changeme}
@@ -61,9 +62,10 @@ services:
       context: .
       dockerfile: Dockerfile.prod
     restart: unless-stopped
+    # รอแค่ backend ขึ้น container — ไม่รอ service_healthy (healthcheck ล้มบ่อยจาก timing/IPv4 ทำให้ deploy ทั้ง stack fail)
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     environment:
       NODE_ENV: production
       BASE_URL: ${BASE_URL}
