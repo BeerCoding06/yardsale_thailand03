@@ -33,6 +33,40 @@ export const useCart = () => {
     });
   };
 
+  /** อ่าน snapshot สต็อกจากบรรทัดตะกร้า — แปลงเป็นตัวเลขเท่านั้นเมื่อ parse ได้ */
+  const itemStockSnapshot = (item: CartItem) => {
+    const raw =
+      item.variation?.node?.stockQuantity ?? item.product?.node?.stockQuantity ?? null;
+    const stockStatus =
+      item.variation?.node?.stockStatus ?? item.product?.node?.stockStatus;
+    let stockQuantity: number | null = null;
+    if (raw != null && raw !== '') {
+      const n = Number(raw);
+      if (Number.isFinite(n)) stockQuantity = n;
+    }
+    return { stockStatus, stockQuantity };
+  };
+
+  const isCartLineArg = (x: unknown): x is CartItem =>
+    x != null &&
+    typeof x === 'object' &&
+    !Array.isArray(x) &&
+    typeof (x as { key?: unknown }).key === 'string' &&
+    (x as CartItem).product?.node != null;
+
+  const resolveCartItem = (productIdOrItem: number | string | CartItem): CartItem | undefined => {
+    if (isCartLineArg(productIdOrItem)) {
+      return cart.value.find((i) => i.key === productIdOrItem.key) ?? productIdOrItem;
+    }
+    return findItem(productIdOrItem as number | string);
+  };
+
+  const canIncreaseCartQuantity = (item: CartItem): boolean => {
+    const { stockStatus, stockQuantity } = itemStockSnapshot(item);
+    const next = (item.quantity || 1) + 1;
+    return isCartLineSalableBySnapshot(stockStatus, stockQuantity, next);
+  };
+
   const updateCart = (next: CartItem[]) => {
     cart.value = next;
     if (import.meta.client) {
@@ -255,10 +289,7 @@ export const useCart = () => {
       return;
     }
     
-    const stockQuantity = item.variation?.node?.stockQuantity ?? 
-                         item.product?.node?.stockQuantity ?? 
-                         null;
-    const stockStatus = item.variation?.node?.stockStatus ?? item.product?.node?.stockStatus;
+    const { stockQuantity, stockStatus } = itemStockSnapshot(item);
 
     if (!isCartLineSalableBySnapshot(stockStatus, stockQuantity, quantity)) {
       const norm = (stockStatus ?? '').toString().toUpperCase().replace(/\s/g, '_');
@@ -331,26 +362,28 @@ export const useCart = () => {
     }
   };
 
-  const increment = (productId: number | string) => {
-    const item = findItem(productId);
+  const increment = (productIdOrItem: number | string | CartItem) => {
+    const item = resolveCartItem(productIdOrItem);
     if (!item) {
-      handleAddToCart(productId);
+      if (isCartLineArg(productIdOrItem)) return;
+      handleAddToCart(productIdOrItem as number | string);
       return;
     }
-    // Check stock quantity from variation (variable) or product (simple)
-    const max = item.variation?.node?.stockQuantity ?? 
-                item.product?.node?.stockQuantity ?? 
-                Infinity;
-    // Only check if managing stock (max is not Infinity)
-    if (max !== Infinity && item.quantity >= max) {
-      push.error(t('cart.insufficient_stock'));
+    if (!canIncreaseCartQuantity(item)) {
+      const { stockStatus } = itemStockSnapshot(item);
+      const norm = (stockStatus ?? '').toString().toUpperCase().replace(/\s/g, '_');
+      if (norm === 'OUT_OF_STOCK' || norm === 'OUTOFSTOCK') {
+        push.error(t('cart.out_of_stock'));
+      } else {
+        push.error(t('cart.insufficient_stock'));
+      }
       return;
     }
     changeQty(item.key, item.quantity + 1);
   };
 
-  const decrement = (productId: number | string) => {
-    const item = findItem(productId);
+  const decrement = (productIdOrItem: number | string | CartItem) => {
+    const item = resolveCartItem(productIdOrItem);
     if (!item) return;
     const newQuantity = item.quantity - 1;
     if (newQuantity <= 0) {
@@ -600,6 +633,7 @@ export const useCart = () => {
     handleAddToCart,
     increment,
     decrement,
+    canIncreaseCartQuantity,
     removeItem,
     getCartItemsForStockApi,
     refreshCartStockFromServer,

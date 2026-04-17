@@ -1,6 +1,6 @@
 <!--app/components/Cart.vue-->
 <script setup>
-const { cart, increment, decrement, removeItem } = useCart();
+const { cart, increment, decrement, removeItem, canIncreaseCartQuantity } = useCart();
 const { order } = useCheckout();
 
 // Create computed for cart length to ensure reactivity
@@ -54,12 +54,15 @@ const cartItems = computed(() => cart.value || []);
               >
                 <div
                   class="dark:bg-white/10 bg-white/50 dark:hover:bg-white/30 hover:bg-white/100 transition-all rounded-full p-0.5 w-5 h-5 flex items-center justify-center"
+                  :class="{
+                    'opacity-35 pointer-events-none': !canIncreaseCartQuantity(product),
+                  }"
                 >
                   <UIcon
                     size="14"
                     name="i-iconamoon-sign-plus"
                     class="text-black dark:text-white cursor-pointer"
-                    @click="increment(product.variation?.node?.databaseId || product.product?.node?.databaseId)"
+                    @click="increment(product)"
                   />
                 </div>
                 <span class="text-center text-sm">{{ product.quantity }}</span>
@@ -75,9 +78,7 @@ const cartItems = computed(() => cart.value || []);
                     "
                     class="text-black dark:text-white cursor-pointer"
                     @click="
-                      product.quantity > 1
-                        ? decrement(product.variation?.node?.databaseId || product.product?.node?.databaseId)
-                        : removeItem(product.key)
+                      product.quantity > 1 ? decrement(product) : removeItem(product.key)
                     "
                   />
                 </div>
