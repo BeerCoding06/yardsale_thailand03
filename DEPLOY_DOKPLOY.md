@@ -68,6 +68,16 @@ FIREBASE_CREDENTIALS_JSON=
 - `NUXT_PUBLIC_LARAVEL_API_BASE` ชื่อยังว่า Laravel แต่ **ชี้ไปที่โดเมน Express** (`https://api...`) **ไม่**ต่อ `/api` ท้าย URL
 - หลัง deploy ครั้งแรกที่มีตาราง `fcm_tokens`: รัน `npm run db:schema` ใน **backend** container
 
+**เช็คสถานะชำระในฐานข้อมูล (order เป็น `paid` หรือไม่):** เปิด shell เข้า **backend** container แล้วต้องอยู่ที่โฟลเดอร์แอป (`/app` ใน image นี้) เพราะ `package.json` อยู่ที่นั่น — อย่ารันจาก `/` จะได้ error `Could not read package.json`
+
+```bash
+cd /app && npm run db:check-payment -- <order-uuid>
+# ทางเลือก (ไม่พึ่ง cwd ของ npm):
+node /app/scripts/check-order-payment.js <order-uuid>
+```
+
+บนเครื่องพัฒนา (มี repo ทั้งโฟลเดอร์): จาก root โปรเจกต์ใช้ `npm run db:check-payment -- <order-uuid>` ได้ (สคริปต์จะเรียกโฟลเดอร์ `backend` ให้)
+
 รายละเอียดเพิ่ม: `docs/FIREBASE_PUSH_NOTIFICATION_SETUP.md`
 
 ### Safari / iPhone (Web Push)
