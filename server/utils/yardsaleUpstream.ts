@@ -16,15 +16,44 @@ function dedupeBases(urls: readonly string[]): string[] {
 }
 
 /**
+ * ฐาน public ของ Express จาก env ที่ deploy มักมีอยู่แล้ว (เช่น https://api.yardsaleth.com)
+ * ใช้เป็น fallback สุดท้ายเมื่อ http://backend:4000 ใน Docker เชื่อมไม่ได้
+ */
+function publicExpressOriginFromNuxtEnv(): string | null {
+  const cms = String(process.env.NUXT_PUBLIC_CMS_API_BASE ?? "").trim();
+  if (cms && /^https?:\/\//i.test(cms)) {
+    try {
+      return new URL(cms).origin.replace(/\/$/, "");
+    } catch {
+      /* ignore */
+    }
+  }
+  const origin = String(
+    process.env.NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN ?? ""
+  ).trim();
+  if (origin && /^https?:\/\//i.test(origin)) {
+    try {
+      return new URL(origin).origin.replace(/\/$/, "");
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+/**
  * รายการ URL ฐานของ Express ที่ Nitro จะลอง proxy ตามลำดับ
  * - `YARDSALE_BACKEND_INTERNAL_URL` = URL เต็มฐาน (เช่น http://ชื่อ-container:4000) สำหรับ Dokploy แบบแยก stack
  * - `NUXT_YARDSALE_PROXY_TARGET` = ฐานเดียวกัน (เช่น http://backend:4000)
+ * - สุดท้าย: origin จาก `NUXT_PUBLIC_CMS_API_BASE` / `NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN` (https://api…)
+ *   กรณี stack ภายในเชื่อมกันไม่ได้ แต่ API สาธารณะยังใช้ได้จาก container
  */
 export function getYardsaleUpstreamBases(_event?: H3Event): string[] {
   const fullInternal = String(
     process.env.YARDSALE_BACKEND_INTERNAL_URL ?? ""
   ).trim();
   const fromEnv = String(process.env.NUXT_YARDSALE_PROXY_TARGET ?? "").trim();
+  const publicOrigin = publicExpressOriginFromNuxtEnv();
   if (process.env.NODE_ENV === "production") {
     return dedupeBases([
       fullInternal,
@@ -32,9 +61,15 @@ export function getYardsaleUpstreamBases(_event?: H3Event): string[] {
       "http://backend:4000",
       "http://host.docker.internal:4000",
       "http://172.17.0.1:4000",
+      ...(publicOrigin ? [publicOrigin] : []),
     ]);
   }
-  return dedupeBases([fullInternal, fromEnv, "http://127.0.0.1:4000"]);
+  return dedupeBases([
+    fullInternal,
+    fromEnv,
+    "http://127.0.0.1:4000",
+    ...(publicOrigin ? [publicOrigin] : []),
+  ]);
 }
 
 export function getYardsaleUpstreamBase(event?: H3Event): string {
