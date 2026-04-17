@@ -9,8 +9,9 @@ import {
   getRouterParam,
   proxyRequest,
 } from "h3";
+import { useRuntimeConfig } from "#imports";
 import {
-  getYardsaleUpstreamBases,
+  mergeYardsaleUpstreamBases,
   isLikelyNetworkError,
   yardsaleFetchFromBases,
 } from "../../utils/yardsaleUpstream";
@@ -25,10 +26,15 @@ export default defineEventHandler(async (event) => {
   const reqUrl = getRequestURL(event);
   const search = reqUrl.search || "";
   const method = String(event.method || "GET").toUpperCase();
+  const pub = useRuntimeConfig(event).public as {
+    cmsApiBase?: string;
+    yardsaleBackendOrigin?: string;
+  };
+  const merged = mergeYardsaleUpstreamBases(event, pub);
   const bases =
     method === "GET" || method === "HEAD"
-      ? getYardsaleUpstreamBases(event)
-      : [getYardsaleUpstreamBases(event)[0]].filter(Boolean);
+      ? merged
+      : [merged[0]].filter(Boolean);
 
   const expressPath = `/uploads/${sub}`;
 

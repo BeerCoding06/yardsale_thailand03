@@ -148,8 +148,16 @@ services:
       - "traefik.http.routers.yardsaleth-app.service=yardsaleth-app"
       - "traefik.http.services.yardsaleth-app.loadbalancer.server.port=3000"
       - "traefik.http.middlewares.yardsaleth-compress.compress=true"
-      # www → https://yardsaleth.com/...
-      - "traefik.http.routers.yardsaleth-www.rule=Host(`www.yardsaleth.com`)"
+      # www — same-origin Nitro proxy (ไม่ redirect ไป apex)
+      - "traefik.http.routers.yardsaleth-www-api.rule=Host(`www.yardsaleth.com`) && (PathPrefix(`/yardsale-api`) || PathPrefix(`/uploads`))"
+      - "traefik.http.routers.yardsaleth-www-api.priority=100"
+      - "traefik.http.routers.yardsaleth-www-api.entrypoints=websecure"
+      - "traefik.http.routers.yardsaleth-www-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.yardsaleth-www-api.middlewares=yardsaleth-compress"
+      - "traefik.http.routers.yardsaleth-www-api.service=yardsaleth-app"
+      # www → https://yardsaleth.com/... (เฉพาะ path ที่ไม่ใช่ proxy ไป Express)
+      - "traefik.http.routers.yardsaleth-www.rule=Host(`www.yardsaleth.com`) && !PathPrefix(`/yardsale-api`) && !PathPrefix(`/uploads`)"
+      - "traefik.http.routers.yardsaleth-www.priority=10"
       - "traefik.http.routers.yardsaleth-www.entrypoints=websecure"
       - "traefik.http.routers.yardsaleth-www.tls.certresolver=letsencrypt"
       - "traefik.http.routers.yardsaleth-www.middlewares=yardsaleth-www-to-apex"

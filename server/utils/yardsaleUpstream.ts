@@ -77,6 +77,40 @@ export function getYardsaleUpstreamBase(event?: H3Event): string {
   return bases[0] || "http://127.0.0.1:4000";
 }
 
+/** อ่าน https origin จาก runtime public (ค่าที่ Nuxt hydrate ได้แม้ process.env ใน Nitro ไม่มี NUXT_PUBLIC_*) */
+export function publicOriginsFromPublicConfig(
+  pub: { cmsApiBase?: string; yardsaleBackendOrigin?: string } | null | undefined
+): string[] {
+  const raw: string[] = [];
+  const cms = String(pub?.cmsApiBase ?? "").trim();
+  if (/^https?:\/\//i.test(cms)) {
+    try {
+      raw.push(new URL(cms).origin.replace(/\/$/, ""));
+    } catch {
+      /* ignore */
+    }
+  }
+  const yo = String(pub?.yardsaleBackendOrigin ?? "").trim();
+  if (/^https?:\/\//i.test(yo)) {
+    try {
+      raw.push(new URL(yo).origin.replace(/\/$/, ""));
+    } catch {
+      /* ignore */
+    }
+  }
+  return dedupeBases(raw);
+}
+
+export function mergeYardsaleUpstreamBases(
+  event: H3Event,
+  publicCfg?: { cmsApiBase?: string; yardsaleBackendOrigin?: string } | null
+): string[] {
+  return dedupeBases([
+    ...getYardsaleUpstreamBases(event),
+    ...publicOriginsFromPublicConfig(publicCfg),
+  ]);
+}
+
 const HOP_BY_HOP = new Set([
   "host",
   "connection",
