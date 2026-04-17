@@ -97,15 +97,44 @@ function formatCooldown(ms) {
   return mm > 0 ? `${mm}:${String(ss).padStart(2, '0')}` : `${sec}`;
 }
 
+const showCooldownModal = ref(false);
+const showSlipErrorModal = ref(false);
+const slipErrorModalText = ref('');
+
+const cooldownModalTitle = computed(() =>
+  transferBankKey.value === 'BBL'
+    ? t('checkout.payment_slip.bbl_modal_title')
+    : t('checkout.payment_slip.cooldown_modal_title')
+);
+
+const cooldownModalBody = computed(() =>
+  transferBankKey.value === 'BBL'
+    ? t('checkout.payment_slip.bbl_modal_body')
+    : t('checkout.payment_slip.cooldown_other_banks_hint')
+);
+
+function openSlipErrorModal(text) {
+  slipErrorModalText.value = text;
+  showSlipErrorModal.value = true;
+  error.value = null;
+}
+
+function closeSlipErrorModal() {
+  showSlipErrorModal.value = false;
+  slipErrorModalText.value = '';
+}
+
 function onTransferBankChange() {
   error.value = null;
   const key = transferBankKey.value;
   if (!key) {
     cooldownUntilMs.value = 0;
+    showCooldownModal.value = false;
     return;
   }
   const wait = key === 'BBL' ? BBL_COOLDOWN_MS : OTHER_BANK_COOLDOWN_MS;
   cooldownUntilMs.value = Date.now() + wait;
+  showCooldownModal.value = true;
 }
 
 function assertBankAndCooldown() {
@@ -114,13 +143,17 @@ function assertBankAndCooldown() {
     return false;
   }
   if (cooldownRemainingMs.value > 0) {
-    error.value = t('checkout.payment_slip.bbl_submit_wait', {
-      time: formatCooldown(cooldownRemainingMs.value),
-    });
+    showCooldownModal.value = true;
     return false;
   }
   return true;
 }
+
+watch(cooldownRemainingMs, (ms) => {
+  if (ms <= 0 && showCooldownModal.value) {
+    showCooldownModal.value = false;
+  }
+});
 
 const parsePrice = (priceString) => {
   if (!priceString) return 0;
@@ -308,9 +341,9 @@ async function onSubmitResumeOnly() {
       );
       return;
     }
-    error.value = t('checkout.payment_slip.errors.generic');
+    openSlipErrorModal(t('checkout.payment_slip.errors.generic'));
   } catch (err) {
-    error.value = slipErrorMessage(err);
+    openSlipErrorModal(slipErrorMessage(err));
   } finally {
     submitting.value = false;
   }
@@ -365,9 +398,9 @@ async function onSubmitNew() {
       );
       return;
     }
-    error.value = t('checkout.payment_slip.errors.generic');
+    openSlipErrorModal(t('checkout.payment_slip.errors.generic'));
   } catch (err) {
-    error.value = slipErrorMessage(err);
+    openSlipErrorModal(slipErrorMessage(err));
   } finally {
     submitting.value = false;
   }
@@ -381,9 +414,14 @@ async function onSubmit() {
   }
 }
 
-const submitLabel = computed(() => {
-  if (isResumePay.value) return t('checkout.payment_slip.upload_btn');
-  return t('checkout.payment_slip.submit_place_order_bank');
+const submitButtonText = computed(() => {
+  const base = isResumePay.value
+    ? t('checkout.payment_slip.upload_btn')
+    : t('checkout.payment_slip.submit_place_order_bank');
+  if (cooldownRemainingMs.value > 0) {
+    return `${base} (${formatCooldown(cooldownRemainingMs.value)})`;
+  }
+  return base;
 });
 </script>
 
@@ -636,22 +674,6 @@ const submitLabel = computed(() => {
             <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
               {{ $t('checkout.payment_slip.bbl_bank_hint') }}
             </p>
-            <div
-              v-if="transferBankKey && cooldownRemainingMs > 0"
-              class="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/35 border border-amber-200 dark:border-amber-800 text-sm text-amber-950 dark:text-amber-100"
-            >
-              <p class="font-semibold mb-1">
-                {{ $t('checkout.payment_slip.bbl_countdown_label') }}:
-                {{ formatCooldown(cooldownRemainingMs) }}
-              </p>
-              <p class="text-xs leading-relaxed opacity-95">
-                {{
-                  transferBankKey === 'BBL'
-                    ? $t('checkout.payment_slip.bbl_modal_body')
-                    : $t('checkout.payment_slip.cooldown_other_banks_hint')
-                }}
-              </p>
-            </div>
           </div>
 
           <div>
@@ -680,7 +702,7 @@ const submitLabel = computed(() => {
             "
             class="w-full py-3 rounded-xl font-semibold text-white bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 hover:bg-alizarin-crimson-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
-            <span v-if="!submitting">{{ submitLabel }}</span>
+            <span v-if="!submitting">{{ submitButtonText }}</span>
             <span v-else class="inline-flex items-center justify-center gap-2">
               <UIcon name="i-svg-spinners-90-ring-with-bg" class="w-5 h-5" />
               {{ $t('checkout.payment_slip.uploading') }}
@@ -695,6 +717,100 @@ const submitLabel = computed(() => {
           </NuxtLink>
         </form>
       </template>
+
+      <UModal
+        v-model="showCooldownModal"
+        :ui="{
+          overlay: {
+            background: 'bg-black/50 dark:bg-black/70 backdrop-blur-sm',
+          },
+          width: 'w-full sm:max-w-md',
+        }"
+      >
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-bold text-black dark:text-white pr-2">
+              {{ cooldownModalTitle }}
+            </h3>
+            <button
+              type="button"
+              class="p-2 shrink-0 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition"
+              @click="showCooldownModal = false"
+            >
+              <UIcon
+                name="i-heroicons-x-mark"
+                class="w-5 h-5 text-neutral-500 dark:text-neutral-400"
+              />
+            </button>
+          </div>
+          <p class="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed mb-4">
+            {{ cooldownModalBody }}
+          </p>
+          <p
+            class="text-center text-4xl font-mono font-bold text-amber-800 dark:text-amber-200 tabular-nums mb-6"
+          >
+            {{ formatCooldown(cooldownRemainingMs) }}
+          </p>
+          <button
+            type="button"
+            class="w-full py-3 rounded-xl font-semibold text-white bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition"
+            @click="showCooldownModal = false"
+          >
+            {{ $t('checkout.payment_slip.bbl_understood') }}
+          </button>
+        </div>
+      </UModal>
+
+      <UModal
+        v-model="showSlipErrorModal"
+        :ui="{
+          overlay: {
+            background: 'bg-black/50 dark:bg-black/70 backdrop-blur-sm',
+          },
+          width: 'w-full sm:max-w-md',
+        }"
+      >
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-bold text-black dark:text-white">
+              {{ $t('checkout.payment_slip.result_error_title') }}
+            </h3>
+            <button
+              type="button"
+              class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition"
+              @click="closeSlipErrorModal"
+            >
+              <UIcon
+                name="i-heroicons-x-mark"
+                class="w-5 h-5 text-neutral-500 dark:text-neutral-400"
+              />
+            </button>
+          </div>
+          <div class="mb-6">
+            <div
+              class="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-red-100 dark:bg-red-900/30 rounded-full"
+            >
+              <UIcon
+                name="i-heroicons-exclamation-triangle"
+                class="w-8 h-8 text-red-600 dark:text-red-400"
+              />
+            </div>
+            <p class="text-xs text-neutral-600 dark:text-neutral-400 mb-2">
+              {{ $t('checkout.payment_slip.result_error_hint') }}
+            </p>
+            <p class="text-sm text-red-700 dark:text-red-300 leading-relaxed whitespace-pre-wrap">
+              {{ slipErrorModalText }}
+            </p>
+          </div>
+          <button
+            type="button"
+            class="w-full py-3 rounded-xl font-semibold text-white bg-red-600 dark:bg-red-500 hover:bg-red-700 dark:hover:bg-red-600 transition"
+            @click="closeSlipErrorModal"
+          >
+            {{ $t('checkout.payment_slip.bbl_understood') }}
+          </button>
+        </div>
+      </UModal>
     </div>
   </div>
 </template>

@@ -227,14 +227,27 @@ export async function listAllOrdersAdmin() {
   }
 }
 
-/** ผู้ขาย (เจ้าของสินค้าในออเดอร์) เท่านั้นที่อัปเดตไทม์ไลน์จัดส่ง + เลขพัสดุ — แอดมินที่ไม่มีสินค้าในออเดอร์ทำไม่ได้ */
-export async function updateSellerOrderFulfillment(userId, orderId, body) {
+/**
+ * อัปเดตเลขพัสดุ / สถานะจัดส่ง
+ * - ผู้ขาย: ต้องมีสินค้าของตนในออเดอร์นั้น
+ * - แอดมิน: อัปเดตได้ทุกออเดอร์ (รายการ seller-orders ของแอดมินแสดงทั้งระบบ)
+ */
+export async function updateSellerOrderFulfillment(userId, orderId, body, role) {
   const client = await pool.connect();
   try {
     const order = await orderModel.getOrderById(client, orderId);
     if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
-    const ok = await orderModel.orderHasSellerProduct(client, orderId, userId);
-    if (!ok) throw new AppError('Forbidden', 403, 'FORBIDDEN');
+    const isAdmin = role === 'admin';
+    if (!isAdmin) {
+      const ok = await orderModel.orderHasSellerProduct(client, orderId, userId);
+      if (!ok) {
+        throw new AppError(
+          'Only a seller who has products in this order can update fulfillment',
+          403,
+          'FORBIDDEN'
+        );
+      }
+    }
 
     const prevTn = String(order.tracking_number || '').trim();
     const nextTn =

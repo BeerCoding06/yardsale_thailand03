@@ -224,6 +224,7 @@
         "IBANK": "Islamic Bank of Thailand / IBANK",
         "SME": "SME Bank / SME"
       },
+      "cooldown_modal_title": "Please wait before submitting your slip",
       "bbl_modal_title": "Please wait — Bangkok Bank (BBL) slip",
       "bbl_modal_body": "BBL slips often need about 8 minutes before they can be verified. The submit button will unlock automatically when the timer ends.",
       "cooldown_other_banks_hint": "After you transfer, wait about 15 seconds so SlipOK can verify the slip. The submit button unlocks automatically when the timer ends.",
