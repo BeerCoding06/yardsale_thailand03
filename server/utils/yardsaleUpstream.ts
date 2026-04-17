@@ -159,6 +159,11 @@ export function isLikelyNetworkError(err: unknown): boolean {
  * GET/HEAD ไป Express — ใช้ fetch แล้ว return Web Response (H3/Nitro รองรับ)
  * retry เฉพาะเมื่อเป็น network error
  */
+/** 502/503/504 จาก hop กลาง — ลอง upstream ถัดไปได้ (เช่น backend ภายในเพี้ยน แต่ api สาธารณะยังดี) */
+function isRetryableUpstreamHttpStatus(status: number): boolean {
+  return status === 502 || status === 503 || status === 504;
+}
+
 export async function yardsaleFetchFromBases(
   event: H3Event,
   bases: string[],
@@ -171,18 +176,34 @@ export async function yardsaleFetchFromBases(
     ? expressRelPath
     : `/${expressRelPath}`;
   let lastErr: unknown;
-  for (const base of bases) {
+  let lastBadResponse: Response | null = null;
+
+  for (let i = 0; i < bases.length; i++) {
+    const base = bases[i] as string;
+    if (!base) continue;
     const url = `${base.replace(/\/$/, "")}${path}${search}`;
+    const isLast = i === bases.length - 1;
     try {
-      return await fetch(url, {
+      const res = await fetch(url, {
         method,
         headers,
         signal: AbortSignal.timeout(20000),
       });
+      if (
+        res.ok ||
+        !isRetryableUpstreamHttpStatus(res.status) ||
+        isLast
+      ) {
+        return res;
+      }
+      lastBadResponse = res;
+      await res.arrayBuffer().catch(() => {});
     } catch (e) {
       lastErr = e;
       if (!isLikelyNetworkError(e)) throw e;
     }
   }
+
+  if (lastBadResponse) return lastBadResponse;
   throw lastErr;
 }
