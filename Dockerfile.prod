@@ -96,6 +96,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NUXT_HOST=0.0.0.0
 ENV NUXT_PORT=3000
+# Nitro proxy → Express ใน compose (ชื่อ service `backend`)
+ENV NUXT_YARDSALE_PROXY_TARGET=http://backend:4000
 
 # Copy built Nuxt application from builder stage
 COPY --from=builder /app/.output ./.output

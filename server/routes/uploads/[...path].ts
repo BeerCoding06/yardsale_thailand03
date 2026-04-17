@@ -9,6 +9,7 @@ import {
   getRouterParam,
   proxyRequest,
 } from "h3";
+import { useRuntimeConfig } from "#imports";
 
 export default defineEventHandler(async (event) => {
   const param = getRouterParam(event, "path");
@@ -17,8 +18,11 @@ export default defineEventHandler(async (event) => {
       /^\/+/,
       ""
     );
+  const cfg = useRuntimeConfig(event);
   const backend =
-    process.env.NUXT_YARDSALE_PROXY_TARGET || "http://127.0.0.1:4000";
+    String(cfg.yardsaleProxyTarget || "").trim() ||
+    process.env.NUXT_YARDSALE_PROXY_TARGET ||
+    "http://127.0.0.1:4000";
   const base = `${backend.replace(/\/$/, "")}/uploads/${sub}`;
   const reqUrl = getRequestURL(event);
   const url = `${base}${reqUrl.search || ""}`;

@@ -58,6 +58,15 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     baseUrl: process.env.BASE_URL || (process.env.DOCKER_BUILD === 'true' ? "http://localhost:8000" : "http://www.yardsaleth.com"),
+    /**
+     * Server-only: Nitro proxy `/yardsale-api` + `/uploads` → Express
+     * ใน Docker Compose ชื่อ service มักเป็น `backend` — override ได้ด้วย NUXT_YARDSALE_PROXY_TARGET
+     */
+    yardsaleProxyTarget:
+      process.env.NUXT_YARDSALE_PROXY_TARGET ||
+      (process.env.DOCKER_BUILD === "true"
+        ? "http://backend:4000"
+        : "http://127.0.0.1:4000"),
     public: {
       version: pkg.version,
       baseUrl: process.env.BASE_URL || 'https://www.yardsaleth.com',
