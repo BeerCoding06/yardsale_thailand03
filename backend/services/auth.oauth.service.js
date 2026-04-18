@@ -90,7 +90,16 @@ function syntheticEmail(provider, subject) {
 }
 
 /**
- * Find or create user from OAuth profile; link by (provider, subject) or same verified email.
+ * Flow หลัง Google (หรือ FB/LINE) callback ได้ profile (email + sub / provider id):
+ *
+ * 1) หา `user_oauth_identities` จาก (provider, provider_user_id) (= sub)
+ *    → ถ้าเจอ → โหลด `users` นั้น → ออก JWT (login สำเร็จ)
+ * 2) ถ้าไม่เจอ identity และมี email จาก provider → หา `users` ด้วย email
+ *    → ถ้าเจอ → `upsertIdentity` (link) → patch ชื่อ/รูปถ้าขาด → ออก JWT
+ * 3) ถ้าไม่เจอทั้งคู่ (หรือไม่มี email จาก Google ก็ข้ามข้อ 2) → `createUser` (password_hash = null)
+ *    แล้ว `upsertIdentity` → ออก JWT
+ *
+ * ชื่อตารางใน DB: `user_oauth_identities` (บทบาทเดียวกับ oauth_accounts ที่มักเรียกในเอกสาร)
  */
 export async function findOrCreateOAuthUser({ provider, providerUserId, email, name, avatar }) {
   const client = await pool.connect();

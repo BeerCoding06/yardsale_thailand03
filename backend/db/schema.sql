@@ -31,7 +31,8 @@ END $$;
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
+  /* OAuth / social: ไม่มีรหัสผ่าน — ต้อง NULL ได้; ล็อกอินอีเมลตรวจใน auth.service */
+  password_hash TEXT,
   name TEXT NOT NULL DEFAULT '',
   role user_role NOT NULL DEFAULT 'user',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -48,6 +49,17 @@ BEGIN
       ADD COLUMN account_status user_account_status NOT NULL DEFAULT 'public';
   END IF;
 END $ensure_user_account_status$;
+
+/* ฐานเก่า: password_hash เคยเป็น NOT NULL — ต้องยกเลิกเพื่อรองรับ OAuth */
+DO $ensure_password_hash_nullable$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'password_hash' AND is_nullable = 'NO'
+  ) THEN
+    ALTER TABLE public.users ALTER COLUMN password_hash DROP NOT NULL;
+  END IF;
+END $ensure_password_hash_nullable$;
 
 CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -282,17 +294,7 @@ CREATE TABLE IF NOT EXISTS fcm_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user_id ON fcm_tokens (user_id);
 
-/* OAuth / social login — รันซ้ำได้ */
-DO $oauth_pw_null$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'password_hash' AND is_nullable = 'NO'
-  ) THEN
-    ALTER TABLE public.users ALTER COLUMN password_hash DROP NOT NULL;
-  END IF;
-END $oauth_pw_null$;
-
+/* OAuth / social login — รันซ้ำได้ (password_hash nullable จัดแล้วด้านบน) */
 DO $oauth_avatar$
 BEGIN
   IF NOT EXISTS (

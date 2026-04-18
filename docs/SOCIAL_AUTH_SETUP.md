@@ -12,7 +12,16 @@ npm install
 npm run db:schema
 ```
 
-ถ้าไม่รัน `db:schema` บน Postgres ที่ production ใช้จริง หลังล็อกอิน Google จะล้มด้วยข้อความประมาณ `relation "user_oauth_identities" does not exist` และ redirect กลับมาที่ `/auth/callback?error=oauth_failed&...`
+ถ้า DB เดิมมีอยู่แล้วและอยากเติมเฉพาะ OAuth (ตาราง `user_oauth_identities` + คอลัมน์ `users` ที่เกี่ยวข้อง):
+
+```bash
+cd backend
+npm run db:oauth
+```
+
+(`DATABASE_URL` ต้องชี้ Postgres **เดียวกับที่ backend ใช้** — บน Dokploy อาจรันจากเครื่อง local ที่มี URL ภายนอก หรือ `docker compose exec backend sh -lc 'cd /app && npm run db:oauth'` ถ้า mount โปรเจกต์และมี `DATABASE_URL` ใน container)
+
+ถ้าไม่รันคำสั่งเหล่านี้บน Postgres ที่ production ใช้จริง หลังล็อกอิน Google จะล้มด้วยข้อความประมาณ `relation "user_oauth_identities" does not exist` และ redirect กลับมาที่ `/auth/callback?error=oauth_failed&...`
 
 ## 2. Environment (backend)
 
