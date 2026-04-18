@@ -573,6 +573,7 @@
     "user_info": "User Information",
     "user_profile": "User Profile",
     "username": "Username",
+    "oauth_display_name": "Navn",
     "full_name": "Full Name",
     "role": "Role",
     "select_image": "Please select an image file (JPEG, PNG, GIF, WebP)",

@@ -13,6 +13,38 @@ const showContent = computed(
   () => isClient.value && isAuthenticated.value && user.value
 );
 
+/** ล็อกอิน Google / Facebook / LINE — แสดงชื่อจาก provider และอีเมลจริงเท่านั้น (ไม่โชว์ *.oauth.local) */
+const isOAuthProfile = computed(() => {
+  const ap = String(user.value?.auth_provider || "email").toLowerCase();
+  return ap !== "email" && ap !== "";
+});
+
+function isSyntheticOAuthEmail(email) {
+  const e = String(email || "").trim();
+  return !e || /\.oauth\.local$/i.test(e);
+}
+
+const profileReadonlyDisplayName = computed(() => {
+  const u = user.value;
+  if (!u) return "-";
+  if (!isOAuthProfile.value) {
+    return String(u.username || u.name || "").trim() || "-";
+  }
+  const n = String(u.name || u.display_name || "").trim();
+  if (n) return n;
+  const fn = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
+  return fn || "-";
+});
+
+const profileReadonlyEmail = computed(() => {
+  const u = user.value;
+  if (!u) return "-";
+  const raw = String(u.email || "").trim();
+  if (!raw) return "-";
+  if (isOAuthProfile.value && isSyntheticOAuthEmail(raw)) return "-";
+  return raw;
+});
+
 // Profile editing states
 const isEditingProfile = ref(false);
 const profileForm = ref({
@@ -444,10 +476,14 @@ const updateProfile = async () => {
                     <p
                       class="text-sm text-neutral-500 dark:text-neutral-400 mb-1 truncate"
                     >
-                      {{ $t("profile.username") }}
+                      {{
+                        isOAuthProfile
+                          ? $t("profile.oauth_display_name")
+                          : $t("profile.username")
+                      }}
                     </p>
                     <p class="font-medium text-black dark:text-white truncate">
-                      {{ user.username }}
+                      {{ profileReadonlyDisplayName }}
                     </p>
                   </div>
                   <div>
@@ -457,10 +493,12 @@ const updateProfile = async () => {
                       {{ $t("profile.email") }}
                     </p>
                     <p class="font-medium text-black dark:text-white truncate">
-                      {{ user.email }}
+                      {{ profileReadonlyEmail }}
                     </p>
                   </div>
-                  <div v-if="user.first_name || user.last_name">
+                  <div
+                    v-if="!isOAuthProfile && (user.first_name || user.last_name)"
+                  >
                     <p
                       class="text-sm text-neutral-500 dark:text-neutral-400 mb-1"
                     >

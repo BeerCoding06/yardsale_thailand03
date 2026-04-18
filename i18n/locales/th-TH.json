@@ -591,6 +591,7 @@
     "user_info": "ข้อมูลผู้ใช้",
     "user_profile": "โปรไฟล์ผู้ใช้",
     "username": "ชื่อผู้ใช้",
+    "oauth_display_name": "ชื่อ",
     "full_name": "ชื่อ-นามสกุล",
     "role": "บทบาท",
     "select_image": "กรุณาเลือกไฟล์รูปภาพ (JPEG, PNG, GIF, WebP)",
