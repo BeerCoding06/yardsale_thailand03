@@ -27,7 +27,7 @@ const isRow = computed(() => {
 <template>
   <div
     v-if="isRow"
-    class="flex flex-wrap items-center justify-center gap-2 sm:justify-end hidden"
+    class="flex flex-wrap items-center justify-center gap-2 sm:justify-end hidden opacity-[0]"
     role="group"
     aria-label="เข้าสู่ระบบด้วย Google Facebook LINE"
   >
