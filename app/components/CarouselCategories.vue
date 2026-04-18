@@ -155,7 +155,7 @@ const reloadCategories = async () => {
         </button>
       </div>
       <div class="slider-wrapper mt-[40px] flex-1 min-h-0">
-        <div class="cards-slider flex flex-col">
+        <div class="cards-slider flex flex-col pb-[100px]">
           <!-- Reload button when no categories -->
           <div
             v-if="!categoriesList || categoriesList.length === 0"
@@ -182,7 +182,7 @@ const reloadCategories = async () => {
                 : 'bg-[#efefef] hover:bg-[#e2e2e2] dark:bg-[#262626] hover:dark:bg-[#333] text-black dark:text-white',
             ]"
           >
-            <div class="px-3.5">{{ $t("filter.all_categories") }}</div>
+            <div class="px-3.5 h-[40px] flex items-center justify-start">{{ $t("filter.all_categories") }}</div>
           </div>
           <div
             v-for="(category, i) in categoriesList"
