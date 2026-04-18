@@ -62,7 +62,7 @@ Frontend (optional):
 
 1. [Meta for Developers](https://developers.facebook.com/) → Create app → Facebook Login → Settings.
 2. **Valid OAuth Redirect URIs**: `{OAUTH_CALLBACK_BASE}/auth/facebook/callback`.
-3. Add permissions: `email`, `public_profile`.
+3. Login ขอ scope **`public_profile`** และ **`email`** (ห้ามขอแค่ `email` — Meta แจ้ง Invalid Scopes).
 
 ### LINE
 

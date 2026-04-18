@@ -96,7 +96,8 @@ router.get('/facebook', (req, res, next) => {
     return sendError(res, 'Facebook OAuth not configured', 501, 'NOT_CONFIGURED');
   }
   passport.authenticate('facebook', {
-    scope: ['email'],
+    /* ห้ามขอแค่ email — Meta จะขึ้น Invalid Scopes; ต้องมี public_profile */
+    scope: ['public_profile', 'email'],
     session: false,
   })(req, res, next);
 });
