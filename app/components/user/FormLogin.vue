@@ -228,15 +228,7 @@ const handleSubmit = async (e) => {
           <div
             class="flex flex-wrap items-center justify-center gap-2 sm:justify-end"
           >
-            <ClientOnly>
-              <SocialLoginButtons inline />
-              <template #fallback>
-                <div
-                  class="h-10 w-48 max-w-full rounded-xl bg-neutral-200/60 dark:bg-neutral-700/50 animate-pulse"
-                  aria-hidden="true"
-                />
-              </template>
-            </ClientOnly>
+            <SocialLoginButtons inline />
             <button
               type="submit"
               :disabled="isSubmitting"

@@ -1,131 +1,108 @@
 <script setup lang="ts">
+/**
+ * ปุ่ม Google / Facebook / LINE
+ * - ใช้ <button> แทน UButton ในโหมด inline กันปุ่มหาย (สีขาวกลืนพื้นหลัง / ClientOnly)
+ * - `inline` หรือ `inline=""` ใน HTML ให้ถือว่าเป็นโหมดแถวเดียว
+ */
 const props = withDefaults(
   defineProps<{
-    /** true = ปุ่มเล็กเรียงแนวนอน วางข้างปุ่มเข้าสู่ระบบ */
-    inline?: boolean;
+    inline?: boolean | string;
+    /** โหมดการ์ดใหญ่ (ถ้าไม่ใช้ inline) */
+    variant?: "inline" | "card";
   }>(),
-  { inline: false }
+  { variant: "inline" }
 );
 
 const { startGoogle, startFacebook, startLine } = useOAuthLogin();
+
+const isRow = computed(() => {
+  if (props.variant === "card") return false;
+  const v = props.inline as unknown;
+  if (v === false || v === "false" || v === 0) return false;
+  // true, '', หรือไม่ส่ง (undefined) → แถวเดียวเป็นค่าเริ่ม
+  if (v === true || v === "" || v === "true" || v == null) return true;
+  return Boolean(v);
+});
 </script>
 
 <template>
-  <!-- แบบ inline: แถวเดียวกับปุ่มเข้าสู่ระบบ -->
+  <!-- แถวเดียว: ปุ่มชัด มองเห็นเสมอ -->
   <div
-    v-if="props.inline"
-    class="flex flex-wrap items-center justify-end gap-2"
+    v-if="isRow"
+    class="flex flex-wrap items-center justify-center gap-2 sm:justify-end"
     role="group"
-    aria-label="เข้าสู่ระบบด้วยโซเชียล"
+    aria-label="เข้าสู่ระบบด้วย Google Facebook LINE"
   >
-    <UButton
+    <button
       type="button"
-      color="white"
-      variant="solid"
-      size="md"
-      class="shrink-0 ring-1 ring-neutral-200 dark:ring-neutral-600 px-3"
+      class="inline-flex items-center gap-2 rounded-xl border-2 border-neutral-300 bg-white px-3 py-2.5 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800"
       @click="startGoogle"
     >
-      <span class="flex items-center gap-1.5">
-        <span
-          class="flex h-7 w-7 items-center justify-center rounded text-sm font-bold text-[#4285F4] bg-white ring-1 ring-neutral-200"
-          aria-hidden="true"
-          >G</span
-        >
-        <span class="text-xs sm:text-sm font-semibold">Google</span>
-      </span>
-    </UButton>
-    <UButton
+      <span
+        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white text-sm font-bold text-[#4285F4] ring-1 ring-neutral-300 dark:ring-neutral-600"
+        aria-hidden="true"
+        >G</span
+      >
+      Google
+    </button>
+    <button
       type="button"
-      color="blue"
-      variant="solid"
-      size="md"
-      class="shrink-0 px-3"
+      class="inline-flex items-center gap-2 rounded-xl border-2 border-transparent bg-[#1877F2] px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#166fe5]"
       @click="startFacebook"
     >
-      <span class="flex items-center gap-1.5">
-        <UIcon name="i-heroicons-user-group-20-solid" class="h-5 w-5" />
-        <span class="text-xs sm:text-sm font-semibold">Facebook</span>
-      </span>
-    </UButton>
-    <UButton
+      <UIcon name="i-heroicons-user-group-20-solid" class="h-5 w-5 shrink-0 opacity-95" />
+      Facebook
+    </button>
+    <button
       type="button"
-      color="green"
-      variant="solid"
-      size="md"
-      class="shrink-0 px-3"
+      class="inline-flex items-center gap-2 rounded-xl border-2 border-transparent bg-[#06C755] px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#05b34c]"
       @click="startLine"
     >
-      <span class="flex items-center gap-1.5">
-        <UIcon name="i-heroicons-chat-bubble-left-right-20-solid" class="h-5 w-5" />
-        <span class="text-xs sm:text-sm font-semibold">LINE</span>
-      </span>
-    </UButton>
+      <UIcon
+        name="i-heroicons-chat-bubble-left-right-20-solid"
+        class="h-5 w-5 shrink-0 opacity-95"
+      />
+      LINE
+    </button>
   </div>
 
-  <!-- แบบการ์ด (หน้าอื่นที่ต้องการใช้แยก) -->
   <div
     v-else
     class="rounded-2xl border-2 border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-black/20 p-6 shadow-lg"
   >
     <p
-      class="text-center text-sm font-medium text-neutral-600 dark:text-neutral-300 mb-4"
+      class="mb-4 text-center text-sm font-medium text-neutral-600 dark:text-neutral-300"
     >
       เข้าสู่ระบบด้วยบัญชีโซเชียล
     </p>
-    <div class="flex flex-col gap-3 sm:flex-row sm:justify-center sm:flex-wrap">
-      <UButton
+    <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
+      <button
         type="button"
-        color="white"
-        variant="solid"
-        size="lg"
-        class="ring-1 ring-neutral-200 dark:ring-neutral-600 justify-center min-h-[3rem] font-semibold"
-        block
+        class="inline-flex min-h-[3rem] w-full items-center justify-center gap-2 rounded-xl border-2 border-neutral-300 bg-white px-4 py-3 font-semibold text-neutral-900 hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800 sm:flex-1"
         @click="startGoogle"
       >
-        <span class="flex items-center justify-center gap-2 w-full">
-          <span
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-lg font-bold text-[#4285F4] ring-1 ring-neutral-200"
-            aria-hidden="true"
-            >G</span
-          >
-          <span>Google</span>
-        </span>
-      </UButton>
-      <UButton
+        <span
+          class="flex h-9 w-9 items-center justify-center rounded-lg text-lg font-bold text-[#4285F4] ring-1 ring-neutral-300"
+          >G</span
+        >
+        Google
+      </button>
+      <button
         type="button"
-        color="blue"
-        variant="solid"
-        size="lg"
-        class="justify-center min-h-[3rem] font-semibold"
-        block
+        class="inline-flex min-h-[3rem] w-full flex-1 items-center justify-center gap-2 rounded-xl bg-[#1877F2] px-4 py-3 font-semibold text-white hover:bg-[#166fe5]"
         @click="startFacebook"
       >
-        <span class="flex items-center justify-center gap-2 w-full">
-          <UIcon
-            name="i-heroicons-user-group-20-solid"
-            class="h-6 w-6 shrink-0 opacity-90"
-          />
-          <span>Facebook</span>
-        </span>
-      </UButton>
-      <UButton
+        <UIcon name="i-heroicons-user-group-20-solid" class="h-6 w-6" />
+        Facebook
+      </button>
+      <button
         type="button"
-        color="green"
-        variant="solid"
-        size="lg"
-        class="justify-center min-h-[3rem] font-semibold"
-        block
+        class="inline-flex min-h-[3rem] w-full flex-1 items-center justify-center gap-2 rounded-xl bg-[#06C755] px-4 py-3 font-semibold text-white hover:bg-[#05b34c]"
         @click="startLine"
       >
-        <span class="flex items-center justify-center gap-2 w-full">
-          <UIcon
-            name="i-heroicons-chat-bubble-left-right-20-solid"
-            class="h-6 w-6 shrink-0 opacity-90"
-          />
-          <span>LINE</span>
-        </span>
-      </UButton>
+        <UIcon name="i-heroicons-chat-bubble-left-right-20-solid" class="h-6 w-6" />
+        LINE
+      </button>
     </div>
   </div>
 </template>
