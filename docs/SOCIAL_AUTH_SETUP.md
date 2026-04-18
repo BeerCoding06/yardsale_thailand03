@@ -91,7 +91,7 @@ Existing JSON API remains under **`/api/*`** (e.g. `/api/login`, `/api/me`).
 
 - **Same provider + subject**: one row in `user_oauth_identities`; user is found by `(provider, provider_user_id)`.
 - **Same email** as an existing email/password user: the next OAuth sign-in **links** a new row in `user_oauth_identities` to that user (no duplicate email).
-- **LINE without email**: a stable synthetic email `line_{userId}@line.oauth.local` is used until an email is available from the ID token.
+- **LINE without email**: a short stable synthetic email `line.{base64url-hash}@line.oauth.local` (hash of `line:userId`) until an email is available from the ID token; display name defaults to `LINE` if LINE does not send `displayName`.
 
 ## 6. Refresh and logout
 

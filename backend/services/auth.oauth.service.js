@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/index.js';
 import { AppError } from '../utils/AppError.js';
@@ -84,9 +85,25 @@ export async function issueAccessAndRefreshForRow(row) {
   };
 }
 
+/** อีเมลภายในที่ไม่ชนกัน สั้นลง (LINE userId ยาวมากเดิมทำให้ชื่อ/อีเมลใน UI ยาวเกิน) */
 function syntheticEmail(provider, subject) {
-  const s = String(subject).replace(/[^a-zA-Z0-9._+-]/g, '_').slice(0, 120);
-  return `${provider}_${s}@${provider}.oauth.local`;
+  const p = String(provider || 'oauth')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '') || 'oauth';
+  const raw = `${p}:${String(subject).trim()}`;
+  const tag = createHash('sha256').update(raw).digest('base64url').slice(0, 20);
+  return `${p}.${tag}@${p}.oauth.local`;
+}
+
+function displayNameForNewOAuthUser(provider, name, resolvedEmail) {
+  const n = name && String(name).trim();
+  if (n) return n;
+  if (provider === 'line') return 'LINE';
+  if (provider === 'google') return 'Google';
+  if (provider === 'facebook') return 'Facebook';
+  const local = (resolvedEmail.split('@')[0] || '').trim();
+  if (local && local.length <= 32) return local;
+  return 'User';
 }
 
 /**
@@ -134,7 +151,7 @@ export async function findOrCreateOAuthUser({ provider, providerUserId, email, n
         row = await userModel.createUser(client, {
           email: resolvedEmail,
           passwordHash: null,
-          name: (name && String(name).trim()) || resolvedEmail.split('@')[0] || 'User',
+          name: displayNameForNewOAuthUser(provider, name, resolvedEmail),
           role: 'user',
           accountStatus: 'public',
           authProvider: provider,
