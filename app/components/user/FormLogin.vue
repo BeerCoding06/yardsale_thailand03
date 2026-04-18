@@ -1,5 +1,7 @@
 <!--app/components/user/FormLogin.vue-->
 <script setup>
+import SocialLoginButtons from "./SocialLoginButtons.vue";
+
 const form = ref({
   username: "",
   password: "",
