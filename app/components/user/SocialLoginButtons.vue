@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import OAuthBrandIcon from "./OAuthBrandIcon.vue";
+
 /**
  * ปุ่ม Google / Facebook / LINE — ไม่ใช้ UIcon/UButton กันคอมโพเนนต์ล้มแล้วหน้าว่าง
  * `inline=""` หรือไม่ส่ง prop → โหมดแถว
@@ -34,11 +36,7 @@ const isRow = computed(() => {
       class="inline-flex items-center gap-2 rounded-xl border-2 border-neutral-300 bg-white px-3 py-2.5 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800"
       @click="startGoogle"
     >
-      <span
-        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white text-sm font-bold text-[#4285F4] ring-1 ring-neutral-300 dark:ring-neutral-600"
-        aria-hidden="true"
-        >G</span
-      >
+      <OAuthBrandIcon provider="gmail" size-class="h-6 w-6" />
       Google
     </button>
     <button
@@ -46,11 +44,9 @@ const isRow = computed(() => {
       class="inline-flex items-center gap-2 rounded-xl border-2 border-transparent bg-[#1877F2] px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#166fe5]"
       @click="startFacebook"
     >
-      <span
-        class="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-white text-[10px] font-black leading-none text-[#1877F2]"
-        aria-hidden="true"
-        >f</span
-      >
+      <span class="text-white">
+        <OAuthBrandIcon provider="facebook" size-class="h-6 w-6" />
+      </span>
       Facebook
     </button>
     <button
@@ -58,11 +54,9 @@ const isRow = computed(() => {
       class="inline-flex items-center gap-2 rounded-xl border-2 border-transparent bg-[#06C755] px-3 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#05b34c]"
       @click="startLine"
     >
-      <span
-        class="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-white/40 text-[10px] font-bold leading-none text-white"
-        aria-hidden="true"
-        >L</span
-      >
+      <span class="text-white">
+        <OAuthBrandIcon provider="line" size-class="h-6 w-6" />
+      </span>
       LINE
     </button>
   </div>
@@ -80,11 +74,7 @@ const isRow = computed(() => {
         class="inline-flex min-h-[3rem] w-full items-center justify-center gap-2 rounded-xl border-2 border-neutral-300 bg-white px-4 py-3 font-semibold text-neutral-900 hover:bg-neutral-50 dark:border-neutral-600 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800 sm:flex-1"
         @click="startGoogle"
       >
-        <span
-          class="flex h-9 w-9 items-center justify-center rounded-lg text-lg font-bold text-[#4285F4] ring-1 ring-neutral-300"
-          aria-hidden="true"
-          >G</span
-        >
+        <OAuthBrandIcon provider="gmail" size-class="h-8 w-8" />
         Google
       </button>
       <button
@@ -92,11 +82,9 @@ const isRow = computed(() => {
         class="inline-flex min-h-[3rem] w-full flex-1 items-center justify-center gap-2 rounded-xl bg-[#1877F2] px-4 py-3 font-semibold text-white hover:bg-[#166fe5]"
         @click="startFacebook"
       >
-        <span
-          class="flex h-6 w-6 items-center justify-center rounded-sm bg-white text-xs font-black text-[#1877F2]"
-          aria-hidden="true"
-          >f</span
-        >
+        <span class="text-white">
+          <OAuthBrandIcon provider="facebook" size-class="h-8 w-8" />
+        </span>
         Facebook
       </button>
       <button
@@ -104,11 +92,9 @@ const isRow = computed(() => {
         class="inline-flex min-h-[3rem] w-full flex-1 items-center justify-center gap-2 rounded-xl bg-[#06C755] px-4 py-3 font-semibold text-white hover:bg-[#05b34c]"
         @click="startLine"
       >
-        <span
-          class="flex h-6 w-6 items-center justify-center rounded-sm border border-white/40 text-xs font-bold text-white"
-          aria-hidden="true"
-          >L</span
-        >
+        <span class="text-white">
+          <OAuthBrandIcon provider="line" size-class="h-8 w-8" />
+        </span>
         LINE
       </button>
     </div>
