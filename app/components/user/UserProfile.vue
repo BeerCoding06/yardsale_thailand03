@@ -66,20 +66,25 @@ const loadProfilePicture = async () => {
   // For now, we'll use placeholder
 };
 
-// Watch for user changes
+// Sync ฟอร์มจาก user เมื่อไม่ได้อยู่โหมดแก้ไข — กันรีเซ็ตระหว่างพิมพ์ (เช่น checkAuth / fetchUser แทนที่ object)
 watch(
   user,
   (newUser) => {
-    if (newUser) {
+    if (!newUser) return;
+    if (newUser.profile_picture_url) {
+      profilePicturePreview.value = newUser.profile_picture_url;
+    }
+    if (!isEditingProfile.value) {
       loadProfileData();
-      // Update profile picture preview when user changes
-      if (newUser.profile_picture_url) {
-        profilePicturePreview.value = newUser.profile_picture_url;
-      }
     }
   },
   { deep: true, immediate: true }
 );
+
+function cancelEditProfile() {
+  isEditingProfile.value = false;
+  loadProfileData();
+}
 
 // Handle profile picture selection
 const handleProfilePictureSelect = async (event) => {
@@ -205,19 +210,18 @@ const updateProfile = async () => {
       message.value = { type: "success", text: t("profile.profile_updated") };
       isEditingProfile.value = false;
 
-      // Update user in localStorage
-      if (import.meta.client && user.value && response.user) {
-        const updatedUser = {
-          ...user.value,
-          ...response.user,
-        };
-        localStorage.setItem("user", JSON.stringify(updatedUser));
+      if (import.meta.client && user.value) {
+        if (response.user && typeof response.user === "object") {
+          const updatedUser = {
+            ...user.value,
+            ...response.user,
+          };
+          localStorage.setItem("user", JSON.stringify(updatedUser));
+        }
       }
 
-      // Reload auth to get updated user data from server
       await checkAuth();
-
-      // Reload profile form with updated data
+      await fetchUser();
       await nextTick();
       loadProfileData();
     }
@@ -413,6 +417,7 @@ const updateProfile = async () => {
                   </div>
                   <div class="flex gap-2">
                     <button
+                      type="button"
                       @click="updateProfile"
                       :disabled="isLoading"
                       class="px-6 py-2 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg disabled:opacity-50"
@@ -420,7 +425,8 @@ const updateProfile = async () => {
                       {{ isLoading ? $t("profile.saving") : $t("profile.save_changes") }}
                     </button>
                     <button
-                      @click="isEditingProfile = false"
+                      type="button"
+                      @click="cancelEditProfile"
                       :disabled="isLoading"
                       class="px-6 py-2 bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white rounded-xl font-semibold hover:bg-neutral-300 dark:hover:bg-neutral-700 transition disabled:opacity-50"
                     >
@@ -484,6 +490,7 @@ const updateProfile = async () => {
                   </div>
                   <div class="md:col-span-2">
                     <button
+                      type="button"
                       @click="isEditingProfile = true"
                       class="px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg flex items-center gap-2"
                     >

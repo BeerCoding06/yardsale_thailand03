@@ -833,7 +833,51 @@ export default defineNuxtPlugin(() => {
     }
     if (p === "/api/cancel-order") return { success: true };
     if (p === "/api/upload-image") return { success: true, image: { sourceUrl: "https://picsum.photos/seed/upload/800/1066" } };
-    if (p === "/api/upload-profile-picture" || p === "/api/update-profile") return { success: true };
+    if (p === "/api/update-profile" && (opts?.method === "POST" || opts?.method === "post")) {
+      try {
+        const raw = typeof localStorage !== "undefined" ? localStorage.getItem("user") : null;
+        const cur = raw ? (JSON.parse(raw) as AnyObj) : {};
+        const display = String(body?.display_name ?? "").trim();
+        const updated: AnyObj = {
+          ...cur,
+          first_name: body?.first_name != null ? String(body.first_name) : cur.first_name,
+          last_name: body?.last_name != null ? String(body.last_name) : cur.last_name,
+        };
+        if (display) {
+          updated.name = display;
+          updated.display_name = display;
+        }
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem("user", JSON.stringify(updated));
+        }
+        return { success: true, user: updated };
+      } catch {
+        return { success: true, user: {} };
+      }
+    }
+    if (p === "/api/upload-profile-picture" && (opts?.method === "POST" || opts?.method === "post")) {
+      try {
+        const raw = typeof localStorage !== "undefined" ? localStorage.getItem("user") : null;
+        const cur = raw ? (JSON.parse(raw) as AnyObj) : {};
+        const imageUrl = `https://picsum.photos/seed/profile-${Date.now()}/200/200`;
+        const attachmentId = `mock-att-${Date.now()}`;
+        const updated: AnyObj = {
+          ...cur,
+          profile_picture_url: imageUrl,
+          profile_picture_id: attachmentId,
+        };
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem("user", JSON.stringify(updated));
+        }
+        return { success: true, image_url: imageUrl, attachment_id: attachmentId };
+      } catch {
+        return {
+          success: true,
+          image_url: "https://picsum.photos/seed/profile/200/200",
+          attachment_id: "mock-att",
+        };
+      }
+    }
 
     return {};
   }) as typeof globalThis.$fetch;
