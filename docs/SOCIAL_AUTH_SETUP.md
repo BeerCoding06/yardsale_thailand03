@@ -14,6 +14,8 @@ npm run db:schema
 
 ## 2. Environment (backend)
 
+**สำคัญ (Dokploy / Docker):** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `OAUTH_*` ต้องอยู่ที่ **service ที่รัน Express (backend / `yardsale-api`)** เท่านั้น ไม่ใช่แค่ Nuxt frontend — ถ้าใส่เฉพาะในแอป Nuxt จะได้ `NOT_CONFIGURED` เสมอ
+
 Copy `backend/.env.example` and set at minimum:
 
 | Variable | Purpose |
@@ -21,7 +23,7 @@ Copy `backend/.env.example` and set at minimum:
 | `JWT_SECRET` | Signs access JWT (existing API). |
 | `JWT_REFRESH_SECRET` | Signs refresh JWT (defaults to `JWT_SECRET` if unset). |
 | `SESSION_SECRET` | Express session cookie for LINE `state` (defaults to `JWT_SECRET`). |
-| `OAUTH_CALLBACK_BASE` | **Public base URL of the API** as registered in each provider (no trailing slash), e.g. `https://api.example.com` or `http://localhost:3000` if you proxy `/auth` through Nuxt. |
+| `OAUTH_CALLBACK_BASE` | **Origin ของ URL ที่ Google จะ redirect กลับมา** (ไม่มี `/` ท้าย) เช่น `https://www.yardsaleth.com` หรือ `http://localhost:3000` ถ้า proxy `/auth` ผ่าน Nuxt — ระบบจะต่อ path เป็น `{base}/auth/google/callback` ให้เอง ถ้าคุณใส่ลงท้ายด้วย `/auth` โค้ดจะ **ตัด `/auth` ท้ายออกอัตโนมัติ** กันซ้ำเป็น `/auth/auth/...` |
 | `OAUTH_FRONTEND_SUCCESS_URL` | Where users land after OAuth, e.g. `https://www.example.com/auth/callback` or `http://localhost:3000/auth/callback`. |
 | `OAUTH_FRONTEND_FAILURE_URL` | Optional; same as success URL if omitted. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud OAuth 2.0 Web client. |

@@ -82,3 +82,11 @@ export function oauthFacebookConfigured() {
 export function oauthLineConfigured() {
   return !!(config.oauth.line.channelId && config.oauth.line.channelSecret);
 }
+
+const _gId = (process.env.GOOGLE_CLIENT_ID || '').trim();
+const _gSec = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
+if ((!_gId || !_gSec) && (_gId || _gSec)) {
+  console.warn(
+    '[oauth] Google: ตั้งค่าไม่ครบ — ต้องมีทั้ง GOOGLE_CLIENT_ID และ GOOGLE_CLIENT_SECRET ใน **process ของ Express (backend)** แล้ว restart'
+  );
+}

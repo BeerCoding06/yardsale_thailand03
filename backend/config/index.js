@@ -9,6 +9,17 @@ function envFlag(name) {
   return v === '1' || v === 'true' || v === 'yes';
 }
 
+/** ต้นทาง public ของเว็บ (ไม่มี path /auth) — โค้ดต่อท้ายเป็น /auth/google/callback เอง */
+function normalizeOAuthCallbackBase(raw) {
+  let s = String(raw || '')
+    .trim()
+    .replace(/\/+$/, '');
+  if (s.endsWith('/auth')) {
+    s = s.slice(0, -'/auth'.length).replace(/\/+$/, '');
+  }
+  return s;
+}
+
 export const config = {
   port: Number(process.env.PORT) || 4000,
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -58,7 +69,7 @@ export const config = {
   /** Google / Facebook / LINE OAuth — ดู docs/SOCIAL_AUTH_SETUP.md */
   oauth: {
     callbackBase: (() => {
-      const raw = (process.env.OAUTH_CALLBACK_BASE || '').trim().replace(/\/$/, '');
+      const raw = normalizeOAuthCallbackBase(process.env.OAUTH_CALLBACK_BASE || '');
       if (raw) return raw;
       const port = Number(process.env.PORT) || 4000;
       return `http://127.0.0.1:${port}`;
