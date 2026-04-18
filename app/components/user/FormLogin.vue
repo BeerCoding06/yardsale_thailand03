@@ -218,33 +218,44 @@ const handleSubmit = async (e) => {
           {{ message && message.text }}
         </div>
 
-        <div
-          class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
-        >
+        <div class="flex flex-col gap-4">
           <NuxtLink
             to="/register-user"
-            class="text-sm text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white underline whitespace-nowrap"
+            class="text-sm text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white underline whitespace-nowrap self-start"
           >
             ยังไม่มีบัญชี? สมัครสมาชิก
           </NuxtLink>
-          <button
-            type="submit"
-            :disabled="isSubmitting"
-            class="w-full sm:w-auto px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shadow-lg hover:shadow-xl"
+          <div
+            class="flex flex-wrap items-center justify-center gap-2 sm:justify-end"
           >
-            <span v-if="!isSubmitting">เข้าสู่ระบบ</span>
-            <span
-              v-else
-              class="d-flex align-items-center gap-2 justify-content-center"
+            <ClientOnly>
+              <SocialLoginButtons inline />
+              <template #fallback>
+                <div
+                  class="h-10 w-48 max-w-full rounded-xl bg-neutral-200/60 dark:bg-neutral-700/50 animate-pulse"
+                  aria-hidden="true"
+                />
+              </template>
+            </ClientOnly>
+            <button
+              type="submit"
+              :disabled="isSubmitting"
+              class="w-full min-w-[10rem] sm:w-auto shrink-0 px-6 py-3 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shadow-lg hover:shadow-xl"
             >
-              <UIcon
-                name="i-svg-spinners-90-ring-with-bg"
-                class="me-2"
-                style="width: 1.25rem; height: 1.25rem"
-              />
-              กำลังเข้าสู่ระบบ...
-            </span>
-          </button>
+              <span v-if="!isSubmitting">เข้าสู่ระบบ</span>
+              <span
+                v-else
+                class="d-flex align-items-center gap-2 justify-content-center"
+              >
+                <UIcon
+                  name="i-svg-spinners-90-ring-with-bg"
+                  class="me-2"
+                  style="width: 1.25rem; height: 1.25rem"
+                />
+                กำลังเข้าสู่ระบบ...
+              </span>
+            </button>
+          </div>
         </div>
       </form>
     </div>
