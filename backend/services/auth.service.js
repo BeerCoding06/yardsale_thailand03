@@ -49,6 +49,13 @@ export async function login({ login, password }) {
     if (user.account_status === 'block' || user.account_status === 'pending') {
       throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
     }
+    if (user.password_hash == null || String(user.password_hash).trim() === '') {
+      throw new AppError(
+        'This account uses social login. Sign in with Google, Facebook, or LINE.',
+        401,
+        'OAUTH_ONLY_ACCOUNT'
+      );
+    }
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) {
       throw new AppError('Invalid credentials', 401, 'INVALID_CREDENTIALS');
@@ -66,6 +73,8 @@ export async function login({ login, password }) {
         name: user.name,
         role: user.role,
         username: user.email,
+        avatar: user.avatar ?? null,
+        auth_provider: user.auth_provider ?? 'email',
       },
     };
   } finally {
@@ -111,6 +120,8 @@ export async function createUser(
         role: row.role,
         username: row.email,
         account_status: row.account_status,
+        avatar: row.avatar ?? null,
+        auth_provider: row.auth_provider ?? 'email',
       },
     };
   } finally {
@@ -134,6 +145,8 @@ export async function getMe(userId) {
         role: user.role,
         username: user.email,
         account_status: user.account_status,
+        avatar: user.avatar ?? null,
+        auth_provider: user.auth_provider ?? 'email',
       },
     };
   } finally {

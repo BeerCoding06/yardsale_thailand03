@@ -203,6 +203,8 @@ const handleSubmit = async (e) => {
                 >จดจำการเข้าสู่ระบบ</span
               >
             </div>
+
+            <SocialLoginButtons />
           </div>
         </div>
 

@@ -98,6 +98,11 @@ export default defineNuxtConfig({
        */
       promptpayQrIncludeAmount:
         process.env.NUXT_PUBLIC_PROMPTPAY_QR_INCLUDE_AMOUNT === "true",
+      /**
+       * OAuth: ถ้าว่าง จะใช้ `window.location.origin` + path `/auth/*` (ต้องมี Vite/Nitro proxy ไป Express)
+       * ถ้า callback ลงทะเบียนกับโดเมน API โดยตรง ให้ใส่ origin เต็ม เช่น https://api.example.com
+       */
+      oauthApiOrigin: process.env.NUXT_PUBLIC_OAUTH_API_ORIGIN || "",
     },
   },
 
@@ -130,6 +135,11 @@ export default defineNuxtConfig({
     "/create-product": { prerender: false, ssr: false }, // Client-side only
     "/edit-product/**": { prerender: false, ssr: false }, // Client-side only
     "/login": { ssr: true, prerender: false },
+    "/auth/callback": { prerender: false, ssr: false },
+    "/en/auth/callback": { prerender: false, ssr: false },
+    "/nb/auth/callback": { prerender: false, ssr: false },
+    "/nl/auth/callback": { prerender: false, ssr: false },
+    "/de/auth/callback": { prerender: false, ssr: false },
     "/register-user": { ssr: true, prerender: false },
     "/payment-successful": { prerender: false, ssr: false }, // Client-side only
     "/checkout/payment": { prerender: false, ssr: false },
@@ -171,6 +181,10 @@ export default defineNuxtConfig({
           target: process.env.NUXT_YARDSALE_PROXY_TARGET || "http://127.0.0.1:4000",
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/yardsale-api/, "/api"),
+        },
+        "/auth": {
+          target: process.env.NUXT_YARDSALE_PROXY_TARGET || "http://127.0.0.1:4000",
+          changeOrigin: true,
         },
         /** dev: เปิด /uploads/... บนพอร์ตเดียวกับ Nuxt (รูปโดยตรงแบบไม่ผ่าน IPX) */
         "/uploads": {

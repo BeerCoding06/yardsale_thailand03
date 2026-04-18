@@ -2,8 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import session from 'express-session';
+import passport from 'passport';
 import { config } from './config/index.js';
+import './config/passport.config.js';
 import apiRoutes from './routes/index.js';
+import authSocialRoutes from './routes/auth.social.routes.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -12,6 +16,9 @@ const uploadAbs = path.isAbsolute(config.uploadDir)
   : path.resolve(__dirname, config.uploadDir);
 
 const app = express();
+if (config.nodeEnv === 'production') {
+  app.set('trust proxy', 1);
+}
 
 function parseCorsOrigins(raw) {
   if (raw == null || String(raw).trim() === '') return null;
@@ -61,6 +68,21 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   })
 );
+app.use(
+  session({
+    name: 'yard.oauth.sid',
+    secret: config.oauth.sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: config.nodeEnv === 'production',
+      sameSite: 'lax',
+      httpOnly: true,
+      maxAge: 15 * 60 * 1000,
+    },
+  })
+);
+app.use(passport.initialize());
 app.use(express.json({ limit: '2mb' }));
 app.use(config.publicUploadBase, express.static(uploadAbs));
 
@@ -68,6 +90,7 @@ app.get('/health', (_req, res) => {
   res.json({ success: true, data: { ok: true } });
 });
 
+app.use('/auth', authSocialRoutes);
 app.use('/api', apiRoutes);
 
 app.use(notFoundHandler);

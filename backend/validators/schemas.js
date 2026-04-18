@@ -38,6 +38,27 @@ export const createUserSchema = Joi.object({
   account_status: Joi.string().valid('public', 'pending', 'block').optional(),
 });
 
+/** POST /auth/email/register */
+export const authEmailRegisterSchema = Joi.object({
+  email: emailRule.required(),
+  password: Joi.string().min(8).required(),
+  name: Joi.string().trim().allow('').optional().default(''),
+});
+
+/** POST /auth/email/login */
+export const authEmailLoginBodySchema = Joi.object({
+  username: Joi.string().trim().optional(),
+  email: emailRule.optional(),
+  password: Joi.string().required(),
+})
+  .or('username', 'email')
+  .messages({ 'object.missing': 'username or email is required' });
+
+/** POST /auth/refresh */
+export const authRefreshBodySchema = Joi.object({
+  refreshToken: Joi.string().required(),
+});
+
 export const adminUserIdParamsSchema = Joi.object({
   id: uuid.required(),
 });

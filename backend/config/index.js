@@ -55,4 +55,34 @@ export const config = {
    * เปิดชั่วคราว: PAYMENT_AUDIT_LOG=1
    */
   paymentAuditLog: envFlag('PAYMENT_AUDIT_LOG'),
+  /** Google / Facebook / LINE OAuth — ดู docs/SOCIAL_AUTH_SETUP.md */
+  oauth: {
+    callbackBase: (() => {
+      const raw = (process.env.OAUTH_CALLBACK_BASE || '').trim().replace(/\/$/, '');
+      if (raw) return raw;
+      const port = Number(process.env.PORT) || 4000;
+      return `http://127.0.0.1:${port}`;
+    })(),
+    frontendSuccessUrl: (() => {
+      const u = (process.env.OAUTH_FRONTEND_SUCCESS_URL || '').trim();
+      if (u) return u;
+      return 'http://localhost:3000/auth/callback';
+    })(),
+    frontendFailureUrl: (process.env.OAUTH_FRONTEND_FAILURE_URL || '').trim(),
+    sessionSecret: process.env.SESSION_SECRET || process.env.JWT_SECRET || 'dev-only-change-me',
+    jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'dev-only-change-me',
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
+    google: {
+      clientId: (process.env.GOOGLE_CLIENT_ID || '').trim(),
+      clientSecret: (process.env.GOOGLE_CLIENT_SECRET || '').trim(),
+    },
+    facebook: {
+      appId: (process.env.FACEBOOK_APP_ID || '').trim(),
+      appSecret: (process.env.FACEBOOK_APP_SECRET || '').trim(),
+    },
+    line: {
+      channelId: (process.env.LINE_CHANNEL_ID || '').trim(),
+      channelSecret: (process.env.LINE_CHANNEL_SECRET || '').trim(),
+    },
+  },
 };

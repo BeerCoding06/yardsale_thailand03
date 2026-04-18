@@ -200,8 +200,12 @@ export const useAuth = () => {
       );
       const nextUser = data?.user ?? data?.data?.user;
       if (nextUser) {
-        const merged = { ...user.value, ...nextUser };
-        user.value = merged;
+        const prevToken = user.value?.token;
+        const prevRefresh = (user.value as { refreshToken?: string })?.refreshToken;
+        const merged = { ...user.value, ...nextUser } as Record<string, unknown>;
+        if (prevToken) merged.token = prevToken;
+        if (prevRefresh) merged.refreshToken = prevRefresh;
+        user.value = merged as (typeof user)["value"];
         if (import.meta.client) {
           localStorage.setItem("user", JSON.stringify(merged));
         }
@@ -219,6 +223,46 @@ export const useAuth = () => {
     return null;
   };
 
+  function decodeJwtSub(token: string): string | null {
+    try {
+      const part = token.split(".")[1];
+      if (!part) return null;
+      const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+      const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+      const json = JSON.parse(atob(padded)) as { sub?: string };
+      return json.sub ? String(json.sub) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * OAuth / refresh: ตั้ง JWT แล้วดึง `/me` ให้ครบ (เก็บ refreshToken ใน localStorage ถ้ามี)
+   */
+  const setTokensAndHydrate = async (opts: {
+    token: string;
+    refreshToken?: string;
+  }) => {
+    const sub = decodeJwtSub(opts.token);
+    if (!sub) {
+      throw new Error("Invalid access token");
+    }
+    const base: Record<string, unknown> = {
+      token: opts.token,
+      id: sub,
+      ID: sub,
+    };
+    if (opts.refreshToken) {
+      base.refreshToken = opts.refreshToken;
+    }
+    user.value = base as (typeof user)["value"];
+    await fetchUser();
+    if (import.meta.client && user.value) {
+      localStorage.setItem("user", JSON.stringify(user.value));
+    }
+    return user.value;
+  };
+
   return {
     user: readonly(user),
     isAuthenticated,
@@ -226,6 +270,7 @@ export const useAuth = () => {
     logout,
     checkAuth,
     fetchUser,
+    setTokensAndHydrate,
     sessionExpiredRedirect,
   };
 };

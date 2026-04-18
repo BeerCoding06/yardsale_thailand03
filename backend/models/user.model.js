@@ -2,7 +2,7 @@ import { ilikeContainsPattern } from '../utils/pagination.js';
 
 export async function findUserByEmail(client, email) {
   const r = await client.query(
-    `SELECT id, email, password_hash, name, role, account_status, created_at
+    `SELECT id, email, password_hash, name, role, account_status, avatar, auth_provider, created_at
      FROM users WHERE LOWER(email) = LOWER($1)`,
     [email]
   );
@@ -11,7 +11,8 @@ export async function findUserByEmail(client, email) {
 
 export async function findUserById(client, id) {
   const r = await client.query(
-    `SELECT id, email, name, role, account_status, created_at FROM users WHERE id = $1`,
+    `SELECT id, email, name, role, account_status, avatar, auth_provider, created_at
+     FROM users WHERE id = $1`,
     [id]
   );
   return r.rows[0] || null;
@@ -22,12 +23,15 @@ export async function getUserAccountStatus(client, id) {
   return r.rows[0]?.account_status ?? null;
 }
 
-export async function createUser(client, { email, passwordHash, name, role, accountStatus = 'public' }) {
+export async function createUser(
+  client,
+  { email, passwordHash, name, role, accountStatus = 'public', authProvider = 'email' }
+) {
   const r = await client.query(
-    `INSERT INTO users (email, password_hash, name, role, account_status)
-     VALUES ($1, $2, $3, $4::user_role, $5::user_account_status)
-     RETURNING id, email, name, role, account_status, created_at`,
-    [email, passwordHash, name, role, accountStatus]
+    `INSERT INTO users (email, password_hash, name, role, account_status, auth_provider)
+     VALUES ($1, $2, $3, $4::user_role, $5::user_account_status, $6)
+     RETURNING id, email, name, role, account_status, avatar, auth_provider, created_at`,
+    [email, passwordHash, name, role, accountStatus, authProvider]
   );
   return r.rows[0];
 }
@@ -76,7 +80,7 @@ export async function listUsers(client, { limit = 100, offset = 0, search } = {}
   const iLim = params.length - 1;
   const iOff = params.length;
   const r = await client.query(
-    `SELECT id, email, name, role, account_status, created_at
+    `SELECT id, email, name, role, account_status, avatar, auth_provider, created_at
      FROM users
      ${where}
      ORDER BY created_at DESC
@@ -86,7 +90,7 @@ export async function listUsers(client, { limit = 100, offset = 0, search } = {}
   return r.rows;
 }
 
-export async function updateUserById(client, id, { email, name, role, accountStatus, passwordHash }) {
+export async function updateUserById(client, id, { email, name, role, accountStatus, passwordHash, avatar }) {
   const sets = [];
   const values = [];
   let i = 1;
@@ -97,6 +101,10 @@ export async function updateUserById(client, id, { email, name, role, accountSta
   if (name !== undefined) {
     sets.push(`name = $${i++}`);
     values.push(name);
+  }
+  if (avatar !== undefined) {
+    sets.push(`avatar = $${i++}`);
+    values.push(avatar);
   }
   if (role !== undefined) {
     sets.push(`role = $${i++}::user_role`);
@@ -114,7 +122,7 @@ export async function updateUserById(client, id, { email, name, role, accountSta
   values.push(id);
   const r = await client.query(
     `UPDATE users SET ${sets.join(', ')} WHERE id = $${i}::uuid
-     RETURNING id, email, name, role, account_status, created_at`,
+     RETURNING id, email, name, role, account_status, avatar, auth_provider, created_at`,
     values
   );
   return r.rows[0] || null;
