@@ -102,7 +102,7 @@ const reloadCategories = async () => {
 
 <template>
   <div
-    class="slider-container !fixed z-[9] flex-col pl-[50px] right-[0px] !top-[80px] h-full !items-start transition-all duration-300 ease-in-out"
+    class="slider-container !fixed z-[9] flex-col pl-[50px] overflow-y-auto right-[0px] !top-[80px] h-full !items-start transition-all duration-300 ease-in-out"
     :class="
       isCollapsed
         ? 'translate-x-0'

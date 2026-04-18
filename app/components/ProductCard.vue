@@ -106,7 +106,7 @@ function productLink(product) {
             :aria-label="String(product.name || $t('common.product'))"
             tabindex="-1"
           />
-          <div class="absolute top-2 right-2 z-10 flex items-center gap-1.5 pointer-events-auto">
+          <div class="absolute top-2 right-2 z-2 flex items-center gap-1.5 pointer-events-auto">
             <button
               type="button"
               class="w-11 h-11 rounded-full flex items-center justify-center bg-white/95 dark:bg-neutral-900/95 shadow-md border border-neutral-200/90 dark:border-neutral-700 hover:bg-white dark:hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed transition active:scale-95"
