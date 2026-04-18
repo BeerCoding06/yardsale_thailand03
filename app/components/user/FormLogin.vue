@@ -203,8 +203,6 @@ const handleSubmit = async (e) => {
                 >จดจำการเข้าสู่ระบบ</span
               >
             </div>
-
-            <SocialLoginButtons />
           </div>
         </div>
 
@@ -249,6 +247,8 @@ const handleSubmit = async (e) => {
           </button>
         </div>
       </form>
+
+      <SocialLoginButtons class="mt-6" />
     </div>
   </div>
 </template>
