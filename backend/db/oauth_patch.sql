@@ -44,3 +44,40 @@ CREATE TABLE IF NOT EXISTS user_oauth_identities (
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_oauth_identities_user ON user_oauth_identities (user_id);
+
+/* โต๊ะเก่าที่สร้างก่อนมี UNIQUE — INSERT ... ON CONFLICT(user_id, provider) ล้ม */
+DO $ensure_uq_oauth_provider_subject$
+BEGIN
+  IF to_regclass('public.user_oauth_identities') IS NULL THEN
+    RETURN;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    WHERE t.relname = 'user_oauth_identities' AND c.conname = 'uq_oauth_provider_subject'
+  ) THEN
+    ALTER TABLE public.user_oauth_identities
+      ADD CONSTRAINT uq_oauth_provider_subject UNIQUE (provider, provider_user_id);
+  END IF;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $ensure_uq_oauth_provider_subject$;
+
+DO $ensure_uq_oauth_user_provider$
+BEGIN
+  IF to_regclass('public.user_oauth_identities') IS NULL THEN
+    RETURN;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    WHERE t.relname = 'user_oauth_identities' AND c.conname = 'uq_oauth_user_provider'
+  ) THEN
+    ALTER TABLE public.user_oauth_identities
+      ADD CONSTRAINT uq_oauth_user_provider UNIQUE (user_id, provider);
+  END IF;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $ensure_uq_oauth_user_provider$;

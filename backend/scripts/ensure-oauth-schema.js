@@ -24,7 +24,11 @@ async function main() {
   await client.connect();
   try {
     await client.query(sql);
-    console.info("[db:oauth] applied", sqlPath);
+    console.info(
+      "[db:oauth] applied:",
+      sqlPath,
+      "(users: nullable password_hash, avatar, auth_provider + user_oauth_identities)"
+    );
   } finally {
     await client.end();
   }

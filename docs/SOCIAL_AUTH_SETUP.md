@@ -21,7 +21,9 @@ npm run db:oauth
 
 (`DATABASE_URL` ต้องชี้ Postgres **เดียวกับที่ backend ใช้** — บน Dokploy อาจรันจากเครื่อง local ที่มี URL ภายนอก หรือ `docker compose exec backend sh -lc 'cd /app && npm run db:oauth'` ถ้า mount โปรเจกต์และมี `DATABASE_URL` ใน container)
 
-ถ้าไม่รันคำสั่งเหล่านี้บน Postgres ที่ production ใช้จริง หลังล็อกอิน Google จะล้มด้วยข้อความประมาณ `relation "user_oauth_identities" does not exist` และ redirect กลับมาที่ `/auth/callback?error=oauth_failed&...`
+ถ้าไม่รันคำสั่งเหล่านี้บน Postgres ที่ production ใช้จริง หลังล็อกอิน Google อาจล้มด้วยข้อความประมาณ `relation "user_oauth_identities" does not exist` หรือ `column "auth_provider" does not exist` — แก้ด้วย `npm run db:oauth` (หรือ `db:schema`) แล้ว redirect กลับมาที่ `/auth/callback?error=oauth_failed&...`
+
+ถ้าได้ `there is no unique or exclusion constraint matching the ON CONFLICT specification` แปลว่าตาราง `user_oauth_identities` มีอยู่แต่ไม่มี `UNIQUE (user_id, provider)` — รัน `npm run db:oauth` / `psql -f db/oauth_patch.sql` อีกครั้ง (patch จะ `ADD CONSTRAINT` ถ้ายังไม่มี); ถ้ามีแถวซ้ำ `(user_id, provider)` ต้องลบ/รวมแถวก่อน
 
 ## 2. Environment (backend)
 
