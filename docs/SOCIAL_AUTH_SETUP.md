@@ -1,6 +1,6 @@
 # Social authentication (Google, Facebook, LINE + email)
 
-This project adds **Express routes under `/auth/*`** (not under `/api`) with **Passport** (Google, Facebook) and **manual OAuth2** for LINE. The Nuxt app proxies **`/auth/*`** to the same backend in development (Vite) and production (Nitro `server/routes/auth/[...path].ts`).
+This project adds **Express routes under `/auth/*`** (not under `/api`) with **Passport** (Google, Facebook) and **manual OAuth2** for LINE. The Nuxt app proxies **เฉพาะ path ที่ Express มีจริง** (เช่น `/auth/google`, `/auth/google/callback`) ไป backend ใน dev (Vite) และ production (Nitro ใต้ `server/routes/auth/`). **`/auth/callback` เป็นหน้า Nuxt** — ห้าม proxy ไป Express.
 
 ## 1. Database
 
@@ -11,6 +11,8 @@ cd backend
 npm install
 npm run db:schema
 ```
+
+ถ้าไม่รัน `db:schema` บน Postgres ที่ production ใช้จริง หลังล็อกอิน Google จะล้มด้วยข้อความประมาณ `relation "user_oauth_identities" does not exist` และ redirect กลับมาที่ `/auth/callback?error=oauth_failed&...`
 
 ## 2. Environment (backend)
 

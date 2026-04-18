@@ -1,60 +1,53 @@
-/**
- * Nitro: /auth/* → Express (OAuth + POST /auth/email/*)
- * ใช้คู่กับ Vite proxy `/auth` ใน dev
- */
-import {
-  createError,
-  defineEventHandler,
-  getRequestURL,
-  getRouterParam,
-  proxyRequest,
-} from "h3";
+import type { H3Event } from "h3";
+import { createError, getRequestURL, proxyRequest } from "h3";
 import { useRuntimeConfig } from "#imports";
 import {
   mergeYardsaleUpstreamBases,
   isLikelyNetworkError,
   yardsaleFetchFromBases,
-} from "../../utils/yardsaleUpstream";
+} from "./yardsaleUpstream";
 
-export default defineEventHandler(async (event) => {
-  const param = getRouterParam(event, "path");
-  const sub =
-    (Array.isArray(param) ? param.join("/") : String(param || "")).replace(
-      /^\/+/,
-      ""
-    );
-  const reqUrl = getRequestURL(event);
-  const search = reqUrl.search || "";
-  const method = String(event.method || "GET").toUpperCase();
-  const pub = useRuntimeConfig(event).public as {
+function publicCfg(event: H3Event) {
+  return useRuntimeConfig(event).public as {
     cmsApiBase?: string;
     yardsaleBackendOrigin?: string;
   };
-  const merged = mergeYardsaleUpstreamBases(event, pub);
-  const bases =
-    method === "GET" || method === "HEAD"
-      ? merged
-      : [merged[0]].filter(Boolean);
+}
 
-  const expressPath = sub ? `/auth/${sub}` : "/auth";
-
-  if (method === "GET" || method === "HEAD") {
-    try {
-      return await yardsaleFetchFromBases(event, bases, expressPath, search);
-    } catch (err: unknown) {
-      const message = String(
-        (err as { message?: string })?.message || "Upstream unavailable"
-      );
-      throw createError({
-        statusCode: 502,
-        statusMessage: message,
-        data: {
-          success: false,
-          error: { message, code: "UPSTREAM_UNAVAILABLE" },
-        },
-      });
-    }
+/** GET/HEAD OAuth และอื่นที่ Express รับจริง — ไม่รวม /auth/callback (หน้า Nuxt) */
+export async function proxyExpressAuthGet(
+  event: H3Event,
+  expressPath: string
+): Promise<Response> {
+  const reqUrl = getRequestURL(event);
+  const search = reqUrl.search || "";
+  const merged = mergeYardsaleUpstreamBases(event, publicCfg(event));
+  try {
+    return await yardsaleFetchFromBases(event, merged, expressPath, search);
+  } catch (err: unknown) {
+    const message = String(
+      (err as { message?: string })?.message || "Upstream unavailable"
+    );
+    throw createError({
+      statusCode: 502,
+      statusMessage: message,
+      data: {
+        success: false,
+        error: { message, code: "UPSTREAM_UNAVAILABLE" },
+      },
+    });
   }
+}
+
+/** POST /auth/email/*, /auth/refresh, /auth/logout */
+export async function proxyExpressAuthPost(
+  event: H3Event,
+  expressPath: string
+) {
+  const reqUrl = getRequestURL(event);
+  const search = reqUrl.search || "";
+  const merged = mergeYardsaleUpstreamBases(event, publicCfg(event));
+  const bases = [merged[0]].filter(Boolean);
 
   let lastErr: unknown;
   for (const backend of bases) {
@@ -99,4 +92,4 @@ export default defineEventHandler(async (event) => {
       error: { message, code: "UPSTREAM_UNAVAILABLE" },
     },
   });
-});
+}
