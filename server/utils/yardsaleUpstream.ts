@@ -171,6 +171,8 @@ export async function yardsaleFetchFromBases(
   search: string
 ): Promise<Response> {
   const headers = buildUpstreamFetchHeaders(event);
+  /** ไม่ขอ gzip จาก upstream — กัน Node fetch ถอดรหัสแล้วยังมี Content-Encoding ทำให้เบราว์เซอร์ถอดซ้ำ → ERR_CONTENT_DECODING_FAILED */
+  headers.delete("accept-encoding");
   const method = String(event.method || "GET").toUpperCase();
   const path = expressRelPath.startsWith("/")
     ? expressRelPath
@@ -188,6 +190,8 @@ export async function yardsaleFetchFromBases(
         method,
         headers,
         signal: AbortSignal.timeout(20000),
+        /** OAuth ต้องได้ 302 กลับเบราว์เซอร์ — ถ้า follow จะไปโหลดหน้า Google ที่เซิร์ฟเวอร์แล้วส่ง 200 กลับ (ผิด + encoding พัง) */
+        redirect: "manual",
       });
       if (
         res.ok ||
