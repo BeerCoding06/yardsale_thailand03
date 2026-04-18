@@ -318,7 +318,7 @@ const updateProfile = async () => {
                             $t("profile.user")
                       }}
                     </p>
-                    <p class="text-sm text-neutral-500 dark:text-neutral-400">
+                    <p class="text-sm text-neutral-500 dark:text-neutral-400 truncate">
                       {{ user.email }}
                     </p>
                     <div
@@ -442,11 +442,11 @@ const updateProfile = async () => {
                 >
                   <div>
                     <p
-                      class="text-sm text-neutral-500 dark:text-neutral-400 mb-1"
+                      class="text-sm text-neutral-500 dark:text-neutral-400 mb-1 truncate"
                     >
                       {{ $t("profile.username") }}
                     </p>
-                    <p class="font-medium text-black dark:text-white">
+                    <p class="font-medium text-black dark:text-white truncate">
                       {{ user.username }}
                     </p>
                   </div>
