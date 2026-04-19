@@ -230,8 +230,7 @@ export async function listWalletTransactionsAdmin(
   const params = [...fp, lim, off];
   const iLim = params.length - 1;
   const iOff = params.length;
-  const r = await client.query(
-    `SELECT wt.id, wt.seller_id, wt.order_id, wt.withdrawal_id, wt.type::text AS type,
+  const sqlWithOrderContext = `SELECT wt.id, wt.seller_id, wt.order_id, wt.withdrawal_id, wt.type::text AS type,
             wt.amount, wt.status::text AS status, wt.metadata, wt.created_at,
             u.email AS seller_email, u.name AS seller_name,
             o.user_id AS buyer_user_id, bu.email AS buyer_email, bu.name AS buyer_name,
@@ -242,10 +241,27 @@ export async function listWalletTransactionsAdmin(
      LEFT JOIN users bu ON bu.id = o.user_id
      ${whereSql}
      ORDER BY wt.created_at DESC
-     LIMIT $${iLim} OFFSET $${iOff}`,
-    params
-  );
-  return r.rows;
+     LIMIT $${iLim} OFFSET $${iOff}`;
+  try {
+    const r = await client.query(sqlWithOrderContext, params);
+    return r.rows;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    const r2 = await client.query(
+      `SELECT wt.id, wt.seller_id, wt.order_id, wt.withdrawal_id, wt.type::text AS type,
+              wt.amount, wt.status::text AS status, wt.metadata, wt.created_at,
+              u.email AS seller_email, u.name AS seller_name,
+              NULL::uuid AS buyer_user_id, NULL::text AS buyer_email, NULL::text AS buyer_name,
+              NULL::numeric AS order_total, NULL::text AS order_status
+       FROM wallet_transactions wt
+       JOIN users u ON u.id = wt.seller_id
+       ${whereSql}
+       ORDER BY wt.created_at DESC
+       LIMIT $${iLim} OFFSET $${iOff}`,
+      params
+    );
+    return r2.rows;
+  }
 }
 
 export async function countWalletTransactionsAdmin(client, { type = '', seller_id: sellerId = '' } = {}) {
@@ -290,17 +306,30 @@ export async function listFinancialAuditLogsAdmin(
   params.push(lim, off);
   const iLim = params.length - 1;
   const iOff = params.length;
-  const r = await client.query(
-    `SELECT f.id, f.actor_user_id, f.action, f.entity_type, f.entity_id, f.details, f.created_at,
+  const whereClause = parts.join(' ');
+  const sqlWithActor = `SELECT f.id, f.actor_user_id, f.action, f.entity_type, f.entity_id, f.details, f.created_at,
             au.email AS actor_email, au.name AS actor_name
      FROM financial_audit_logs f
      LEFT JOIN users au ON au.id = f.actor_user_id
-     ${parts.join(' ')}
+     ${whereClause}
      ORDER BY f.created_at DESC
-     LIMIT $${iLim} OFFSET $${iOff}`,
-    params
-  );
-  return r.rows;
+     LIMIT $${iLim} OFFSET $${iOff}`;
+  try {
+    const r = await client.query(sqlWithActor, params);
+    return r.rows;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    const r2 = await client.query(
+      `SELECT f.id, f.actor_user_id, f.action, f.entity_type, f.entity_id, f.details, f.created_at,
+              NULL::text AS actor_email, NULL::text AS actor_name
+       FROM financial_audit_logs f
+       ${whereClause}
+       ORDER BY f.created_at DESC
+       LIMIT $${iLim} OFFSET $${iOff}`,
+      params
+    );
+    return r2.rows;
+  }
 }
 
 export async function countFinancialAuditLogsAdmin(client, { action = '', entity_type: entityType = '' } = {}) {

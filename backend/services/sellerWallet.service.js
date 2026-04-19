@@ -73,6 +73,15 @@ function formatTxRow(row) {
   };
 }
 
+/** PostgreSQL / migration mismatch — degrade seller + admin wallet APIs instead of 500 */
+function isWalletDashboardSchemaError(err) {
+  const c = String(err?.code || '');
+  if (c === '42P01' || c === '42703' || c === '42704') return true;
+  const msg = String(err?.message || '');
+  if (/relation\s+["'][^"']+["']\s+does not exist/i.test(msg)) return true;
+  return false;
+}
+
 /**
  * When an order becomes paid: credit each seller's escrow from line items (idempotent per seller).
  */
@@ -197,25 +206,48 @@ export async function tryReleaseOrderFunds(client, orderId, trigger = 'unknown')
 export async function getWalletOverview(userId) {
   const client = await pool.connect();
   try {
-    await walletModel.ensureSellerWallet(client, userId);
-    const w = await walletModel.getSellerWallet(client, userId);
-    const tx = await walletModel.listWalletTransactionsForSeller(client, userId, { limit: 40, offset: 0 });
-    return {
-      success: true,
-      wallet: formatWalletRow(w) || {
-        seller_id: userId,
-        available_balance: 0,
-        escrow_balance: 0,
-        updated_at: null,
-      },
-      transactions: tx.map(formatTxRow),
-      withdrawal_policy: {
-        fee_percent: WITHDRAWAL_FEE_PERCENT,
-        fee_rate: WITHDRAWAL_FEE_RATE,
-        notices_th: buildWithdrawalPolicyNoticesTh(),
-        notices_en: buildWithdrawalPolicyNoticesEn(),
-      },
-    };
+    try {
+      await walletModel.ensureSellerWallet(client, userId);
+      const w = await walletModel.getSellerWallet(client, userId);
+      const tx = await walletModel.listWalletTransactionsForSeller(client, userId, { limit: 40, offset: 0 });
+      return {
+        success: true,
+        wallet_schema_incomplete: false,
+        wallet: formatWalletRow(w) || {
+          seller_id: userId,
+          available_balance: 0,
+          escrow_balance: 0,
+          updated_at: null,
+        },
+        transactions: tx.map(formatTxRow),
+        withdrawal_policy: {
+          fee_percent: WITHDRAWAL_FEE_PERCENT,
+          fee_rate: WITHDRAWAL_FEE_RATE,
+          notices_th: buildWithdrawalPolicyNoticesTh(),
+          notices_en: buildWithdrawalPolicyNoticesEn(),
+        },
+      };
+    } catch (err) {
+      if (!isWalletDashboardSchemaError(err)) throw err;
+      console.warn('[wallet] getWalletOverview degraded (schema)', err.code, err.message);
+      return {
+        success: true,
+        wallet_schema_incomplete: true,
+        wallet: {
+          seller_id: userId,
+          available_balance: 0,
+          escrow_balance: 0,
+          updated_at: null,
+        },
+        transactions: [],
+        withdrawal_policy: {
+          fee_percent: WITHDRAWAL_FEE_PERCENT,
+          fee_rate: WITHDRAWAL_FEE_RATE,
+          notices_th: buildWithdrawalPolicyNoticesTh(),
+          notices_en: buildWithdrawalPolicyNoticesEn(),
+        },
+      };
+    }
   } finally {
     client.release();
   }
@@ -347,35 +379,40 @@ export async function requestWithdrawal(sellerId, body) {
 export async function listMyWithdrawals(sellerId, { limit = 50, offset = 0 } = {}) {
   const client = await pool.connect();
   try {
-    const rows = await withdrawalModel.listWithdrawalsForSeller(client, sellerId, { limit, offset });
-    return {
-      success: true,
-      withdrawals: rows.map((r) => ({
-        id: r.id,
-        amount: money(r.amount),
-        withdrawal_fee_amount:
-          r.withdrawal_fee_amount != null ? money(r.withdrawal_fee_amount) : null,
-        net_payout_amount: r.net_payout_amount != null ? money(r.net_payout_amount) : null,
-        status: r.status,
-        admin_notes: r.admin_notes,
-        requested_at: r.requested_at,
-        processed_at: r.processed_at,
-        bank_code: r.payout_bank_code ?? null,
-        account_holder_name: r.payout_account_name ?? null,
-        account_number_last4: r.payout_account_number
-          ? String(r.payout_account_number).replace(/\D/g, '').slice(-4) || null
-          : null,
-      })),
-    };
+    try {
+      const rows = await withdrawalModel.listWithdrawalsForSeller(client, sellerId, { limit, offset });
+      return {
+        success: true,
+        wallet_schema_incomplete: false,
+        withdrawals: rows.map((r) => ({
+          id: r.id,
+          amount: money(r.amount),
+          withdrawal_fee_amount:
+            r.withdrawal_fee_amount != null ? money(r.withdrawal_fee_amount) : null,
+          net_payout_amount: r.net_payout_amount != null ? money(r.net_payout_amount) : null,
+          status: r.status,
+          admin_notes: r.admin_notes,
+          requested_at: r.requested_at,
+          processed_at: r.processed_at,
+          bank_code: r.payout_bank_code ?? null,
+          account_holder_name: r.payout_account_name ?? null,
+          account_number_last4: r.payout_account_number
+            ? String(r.payout_account_number).replace(/\D/g, '').slice(-4) || null
+            : null,
+        })),
+      };
+    } catch (err) {
+      if (!isWalletDashboardSchemaError(err)) throw err;
+      console.warn('[wallet] listMyWithdrawals degraded (schema)', err.code, err.message);
+      return {
+        success: true,
+        wallet_schema_incomplete: true,
+        withdrawals: [],
+      };
+    }
   } finally {
     client.release();
   }
-}
-
-function isWalletDashboardSchemaError(err) {
-  const c = String(err?.code || '');
-  // 42P01 = undefined_table, 42703 = undefined_column (migration not applied yet)
-  return c === '42P01' || c === '42703';
 }
 
 export async function getAdminWithdrawalDashboard() {
@@ -427,13 +464,25 @@ export async function adminListWithdrawals(query) {
     const limit = Number(query.limit) || 50;
     const offset = Number(query.offset) || 0;
     const status = query.status ? String(query.status).trim() : '';
-    const rows = await walletModel.listWithdrawalsAdmin(client, { status, limit, offset });
-    const total = await walletModel.countWithdrawalsAdmin(client, { status });
-    return {
-      success: true,
-      withdrawals: rows,
-      pagination: { limit, offset, total },
-    };
+    try {
+      const rows = await walletModel.listWithdrawalsAdmin(client, { status, limit, offset });
+      const total = await walletModel.countWithdrawalsAdmin(client, { status });
+      return {
+        success: true,
+        wallet_schema_incomplete: false,
+        withdrawals: rows,
+        pagination: { limit, offset, total },
+      };
+    } catch (err) {
+      if (!isWalletDashboardSchemaError(err)) throw err;
+      console.warn('[wallet] admin withdrawals list unavailable', err.code, err.message);
+      return {
+        success: true,
+        wallet_schema_incomplete: true,
+        withdrawals: [],
+        pagination: { limit, offset, total: 0 },
+      };
+    }
   } finally {
     client.release();
   }
@@ -618,18 +667,30 @@ export async function adminListWalletLedger(query = {}) {
     const offset = Number(query.offset) || 0;
     const type = query.type ? String(query.type).trim() : '';
     const seller_id = query.seller_id ? String(query.seller_id).trim() : '';
-    const rows = await walletModel.listWalletTransactionsAdmin(client, {
-      limit,
-      offset,
-      type,
-      seller_id,
-    });
-    const total = await walletModel.countWalletTransactionsAdmin(client, { type, seller_id });
-    return {
-      success: true,
-      entries: rows.map(formatLedgerAdminRow),
-      pagination: { limit, offset, total },
-    };
+    try {
+      const rows = await walletModel.listWalletTransactionsAdmin(client, {
+        limit,
+        offset,
+        type,
+        seller_id,
+      });
+      const total = await walletModel.countWalletTransactionsAdmin(client, { type, seller_id });
+      return {
+        success: true,
+        wallet_schema_incomplete: false,
+        entries: rows.map(formatLedgerAdminRow),
+        pagination: { limit, offset, total },
+      };
+    } catch (err) {
+      if (!isWalletDashboardSchemaError(err)) throw err;
+      console.warn('[wallet] admin ledger unavailable', err.code, err.message);
+      return {
+        success: true,
+        wallet_schema_incomplete: true,
+        entries: [],
+        pagination: { limit, offset, total: 0 },
+      };
+    }
   } finally {
     client.release();
   }
@@ -643,18 +704,30 @@ export async function adminListFinancialAuditLogs(query = {}) {
     const offset = Number(query.offset) || 0;
     const action = query.action ? String(query.action).trim() : '';
     const entity_type = query.entity_type ? String(query.entity_type).trim() : '';
-    const rows = await walletModel.listFinancialAuditLogsAdmin(client, {
-      limit,
-      offset,
-      action,
-      entity_type,
-    });
-    const total = await walletModel.countFinancialAuditLogsAdmin(client, { action, entity_type });
-    return {
-      success: true,
-      entries: rows.map(formatAuditAdminRow),
-      pagination: { limit, offset, total },
-    };
+    try {
+      const rows = await walletModel.listFinancialAuditLogsAdmin(client, {
+        limit,
+        offset,
+        action,
+        entity_type,
+      });
+      const total = await walletModel.countFinancialAuditLogsAdmin(client, { action, entity_type });
+      return {
+        success: true,
+        wallet_schema_incomplete: false,
+        entries: rows.map(formatAuditAdminRow),
+        pagination: { limit, offset, total },
+      };
+    } catch (err) {
+      if (!isWalletDashboardSchemaError(err)) throw err;
+      console.warn('[wallet] admin audit log unavailable', err.code, err.message);
+      return {
+        success: true,
+        wallet_schema_incomplete: true,
+        entries: [],
+        pagination: { limit, offset, total: 0 },
+      };
+    }
   } finally {
     client.release();
   }
