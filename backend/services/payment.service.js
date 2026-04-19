@@ -36,11 +36,15 @@ function slipokFailureCodeFromMessage(msg) {
 }
 
 function slipokErrorMessage(data) {
+  const d = data && typeof data === 'object' ? data : {};
   return (
-    data?.message ||
-    data?.data?.message ||
-    data?.data?.error?.message ||
-    data?.error?.message ||
+    d.message ||
+    d.data?.message ||
+    d.data?.error?.message ||
+    d.data?.data?.message ||
+    d.error?.message ||
+    d.errors?.[0]?.message ||
+    (typeof d.data === 'string' ? d.data : '') ||
     'Slip verification failed'
   );
 }
@@ -93,6 +97,11 @@ async function checkSlipWithSlipok(body, file) {
   if (!response.ok || !data?.success || !data?.data?.success) {
     const msg = slipokErrorMessage(data);
     const code = slipokFailureCodeFromMessage(msg);
+    console.warn('[payment] SlipOK verify failed', {
+      httpStatus: response.status,
+      code,
+      message: String(msg).slice(0, 500),
+    });
     throw new AppError(String(msg), 400, code);
   }
   return data.data;

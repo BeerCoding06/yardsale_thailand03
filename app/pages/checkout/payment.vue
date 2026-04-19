@@ -272,25 +272,41 @@ function onFileChange(e) {
   error.value = null;
 }
 
+function yardsaleErrorPayload(err) {
+  if (!err || typeof err !== "object") return null;
+  return err.data ?? err.response?._data ?? err.response?.data ?? null;
+}
+
 function slipErrorMessage(err) {
+  const payload = yardsaleErrorPayload(err);
+  const errPart = payload?.error ?? (payload?.data && typeof payload.data === "object" ? payload.data.error : null);
   const code =
+    errPart?.code ||
+    payload?.code ||
     err?.data?.error?.code ||
     err?.data?.code ||
     err?.response?._data?.error?.code;
   const serverMsg =
+    errPart?.message ||
+    payload?.message ||
     err?.data?.error?.message ||
     err?.response?._data?.error?.message ||
     err?.message ||
-    '';
+    "";
   if (code === 'SLIP_BANK_DELAY') {
     const delayMsg = t('checkout.payment_slip.errors.SLIP_BANK_DELAY');
     if (delayMsg !== 'checkout.payment_slip.errors.SLIP_BANK_DELAY') return delayMsg;
+  }
+  const trimmed = String(serverMsg || '').trim();
+  /** ข้อความจาก SlipOK มักละเอียดกว่า — แสดงก่อนข้อความทั่วไปของ SLIP_INVALID */
+  if (trimmed && !/^slip verification failed$/i.test(trimmed)) {
+    if (!code || code === 'SLIP_INVALID') return trimmed;
   }
   if (code) {
     const msg = t(`checkout.payment_slip.errors.${code}`);
     if (msg !== `checkout.payment_slip.errors.${code}`) return msg;
   }
-  return serverMsg || t('checkout.payment_slip.errors.generic');
+  return trimmed || t('checkout.payment_slip.errors.generic');
 }
 
 function validateBuyerForm() {

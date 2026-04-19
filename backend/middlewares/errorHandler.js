@@ -14,7 +14,9 @@ export function errorHandler(err, req, res, next) {
   if (config.nodeEnv !== 'production' && err.stack) {
     console.error(err.stack);
   } else if (status >= 500) {
-    console.error(message);
+    /** production: ไม่ส่งรายละเอียดไป client แต่ log เต็มไว้ดูบนเซิร์ฟเวอร์ */
+    console.error('[http]', status, code, message);
+    if (err?.stack) console.error(err.stack);
   }
 
   res.status(status).json({

@@ -154,9 +154,16 @@ export const paymentMockSchema = Joi.object({
   simulate_failure: Joi.boolean().default(false),
 });
 
+/** FormData ส่ง order_id เป็นสตริง — ยอม UUID รูปแบบมาตรฐานทุกเวอร์ชันที่ Postgres รับ (ไม่จำกัดเฉพาะ uuidv4 จาก Joi เดิม) */
+const orderIdForPayment = Joi.string()
+  .trim()
+  .required()
+  .pattern(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/)
+  .messages({ 'string.pattern.base': 'order_id must be a valid UUID' });
+
 /** After multer — fields are often strings */
 export const paymentMockBodySchema = Joi.object({
-  order_id: uuid.required(),
+  order_id: orderIdForPayment,
   simulate_failure: Joi.alternatives()
     .try(Joi.boolean(), Joi.string().valid('true', 'false', '1', '0'))
     .default('false'),

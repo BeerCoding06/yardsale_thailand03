@@ -21,7 +21,10 @@ export async function authMiddleware(req, res, next) {
   try {
     client = await pool.connect();
   } catch (e) {
-    return next(e);
+    console.error('[auth] pool.connect failed', e?.code, e?.message);
+    return next(
+      new AppError('Service temporarily unavailable. Please try again.', 503, 'DB_UNAVAILABLE')
+    );
   }
   try {
     const status = await userModel.getUserAccountStatus(client, payload.sub);
@@ -32,7 +35,11 @@ export async function authMiddleware(req, res, next) {
       return next(new AppError('Account is suspended or pending approval', 403, 'ACCOUNT_DISABLED'));
     }
   } catch (e) {
-    return next(e);
+    if (e instanceof AppError) return next(e);
+    console.error('[auth] getUserAccountStatus failed', e?.code, e?.message);
+    return next(
+      new AppError('Service temporarily unavailable. Please try again.', 503, 'DB_UNAVAILABLE')
+    );
   } finally {
     client.release();
   }
