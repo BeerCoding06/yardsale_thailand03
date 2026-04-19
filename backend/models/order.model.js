@@ -55,12 +55,31 @@ const ORDER_O_CORE = ORDER_LIST_USER_CORE.split(',')
   .map((s) => `o.${s.trim()}`)
   .join(', ');
 
+const ORDER_RETURNING_CHAIN = [ORDER_SELECT_BASE, ORDER_SELECT_NO_WALLET, ORDER_LIST_USER_CORE];
+
+/** 42703 = คอลัมน์ orders ไม่ตรงกับ migration ล่าสุด — กัน create-order / payment 500 */
+async function queryWithOrderReturningFallback(client, sqlForCols, params) {
+  let lastErr;
+  for (const cols of ORDER_RETURNING_CHAIN) {
+    try {
+      return await client.query(sqlForCols(cols), params);
+    } catch (err) {
+      if (err?.code !== '42703') throw err;
+      lastErr = err;
+    }
+  }
+  throw lastErr;
+}
+
 export async function createOrderRow(client, { userId, totalPrice, status = 'pending', billingSnapshot = null }) {
-  const r = await client.query(
-    `INSERT INTO orders (user_id, total_price, status, billing_snapshot)
-     VALUES ($1, $2, $3::order_status, $4::jsonb)
-     RETURNING ${ORDER_SELECT_BASE}`,
-    [userId, totalPrice, status, billingSnapshot ? JSON.stringify(billingSnapshot) : null]
+  const params = [userId, totalPrice, status, billingSnapshot ? JSON.stringify(billingSnapshot) : null];
+  const r = await queryWithOrderReturningFallback(
+    client,
+    (cols) =>
+      `INSERT INTO orders (user_id, total_price, status, billing_snapshot)
+       VALUES ($1, $2, $3::order_status, $4::jsonb)
+       RETURNING ${cols}`,
+    params
   );
   return r.rows[0];
 }
@@ -82,9 +101,9 @@ function asOrderUuid(orderId) {
 
 export async function getOrderById(client, orderId) {
   const id = asOrderUuid(orderId);
-  const r = await client.query(
-    `SELECT ${ORDER_SELECT_BASE}
-     FROM orders WHERE id = $1::uuid`,
+  const r = await queryWithOrderReturningFallback(
+    client,
+    (cols) => `SELECT ${cols} FROM orders WHERE id = $1::uuid`,
     [id]
   );
   return r.rows[0] || null;
@@ -112,12 +131,14 @@ export async function getOrderItems(client, orderId) {
 
 export async function updateOrderStatus(client, orderId, status, { slipImageUrl } = {}) {
   const id = asOrderUuid(orderId);
-  const r = await client.query(
-    `UPDATE orders
-     SET status = $2::order_status,
-         slip_image_url = COALESCE($3, slip_image_url)
-     WHERE id = $1::uuid
-     RETURNING ${ORDER_SELECT_BASE}`,
+  const r = await queryWithOrderReturningFallback(
+    client,
+    (cols) =>
+      `UPDATE orders
+       SET status = $2::order_status,
+           slip_image_url = COALESCE($3, slip_image_url)
+       WHERE id = $1::uuid
+       RETURNING ${cols}`,
     [id, status, slipImageUrl ?? null]
   );
   return r.rows[0] || null;
@@ -126,15 +147,17 @@ export async function updateOrderStatus(client, orderId, status, { slipImageUrl 
 /** ผู้ขายที่มีสินค้าในออเดอร์ — อัปเดตสถานะจัดส่งและเลขพัสดุ */
 export async function updateOrderFulfillment(client, orderId, fields) {
   const id = asOrderUuid(orderId);
-  const r = await client.query(
-    `UPDATE orders SET
+  const r = await queryWithOrderReturningFallback(
+    client,
+    (cols) =>
+      `UPDATE orders SET
       shipping_status = $2,
       tracking_number = NULLIF(TRIM(COALESCE($3, '')), ''),
       shipping_receipt_number = NULLIF(TRIM(COALESCE($4, '')), ''),
       courier_name = NULLIF(TRIM(COALESCE($5, '')), ''),
       fulfillment_updated_at = now()
     WHERE id = $1::uuid
-    RETURNING ${ORDER_SELECT_BASE}`,
+    RETURNING ${cols}`,
     [
       id,
       fields.shipping_status,
@@ -149,8 +172,9 @@ export async function updateOrderFulfillment(client, orderId, fields) {
 /** แอดมินแก้ยอดรวมออเดอร์ */
 export async function updateOrderTotalPrice(client, orderId, totalPrice) {
   const id = asOrderUuid(orderId);
-  const r = await client.query(
-    `UPDATE orders SET total_price = $2::numeric WHERE id = $1::uuid RETURNING ${ORDER_SELECT_BASE}`,
+  const r = await queryWithOrderReturningFallback(
+    client,
+    (cols) => `UPDATE orders SET total_price = $2::numeric WHERE id = $1::uuid RETURNING ${cols}`,
     [id, totalPrice]
   );
   return r.rows[0] || null;
@@ -536,8 +560,9 @@ export async function mapSellerLineItemsByOrderIds(client, sellerId, orderIds) {
 
 export async function lockOrderForUpdate(client, orderId) {
   const id = asOrderUuid(orderId);
-  const r = await client.query(
-    `SELECT ${ORDER_SELECT_BASE} FROM orders WHERE id = $1::uuid FOR UPDATE`,
+  const r = await queryWithOrderReturningFallback(
+    client,
+    (cols) => `SELECT ${cols} FROM orders WHERE id = $1::uuid FOR UPDATE`,
     [id]
   );
   return r.rows[0] || null;
