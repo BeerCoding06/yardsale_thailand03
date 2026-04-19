@@ -41,6 +41,13 @@ const ORDER_O = ORDER_SELECT_BASE.split(',')
   .map((s) => `o.${s.trim()}`)
   .join(', ');
 
+/** เมื่อ migration wallet ยังไม่รันบน orders — กัน 42703 บน list seller / admin orders */
+const ORDER_SELECT_NO_WALLET = `id, user_id, total_price, status, slip_image_url, created_at,
+  billing_snapshot, shipping_status, tracking_number, shipping_receipt_number, courier_name, fulfillment_updated_at`;
+const ORDER_O_NO_WALLET = ORDER_SELECT_NO_WALLET.split(',')
+  .map((s) => `o.${s.trim()}`)
+  .join(', ');
+
 /** คอลัมน์จาก CREATE TABLE orders ต้นฉบับ — ใช้เมื่อ SELECT เต็มล้ม (42703) เพื่อกัน my-orders 500 */
 const ORDER_LIST_USER_CORE = `id, user_id, total_price, status, slip_image_url, created_at`;
 
@@ -181,36 +188,45 @@ export async function orderHasSellerProduct(client, orderId, sellerId) {
 
 /** Orders that include at least one line item sold by sellerId */
 export async function listOrdersForSeller(client, sellerId) {
-  const r = await client.query(
-    `SELECT DISTINCT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
-            o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
-            o.courier_name, o.fulfillment_updated_at,
-            o.buyer_confirmed_delivery_at, o.funds_settled_at,
-            u.email AS buyer_email, u.name AS buyer_name
+  const tail = `
      FROM orders o
      JOIN order_items oi ON oi.order_id = o.id
      JOIN products p ON p.id = oi.product_id
      LEFT JOIN users u ON u.id = o.user_id
      WHERE p.seller_id = $1
-     ORDER BY o.created_at DESC`,
-    [sellerId]
-  );
-  return r.rows;
+     ORDER BY o.created_at DESC`;
+  const qFull = `SELECT DISTINCT ${ORDER_O}, u.email AS buyer_email, u.name AS buyer_name${tail}`;
+  const qCore = `SELECT DISTINCT ${ORDER_O_NO_WALLET}, u.email AS buyer_email, u.name AS buyer_name${tail}`;
+  try {
+    const r = await client.query(qFull, [sellerId]);
+    return r.rows;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    const r2 = await client.query(qCore, [sellerId]);
+    return r2.rows;
+  }
 }
 
 /** All orders (admin) */
 export async function listAllOrders(client) {
-  const r = await client.query(
-    `SELECT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
-            o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
-            o.courier_name, o.fulfillment_updated_at,
-            o.buyer_confirmed_delivery_at, o.funds_settled_at,
+  const qFull = `SELECT ${ORDER_O},
             u.email AS buyer_email
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id
-     ORDER BY o.created_at DESC`
-  );
-  return r.rows;
+     ORDER BY o.created_at DESC`;
+  const qCore = `SELECT ${ORDER_O_NO_WALLET},
+            u.email AS buyer_email
+     FROM orders o
+     LEFT JOIN users u ON u.id = o.user_id
+     ORDER BY o.created_at DESC`;
+  try {
+    const r = await client.query(qFull);
+    return r.rows;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    const r2 = await client.query(qCore);
+    return r2.rows;
+  }
 }
 
 function userOrderSearchCondition(likePattern, paramIndex) {
@@ -336,7 +352,7 @@ export async function listOrdersForSellerPaged(client, sellerId, { limit, offset
   params.push(lim, off);
   const iLim = params.length - 1;
   const iOff = params.length;
-  const r = await client.query(
+  const sql = (orderCols) =>
     `WITH seller_ids AS (
        SELECT DISTINCT o.id, o.created_at
        FROM orders o
@@ -348,15 +364,20 @@ export async function listOrdersForSellerPaged(client, sellerId, { limit, offset
      paged AS (
        SELECT id FROM seller_ids ORDER BY created_at DESC LIMIT $${iLim} OFFSET $${iOff}
      )
-     SELECT ${ORDER_O},
+     SELECT ${orderCols},
             u.email AS buyer_email, u.name AS buyer_name
      FROM orders o
      JOIN paged p ON p.id = o.id
      LEFT JOIN users u ON u.id = o.user_id
-     ORDER BY o.created_at DESC`,
-    params
-  );
-  return r.rows;
+     ORDER BY o.created_at DESC`;
+  try {
+    const r = await client.query(sql(ORDER_O), params);
+    return r.rows;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    const r2 = await client.query(sql(ORDER_O_NO_WALLET), params);
+    return r2.rows;
+  }
 }
 
 export async function countAllOrders(client, search) {
@@ -398,20 +419,28 @@ export async function listAllOrdersPaged(client, { limit, offset, search }) {
   params.push(lim, off);
   const iLim = params.length - 1;
   const iOff = params.length;
-  const r = await client.query(
-    `SELECT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
-            o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
-            o.courier_name, o.fulfillment_updated_at,
-            o.buyer_confirmed_delivery_at, o.funds_settled_at,
+  const qFull = `SELECT ${ORDER_O},
             u.email AS buyer_email
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id
      WHERE 1=1 ${extra}
      ORDER BY o.created_at DESC
-     LIMIT $${iLim} OFFSET $${iOff}`,
-    params
-  );
-  return r.rows;
+     LIMIT $${iLim} OFFSET $${iOff}`;
+  const qCore = `SELECT ${ORDER_O_NO_WALLET},
+            u.email AS buyer_email
+     FROM orders o
+     LEFT JOIN users u ON u.id = o.user_id
+     WHERE 1=1 ${extra}
+     ORDER BY o.created_at DESC
+     LIMIT $${iLim} OFFSET $${iOff}`;
+  try {
+    const r = await client.query(qFull, params);
+    return r.rows;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    const r2 = await client.query(qCore, params);
+    return r2.rows;
+  }
 }
 
 /** รายการสินค้าต่อออเดอร์ (ทุกบรรทัด) — ใช้หน้ารายการออเดอร์แอดมิน */
