@@ -361,7 +361,20 @@ export async function markOrderPaidAsAdmin(orderId, { slipImageUrl } = {}) {
     const updated = await orderModel.updateOrderStatus(client, orderId, 'paid', {
       slipImageUrl,
     });
-    await sellerWalletService.recordEscrowForPaidOrder(client, orderId);
+    await client.query('SAVEPOINT admin_wallet_escrow');
+    try {
+      await sellerWalletService.recordEscrowForPaidOrder(client, orderId);
+      await client.query('RELEASE SAVEPOINT admin_wallet_escrow');
+    } catch (err) {
+      await client.query('ROLLBACK TO SAVEPOINT admin_wallet_escrow');
+      if (!sellerWalletService.isWalletDashboardSchemaError(err)) throw err;
+      console.warn(
+        '[order] markOrderPaidAsAdmin: escrow skipped (wallet tables / schema)',
+        orderId,
+        err?.code,
+        err?.message
+      );
+    }
     return { order: formatOrderForApi(updated) };
   });
 }
@@ -432,7 +445,20 @@ export async function adminPatchOrder(orderId, body) {
               ? String(body.slip_image_url).trim()
               : undefined;
           row = await orderModel.updateOrderStatus(client, orderId, 'paid', { slipImageUrl: slip });
-          await sellerWalletService.recordEscrowForPaidOrder(client, orderId);
+          await client.query('SAVEPOINT admin_wallet_escrow');
+          try {
+            await sellerWalletService.recordEscrowForPaidOrder(client, orderId);
+            await client.query('RELEASE SAVEPOINT admin_wallet_escrow');
+          } catch (err) {
+            await client.query('ROLLBACK TO SAVEPOINT admin_wallet_escrow');
+            if (!sellerWalletService.isWalletDashboardSchemaError(err)) throw err;
+            console.warn(
+              '[order] adminPatchOrder: escrow skipped (wallet tables / schema)',
+              orderId,
+              err?.code,
+              err?.message
+            );
+          }
         } else {
           const slip =
             body.slip_image_url != null && String(body.slip_image_url).trim() !== ''
@@ -478,7 +504,20 @@ export async function adminPatchOrder(orderId, body) {
         shipping_receipt_number,
         courier_name,
       });
-      await sellerWalletService.tryReleaseOrderFunds(client, orderId, 'admin_patch');
+      await client.query('SAVEPOINT admin_wallet_release');
+      try {
+        await sellerWalletService.tryReleaseOrderFunds(client, orderId, 'admin_patch');
+        await client.query('RELEASE SAVEPOINT admin_wallet_release');
+      } catch (err) {
+        await client.query('ROLLBACK TO SAVEPOINT admin_wallet_release');
+        if (!sellerWalletService.isWalletDashboardSchemaError(err)) throw err;
+        console.warn(
+          '[order] adminPatchOrder: release funds skipped (wallet tables / schema)',
+          orderId,
+          err?.code,
+          err?.message
+        );
+      }
     }
 
     const fresh = await orderModel.getOrderById(client, orderId);

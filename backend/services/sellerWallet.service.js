@@ -74,7 +74,7 @@ function formatTxRow(row) {
 }
 
 /** PostgreSQL / migration mismatch — degrade seller + admin wallet APIs instead of 500 */
-function isWalletDashboardSchemaError(err) {
+export function isWalletDashboardSchemaError(err) {
   const c = String(err?.code || '');
   if (c === '42P01' || c === '42703' || c === '42704') return true;
   const msg = String(err?.message || '');
