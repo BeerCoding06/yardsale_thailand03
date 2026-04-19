@@ -1,6 +1,7 @@
 <script setup>
 import { push } from 'notivue';
 import { buildPromptPayQrDataUrl } from "~/utils/promptpayDynamicQr";
+import { getOfetchHttpStatus } from "~/utils/ofetch-error-message";
 
 definePageMeta({
   ssr: false,
@@ -115,9 +116,24 @@ const cooldownModalBody = computed(() =>
     : t('checkout.payment_slip.cooldown_other_banks_hint')
 );
 
-function isFetchServerError(err) {
-  const s = Number(err?.statusCode ?? err?.status ?? err?.response?.status);
-  return Number.isFinite(s) && s >= 500;
+/** 5xx หรือ body แบบ production ที่ซ่อนรายละเอียด (INTERNAL_ERROR / Internal Server Error) */
+function isSlipFlowServerError(err) {
+  const status = getOfetchHttpStatus(err);
+  if (status != null && status >= 500) return true;
+  const payload = yardsaleErrorPayload(err);
+  const errPart = payload?.error;
+  const code =
+    (errPart && typeof errPart === "object" ? errPart.code : null) ||
+    payload?.code ||
+    err?.data?.error?.code;
+  if (code === "INTERNAL_ERROR" || code === "INTERNAL_SERVER_ERROR") return true;
+  const msg = String(
+    (errPart && typeof errPart === "object" ? errPart.message : null) ||
+      payload?.message ||
+      ""
+  ).trim();
+  if (/^internal server error$/i.test(msg)) return true;
+  return false;
 }
 
 function openSlipErrorModal(text, opts = {}) {
@@ -299,8 +315,8 @@ function yardsaleErrorPayload(err) {
 }
 
 function slipErrorMessage(err) {
-  const status = Number(err?.statusCode ?? err?.status ?? err?.response?.status);
-  if (Number.isFinite(status) && status >= 500) {
+  const status = getOfetchHttpStatus(err);
+  if (status != null && status >= 500) {
     const m = t('checkout.payment_slip.errors.SERVER_ERROR');
     if (m !== 'checkout.payment_slip.errors.SERVER_ERROR') return m;
   }
@@ -312,6 +328,10 @@ function slipErrorMessage(err) {
     err?.data?.error?.code ||
     err?.data?.code ||
     err?.response?._data?.error?.code;
+  if (code === "INTERNAL_ERROR" || code === "INTERNAL_SERVER_ERROR") {
+    const m = t('checkout.payment_slip.errors.SERVER_ERROR');
+    if (m !== 'checkout.payment_slip.errors.SERVER_ERROR') return m;
+  }
   const serverMsg =
     errPart?.message ||
     payload?.message ||
@@ -324,6 +344,10 @@ function slipErrorMessage(err) {
     if (delayMsg !== 'checkout.payment_slip.errors.SLIP_BANK_DELAY') return delayMsg;
   }
   const trimmed = String(serverMsg || '').trim();
+  if (/^internal server error$/i.test(trimmed)) {
+    const m = t('checkout.payment_slip.errors.SERVER_ERROR');
+    if (m !== 'checkout.payment_slip.errors.SERVER_ERROR') return m;
+  }
   /** ข้อความจาก SlipOK มักละเอียดกว่า — แสดงก่อนข้อความทั่วไปของ SLIP_INVALID */
   if (trimmed && !/^slip verification failed$/i.test(trimmed)) {
     if (!code || code === 'SLIP_INVALID') return trimmed;
@@ -385,7 +409,7 @@ async function onSubmitResumeOnly() {
     }
     openSlipErrorModal(t('checkout.payment_slip.errors.generic'));
   } catch (err) {
-    openSlipErrorModal(slipErrorMessage(err), { serverError: isFetchServerError(err) });
+    openSlipErrorModal(slipErrorMessage(err), { serverError: isSlipFlowServerError(err) });
   } finally {
     submitting.value = false;
   }
@@ -442,7 +466,7 @@ async function onSubmitNew() {
     }
     openSlipErrorModal(t('checkout.payment_slip.errors.generic'));
   } catch (err) {
-    openSlipErrorModal(slipErrorMessage(err), { serverError: isFetchServerError(err) });
+    openSlipErrorModal(slipErrorMessage(err), { serverError: isSlipFlowServerError(err) });
   } finally {
     submitting.value = false;
   }

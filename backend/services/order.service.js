@@ -147,10 +147,12 @@ export async function createOrder(userId, payload) {
       }
       throw err;
     }
-    const byId = new Map(locked.map((r) => [r.id, r]));
+    const byId = new Map(
+      locked.map((r) => [String(r.id ?? '').toLowerCase(), r])
+    );
 
     for (const line of lineItems) {
-      const row = byId.get(line.product_id);
+      const row = byId.get(String(line.product_id ?? '').toLowerCase());
       if (!row) {
         throw new AppError(`Product not found: ${line.product_id}`, 404, 'NOT_FOUND');
       }
@@ -172,7 +174,7 @@ export async function createOrder(userId, payload) {
     let total = 0;
     const pricedLines = [];
     for (const line of lineItems) {
-      const row = byId.get(line.product_id);
+      const row = byId.get(String(line.product_id ?? '').toLowerCase());
       const price = Number(row.price);
       total += price * line.quantity;
       const ok = await productModel.decrementProductStock(client, line.product_id, line.quantity);
@@ -210,6 +212,17 @@ export async function createOrder(userId, payload) {
         400,
         'INVALID_PRODUCT_ID'
       );
+    }
+    /** FK / ข้อมูลอ้างอิงไม่มี (เช่น user หรือ product ถูกลบระหว่างทาง) */
+    if (code === '23503') {
+      throw new AppError(
+        'Order could not be created — linked data is missing. Refresh and try again.',
+        409,
+        'FK_VIOLATION'
+      );
+    }
+    if (code === '23505') {
+      throw new AppError('Please try placing the order again.', 409, 'DUPLICATE_KEY');
     }
     throw err;
   }

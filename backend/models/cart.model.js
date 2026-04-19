@@ -1,11 +1,14 @@
 export async function getOrCreateCart(client, userId) {
-  const existing = await client.query(`SELECT id FROM carts WHERE user_id = $1`, [userId]);
-  if (existing.rows[0]) return existing.rows[0].id;
-  const r = await client.query(
-    `INSERT INTO carts (user_id) VALUES ($1) RETURNING id`,
+  /** กัน race สองคำขอพร้อมกัน → 23505 duplicate key on carts.user_id */
+  const ins = await client.query(
+    `INSERT INTO carts (user_id) VALUES ($1::uuid)
+     ON CONFLICT (user_id) DO UPDATE SET updated_at = now()
+     RETURNING id`,
     [userId]
   );
-  return r.rows[0].id;
+  if (ins.rows[0]?.id) return ins.rows[0].id;
+  const r = await client.query(`SELECT id FROM carts WHERE user_id = $1::uuid`, [userId]);
+  return r.rows[0]?.id;
 }
 
 export async function getCartItems(client, cartId) {
