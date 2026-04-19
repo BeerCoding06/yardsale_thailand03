@@ -203,3 +203,121 @@ export async function countWithdrawalsAdmin(client, { status }) {
   const r = await client.query(`SELECT COUNT(*)::int AS n FROM withdrawals`);
   return r.rows[0]?.n ?? 0;
 }
+
+function buildLedgerFilter(type, sellerId) {
+  const parts = ['WHERE 1=1'];
+  const params = [];
+  let i = 1;
+  if (type && String(type).trim()) {
+    parts.push(`AND wt.type = $${i++}::wallet_tx_type`);
+    params.push(String(type).trim());
+  }
+  if (sellerId && String(sellerId).trim()) {
+    parts.push(`AND wt.seller_id = $${i++}::uuid`);
+    params.push(String(sellerId).trim());
+  }
+  return { sql: parts.join(' '), params };
+}
+
+/** รายการ ledger ทั้งแพลตฟอร์ม — CMS: ผู้ขาย + ออเดอร์ (ผู้ซื้อ) สำหรับบริบทการซื้อขาย */
+export async function listWalletTransactionsAdmin(
+  client,
+  { limit = 50, offset = 0, type = '', seller_id: sellerId = '' } = {}
+) {
+  const lim = Math.min(200, Math.max(1, Number(limit) || 50));
+  const off = Math.max(0, Number(offset) || 0);
+  const { sql: whereSql, params: fp } = buildLedgerFilter(type, sellerId);
+  const params = [...fp, lim, off];
+  const iLim = params.length - 1;
+  const iOff = params.length;
+  const r = await client.query(
+    `SELECT wt.id, wt.seller_id, wt.order_id, wt.withdrawal_id, wt.type::text AS type,
+            wt.amount, wt.status::text AS status, wt.metadata, wt.created_at,
+            u.email AS seller_email, u.name AS seller_name,
+            o.user_id AS buyer_user_id, bu.email AS buyer_email, bu.name AS buyer_name,
+            o.total_price AS order_total, o.status::text AS order_status
+     FROM wallet_transactions wt
+     JOIN users u ON u.id = wt.seller_id
+     LEFT JOIN orders o ON o.id = wt.order_id
+     LEFT JOIN users bu ON bu.id = o.user_id
+     ${whereSql}
+     ORDER BY wt.created_at DESC
+     LIMIT $${iLim} OFFSET $${iOff}`,
+    params
+  );
+  return r.rows;
+}
+
+export async function countWalletTransactionsAdmin(client, { type = '', seller_id: sellerId = '' } = {}) {
+  const { sql: whereSql, params } = buildLedgerFilter(type, sellerId);
+  const r = await client.query(
+    `SELECT COUNT(*)::int AS n FROM wallet_transactions wt ${whereSql}`,
+    params
+  );
+  return r.rows[0]?.n ?? 0;
+}
+
+export async function listWalletTransactionsForWithdrawal(client, withdrawalId) {
+  const r = await client.query(
+    `SELECT id, seller_id, order_id, withdrawal_id, type::text AS type, amount,
+            status::text AS status, metadata, created_at
+     FROM wallet_transactions
+     WHERE withdrawal_id = $1::uuid
+     ORDER BY created_at ASC`,
+    [withdrawalId]
+  );
+  return r.rows;
+}
+
+/** บันทึก audit ทางการเงิน — CMS */
+export async function listFinancialAuditLogsAdmin(
+  client,
+  { limit = 50, offset = 0, action = '', entity_type: entityType = '' } = {}
+) {
+  const lim = Math.min(200, Math.max(1, Number(limit) || 50));
+  const off = Math.max(0, Number(offset) || 0);
+  const parts = ['WHERE 1=1'];
+  const params = [];
+  let i = 1;
+  if (action && String(action).trim()) {
+    parts.push(`AND f.action = $${i++}`);
+    params.push(String(action).trim());
+  }
+  if (entityType && String(entityType).trim()) {
+    parts.push(`AND f.entity_type = $${i++}`);
+    params.push(String(entityType).trim());
+  }
+  params.push(lim, off);
+  const iLim = params.length - 1;
+  const iOff = params.length;
+  const r = await client.query(
+    `SELECT f.id, f.actor_user_id, f.action, f.entity_type, f.entity_id, f.details, f.created_at,
+            au.email AS actor_email, au.name AS actor_name
+     FROM financial_audit_logs f
+     LEFT JOIN users au ON au.id = f.actor_user_id
+     ${parts.join(' ')}
+     ORDER BY f.created_at DESC
+     LIMIT $${iLim} OFFSET $${iOff}`,
+    params
+  );
+  return r.rows;
+}
+
+export async function countFinancialAuditLogsAdmin(client, { action = '', entity_type: entityType = '' } = {}) {
+  const parts = ['WHERE 1=1'];
+  const params = [];
+  let i = 1;
+  if (action && String(action).trim()) {
+    parts.push(`AND f.action = $${i++}`);
+    params.push(String(action).trim());
+  }
+  if (entityType && String(entityType).trim()) {
+    parts.push(`AND f.entity_type = $${i++}`);
+    params.push(String(entityType).trim());
+  }
+  const r = await client.query(
+    `SELECT COUNT(*)::int AS n FROM financial_audit_logs f ${parts.join(' ')}`,
+    params
+  );
+  return r.rows[0]?.n ?? 0;
+}

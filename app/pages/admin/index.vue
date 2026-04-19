@@ -39,6 +39,12 @@ const cards = computed(() => [
     desc: t("admin.dashboard.orders_desc"),
     icon: "i-heroicons-clipboard-document-list",
   },
+  {
+    to: localePath("/admin/finance"),
+    title: t("admin.nav.finance"),
+    desc: t("admin.dashboard.finance_desc"),
+    icon: "i-heroicons-banknotes",
+  },
 ]);
 </script>
 

@@ -133,6 +133,22 @@ Body (optional): `{ "admin_notes": "..." }` — refunds `available_balance`, `pe
 
 ### `GET /api/admin/sellers/:sellerId/wallet`
 
+### `GET /api/admin/wallet/ledger`
+
+Query: `limit` (1–200), `offset`, optional `type` (`escrow_in` | `release` | `withdraw` | `refund`), optional `seller_id` (UUID).
+
+Returns `entries[]`: each row includes seller email/name, linked `order_id`, buyer email/name when order exists, `order_total`, `order_status` (payment), `metadata`, and amounts — for CMS **trading / settlement** traceability.
+
+### `GET /api/admin/wallet/audit-log`
+
+Query: `limit`, `offset`, optional exact `action`, optional exact `entity_type`.
+
+Returns `entries[]` from `financial_audit_logs` with optional actor email/name and `details` JSON.
+
+### `GET /api/admin/withdrawals/:id`
+
+Returns **full payout** fields for operations (including **full** `payout_account_number`) plus `related_transactions` (`wallet_transactions` rows for that withdrawal).
+
 ### `POST /api/admin/orders/:orderId/mark-delivered`
 
 Forces `shipping_status = delivered` and runs release logic.

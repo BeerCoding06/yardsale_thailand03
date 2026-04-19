@@ -39,3 +39,18 @@ export const getAdminSellerWallet = asyncHandler(async (req, res) => {
   const data = await sellerWalletService.adminGetSellerWallet(req.params.sellerId);
   sendSuccessNoStore(res, data);
 });
+
+export const getAdminWalletLedger = asyncHandler(async (req, res) => {
+  const data = await sellerWalletService.adminListWalletLedger(req.query);
+  sendSuccessNoStore(res, data);
+});
+
+export const getAdminWalletAuditLog = asyncHandler(async (req, res) => {
+  const data = await sellerWalletService.adminListFinancialAuditLogs(req.query);
+  sendSuccessNoStore(res, data);
+});
+
+export const getAdminWithdrawalDetail = asyncHandler(async (req, res) => {
+  const data = await sellerWalletService.adminGetWithdrawalDetail(req.params.id);
+  sendSuccessNoStore(res, data);
+});

@@ -334,6 +334,20 @@ export const adminSellerWalletParamsSchema = Joi.object({
   sellerId: uuid.required(),
 });
 
+export const adminWalletLedgerQuerySchema = Joi.object({
+  limit: Joi.number().integer().min(1).max(200).default(50),
+  offset: Joi.number().integer().min(0).max(500000).default(0),
+  type: Joi.string().valid('escrow_in', 'release', 'withdraw', 'refund').optional().allow(''),
+  seller_id: uuid.optional().allow(''),
+});
+
+export const adminWalletAuditQuerySchema = Joi.object({
+  limit: Joi.number().integer().min(1).max(200).default(50),
+  offset: Joi.number().integer().min(0).max(500000).default(0),
+  action: Joi.string().trim().max(120).optional().allow(''),
+  entity_type: Joi.string().trim().max(80).optional().allow(''),
+});
+
 export {
   saveFcmTokenSchema,
   sendFcmNotificationSchema,

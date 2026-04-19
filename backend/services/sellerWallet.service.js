@@ -521,3 +521,131 @@ export async function adminGetSellerWallet(sellerId) {
     client.release();
   }
 }
+
+function formatLedgerAdminRow(row) {
+  if (!row) return row;
+  return {
+    id: row.id,
+    seller_id: row.seller_id,
+    seller_email: row.seller_email ?? null,
+    seller_name: row.seller_name ?? null,
+    order_id: row.order_id,
+    withdrawal_id: row.withdrawal_id,
+    type: row.type,
+    amount: money(row.amount),
+    status: row.status,
+    metadata: row.metadata,
+    created_at: row.created_at,
+    buyer_user_id: row.buyer_user_id ?? null,
+    buyer_email: row.buyer_email ?? null,
+    buyer_name: row.buyer_name ?? null,
+    order_total: row.order_total != null ? money(row.order_total) : null,
+    order_status: row.order_status != null ? String(row.order_status) : null,
+  };
+}
+
+function formatAuditAdminRow(row) {
+  if (!row) return row;
+  return {
+    id: row.id,
+    actor_user_id: row.actor_user_id,
+    actor_email: row.actor_email ?? null,
+    actor_name: row.actor_name ?? null,
+    action: row.action,
+    entity_type: row.entity_type,
+    entity_id: row.entity_id,
+    details: row.details,
+    created_at: row.created_at,
+  };
+}
+
+function formatWithdrawalAdminDetail(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    seller_id: row.seller_id,
+    seller_email: row.seller_email ?? null,
+    seller_name: row.seller_name ?? null,
+    amount: money(row.amount),
+    withdrawal_fee_amount:
+      row.withdrawal_fee_amount != null ? money(row.withdrawal_fee_amount) : null,
+    net_payout_amount: row.net_payout_amount != null ? money(row.net_payout_amount) : null,
+    status: row.status,
+    admin_notes: row.admin_notes,
+    requested_at: row.requested_at,
+    processed_at: row.processed_at,
+    created_at: row.created_at,
+    payout_bank_code: row.payout_bank_code ?? null,
+    payout_account_name: row.payout_account_name ?? null,
+    payout_account_number: row.payout_account_number
+      ? String(row.payout_account_number).replace(/\s/g, '')
+      : null,
+  };
+}
+
+/** CMS — บัญชีแยกประเภท wallet (escrow / release / withdraw / refund) พร้อมบริบทออเดอร์ */
+export async function adminListWalletLedger(query = {}) {
+  const client = await pool.connect();
+  try {
+    const limit = Number(query.limit) || 50;
+    const offset = Number(query.offset) || 0;
+    const type = query.type ? String(query.type).trim() : '';
+    const seller_id = query.seller_id ? String(query.seller_id).trim() : '';
+    const rows = await walletModel.listWalletTransactionsAdmin(client, {
+      limit,
+      offset,
+      type,
+      seller_id,
+    });
+    const total = await walletModel.countWalletTransactionsAdmin(client, { type, seller_id });
+    return {
+      success: true,
+      entries: rows.map(formatLedgerAdminRow),
+      pagination: { limit, offset, total },
+    };
+  } finally {
+    client.release();
+  }
+}
+
+/** CMS — financial_audit_logs */
+export async function adminListFinancialAuditLogs(query = {}) {
+  const client = await pool.connect();
+  try {
+    const limit = Number(query.limit) || 50;
+    const offset = Number(query.offset) || 0;
+    const action = query.action ? String(query.action).trim() : '';
+    const entity_type = query.entity_type ? String(query.entity_type).trim() : '';
+    const rows = await walletModel.listFinancialAuditLogsAdmin(client, {
+      limit,
+      offset,
+      action,
+      entity_type,
+    });
+    const total = await walletModel.countFinancialAuditLogsAdmin(client, { action, entity_type });
+    return {
+      success: true,
+      entries: rows.map(formatAuditAdminRow),
+      pagination: { limit, offset, total },
+    };
+  } finally {
+    client.release();
+  }
+}
+
+/** CMS — รายละเอียดการถอน (เลขบัญชีเต็ม + ธุรกรรมที่เกี่ยวข้อง) */
+export async function adminGetWithdrawalDetail(withdrawalId) {
+  const client = await pool.connect();
+  try {
+    const row = await withdrawalModel.getWithdrawalWithSellerForAdmin(client, withdrawalId);
+    if (!row) throw new AppError('Withdrawal not found', 404, 'NOT_FOUND');
+    const related = await walletModel.listWalletTransactionsForWithdrawal(client, withdrawalId);
+    return {
+      success: true,
+      withdrawal: formatWithdrawalAdminDetail(row),
+      related_transactions: related.map(formatTxRow),
+    };
+  } finally {
+    client.release();
+  }
+}

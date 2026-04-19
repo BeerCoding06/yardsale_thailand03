@@ -588,6 +588,14 @@ const updateProfile = async () => {
                   <UIcon name="i-heroicons-credit-card" class="w-5 h-5" />
                   <span class="font-medium">{{ $t("auth.seller_orders") }}</span>
                 </NuxtLink>
+                <NuxtLink
+                  v-if="canAccessSellerPortal"
+                  :to="localePath('/wallet')"
+                  class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white border-2 border-transparent hover:border-neutral-200 dark:hover:border-neutral-700"
+                >
+                  <UIcon name="i-heroicons-wallet" class="w-5 h-5" />
+                  <span class="font-medium">{{ $t("auth.seller_wallet") }}</span>
+                </NuxtLink>
                 <button
                   @click="logout"
                   class="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition text-red-600 dark:text-red-400 border-2 border-transparent hover:border-red-200 dark:hover:border-red-800"

@@ -32,6 +32,8 @@ import {
   adminWithdrawalIdParamsSchema,
   adminWithdrawalActionBodySchema,
   adminSellerWalletParamsSchema,
+  adminWalletLedgerQuerySchema,
+  adminWalletAuditQuerySchema,
 } from '../validators/schemas.js';
 import { uploadImage } from '../middlewares/upload.js';
 import * as authController from '../controllers/auth.controller.js';
@@ -233,10 +235,31 @@ router.get(
   adminWalletController.getWalletDashboard
 );
 router.get(
+  '/admin/wallet/ledger',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(adminWalletLedgerQuerySchema, 'query'),
+  adminWalletController.getAdminWalletLedger
+);
+router.get(
+  '/admin/wallet/audit-log',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(adminWalletAuditQuerySchema, 'query'),
+  adminWalletController.getAdminWalletAuditLog
+);
+router.get(
   '/admin/withdrawals',
   authMiddleware,
   requireRoles('admin'),
   adminWalletController.getAdminWithdrawals
+);
+router.get(
+  '/admin/withdrawals/:id',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(adminWithdrawalIdParamsSchema, 'params'),
+  adminWalletController.getAdminWithdrawalDetail
 );
 router.post(
   '/admin/withdrawals/:id/approve',

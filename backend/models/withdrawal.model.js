@@ -36,6 +36,18 @@ export async function getWithdrawalById(client, id) {
   return r.rows[0] || null;
 }
 
+/** CMS — รายละเอียดถอนเงิน + ผู้ขาย (รวมเลขบัญชีเต็มสำหรับโอน) */
+export async function getWithdrawalWithSellerForAdmin(client, id) {
+  const r = await client.query(
+    `SELECT w.*, u.email AS seller_email, u.name AS seller_name
+     FROM withdrawals w
+     JOIN users u ON u.id = w.seller_id
+     WHERE w.id = $1::uuid`,
+    [id]
+  );
+  return r.rows[0] || null;
+}
+
 export async function lockWithdrawalById(client, id) {
   const r = await client.query(
     `SELECT * FROM withdrawals WHERE id = $1::uuid FOR UPDATE`,

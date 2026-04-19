@@ -131,6 +131,11 @@ export default defineNuxtConfig({
     "/my-orders": { prerender: false, ssr: false }, // Client-side only
     "/my-products": { prerender: false, ssr: false }, // Client-side only
     "/seller-orders": { prerender: false, ssr: false }, // Client-side only
+    "/wallet": { prerender: false, ssr: false },
+    "/en/wallet": { prerender: false, ssr: false },
+    "/nb/wallet": { prerender: false, ssr: false },
+    "/nl/wallet": { prerender: false, ssr: false },
+    "/de/wallet": { prerender: false, ssr: false },
     "/profile": { prerender: false, ssr: false }, // Client-side only
     "/create-product": { prerender: false, ssr: false }, // Client-side only
     "/edit-product/**": { prerender: false, ssr: false }, // Client-side only

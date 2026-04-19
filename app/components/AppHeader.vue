@@ -606,6 +606,15 @@ const totalQuantity = computed(() =>
               <UIcon name="i-heroicons-credit-card" class="w-5 h-5" />
               <span class="font-medium">{{ $t("auth.seller_orders") }}</span>
             </NuxtLink>
+            <NuxtLink
+              v-if="canAccessSellerPortal"
+              :to="localePath('/wallet')"
+              @click="profileModal = false"
+              class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white"
+            >
+              <UIcon name="i-heroicons-wallet" class="w-5 h-5" />
+              <span class="font-medium">{{ $t("auth.seller_wallet") }}</span>
+            </NuxtLink>
             <button
               @click="
                 logout();

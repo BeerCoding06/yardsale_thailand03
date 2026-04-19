@@ -7,6 +7,7 @@ const links = computed(() => {
   const dash = localePath("/admin");
   const users = localePath("/admin/users");
   const orders = localePath("/admin/orders");
+  const finance = localePath("/admin/finance");
   const prods = localePath("/admin/products");
   const cats = localePath("/admin/categories");
   const tagz = localePath("/admin/tags");
@@ -48,6 +49,12 @@ const links = computed(() => {
       label: t("admin.nav.orders"),
       icon: "i-heroicons-clipboard-document-list",
       active: n(p) === n(orders) || p.startsWith(n(orders) + "/"),
+    },
+    {
+      to: finance,
+      label: t("admin.nav.finance"),
+      icon: "i-heroicons-banknotes",
+      active: n(p) === n(finance) || p.startsWith(n(finance) + "/"),
     },
   ];
 });

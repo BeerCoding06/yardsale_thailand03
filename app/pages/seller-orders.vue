@@ -12,6 +12,7 @@ definePageMeta({
 
 const { user, isAuthenticated, checkAuth } = useAuth();
 const router = useRouter();
+const localePath = useLocalePath();
 const { endpoint, hasRemoteApi } = useCmsApi();
 const { resolveMediaUrl } = useStorefrontCatalog();
 const { paymentLabel, paymentColorClass, customerPaymentUiKey } =
@@ -337,16 +338,24 @@ onMounted(async () => {
 
       <template v-else-if="isAuthenticated && user">
         <div class="max-w-6xl mx-auto p-6">
-          <div class="flex items-center justify-between mb-6">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <h1 class="text-3xl font-bold text-black dark:text-white">
               {{ $t('seller_orders.title') }}
             </h1>
-            <NuxtLink
-              to="/"
-              class="px-4 py-2 bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white rounded-xl font-semibold hover:bg-neutral-300 dark:hover:bg-neutral-700 transition"
-            >
-              {{ $t('seller_orders.back_to_home') }}
-            </NuxtLink>
+            <div class="flex flex-wrap gap-2">
+              <NuxtLink
+                :to="localePath('/wallet')"
+                class="px-4 py-2 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition shadow-lg"
+              >
+                {{ $t('auth.seller_wallet') }}
+              </NuxtLink>
+              <NuxtLink
+                :to="localePath('/')"
+                class="px-4 py-2 bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white rounded-xl font-semibold hover:bg-neutral-300 dark:hover:bg-neutral-700 transition"
+              >
+                {{ $t('seller_orders.back_to_home') }}
+              </NuxtLink>
+            </div>
           </div>
 
           <template v-if="orders.length === 0">
