@@ -57,13 +57,47 @@ const ORDER_O_CORE = ORDER_LIST_USER_CORE.split(',')
 
 const ORDER_RETURNING_CHAIN = [ORDER_SELECT_BASE, ORDER_SELECT_NO_WALLET, ORDER_LIST_USER_CORE];
 
-/** 42703 = คอลัมน์ orders ไม่ตรงกับ migration ล่าสุด — กัน create-order / payment 500 */
+/** true = อยู่ใน BEGIN block — ต้องใช้ SAVEPOINT ก่อนลองซ้ำหลัง 42703 (กัน 25P02) */
+async function useSavepointsFor42703Retry(client) {
+  try {
+    await client.query('SAVEPOINT __ordret_tx_probe__');
+    await client.query('ROLLBACK TO SAVEPOINT __ordret_tx_probe__');
+    await client.query('RELEASE SAVEPOINT __ordret_tx_probe__');
+    return true;
+  } catch (probeErr) {
+    const c = String(probeErr?.code || '');
+    if (c === '25P01' || /savepoint.*transaction|no active sql transaction/i.test(String(probeErr?.message || ''))) {
+      return false;
+    }
+    throw probeErr;
+  }
+}
+
+/**
+ * 42703 = คอลัมน์ orders ไม่ตรง migration
+ * ภายใน BEGIN… transaction: ถ้า query แรกล้ม ต้อง ROLLBACK TO SAVEPOINT ก่อนลองชุดคอลัมน์ถัดไป — ไม่งั้นได้ 25P02
+ */
 async function queryWithOrderReturningFallback(client, sqlForCols, params) {
+  const useSavepoints = await useSavepointsFor42703Retry(client);
+
   let lastErr;
-  for (const cols of ORDER_RETURNING_CHAIN) {
+  for (let i = 0; i < ORDER_RETURNING_CHAIN.length; i++) {
+    const cols = ORDER_RETURNING_CHAIN[i];
+    const sp = `sp_ordret_${i}`;
+    if (useSavepoints) {
+      await client.query(`SAVEPOINT ${sp}`);
+    }
     try {
-      return await client.query(sqlForCols(cols), params);
+      const r = await client.query(sqlForCols(cols), params);
+      if (useSavepoints) {
+        await client.query(`RELEASE SAVEPOINT ${sp}`);
+      }
+      return r;
     } catch (err) {
+      if (useSavepoints) {
+        await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
+        await client.query(`RELEASE SAVEPOINT ${sp}`);
+      }
       if (err?.code !== '42703') throw err;
       lastErr = err;
     }
@@ -132,12 +166,29 @@ export async function getOrderItems(client, orderId) {
      FROM order_items oi
      JOIN products p ON p.id = oi.product_id
      WHERE oi.order_id = $1::uuid`;
+  const useSp = await useSavepointsFor42703Retry(client);
   let r;
+  if (useSp) await client.query('SAVEPOINT sp_get_order_items_1');
   try {
     r = await client.query(withUrls, [id]);
+    if (useSp) await client.query('RELEASE SAVEPOINT sp_get_order_items_1');
   } catch (err) {
+    if (useSp) {
+      await client.query('ROLLBACK TO SAVEPOINT sp_get_order_items_1');
+      await client.query('RELEASE SAVEPOINT sp_get_order_items_1');
+    }
     if (err?.code !== '42703') throw err;
-    r = await client.query(noUrls, [id]);
+    if (useSp) await client.query('SAVEPOINT sp_get_order_items_2');
+    try {
+      r = await client.query(noUrls, [id]);
+      if (useSp) await client.query('RELEASE SAVEPOINT sp_get_order_items_2');
+    } catch (err2) {
+      if (useSp) {
+        await client.query('ROLLBACK TO SAVEPOINT sp_get_order_items_2');
+        await client.query('RELEASE SAVEPOINT sp_get_order_items_2');
+      }
+      throw err2;
+    }
   }
   return r.rows.map(lineItemRowToApi);
 }
