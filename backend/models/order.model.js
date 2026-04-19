@@ -32,13 +32,16 @@ export function lineItemRowToApi(row) {
   };
 }
 
+/** ไม่รวม buyer_confirmed_delivery_at / funds_settled_at — ฐานที่ยังไม่รัน migration จะได้ไม่ 500 */
 const ORDER_SELECT_BASE = `id, user_id, total_price, status, slip_image_url, created_at,
-  billing_snapshot, shipping_status, tracking_number, shipping_receipt_number, courier_name, fulfillment_updated_at,
-  buyer_confirmed_delivery_at, funds_settled_at`;
+  billing_snapshot, shipping_status, tracking_number, shipping_receipt_number, courier_name, fulfillment_updated_at`;
 
 const ORDER_O = ORDER_SELECT_BASE.split(',')
   .map((s) => `o.${s.trim()}`)
   .join(', ');
+
+/** คอลัมน์จาก CREATE TABLE orders ต้นฉบับ — ใช้เมื่อ SELECT เต็มล้ม (42703) เพื่อกัน my-orders 500 */
+const ORDER_LIST_USER_CORE = `id, user_id, total_price, status, slip_image_url, created_at`;
 
 export async function createOrderRow(client, { userId, totalPrice, status = 'pending', billingSnapshot = null }) {
   const r = await client.query(
@@ -77,13 +80,21 @@ export async function getOrderById(client, orderId) {
 
 export async function getOrderItems(client, orderId) {
   const id = asOrderUuid(orderId);
-  const r = await client.query(
-    `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name, p.image_url, p.image_urls
+  const withUrls = `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name, p.image_url, p.image_urls
      FROM order_items oi
      JOIN products p ON p.id = oi.product_id
-     WHERE oi.order_id = $1::uuid`,
-    [id]
-  );
+     WHERE oi.order_id = $1::uuid`;
+  const noUrls = `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name, p.image_url
+     FROM order_items oi
+     JOIN products p ON p.id = oi.product_id
+     WHERE oi.order_id = $1::uuid`;
+  let r;
+  try {
+    r = await client.query(withUrls, [id]);
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    r = await client.query(noUrls, [id]);
+  }
   return r.rows.map(lineItemRowToApi);
 }
 
@@ -124,12 +135,22 @@ export async function updateOrderFulfillment(client, orderId, fields) {
 }
 
 export async function listOrdersForUser(client, userId) {
-  const r = await client.query(
-    `SELECT ${ORDER_SELECT_BASE}
-     FROM orders WHERE user_id = $1 ORDER BY created_at DESC`,
-    [userId]
-  );
-  return r.rows;
+  try {
+    const r = await client.query(
+      `SELECT ${ORDER_SELECT_BASE}
+       FROM orders WHERE user_id = $1 ORDER BY created_at DESC`,
+      [userId]
+    );
+    return r.rows;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    const r = await client.query(
+      `SELECT ${ORDER_LIST_USER_CORE}
+       FROM orders WHERE user_id = $1 ORDER BY created_at DESC`,
+      [userId]
+    );
+    return r.rows;
+  }
 }
 
 export async function orderHasSellerProduct(client, orderId, sellerId) {
@@ -149,7 +170,6 @@ export async function listOrdersForSeller(client, sellerId) {
     `SELECT DISTINCT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
             o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
             o.courier_name, o.fulfillment_updated_at,
-            o.buyer_confirmed_delivery_at, o.funds_settled_at,
             u.email AS buyer_email, u.name AS buyer_name
      FROM orders o
      JOIN order_items oi ON oi.order_id = o.id
@@ -168,7 +188,6 @@ export async function listAllOrders(client) {
     `SELECT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
             o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
             o.courier_name, o.fulfillment_updated_at,
-            o.buyer_confirmed_delivery_at, o.funds_settled_at,
             u.email AS buyer_email
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id
@@ -328,7 +347,6 @@ export async function listAllOrdersPaged(client, { limit, offset, search }) {
     `SELECT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
             o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
             o.courier_name, o.fulfillment_updated_at,
-            o.buyer_confirmed_delivery_at, o.funds_settled_at,
             u.email AS buyer_email
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id
@@ -343,14 +361,23 @@ export async function listAllOrdersPaged(client, { limit, offset, search }) {
 /** รายการสินค้าต่อออเดอร์ (ทุกบรรทัด) — ใช้หน้ารายการออเดอร์แอดมิน */
 export async function mapLineItemsByOrderIds(client, orderIds) {
   if (!orderIds.length) return new Map();
-  const r = await client.query(
-    `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name, p.image_url, p.image_urls
+  const withUrls = `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name, p.image_url, p.image_urls
      FROM order_items oi
      JOIN products p ON p.id = oi.product_id
      WHERE oi.order_id = ANY($1::uuid[])
-     ORDER BY oi.order_id, p.name`,
-    [orderIds]
-  );
+     ORDER BY oi.order_id, p.name`;
+  const noUrls = `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name, p.image_url
+     FROM order_items oi
+     JOIN products p ON p.id = oi.product_id
+     WHERE oi.order_id = ANY($1::uuid[])
+     ORDER BY oi.order_id, p.name`;
+  let r;
+  try {
+    r = await client.query(withUrls, [orderIds]);
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    r = await client.query(noUrls, [orderIds]);
+  }
   const map = new Map();
   for (const row of r.rows) {
     const oid = row.order_id;
@@ -396,14 +423,23 @@ export async function mapSlipSnapshotsByOrderIds(client, orderIds) {
 
 export async function mapSellerLineItemsByOrderIds(client, sellerId, orderIds) {
   if (!orderIds.length) return new Map();
-  const r = await client.query(
-    `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name, p.image_url, p.image_urls
+  const withUrls = `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name, p.image_url, p.image_urls
      FROM order_items oi
      JOIN products p ON p.id = oi.product_id
      WHERE oi.order_id = ANY($1::uuid[]) AND p.seller_id = $2::uuid
-     ORDER BY oi.order_id, p.name`,
-    [orderIds, sellerId]
-  );
+     ORDER BY oi.order_id, p.name`;
+  const noUrls = `SELECT oi.order_id, oi.product_id, oi.quantity, oi.price, p.name, p.image_url
+     FROM order_items oi
+     JOIN products p ON p.id = oi.product_id
+     WHERE oi.order_id = ANY($1::uuid[]) AND p.seller_id = $2::uuid
+     ORDER BY oi.order_id, p.name`;
+  let r;
+  try {
+    r = await client.query(withUrls, [orderIds, sellerId]);
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    r = await client.query(noUrls, [orderIds, sellerId]);
+  }
   const map = new Map();
   for (const row of r.rows) {
     const oid = row.order_id;
