@@ -72,16 +72,29 @@ async function queryWithOrderReturningFallback(client, sqlForCols, params) {
 }
 
 export async function createOrderRow(client, { userId, totalPrice, status = 'pending', billingSnapshot = null }) {
-  const params = [userId, totalPrice, status, billingSnapshot ? JSON.stringify(billingSnapshot) : null];
-  const r = await queryWithOrderReturningFallback(
-    client,
-    (cols) =>
-      `INSERT INTO orders (user_id, total_price, status, billing_snapshot)
-       VALUES ($1, $2, $3::order_status, $4::jsonb)
-       RETURNING ${cols}`,
-    params
-  );
-  return r.rows[0];
+  const billingJson = billingSnapshot ? JSON.stringify(billingSnapshot) : null;
+  const withBilling = (cols) =>
+    `INSERT INTO orders (user_id, total_price, status, billing_snapshot)
+     VALUES ($1, $2, $3::order_status, $4::jsonb)
+     RETURNING ${cols}`;
+  const noBillingCols = (cols) =>
+    `INSERT INTO orders (user_id, total_price, status)
+     VALUES ($1, $2, $3::order_status)
+     RETURNING ${cols}`;
+
+  try {
+    const r = await queryWithOrderReturningFallback(
+      client,
+      withBilling,
+      [userId, totalPrice, status, billingJson]
+    );
+    return r.rows[0];
+  } catch (err) {
+    /** ฐานเก่าไม่มี billing_snapshot ใน INSERT — 42703 จากคอลัมน์ใน INSERT ไม่แก้ด้วยแค่เปลี่ยน RETURNING */
+    if (err?.code !== '42703') throw err;
+    const r2 = await queryWithOrderReturningFallback(client, noBillingCols, [userId, totalPrice, status]);
+    return r2.rows[0];
+  }
 }
 
 export async function insertOrderItems(client, orderId, items) {
