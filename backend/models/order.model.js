@@ -33,7 +33,8 @@ export function lineItemRowToApi(row) {
 }
 
 const ORDER_SELECT_BASE = `id, user_id, total_price, status, slip_image_url, created_at,
-  billing_snapshot, shipping_status, tracking_number, shipping_receipt_number, courier_name, fulfillment_updated_at`;
+  billing_snapshot, shipping_status, tracking_number, shipping_receipt_number, courier_name, fulfillment_updated_at,
+  buyer_confirmed_delivery_at, funds_settled_at`;
 
 const ORDER_O = ORDER_SELECT_BASE.split(',')
   .map((s) => `o.${s.trim()}`)
@@ -148,6 +149,7 @@ export async function listOrdersForSeller(client, sellerId) {
     `SELECT DISTINCT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
             o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
             o.courier_name, o.fulfillment_updated_at,
+            o.buyer_confirmed_delivery_at, o.funds_settled_at,
             u.email AS buyer_email, u.name AS buyer_name
      FROM orders o
      JOIN order_items oi ON oi.order_id = o.id
@@ -166,6 +168,7 @@ export async function listAllOrders(client) {
     `SELECT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
             o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
             o.courier_name, o.fulfillment_updated_at,
+            o.buyer_confirmed_delivery_at, o.funds_settled_at,
             u.email AS buyer_email
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id
@@ -325,6 +328,7 @@ export async function listAllOrdersPaged(client, { limit, offset, search }) {
     `SELECT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
             o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
             o.courier_name, o.fulfillment_updated_at,
+            o.buyer_confirmed_delivery_at, o.funds_settled_at,
             u.email AS buyer_email
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id
@@ -407,4 +411,82 @@ export async function mapSellerLineItemsByOrderIds(client, sellerId, orderIds) {
     map.get(oid).push(lineItemRowToApi(row));
   }
   return map;
+}
+
+export async function lockOrderForUpdate(client, orderId) {
+  const id = asOrderUuid(orderId);
+  const r = await client.query(
+    `SELECT ${ORDER_SELECT_BASE} FROM orders WHERE id = $1::uuid FOR UPDATE`,
+    [id]
+  );
+  return r.rows[0] || null;
+}
+
+/** ยอดรวมต่อผู้ขายในออเดอร์ (สำหรับ escrow / release) */
+export async function listSellerSubtotalsForOrder(client, orderId) {
+  const id = asOrderUuid(orderId);
+  const r = await client.query(
+    `SELECT p.seller_id,
+            SUM(oi.quantity * oi.price)::numeric(14,2) AS amount
+     FROM order_items oi
+     JOIN products p ON p.id = oi.product_id
+     WHERE oi.order_id = $1::uuid
+     GROUP BY p.seller_id`,
+    [id]
+  );
+  return r.rows.map((row) => ({
+    seller_id: row.seller_id,
+    amount: Number(row.amount),
+  }));
+}
+
+export async function countSellersWithPositiveShareForOrder(client, orderId) {
+  const id = asOrderUuid(orderId);
+  const r = await client.query(
+    `SELECT COUNT(*)::int AS n FROM (
+       SELECT p.seller_id
+       FROM order_items oi
+       JOIN products p ON p.id = oi.product_id
+       WHERE oi.order_id = $1::uuid
+       GROUP BY p.seller_id
+       HAVING SUM(oi.quantity * oi.price) > 0
+     ) t`,
+    [id]
+  );
+  return r.rows[0]?.n ?? 0;
+}
+
+export async function setBuyerConfirmedDeliveryAt(client, orderId) {
+  const id = asOrderUuid(orderId);
+  const r = await client.query(
+    `UPDATE orders SET buyer_confirmed_delivery_at = COALESCE(buyer_confirmed_delivery_at, now())
+     WHERE id = $1::uuid
+     RETURNING ${ORDER_SELECT_BASE}`,
+    [id]
+  );
+  return r.rows[0] || null;
+}
+
+export async function setFundsSettledAtIfUnset(client, orderId) {
+  const id = asOrderUuid(orderId);
+  const r = await client.query(
+    `UPDATE orders SET funds_settled_at = now()
+     WHERE id = $1::uuid AND funds_settled_at IS NULL
+     RETURNING ${ORDER_SELECT_BASE}`,
+    [id]
+  );
+  return r.rows[0] || null;
+}
+
+export async function adminSetShippingDelivered(client, orderId) {
+  const id = asOrderUuid(orderId);
+  const r = await client.query(
+    `UPDATE orders SET
+       shipping_status = 'delivered',
+       fulfillment_updated_at = now()
+     WHERE id = $1::uuid
+     RETURNING ${ORDER_SELECT_BASE}`,
+    [id]
+  );
+  return r.rows[0] || null;
 }

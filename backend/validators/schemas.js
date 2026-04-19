@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { THAI_PAYOUT_BANK_CODES } from '../constants/thaiPayoutBanks.js';
 
 const emailRule = Joi.string().email({ tlds: { allow: false } }).trim().lowercase();
 
@@ -306,6 +307,31 @@ export const trackShipmentSchema = Joi.object({
   trackingNumber: Joi.string().trim().min(3).max(100).required(),
   /** Optional 17TRACK carrier key when auto-detect fails */
   carrier: Joi.number().integer().positive().optional(),
+});
+
+export const walletWithdrawBodySchema = Joi.object({
+  amount: Joi.number().precision(2).positive().max(999999999).required(),
+  bank_code: Joi.string()
+    .trim()
+    .uppercase()
+    .valid(...THAI_PAYOUT_BANK_CODES)
+    .required()
+    .messages({ 'any.only': 'Invalid or unsupported bank_code' }),
+  account_holder_name: Joi.string().trim().min(2).max(200).required(),
+  /** เลขบัญชี — อนุญาตเฉพาะตัวเลขหลัง normalize (ฝั่ง service จะตัดขีด/ช่องว่าง) */
+  account_number: Joi.string().trim().min(8).max(24).required(),
+});
+
+export const adminWithdrawalIdParamsSchema = Joi.object({
+  id: uuid.required(),
+});
+
+export const adminWithdrawalActionBodySchema = Joi.object({
+  admin_notes: Joi.string().trim().max(5000).allow('', null).optional(),
+});
+
+export const adminSellerWalletParamsSchema = Joi.object({
+  sellerId: uuid.required(),
 });
 
 export {

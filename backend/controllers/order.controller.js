@@ -15,15 +15,8 @@ export const getOrder = asyncHandler(async (req, res) => {
 });
 
 export const myOrders = asyncHandler(async (req, res) => {
-  const { page, pageSize, offset } = parsePaginationQuery(req.query);
-  const search = parseSearchQuery(req.query);
-  const data = await orderService.listMyOrders(req.user.id, {
-    page,
-    pageSize,
-    offset,
-    search,
-  });
-  sendSuccessNoStore(res, { success: true, orders: data.orders, pagination: data.pagination });
+  const data = await orderService.listMyOrders(req.user.id);
+  sendSuccessNoStore(res, { success: true, orders: data.orders });
 });
 
 /** user/seller เห็นออเดอร์ที่มีสินค้าของตน; แอดมินเห็นทั้งระบบ */
@@ -56,7 +49,7 @@ export const patchSellerOrderFulfillment = asyncHandler(async (req, res) => {
   sendSuccess(res, data);
 });
 
-/** แอดมิน: ตั้งสถานะออเดอร์เป็น paid (ไม่ผ่าน SlipOK) */
+/** แอดมิน: ตั้งสถานะออเดอร์เป็น paid */
 export const markOrderPaidAdmin = asyncHandler(async (req, res) => {
   const slipRaw = req.body?.slip_image_url;
   const slipImageUrl =
@@ -64,5 +57,17 @@ export const markOrderPaidAdmin = asyncHandler(async (req, res) => {
   const data = await orderService.markOrderPaidAsAdmin(req.params.orderId, {
     slipImageUrl,
   });
+  sendSuccess(res, { success: true, ...data });
+});
+
+/** ผู้ซื้อ: ยืนยันรับสินค้า (คู่กับติดตามพัสดุ — ปล่อยเงินจาก escrow เมื่อเงื่อนไขครบ) */
+export const confirmBuyerDelivery = asyncHandler(async (req, res) => {
+  const data = await orderService.confirmBuyerDelivery(req.params.orderId, req.user.id);
+  sendSuccess(res, { success: true, ...data });
+});
+
+/** แอดมิน: บังคับสถานะจัดส่งเป็น delivered + พยายามปล่อยเงิน */
+export const adminMarkOrderDelivered = asyncHandler(async (req, res) => {
+  const data = await orderService.adminMarkOrderDelivered(req.params.orderId);
   sendSuccess(res, { success: true, ...data });
 });

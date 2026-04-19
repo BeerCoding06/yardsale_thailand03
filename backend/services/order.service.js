@@ -5,6 +5,7 @@ import * as productModel from '../models/product.model.js';
 import * as orderModel from '../models/order.model.js';
 import * as cartModel from '../models/cart.model.js';
 import * as seventeenTrack from './seventeenTrack.service.js';
+import * as sellerWalletService from './sellerWallet.service.js';
 
 function aggregateLineItems(lineItems) {
   const map = new Map();
@@ -59,6 +60,21 @@ function coerceOrderStatusText(raw) {
   return String(raw).trim();
 }
 
+function computeOrderLifecycle(row) {
+  const st = coerceOrderStatusText(row.status);
+  const ship = String(row.shipping_status || 'pending').toLowerCase();
+  if (st === 'pending') return 'pending';
+  if (st === 'canceled' || st === 'cancelled') return 'canceled';
+  if (st === 'payment_failed') return 'payment_failed';
+  if (st === 'paid') {
+    if (row.funds_settled_at) return 'completed';
+    if (ship === 'delivered' || row.buyer_confirmed_delivery_at) return 'delivered';
+    if (ship === 'shipped' || ship === 'out_for_delivery') return 'shipped';
+    return 'paid';
+  }
+  return st;
+}
+
 /** แปลงแถว DB → API (billing, aliases) */
 export function formatOrderForApi(row) {
   if (!row) return row;
@@ -84,6 +100,9 @@ export function formatOrderForApi(row) {
     date_created: row.created_at,
     total: row.total_price,
     shipping_status: row.shipping_status || 'pending',
+    order_lifecycle: computeOrderLifecycle(row),
+    buyer_confirmed_delivery_at: row.buyer_confirmed_delivery_at ?? null,
+    funds_settled_at: row.funds_settled_at ?? null,
   };
 }
 
@@ -253,8 +272,13 @@ export async function listAllOrdersAdmin(opts = {}) {
  */
 export async function updateSellerOrderFulfillment(userId, orderId, body, role) {
   const client = await pool.connect();
+  let order;
+  let nextTn;
+  let nextReceipt;
+  let nextCourier;
+  let shippingStatus;
   try {
-    const order = await orderModel.getOrderById(client, orderId);
+    order = await orderModel.getOrderById(client, orderId);
     if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
     const isAdmin = role === 'admin';
     if (!isAdmin) {
@@ -269,20 +293,20 @@ export async function updateSellerOrderFulfillment(userId, orderId, body, role) 
     }
 
     const prevTn = String(order.tracking_number || '').trim();
-    const nextTn =
+    nextTn =
       body.tracking_number !== undefined ? String(body.tracking_number || '').trim() : prevTn;
 
-    const nextReceipt =
+    nextReceipt =
       body.shipping_receipt_number !== undefined
         ? String(body.shipping_receipt_number || '').trim()
         : String(order.shipping_receipt_number || '').trim();
 
-    let nextCourier =
+    nextCourier =
       body.courier_name !== undefined
         ? String(body.courier_name || '').trim()
         : String(order.courier_name || '').trim();
 
-    let shippingStatus = String(order.shipping_status || 'pending');
+    shippingStatus = String(order.shipping_status || 'pending');
 
     if (nextTn) {
       const resolved = await seventeenTrack.tryResolveTrackingForFulfillment(nextTn, undefined);
@@ -297,22 +321,62 @@ export async function updateSellerOrderFulfillment(userId, orderId, body, role) 
     } else if (prevTn && !nextTn) {
       shippingStatus = 'pending';
     }
+  } finally {
+    client.release();
+  }
 
-    const updated = await orderModel.updateOrderFulfillment(client, orderId, {
+  return withTransaction(async (tx) => {
+    const updated = await orderModel.updateOrderFulfillment(tx, orderId, {
       shipping_status: shippingStatus,
       tracking_number: nextTn,
       shipping_receipt_number: nextReceipt,
       courier_name: nextCourier,
     });
+    await sellerWalletService.tryReleaseOrderFunds(tx, orderId, 'fulfillment_update');
     return { order: formatOrderForApi(updated) };
-  } finally {
-    client.release();
-  }
+  });
 }
 
 /**
  * Cancel order and restore inventory (safe for pending / paid / payment_failed — not already canceled).
  */
+export async function markOrderPaidAsAdmin(orderId, { slipImageUrl } = {}) {
+  return withTransaction(async (client) => {
+    const order = await orderModel.getOrderById(client, orderId);
+    if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
+    const updated = await orderModel.updateOrderStatus(client, orderId, 'paid', {
+      slipImageUrl,
+    });
+    await sellerWalletService.recordEscrowForPaidOrder(client, orderId);
+    return { order: formatOrderForApi(updated) };
+  });
+}
+
+export async function confirmBuyerDelivery(orderId, buyerUserId) {
+  return withTransaction(async (client) => {
+    const order = await orderModel.getOrderById(client, orderId);
+    if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
+    if (order.user_id !== buyerUserId) {
+      throw new AppError('Only the buyer can confirm delivery', 403, 'FORBIDDEN');
+    }
+    await orderModel.setBuyerConfirmedDeliveryAt(client, orderId);
+    await sellerWalletService.tryReleaseOrderFunds(client, orderId, 'buyer_confirm');
+    const fresh = await orderModel.getOrderById(client, orderId);
+    return { order: formatOrderForApi(fresh) };
+  });
+}
+
+export async function adminMarkOrderDelivered(orderId) {
+  return withTransaction(async (client) => {
+    const order = await orderModel.getOrderById(client, orderId);
+    if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
+    await orderModel.adminSetShippingDelivered(client, orderId);
+    await sellerWalletService.tryReleaseOrderFunds(client, orderId, 'admin_override');
+    const fresh = await orderModel.getOrderById(client, orderId);
+    return { order: formatOrderForApi(fresh) };
+  });
+}
+
 export async function cancelOrder(orderId, userId, role) {
   return withTransaction(async (client) => {
     const order = await orderModel.getOrderById(client, orderId);

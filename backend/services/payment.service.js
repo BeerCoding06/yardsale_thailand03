@@ -2,6 +2,7 @@ import { AppError } from '../utils/AppError.js';
 import { withTransaction } from '../models/db.js';
 import * as orderModel from '../models/order.model.js';
 import * as orderService from './order.service.js';
+import * as sellerWalletService from './sellerWallet.service.js';
 import { config } from '../config/index.js';
 import fs from 'fs/promises';
 
@@ -150,6 +151,7 @@ export async function mockPayment(userId, body, file) {
     const updated = await orderModel.updateOrderStatus(client, orderId, 'paid', {
       slipImageUrl: slipUrl,
     });
+    await sellerWalletService.recordEscrowForPaidOrder(client, orderId);
     return { order: updated, paid: true, slip: slipChecked };
   }).then((result) => {
     if (result.paid && orderId) {

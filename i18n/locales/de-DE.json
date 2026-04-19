@@ -5,6 +5,22 @@
     "loading": "Laden...",
     "go_back": "Zurück"
   },
+  "wallet": {
+    "withdraw_fee_title": "Withdrawal fee",
+    "withdraw_fee_percent": "{percent}% of the gross amount you request to withdraw",
+    "withdraw_gross_label": "Deducted from your withdrawable balance",
+    "withdraw_fee_label": "Fee ({percent}%)",
+    "withdraw_net_label": "Estimated bank payout (net)",
+    "withdraw_notice_title": "Please read before withdrawing",
+    "withdraw_notice_1": "The amount you enter is the gross withdrawal: we deduct that full amount from your withdrawable balance before the fee is taken from it.",
+    "withdraw_notice_2": "The fee is withheld automatically. Bank payout = gross request − fee.",
+    "withdraw_notice_3": "Typical timeline: within 3 business days after an admin approves and sends the transfer (excluding public holidays and bank closures).",
+    "withdraw_notice_4": "Double-check bank, account name, and account number. Incorrect details may delay payout or require a refund process.",
+    "withdraw_notice_5": "If the request is rejected, the full gross amount deducted is returned to your withdrawable balance.",
+    "withdraw_notice_6": "The fee covers platform processing, transfer operations, and financial risk management.",
+    "withdraw_success_summary": "Deducted {gross} THB — fee {fee} THB — expected bank transfer {net} THB (net)",
+    "withdraw_timeline_hint": "After you submit: pending review → admin approves → admin marks paid when the transfer is done"
+  },
   "fcm_ios": {
     "prompt_title": "Enable notifications on iPhone / iPad",
     "prompt_body": "In the Safari tab, web push works reliably after you add this site to your Home Screen and open it from the app icon (iOS 16.4+).",

@@ -28,6 +28,10 @@ import {
   saveFcmTokenSchema,
   sendFcmNotificationSchema,
   broadcastFcmSchema,
+  walletWithdrawBodySchema,
+  adminWithdrawalIdParamsSchema,
+  adminWithdrawalActionBodySchema,
+  adminSellerWalletParamsSchema,
 } from '../validators/schemas.js';
 import { uploadImage } from '../middlewares/upload.js';
 import * as authController from '../controllers/auth.controller.js';
@@ -40,6 +44,8 @@ import * as paymentController from '../controllers/payment.controller.js';
 import * as sellerController from '../controllers/seller.controller.js';
 import * as trackController from '../controllers/track.controller.js';
 import * as fcmController from '../controllers/fcm.controller.js';
+import * as walletController from '../controllers/wallet.controller.js';
+import * as adminWalletController from '../controllers/adminWallet.controller.js';
 import { trackRateLimit } from '../middlewares/trackRateLimit.js';
 import { fcmBroadcastRateLimit, fcmSendNotificationRateLimit } from '../middlewares/fcmRateLimit.js';
 
@@ -75,6 +81,13 @@ router.post(
   requireRoles('admin'),
   validate(sellerOrderFulfillmentParamsSchema, 'params'),
   orderController.markOrderPaidAdmin
+);
+router.post(
+  '/admin/orders/:orderId/mark-delivered',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(sellerOrderFulfillmentParamsSchema, 'params'),
+  orderController.adminMarkOrderDelivered
 );
 router.post('/check-email', validate(checkEmailSchema), authController.checkEmail);
 
@@ -179,7 +192,82 @@ router.patch(
   validate(patchSellerOrderFulfillmentSchema),
   orderController.patchSellerOrderFulfillment
 );
+router.post(
+  '/orders/:orderId/confirm-delivery',
+  authMiddleware,
+  validate(sellerOrderFulfillmentParamsSchema, 'params'),
+  orderController.confirmBuyerDelivery
+);
 router.post('/cancel-order', authMiddleware, validate(cancelOrderSchema), orderController.cancelOrder);
+
+router.get(
+  '/wallet',
+  authMiddleware,
+  requireRoles('user', 'seller', 'admin'),
+  walletController.getWallet
+);
+router.get(
+  '/wallet/bank-options',
+  authMiddleware,
+  requireRoles('user', 'seller', 'admin'),
+  walletController.getWithdrawalBankOptions
+);
+router.post(
+  '/wallet/withdraw',
+  authMiddleware,
+  requireRoles('user', 'seller', 'admin'),
+  validate(walletWithdrawBodySchema),
+  walletController.postWithdraw
+);
+router.get(
+  '/wallet/withdrawals',
+  authMiddleware,
+  requireRoles('user', 'seller', 'admin'),
+  walletController.getWithdrawals
+);
+
+router.get(
+  '/admin/wallet/dashboard',
+  authMiddleware,
+  requireRoles('admin'),
+  adminWalletController.getWalletDashboard
+);
+router.get(
+  '/admin/withdrawals',
+  authMiddleware,
+  requireRoles('admin'),
+  adminWalletController.getAdminWithdrawals
+);
+router.post(
+  '/admin/withdrawals/:id/approve',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(adminWithdrawalIdParamsSchema, 'params'),
+  validate(adminWithdrawalActionBodySchema),
+  adminWalletController.postApproveWithdrawal
+);
+router.post(
+  '/admin/withdrawals/:id/reject',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(adminWithdrawalIdParamsSchema, 'params'),
+  validate(adminWithdrawalActionBodySchema),
+  adminWalletController.postRejectWithdrawal
+);
+router.post(
+  '/admin/withdrawals/:id/mark-paid',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(adminWithdrawalIdParamsSchema, 'params'),
+  adminWalletController.postMarkWithdrawalPaid
+);
+router.get(
+  '/admin/sellers/:sellerId/wallet',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(adminSellerWalletParamsSchema, 'params'),
+  adminWalletController.getAdminSellerWallet
+);
 
 router.post('/payment/mock', authMiddleware, (req, res, next) => {
   if (req.is('multipart/form-data')) {
