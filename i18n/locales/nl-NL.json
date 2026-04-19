@@ -691,7 +691,11 @@
     "save_fulfillment": "Save shipping update",
     "fulfillment_saved": "Shipping info saved",
     "fulfillment_save_error": "Could not save. Please try again.",
-    "fulfillment_updated_at": "Last updated:"
+    "fulfillment_updated_at": "Last updated:",
+    "wallet_release_toast_delivery_not_confirmed": "Shipping saved, but withdrawable balance was not updated — choose \"Delivered\" below or ask the buyer to confirm receipt.",
+    "wallet_release_toast_not_paid": "This order is not marked paid in the system, so funds are not released to your wallet.",
+    "wallet_release_toast_no_escrow": "Funds were not moved — no escrow record for this order (paid before wallet existed, or already released). Contact support if the balance looks wrong.",
+    "wallet_release_toast_no_seller_share": "Funds were not moved — no seller-attributed line items for this order. Check that products have a seller."
   },
   "register": {
     "title": "Register",

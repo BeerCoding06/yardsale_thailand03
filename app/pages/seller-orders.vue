@@ -178,6 +178,7 @@ async function saveFulfillment(order) {
     });
     const inner = unwrapApi(raw);
     const updated = inner?.order;
+    const walletRelease = inner?.wallet_release;
     if (updated) {
       const ix = orders.value.findIndex((o) => o.id === order.id);
       if (ix >= 0) {
@@ -190,6 +191,18 @@ async function saveFulfillment(order) {
       }
       delete fulfillmentDrafts.value[order.id];
       push.success(t("seller_orders.fulfillment_saved"));
+      if (orderPaid(order) && walletRelease && walletRelease.released === false) {
+        const rk = walletRelease.reason;
+        if (rk === "delivery_not_confirmed") {
+          push.warning(t("seller_orders.wallet_release_toast_delivery_not_confirmed"));
+        } else if (rk === "not_paid") {
+          push.warning(t("seller_orders.wallet_release_toast_not_paid"));
+        } else if (rk === "no_escrow_or_already_released") {
+          push.warning(t("seller_orders.wallet_release_toast_no_escrow"));
+        } else if (rk === "no_seller_share") {
+          push.warning(t("seller_orders.wallet_release_toast_no_seller_share"));
+        }
+      }
     }
   } catch (e) {
     const msg =
@@ -697,41 +710,6 @@ onMounted(async () => {
                         {{ $t('seller_orders.tracking_seller_only_hint') }}
                       </p>
                       <ShipmentTimeline :steps="shipmentStepsForOrder(order)" />
-                      <div class="mb-3">
-                        <label
-                          class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
-                          :for="`seller-ship-mode-${order.id}`"
-                        >
-                          {{ $t('seller_orders.fulfillment_shipping_mode_label') }}
-                        </label>
-                        <select
-                          :id="`seller-ship-mode-${order.id}`"
-                          v-model="draftFor(order).shipping_status_mode"
-                          class="w-full max-w-md rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
-                        >
-                          <option value="auto">
-                            {{ $t('seller_orders.shipping_status_auto') }}
-                          </option>
-                          <option value="pending">
-                            {{ $t('seller_orders.shipping_status_pending') }}
-                          </option>
-                          <option value="preparing">
-                            {{ $t('seller_orders.shipping_status_preparing') }}
-                          </option>
-                          <option value="shipped">
-                            {{ $t('seller_orders.shipping_status_shipped') }}
-                          </option>
-                          <option value="out_for_delivery">
-                            {{ $t('seller_orders.shipping_status_out_for_delivery') }}
-                          </option>
-                          <option value="delivered">
-                            {{ $t('seller_orders.shipping_status_delivered') }}
-                          </option>
-                        </select>
-                        <p class="mt-1 text-xs text-teal-800/80 dark:text-teal-200/80">
-                          {{ $t('seller_orders.fulfillment_shipping_mode_hint') }}
-                        </p>
-                      </div>
                       <div class="mt-4 grid gap-3 sm:grid-cols-2">
                         <div>
                           <label

@@ -209,7 +209,9 @@ export function mapNormalizedToShippingStatus(normalized) {
   const text = `${normalized.currentStatus || ''} ${ls.substatus_descr || ''} ${main} ${sub}`.toLowerCase();
 
   if (
-    /\bdelivered\b|delivery_success|delivered_ok|ส่งมอบ|นำส่งสำเร็จ|successfully\s*delivered|pod/.test(text) ||
+    /\bdelivered\b|delivery_success|delivered_ok|ส่งมอบ|นำส่งสำเร็จ|จัดส่งสำเร็จ|successfully\s*delivered|pod/.test(
+      text
+    ) ||
     main === 'delivered'
   ) {
     return 'delivered';

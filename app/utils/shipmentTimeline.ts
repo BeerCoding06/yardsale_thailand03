@@ -41,6 +41,7 @@ export function getShipmentActiveStepIndex(order: OrderLike): number {
   if (st === "cancelled" || st === "canceled") return -1;
 
   const ship = norm(order.shipping_status);
+  const shipRaw = String(order.shipping_status || "");
 
   /**
    * ชำระเงินแล้วแต่ขนส่งยัง pending — อย่า return 0 จาก shipping เท่านั้น
@@ -50,6 +51,13 @@ export function getShipmentActiveStepIndex(order: OrderLike): number {
   if (paidLike && ship === "pending") return 1;
 
   if (ship === "delivered") return 4;
+  if (
+    /จัดส่งสำเร็จ|ส่งมอบแล้ว|นำส่งสำเร็จ|delivery_success|successfully_delivered|\bpod\b/i.test(
+      shipRaw
+    )
+  ) {
+    return 4;
+  }
   if (ship === "out_for_delivery" || ship === "in_transit" || ship === "out for delivery") return 3;
   if (ship === "shipped") return 2;
   if (ship === "preparing" || ship === "packed") return 1;

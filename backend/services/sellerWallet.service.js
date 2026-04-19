@@ -28,6 +28,43 @@ function isPaidStatus(raw) {
   return String(raw).toLowerCase() === 'paid';
 }
 
+function normalizeShippingStatusKey(raw) {
+  return String(raw || '')
+    .toLowerCase()
+    .trim()
+    .replace(/-/g, '_')
+    .replace(/\s+/g, '_');
+}
+
+/**
+ * ยืนยันการส่งมอบสำหรับปล่อย escrow — รองรับค่า/ข้อความจากขนส่งที่ไม่ตรงทุกตัวกับ `delivered`
+ */
+export function isDeliveryConfirmedForWalletRelease(order) {
+  if (!order) return false;
+  if (order.buyer_confirmed_delivery_at != null) return true;
+
+  const raw = order.shipping_status;
+  const norm = normalizeShippingStatusKey(raw);
+  if (norm === 'delivered') return true;
+  if (
+    norm === 'delivery_success' ||
+    norm === 'delivered_ok' ||
+    norm === 'successfully_delivered' ||
+    norm === 'pod'
+  ) {
+    return true;
+  }
+
+  const plain = String(raw || '');
+  if (
+    /จัดส่งสำเร็จ|ส่งมอบแล้ว|นำส่งสำเร็จ|delivery\s*success|successfully\s*delivered|\bpod\b/i.test(plain)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 function formatWalletRow(row) {
   if (!row) return null;
   return {
@@ -130,7 +167,7 @@ export async function recordEscrowForPaidOrder(client, orderId) {
 
 /**
  * Release escrow → available when delivery criteria met (idempotent per seller).
- * Criteria: order paid AND (shipping_status = delivered OR buyer_confirmed_delivery_at set).
+ * Criteria: order paid AND (shipping_status ถือว่าส่งมอบแล้ว หรือ buyer_confirmed_delivery_at)
  */
 export async function tryReleaseOrderFunds(client, orderId, trigger = 'unknown') {
   const order = await orderModel.lockOrderForUpdate(client, orderId);
@@ -139,9 +176,7 @@ export async function tryReleaseOrderFunds(client, orderId, trigger = 'unknown')
     return { released: false, reason: 'not_paid' };
   }
 
-  const ship = String(order.shipping_status || '').toLowerCase();
-  const buyerConfirmed = order.buyer_confirmed_delivery_at != null;
-  if (ship !== 'delivered' && !buyerConfirmed) {
+  if (!isDeliveryConfirmedForWalletRelease(order)) {
     return { released: false, reason: 'delivery_not_confirmed' };
   }
 
@@ -200,7 +235,15 @@ export async function tryReleaseOrderFunds(client, orderId, trigger = 'unknown')
     await orderModel.setFundsSettledAtIfUnset(client, orderId);
   }
 
-  return { released: releasedAny };
+  if (releasedAny) {
+    return { released: true, reason: 'released' };
+  }
+
+  const elig = shares.filter((r) => r.seller_id && money(r.amount) > 0);
+  if (elig.length === 0) {
+    return { released: false, reason: 'no_seller_share' };
+  }
+  return { released: false, reason: 'no_escrow_or_already_released' };
 }
 
 export async function getWalletOverview(userId) {

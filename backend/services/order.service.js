@@ -68,7 +68,7 @@ function computeOrderLifecycle(row) {
   if (st === 'payment_failed') return 'payment_failed';
   if (st === 'paid') {
     if (row.funds_settled_at) return 'completed';
-    if (ship === 'delivered' || row.buyer_confirmed_delivery_at) return 'delivered';
+    if (sellerWalletService.isDeliveryConfirmedForWalletRelease(row)) return 'delivered';
     if (ship === 'shipped' || ship === 'out_for_delivery') return 'shipped';
     return 'paid';
   }
@@ -367,8 +367,12 @@ export async function updateSellerOrderFulfillment(userId, orderId, body, role) 
       shipping_receipt_number: nextReceipt,
       courier_name: nextCourier,
     });
-    await sellerWalletService.tryReleaseOrderFunds(tx, orderId, 'fulfillment_update');
-    return { order: formatOrderForApi(updated) };
+    const walletRelease = await sellerWalletService.tryReleaseOrderFunds(
+      tx,
+      orderId,
+      'fulfillment_update'
+    );
+    return { order: formatOrderForApi(updated), wallet_release: walletRelease };
   });
 }
 
@@ -408,9 +412,13 @@ export async function confirmBuyerDelivery(orderId, buyerUserId) {
       throw new AppError('Only the buyer can confirm delivery', 403, 'FORBIDDEN');
     }
     await orderModel.setBuyerConfirmedDeliveryAt(client, orderId);
-    await sellerWalletService.tryReleaseOrderFunds(client, orderId, 'buyer_confirm');
+    const walletRelease = await sellerWalletService.tryReleaseOrderFunds(
+      client,
+      orderId,
+      'buyer_confirm'
+    );
     const fresh = await orderModel.getOrderById(client, orderId);
-    return { order: formatOrderForApi(fresh) };
+    return { order: formatOrderForApi(fresh), wallet_release: walletRelease };
   });
 }
 
@@ -419,9 +427,13 @@ export async function adminMarkOrderDelivered(orderId) {
     const order = await orderModel.getOrderById(client, orderId);
     if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
     await orderModel.adminSetShippingDelivered(client, orderId);
-    await sellerWalletService.tryReleaseOrderFunds(client, orderId, 'admin_override');
+    const walletRelease = await sellerWalletService.tryReleaseOrderFunds(
+      client,
+      orderId,
+      'admin_override'
+    );
     const fresh = await orderModel.getOrderById(client, orderId);
-    return { order: formatOrderForApi(fresh) };
+    return { order: formatOrderForApi(fresh), wallet_release: walletRelease };
   });
 }
 
