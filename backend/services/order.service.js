@@ -320,9 +320,30 @@ export async function updateSellerOrderFulfillment(userId, orderId, body, role) 
         ? String(body.courier_name || '').trim()
         : String(order.courier_name || '').trim();
 
+    const ALLOWED_SHIP = new Set([
+      'pending',
+      'preparing',
+      'shipped',
+      'out_for_delivery',
+      'delivered',
+    ]);
+    let explicitShip = null;
+    if (body.shipping_status !== undefined && body.shipping_status !== null) {
+      const raw = String(body.shipping_status).trim().toLowerCase().replace(/-/g, '_');
+      if (raw && ALLOWED_SHIP.has(raw)) explicitShip = raw;
+    }
+
     shippingStatus = String(order.shipping_status || 'pending');
 
-    if (nextTn) {
+    if (explicitShip != null) {
+      shippingStatus = explicitShip;
+      if (nextTn) {
+        const resolved = await seventeenTrack.tryResolveTrackingForFulfillment(nextTn, undefined);
+        if (resolved?.normalized && !nextCourier) {
+          nextCourier = String(resolved.normalized.carrier || '').trim();
+        }
+      }
+    } else if (nextTn) {
       const resolved = await seventeenTrack.tryResolveTrackingForFulfillment(nextTn, undefined);
       if (resolved?.normalized) {
         shippingStatus = seventeenTrack.mapNormalizedToShippingStatus(resolved.normalized);

@@ -125,7 +125,7 @@ export const sellerOrderFulfillmentParamsSchema = Joi.object({
 });
 
 export const patchSellerOrderFulfillmentSchema = Joi.object({
-  /** ไม่ใช้จากฝั่งผู้ขายแล้ว — สถานะคำนวณจากเลขพัสดุ + 17TRACK ที่เซิร์ฟเวอร์ */
+  /** ถ้าไม่ส่ง = ให้เซิร์ฟเวอร์อนุมานจากเลขพัสดุ + 17TRACK; ถ้าส่ง = บังคับสถานะ (เช่น delivered เพื่อปล่อยเงิน escrow) */
   shipping_status: Joi.string()
     .valid('pending', 'preparing', 'shipped', 'out_for_delivery', 'delivered')
     .optional(),

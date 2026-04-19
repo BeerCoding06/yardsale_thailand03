@@ -135,6 +135,8 @@ function draftFor(order) {
       tracking_number: String(order.tracking_number || ""),
       shipping_receipt_number: String(order.shipping_receipt_number || ""),
       courier_name: String(order.courier_name || ""),
+      /** auto = ไม่ส่ง shipping_status ให้เซิร์ฟเวอร์อนุมานจาก 17TRACK */
+      shipping_status_mode: "auto",
     });
   }
   return fulfillmentDrafts.value[id];
@@ -169,6 +171,9 @@ async function saveFulfillment(order) {
         tracking_number: d.tracking_number || "",
         shipping_receipt_number: d.shipping_receipt_number || "",
         courier_name: d.courier_name || "",
+        ...(d.shipping_status_mode && d.shipping_status_mode !== "auto"
+          ? { shipping_status: d.shipping_status_mode }
+          : {}),
       },
     });
     const inner = unwrapApi(raw);
@@ -692,11 +697,41 @@ onMounted(async () => {
                         {{ $t('seller_orders.tracking_seller_only_hint') }}
                       </p>
                       <ShipmentTimeline :steps="shipmentStepsForOrder(order)" />
-                      <p
-                        class="text-xs text-teal-800/90 dark:text-teal-200/90 mb-3"
-                      >
-                        {{ $t('seller_orders.shipping_status_from_tracking_hint') }}
-                      </p>
+                      <div class="mb-3">
+                        <label
+                          class="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1"
+                          :for="`seller-ship-mode-${order.id}`"
+                        >
+                          {{ $t('seller_orders.fulfillment_shipping_mode_label') }}
+                        </label>
+                        <select
+                          :id="`seller-ship-mode-${order.id}`"
+                          v-model="draftFor(order).shipping_status_mode"
+                          class="w-full max-w-md rounded-xl border-2 border-neutral-200 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-black dark:text-white"
+                        >
+                          <option value="auto">
+                            {{ $t('seller_orders.shipping_status_auto') }}
+                          </option>
+                          <option value="pending">
+                            {{ $t('seller_orders.shipping_status_pending') }}
+                          </option>
+                          <option value="preparing">
+                            {{ $t('seller_orders.shipping_status_preparing') }}
+                          </option>
+                          <option value="shipped">
+                            {{ $t('seller_orders.shipping_status_shipped') }}
+                          </option>
+                          <option value="out_for_delivery">
+                            {{ $t('seller_orders.shipping_status_out_for_delivery') }}
+                          </option>
+                          <option value="delivered">
+                            {{ $t('seller_orders.shipping_status_delivered') }}
+                          </option>
+                        </select>
+                        <p class="mt-1 text-xs text-teal-800/80 dark:text-teal-200/80">
+                          {{ $t('seller_orders.fulfillment_shipping_mode_hint') }}
+                        </p>
+                      </div>
                       <div class="mt-4 grid gap-3 sm:grid-cols-2">
                         <div>
                           <label
