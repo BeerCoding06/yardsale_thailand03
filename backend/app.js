@@ -3,8 +3,10 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import session from 'express-session';
+import connectPgSimple from 'connect-pg-simple';
 import passport from 'passport';
 import { config } from './config/index.js';
+import { pool } from './models/db.js';
 import './config/passport.config.js';
 import apiRoutes from './routes/index.js';
 import authSocialRoutes from './routes/auth.social.routes.js';
@@ -54,6 +56,19 @@ function expandApexWwwPair(origins) {
 const corsOriginsList = parseCorsOrigins(process.env.CORS_ORIGINS);
 const corsOrigins = corsOriginsList ? expandApexWwwPair(corsOriginsList) : null;
 
+/** OAuth state (LINE ฯลฯ) — production ใช้ Postgres แทน MemoryStore */
+function createSessionStore() {
+  if (config.nodeEnv === 'test' || String(process.env.SESSION_STORE || '').toLowerCase() === 'memory') {
+    return undefined;
+  }
+  const PgSession = connectPgSimple(session);
+  return new PgSession({
+    pool,
+    tableName: 'session',
+    createTableIfMissing: true,
+  });
+}
+
 app.use(
   cors({
     /** ถ้าไม่ตั้ง CORS_ORIGINS ใช้ reflect origin (รองรับ localhost:3000 / 127.0.0.1:3000) */
@@ -72,6 +87,7 @@ app.use(
   session({
     name: 'yard.oauth.sid',
     secret: config.oauth.sessionSecret,
+    store: createSessionStore(),
     resave: false,
     saveUninitialized: false,
     cookie: {
