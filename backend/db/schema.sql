@@ -317,6 +317,18 @@ BEGIN
   ) THEN
     ALTER TABLE public.orders ADD COLUMN fulfillment_updated_at TIMESTAMPTZ;
   END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'buyer_confirmed_delivery_at'
+  ) THEN
+    ALTER TABLE public.orders ADD COLUMN buyer_confirmed_delivery_at TIMESTAMPTZ;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'funds_settled_at'
+  ) THEN
+    ALTER TABLE public.orders ADD COLUMN funds_settled_at TIMESTAMPTZ;
+  END IF;
 END $ensure_order_fulfillment$;
 
 CREATE TABLE IF NOT EXISTS order_items (

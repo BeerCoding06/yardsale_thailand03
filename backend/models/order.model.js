@@ -32,9 +32,10 @@ export function lineItemRowToApi(row) {
   };
 }
 
-/** ไม่รวม buyer_confirmed_delivery_at / funds_settled_at — ฐานที่ยังไม่รัน migration จะได้ไม่ 500 */
+/** รวมคอลัมน์ wallet/จัดส่ง — ต้องรัน migration wallet (buyer_confirmed_delivery_at, funds_settled_at) */
 const ORDER_SELECT_BASE = `id, user_id, total_price, status, slip_image_url, created_at,
-  billing_snapshot, shipping_status, tracking_number, shipping_receipt_number, courier_name, fulfillment_updated_at`;
+  billing_snapshot, shipping_status, tracking_number, shipping_receipt_number, courier_name, fulfillment_updated_at,
+  buyer_confirmed_delivery_at, funds_settled_at`;
 
 const ORDER_O = ORDER_SELECT_BASE.split(',')
   .map((s) => `o.${s.trim()}`)
@@ -184,6 +185,7 @@ export async function listOrdersForSeller(client, sellerId) {
     `SELECT DISTINCT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
             o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
             o.courier_name, o.fulfillment_updated_at,
+            o.buyer_confirmed_delivery_at, o.funds_settled_at,
             u.email AS buyer_email, u.name AS buyer_name
      FROM orders o
      JOIN order_items oi ON oi.order_id = o.id
@@ -202,6 +204,7 @@ export async function listAllOrders(client) {
     `SELECT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
             o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
             o.courier_name, o.fulfillment_updated_at,
+            o.buyer_confirmed_delivery_at, o.funds_settled_at,
             u.email AS buyer_email
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id
@@ -399,6 +402,7 @@ export async function listAllOrdersPaged(client, { limit, offset, search }) {
     `SELECT o.id, o.user_id, o.total_price, o.status, o.slip_image_url, o.created_at,
             o.billing_snapshot, o.shipping_status, o.tracking_number, o.shipping_receipt_number,
             o.courier_name, o.fulfillment_updated_at,
+            o.buyer_confirmed_delivery_at, o.funds_settled_at,
             u.email AS buyer_email
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id

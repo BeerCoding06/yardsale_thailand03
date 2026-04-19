@@ -178,10 +178,7 @@ export async function mockPayment(userId, body, file) {
       await client.query('RELEASE SAVEPOINT payment_wallet_escrow');
     } catch (err) {
       await client.query('ROLLBACK TO SAVEPOINT payment_wallet_escrow');
-      const walletSkippable =
-        sellerWalletService.isWalletDashboardSchemaError(err) ||
-        (err instanceof AppError && err.code === 'WALLET_UPDATE_FAILED');
-      if (!walletSkippable) throw err;
+      if (!sellerWalletService.isWalletDashboardSchemaError(err)) throw err;
       console.warn('[payment] mockPayment: escrow skipped', orderId, err?.code, err?.message);
     }
     return { order: updated, paid: true, slip: slipChecked };

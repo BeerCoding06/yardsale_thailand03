@@ -22,10 +22,10 @@ function money(n) {
 function isPaidStatus(raw) {
   if (raw == null) return false;
   if (typeof raw === 'object') {
-    const v = String(raw.value || raw.name || '').toLowerCase();
+    const v = String(raw.value ?? raw.name ?? raw).toLowerCase().trim();
     return v === 'paid';
   }
-  return String(raw).toLowerCase() === 'paid';
+  return String(raw).toLowerCase().trim() === 'paid';
 }
 
 function normalizeShippingStatusKey(raw) {
@@ -130,9 +130,13 @@ export async function recordEscrowForPaidOrder(client, orderId) {
   }
 
   const shares = await orderModel.listSellerSubtotalsForOrder(client, orderId);
+  let escrowRowsInserted = 0;
   for (const row of shares) {
     const sellerId = row.seller_id;
     const amt = money(row.amount);
+    if (!sellerId && amt > 0) {
+      console.warn('[wallet] recordEscrow: subtotal > 0 but product has no seller_id', { orderId, amt });
+    }
     if (!sellerId || amt <= 0) continue;
 
     const existing = await walletModel.findEscrowTransaction(client, orderId, sellerId);
@@ -161,6 +165,13 @@ export async function recordEscrowForPaidOrder(client, orderId) {
       details: { seller_id: sellerId, amount: amt },
     });
     console.info('[wallet] escrow_in', { orderId, sellerId, amount: amt });
+    escrowRowsInserted += 1;
+  }
+  if (escrowRowsInserted === 0 && shares.length > 0) {
+    const anyAmt = shares.some((r) => money(r.amount) > 0);
+    if (anyAmt) {
+      console.warn('[wallet] recordEscrow: no escrow_in written (check seller_id on products)', { orderId });
+    }
   }
   return { skipped: false };
 }
