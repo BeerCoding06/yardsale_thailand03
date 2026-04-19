@@ -372,21 +372,48 @@ export async function listMyWithdrawals(sellerId, { limit = 50, offset = 0 } = {
   }
 }
 
+function isWalletDashboardSchemaError(err) {
+  const c = String(err?.code || '');
+  // 42P01 = undefined_table, 42703 = undefined_column (migration not applied yet)
+  return c === '42P01' || c === '42703';
+}
+
 export async function getAdminWithdrawalDashboard() {
   const client = await pool.connect();
   try {
-    const byStatus = await walletModel.countWithdrawalsByStatus(client);
-    const agg = await client.query(
-      `SELECT COALESCE(SUM(available_balance),0)::numeric AS a,
-              COALESCE(SUM(escrow_balance),0)::numeric AS e
-       FROM seller_wallets`
-    );
+    let withdrawalsByStatus = {};
+    let schemaIncomplete = false;
+    try {
+      withdrawalsByStatus = await walletModel.countWithdrawalsByStatus(client);
+    } catch (err) {
+      if (!isWalletDashboardSchemaError(err)) throw err;
+      schemaIncomplete = true;
+      console.warn('[wallet] admin dashboard: withdrawals summary skipped', err.code, err.message);
+    }
+
+    let sumAvailable = 0;
+    let sumEscrow = 0;
+    try {
+      const agg = await client.query(
+        `SELECT COALESCE(SUM(available_balance),0)::numeric AS a,
+                COALESCE(SUM(escrow_balance),0)::numeric AS e
+         FROM seller_wallets`
+      );
+      sumAvailable = money(agg.rows[0]?.a);
+      sumEscrow = money(agg.rows[0]?.e);
+    } catch (err) {
+      if (!isWalletDashboardSchemaError(err)) throw err;
+      schemaIncomplete = true;
+      console.warn('[wallet] admin dashboard: seller_wallets totals skipped', err.code, err.message);
+    }
+
     return {
       success: true,
-      withdrawals_by_status: byStatus,
+      wallet_schema_incomplete: schemaIncomplete,
+      withdrawals_by_status: withdrawalsByStatus,
       platform_balances: {
-        sum_available: money(agg.rows[0]?.a),
-        sum_escrow: money(agg.rows[0]?.e),
+        sum_available: sumAvailable,
+        sum_escrow: sumEscrow,
       },
     };
   } finally {

@@ -1,7 +1,5 @@
 <!--app/pages/wallet.vue — กระเป๋าเงินผู้ขาย (escrow / ถอน) ต่อ GET /api/wallet -->
 <script setup>
-import { push } from "notivue";
-
 definePageMeta({
   middleware: "auth",
   ssr: false,
@@ -49,6 +47,15 @@ function apiErrorMessage(e) {
   if (d?.error?.message) return String(d.error.message);
   if (d?.message) return String(d.message);
   return e?.message ? String(e.message) : "";
+}
+
+async function notifySuccess(message) {
+  try {
+    const { push } = await import("notivue");
+    push.success(String(message || ""));
+  } catch {
+    // toast is optional; avoid breaking withdraw flow
+  }
 }
 
 const isThaiLocale = computed(() =>
@@ -246,7 +253,7 @@ async function submitWithdraw() {
       (isThaiLocale.value ? body?.message : body?.message_en) ||
       body?.message ||
       t("wallet.withdraw_success");
-    push.success(msg);
+    await notifySuccess(msg);
     withdrawForm.value = {
       amount: "",
       bank_code: withdrawForm.value.bank_code,

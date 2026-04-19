@@ -1,5 +1,7 @@
 <!--app/app.vue-->
 <script setup lang="ts">
+import { materialTheme } from "notivue";
+
 const { site } = useAppConfig();
 const { name, description } = site;
 const config = useRuntimeConfig();
