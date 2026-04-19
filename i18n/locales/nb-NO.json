@@ -265,6 +265,8 @@
       "uploading": "Verifying slip…",
       "back_home": "Back to home",
       "result_error_title": "Slip result: verification did not pass",
+      "system_error_title": "Payment system error",
+      "system_error_hint": "This may not be a bad slip — the server could not finish. Try again or check your orders.",
       "result_error_hint": "The slip could not be verified yet. Details below.",
       "verify_success_toast": "Slip verified — your payment is confirmed",
       "verify_success_title": "Slip submitted successfully",
@@ -277,6 +279,7 @@
       "submit_place_order_bank": "Place order & submit slip",
       "errors": {
         "generic": "Payment could not be confirmed. Please try again.",
+        "SERVER_ERROR": "Temporary server error. Please retry or check your order — your slip may still be valid.",
         "PAYMENT_PROOF_REQUIRED": "Please paste slip/QR data, upload a slip image, or enter an image URL.",
         "FILE_REQUIRED": "Please upload a slip image or enter an image URL.",
         "SLIP_INVALID": "This slip could not be verified. Check the amount and image.",

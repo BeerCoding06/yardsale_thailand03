@@ -100,6 +100,8 @@ function formatCooldown(ms) {
 const showCooldownModal = ref(false);
 const showSlipErrorModal = ref(false);
 const slipErrorModalText = ref('');
+/** true = 5xx / ระบบ — ไม่ใช่แค่ “สลิปไม่ผ่าน” */
+const slipErrorModalServerError = ref(false);
 
 const cooldownModalTitle = computed(() =>
   transferBankKey.value === 'BBL'
@@ -113,8 +115,14 @@ const cooldownModalBody = computed(() =>
     : t('checkout.payment_slip.cooldown_other_banks_hint')
 );
 
-function openSlipErrorModal(text) {
+function isFetchServerError(err) {
+  const s = Number(err?.statusCode ?? err?.status ?? err?.response?.status);
+  return Number.isFinite(s) && s >= 500;
+}
+
+function openSlipErrorModal(text, opts = {}) {
   slipErrorModalText.value = text;
+  slipErrorModalServerError.value = !!opts.serverError;
   showSlipErrorModal.value = true;
   error.value = null;
 }
@@ -122,7 +130,20 @@ function openSlipErrorModal(text) {
 function closeSlipErrorModal() {
   showSlipErrorModal.value = false;
   slipErrorModalText.value = '';
+  slipErrorModalServerError.value = false;
 }
+
+const slipErrorModalTitle = computed(() =>
+  slipErrorModalServerError.value
+    ? t('checkout.payment_slip.system_error_title')
+    : t('checkout.payment_slip.result_error_title')
+);
+
+const slipErrorModalHint = computed(() =>
+  slipErrorModalServerError.value
+    ? t('checkout.payment_slip.system_error_hint')
+    : t('checkout.payment_slip.result_error_hint')
+);
 
 function onTransferBankChange() {
   error.value = null;
@@ -278,6 +299,11 @@ function yardsaleErrorPayload(err) {
 }
 
 function slipErrorMessage(err) {
+  const status = Number(err?.statusCode ?? err?.status ?? err?.response?.status);
+  if (Number.isFinite(status) && status >= 500) {
+    const m = t('checkout.payment_slip.errors.SERVER_ERROR');
+    if (m !== 'checkout.payment_slip.errors.SERVER_ERROR') return m;
+  }
   const payload = yardsaleErrorPayload(err);
   const errPart = payload?.error ?? (payload?.data && typeof payload.data === "object" ? payload.data.error : null);
   const code =
@@ -359,7 +385,7 @@ async function onSubmitResumeOnly() {
     }
     openSlipErrorModal(t('checkout.payment_slip.errors.generic'));
   } catch (err) {
-    openSlipErrorModal(slipErrorMessage(err));
+    openSlipErrorModal(slipErrorMessage(err), { serverError: isFetchServerError(err) });
   } finally {
     submitting.value = false;
   }
@@ -416,7 +442,7 @@ async function onSubmitNew() {
     }
     openSlipErrorModal(t('checkout.payment_slip.errors.generic'));
   } catch (err) {
-    openSlipErrorModal(slipErrorMessage(err));
+    openSlipErrorModal(slipErrorMessage(err), { serverError: isFetchServerError(err) });
   } finally {
     submitting.value = false;
   }
@@ -839,7 +865,7 @@ const submitButtonText = computed(() => {
         <div class="p-6">
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-xl font-bold text-black dark:text-white">
-              {{ $t('checkout.payment_slip.result_error_title') }}
+              {{ slipErrorModalTitle }}
             </h3>
             <button
               type="button"
@@ -862,7 +888,7 @@ const submitButtonText = computed(() => {
               />
             </div>
             <p class="text-xs text-neutral-600 dark:text-neutral-400 mb-2">
-              {{ $t('checkout.payment_slip.result_error_hint') }}
+              {{ slipErrorModalHint }}
             </p>
             <p class="text-sm text-red-700 dark:text-red-300 leading-relaxed whitespace-pre-wrap">
               {{ slipErrorModalText }}

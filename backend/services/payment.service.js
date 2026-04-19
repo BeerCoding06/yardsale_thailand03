@@ -173,15 +173,22 @@ export async function mockPayment(userId, body, file) {
       slipImageUrl: slipUrl,
     });
     await client.query('SAVEPOINT payment_wallet_escrow');
+    let escrowDeferred = false;
     try {
       await sellerWalletService.recordEscrowForPaidOrder(client, orderId);
       await client.query('RELEASE SAVEPOINT payment_wallet_escrow');
     } catch (err) {
       await client.query('ROLLBACK TO SAVEPOINT payment_wallet_escrow');
-      if (!sellerWalletService.isWalletDashboardSchemaError(err)) throw err;
-      console.warn('[payment] mockPayment: escrow skipped', orderId, err?.code, err?.message);
+      /** ออเดอร์เป็น paid แล้ว — อย่า 500 ลูกค้าหลังสลิปผ่าน; escrow ซิงค์ทีหลังได้ */
+      escrowDeferred = true;
+      console.error(
+        '[payment] mockPayment: escrow failed after paid (order kept paid)',
+        orderId,
+        err?.code,
+        err?.message
+      );
     }
-    return { order: updated, paid: true, slip: slipChecked };
+    return { order: updated, paid: true, slip: slipChecked, escrow_deferred: escrowDeferred };
   }).then((result) => {
     if (result.paid && orderId) {
       void import('./fcmOrderNotify.service.js').then(({ notifySellersOrderPaid }) =>
