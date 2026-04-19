@@ -134,6 +134,21 @@ export const patchSellerOrderFulfillmentSchema = Joi.object({
   courier_name: Joi.string().trim().allow('', null).optional(),
 }).or('tracking_number', 'shipping_receipt_number', 'courier_name', 'shipping_status');
 
+/** แอดมินแก้คำสั่งซื้อ — อย่างน้อยหนึ่งฟิลด์ */
+export const adminPatchOrderSchema = Joi.object({
+  status: Joi.string()
+    .valid('pending', 'paid', 'canceled', 'cancelled', 'payment_failed')
+    .optional(),
+  slip_image_url: Joi.string().trim().max(4000).allow('', null).optional(),
+  total_price: Joi.number().positive().precision(2).optional(),
+  shipping_status: Joi.string()
+    .valid('pending', 'preparing', 'shipped', 'out_for_delivery', 'delivered', 'on_hold')
+    .optional(),
+  tracking_number: Joi.string().trim().max(240).allow('', null).optional(),
+  shipping_receipt_number: Joi.string().trim().max(120).allow('', null).optional(),
+  courier_name: Joi.string().trim().max(120).allow('', null).optional(),
+}).min(1);
+
 export const paymentMockSchema = Joi.object({
   order_id: uuid.required(),
   simulate_failure: Joi.boolean().default(false),

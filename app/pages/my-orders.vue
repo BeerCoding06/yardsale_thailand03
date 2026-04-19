@@ -46,8 +46,21 @@ function normalizeMyOrderRow(row) {
 const isClient = ref(false);
 const isChecking = ref(true);
 const isLoading = ref(true);
+/** โหลดหน้าแรกครั้งเดียว — เปลี่ยนหน้าใช้ listBusy ไม่เต็มจอ */
+const hasLoadedOrders = ref(false);
+const listBusy = ref(false);
 const orders = ref([]);
 const error = ref(null);
+
+const ORDER_PAGE_SIZE = 10;
+const listPage = ref(1);
+const listSearch = ref("");
+const orderPagination = ref({
+  page: 1,
+  page_size: ORDER_PAGE_SIZE,
+  total: 0,
+  total_pages: 0,
+});
 const cancellingOrderId = ref(null);
 const cancelMessage = ref(null);
 const showCancelModal = ref(false);
@@ -242,6 +255,20 @@ const getShippingStatusIcon = (status) => {
   return iconMap[k] || "i-iconamoon-info-circle-fill";
 };
 
+function onOrderPage(p) {
+  if (p === listPage.value) return;
+  listPage.value = p;
+  fetchOrders();
+}
+
+function onOrderSearch(q) {
+  const tq = String(q || "").trim();
+  if (tq === listSearch.value) return;
+  listSearch.value = tq;
+  listPage.value = 1;
+  fetchOrders();
+}
+
 // Fetch orders
 const fetchOrders = async () => {
   if (!user.value) {
@@ -250,8 +277,13 @@ const fetchOrders = async () => {
     return;
   }
 
+  const initial = !hasLoadedOrders.value;
   try {
-    isLoading.value = true;
+    if (initial) {
+      isLoading.value = true;
+    } else {
+      listBusy.value = true;
+    }
     error.value = null;
 
     const jwtToken = user.value?.token;
@@ -259,14 +291,16 @@ const fetchOrders = async () => {
     if (!jwtToken) {
       error.value = t('order.login_required') + ' (JWT token missing. Please login again.)';
       isLoading.value = false;
+      listBusy.value = false;
       return;
     }
 
-    // เรียก Yardsale GET /my-orders (หรือ /api/my-orders ตอน mock) — user จาก JWT เท่านั้น
+    // เรียก Yardsale GET /my-orders (หรือ /api/my-orders ตอน mock) — user จาก JWT + pagination
     const raw = await $fetch(cmsPath("my-orders"), {
       headers: {
         Authorization: `Bearer ${jwtToken}`,
       },
+      query: paginationQuery(listPage.value, listSearch.value, ORDER_PAGE_SIZE),
     });
     const body = unwrapApi(raw);
     let list = Array.isArray(body?.orders)
@@ -275,12 +309,31 @@ const fetchOrders = async () => {
         ? body.data.orders
         : [];
 
+    const pg = pickPagination(body);
+    if (pg) {
+      orderPagination.value = {
+        page: pg.page,
+        page_size: pg.page_size,
+        total: pg.total,
+        total_pages: pg.total_pages,
+      };
+      listPage.value = pg.page;
+    } else {
+      orderPagination.value = {
+        page: listPage.value,
+        page_size: ORDER_PAGE_SIZE,
+        total: list.length,
+        total_pages: list.length ? 1 : 0,
+      };
+    }
+
     const uid = user.value?.id ?? user.value?.ID;
-    if (uid != null && uid !== "") {
+    if (pg == null && uid != null && uid !== "") {
       list = list.filter((o) => String(o?.user_id ?? o?.userId) === String(uid));
     }
 
     orders.value = list.map(normalizeMyOrderRow);
+    hasLoadedOrders.value = true;
 
     // Fetch product images from WordPress REST API for line items without images (in background)
     const productIds = new Set();
@@ -312,6 +365,7 @@ const fetchOrders = async () => {
     orders.value = [];
   } finally {
     isLoading.value = false;
+    listBusy.value = false;
   }
 };
 
@@ -442,7 +496,7 @@ function payOrderLink(order) {
 <template>
   <div class="min-h-screen bg-neutral-50 dark:bg-black">
     <ClientOnly>
-      <template v-if="isChecking || isLoading">
+      <template v-if="isChecking || (isLoading && !hasLoadedOrders)">
         <div class="flex items-center justify-center min-h-screen">
           <div class="text-center">
             <p class="text-neutral-500 dark:text-neutral-400">
@@ -481,7 +535,18 @@ function payOrderLink(order) {
             </NuxtLink>
           </div>
 
-          <template v-if="orders.length === 0">
+          <ListPaginationBar
+            :page="orderPagination.page"
+            :total-pages="orderPagination.total_pages"
+            :total="orderPagination.total"
+            :page-size="orderPagination.page_size"
+            :loading="listBusy"
+            :search="listSearch"
+            @update:page="onOrderPage"
+            @update:search="onOrderSearch"
+          />
+
+          <template v-if="orders.length === 0 && orderPagination.total === 0 && !listSearch">
             <div
               class="bg-white/80 dark:bg-black/20 rounded-2xl p-12 text-center border-2 border-neutral-200 dark:border-neutral-800"
             >
@@ -501,6 +566,23 @@ function payOrderLink(order) {
               >
                 {{ $t('order.go_shopping') }}
               </NuxtLink>
+            </div>
+          </template>
+
+          <template v-else-if="orders.length === 0 && listSearch">
+            <div
+              class="bg-white/80 dark:bg-black/20 rounded-2xl p-12 text-center border-2 border-neutral-200 dark:border-neutral-800"
+            >
+              <UIcon
+                name="i-heroicons-magnifying-glass"
+                class="w-16 h-16 mx-auto mb-4 text-neutral-400 dark:text-neutral-600"
+              />
+              <p class="text-xl font-semibold text-black dark:text-white mb-2">
+                {{ $t('order.no_orders_search') }}
+              </p>
+              <p class="text-neutral-500 dark:text-neutral-400 mb-6">
+                {{ $t('order.no_orders_search_hint') }}
+              </p>
             </div>
           </template>
 

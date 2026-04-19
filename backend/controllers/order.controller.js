@@ -15,8 +15,22 @@ export const getOrder = asyncHandler(async (req, res) => {
 });
 
 export const myOrders = asyncHandler(async (req, res) => {
-  const data = await orderService.listMyOrders(req.user.id);
-  sendSuccessNoStore(res, { success: true, orders: data.orders });
+  const { page, pageSize, offset } = parsePaginationQuery(req.query, {
+    defaultPageSize: 10,
+    maxPageSize: 50,
+  });
+  const search = parseSearchQuery(req.query);
+  const data = await orderService.listMyOrders(req.user.id, {
+    page,
+    pageSize,
+    offset,
+    search,
+  });
+  sendSuccessNoStore(res, {
+    success: true,
+    orders: data.orders,
+    pagination: data.pagination,
+  });
 });
 
 /** user/seller เห็นออเดอร์ที่มีสินค้าของตน; แอดมินเห็นทั้งระบบ */
@@ -69,5 +83,11 @@ export const confirmBuyerDelivery = asyncHandler(async (req, res) => {
 /** แอดมิน: บังคับสถานะจัดส่งเป็น delivered + พยายามปล่อยเงิน */
 export const adminMarkOrderDelivered = asyncHandler(async (req, res) => {
   const data = await orderService.adminMarkOrderDelivered(req.params.orderId);
+  sendSuccess(res, { success: true, ...data });
+});
+
+/** แอดมิน: แก้สถานะชำระเงิน / ยอดรวม / ข้อมูลจัดส่ง */
+export const adminPatchOrder = asyncHandler(async (req, res) => {
+  const data = await orderService.adminPatchOrder(req.params.orderId, req.body);
   sendSuccess(res, { success: true, ...data });
 });

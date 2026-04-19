@@ -199,17 +199,31 @@ export async function getOrder(orderId, userId, role) {
   }
 }
 
-export async function listMyOrders(userId) {
+export async function listMyOrders(userId, opts = {}) {
+  const page = opts.page ?? 1;
+  const pageSize = opts.pageSize ?? 20;
+  const offset = opts.offset ?? 0;
+  const search = opts.search ?? '';
   const client = await pool.connect();
   try {
-    const orders = await orderModel.listOrdersForUser(client, userId);
+    const total = await orderModel.countOrdersForUser(client, userId, search);
+    const orders =
+      total > 0
+        ? await orderModel.listOrdersForUserPaged(client, userId, {
+            limit: pageSize,
+            offset,
+            search,
+          })
+        : [];
     const ids = orders.map((o) => o.id);
-    const lineItemsByOrder = await orderModel.mapLineItemsByOrderIds(client, ids);
+    const lineItemsByOrder =
+      ids.length > 0 ? await orderModel.mapLineItemsByOrderIds(client, ids) : new Map();
     return {
       orders: orders.map((o) => ({
         ...formatOrderForApi(o),
         line_items: lineItemsByOrder.get(o.id) || [],
       })),
+      pagination: paginationMeta({ page, pageSize, total }),
     };
   } finally {
     client.release();
@@ -374,6 +388,102 @@ export async function adminMarkOrderDelivered(orderId) {
     await sellerWalletService.tryReleaseOrderFunds(client, orderId, 'admin_override');
     const fresh = await orderModel.getOrderById(client, orderId);
     return { order: formatOrderForApi(fresh) };
+  });
+}
+
+function normalizeAdminOrderStatus(raw) {
+  const v = String(raw || '')
+    .trim()
+    .toLowerCase();
+  if (v === 'cancelled') return 'canceled';
+  return v;
+}
+
+/**
+ * แอดมินแก้คำสั่งซื้อ — สถานะชำระเงิน, ยอดรวม, ข้อมูลจัดส่ง
+ * - ตั้ง paid: บันทึก escrow เหมือน mark paid
+ * - ตั้ง canceled จาก pending/paid: คืนสต็อกเมื่อจำเป็น
+ */
+export async function adminPatchOrder(orderId, body) {
+  return withTransaction(async (client) => {
+    let row = await orderModel.getOrderById(client, orderId);
+    if (!row) throw new AppError('Order not found', 404, 'NOT_FOUND');
+
+    const prevStatus = coerceOrderStatusText(row.status);
+
+    if (body.status != null) {
+      const incoming = normalizeAdminOrderStatus(body.status);
+      const allowed = new Set(['pending', 'paid', 'canceled', 'payment_failed']);
+      if (!allowed.has(incoming)) {
+        throw new AppError('Invalid order status', 422, 'VALIDATION_ERROR');
+      }
+      if (prevStatus === 'canceled' && incoming === 'paid') {
+        throw new AppError('Cannot mark paid on a canceled order', 400, 'INVALID_TRANSITION');
+      }
+      if (incoming !== prevStatus) {
+        if (incoming === 'canceled' && prevStatus !== 'canceled') {
+          if (prevStatus === 'pending' || prevStatus === 'paid') {
+            await restoreStockForOrder(client, orderId);
+          }
+          row = await orderModel.updateOrderStatus(client, orderId, 'canceled', {});
+        } else if (incoming === 'paid' && prevStatus !== 'paid') {
+          const slip =
+            body.slip_image_url != null && String(body.slip_image_url).trim() !== ''
+              ? String(body.slip_image_url).trim()
+              : undefined;
+          row = await orderModel.updateOrderStatus(client, orderId, 'paid', { slipImageUrl: slip });
+          await sellerWalletService.recordEscrowForPaidOrder(client, orderId);
+        } else {
+          const slip =
+            body.slip_image_url != null && String(body.slip_image_url).trim() !== ''
+              ? String(body.slip_image_url).trim()
+              : undefined;
+          row = await orderModel.updateOrderStatus(client, orderId, incoming, {
+            slipImageUrl: slip,
+          });
+        }
+      }
+    }
+
+    if (body.total_price != null) {
+      const tp = Number(body.total_price);
+      if (!Number.isFinite(tp) || tp <= 0) {
+        throw new AppError('total_price must be a positive number', 422, 'VALIDATION_ERROR');
+      }
+      row = await orderModel.updateOrderTotalPrice(client, orderId, tp);
+    }
+
+    const fulKeys = ['shipping_status', 'tracking_number', 'shipping_receipt_number', 'courier_name'];
+    if (fulKeys.some((k) => body[k] !== undefined)) {
+      const latest = await orderModel.getOrderById(client, orderId);
+      if (!latest) throw new AppError('Order not found', 404, 'NOT_FOUND');
+      const shipping_status =
+        body.shipping_status !== undefined
+          ? String(body.shipping_status || '').trim() || String(latest.shipping_status || 'pending')
+          : String(latest.shipping_status || 'pending');
+      const tracking_number =
+        body.tracking_number !== undefined
+          ? String(body.tracking_number ?? '')
+          : String(latest.tracking_number ?? '');
+      const shipping_receipt_number =
+        body.shipping_receipt_number !== undefined
+          ? String(body.shipping_receipt_number ?? '')
+          : String(latest.shipping_receipt_number ?? '');
+      const courier_name =
+        body.courier_name !== undefined ? String(body.courier_name ?? '') : String(latest.courier_name ?? '');
+
+      row = await orderModel.updateOrderFulfillment(client, orderId, {
+        shipping_status,
+        tracking_number,
+        shipping_receipt_number,
+        courier_name,
+      });
+      await sellerWalletService.tryReleaseOrderFunds(client, orderId, 'admin_patch');
+    }
+
+    const fresh = await orderModel.getOrderById(client, orderId);
+    const items = await orderModel.getOrderItems(client, orderId);
+    return { order: { ...formatOrderForApi(fresh), line_items: items } };
   });
 }
 

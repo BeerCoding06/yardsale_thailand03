@@ -43,6 +43,10 @@ const ORDER_O = ORDER_SELECT_BASE.split(',')
 /** คอลัมน์จาก CREATE TABLE orders ต้นฉบับ — ใช้เมื่อ SELECT เต็มล้ม (42703) เพื่อกัน my-orders 500 */
 const ORDER_LIST_USER_CORE = `id, user_id, total_price, status, slip_image_url, created_at`;
 
+const ORDER_O_CORE = ORDER_LIST_USER_CORE.split(',')
+  .map((s) => `o.${s.trim()}`)
+  .join(', ');
+
 export async function createOrderRow(client, { userId, totalPrice, status = 'pending', billingSnapshot = null }) {
   const r = await client.query(
     `INSERT INTO orders (user_id, total_price, status, billing_snapshot)
@@ -134,6 +138,16 @@ export async function updateOrderFulfillment(client, orderId, fields) {
   return r.rows[0] || null;
 }
 
+/** แอดมินแก้ยอดรวมออเดอร์ */
+export async function updateOrderTotalPrice(client, orderId, totalPrice) {
+  const id = asOrderUuid(orderId);
+  const r = await client.query(
+    `UPDATE orders SET total_price = $2::numeric WHERE id = $1::uuid RETURNING ${ORDER_SELECT_BASE}`,
+    [id, totalPrice]
+  );
+  return r.rows[0] || null;
+}
+
 export async function listOrdersForUser(client, userId) {
   try {
     const r = await client.query(
@@ -208,15 +222,38 @@ function userOrderSearchCondition(likePattern, paramIndex) {
   };
 }
 
+/** ค้นหาเมื่อ billing_snapshot ยังไม่มีในฐานข้อมูล — หลีกเลี่ยง 42703 ใน WHERE */
+function userOrderSearchConditionCore(likePattern, paramIndex) {
+  if (!likePattern) return { sql: '', params: [] };
+  return {
+    sql: ` AND (
+      CAST(o.id AS TEXT) ILIKE $${paramIndex} ESCAPE '\\'
+      OR o.status::text ILIKE $${paramIndex} ESCAPE '\\'
+    )`,
+    params: [likePattern],
+  };
+}
+
 export async function countOrdersForUser(client, userId, search) {
   const like = ilikeContainsPattern(search);
   const cond = userOrderSearchCondition(like, 2);
   const params = [userId, ...cond.params];
-  const r = await client.query(
-    `SELECT COUNT(*)::int AS c FROM orders o WHERE o.user_id = $1::uuid ${cond.sql}`,
-    params
-  );
-  return r.rows[0]?.c ?? 0;
+  try {
+    const r = await client.query(
+      `SELECT COUNT(*)::int AS c FROM orders o WHERE o.user_id = $1::uuid ${cond.sql}`,
+      params
+    );
+    return r.rows[0]?.c ?? 0;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    const cond2 = like ? userOrderSearchConditionCore(like, 2) : { sql: '', params: [] };
+    const params2 = [userId, ...cond2.params];
+    const r2 = await client.query(
+      `SELECT COUNT(*)::int AS c FROM orders o WHERE o.user_id = $1::uuid ${cond2.sql}`,
+      params2
+    );
+    return r2.rows[0]?.c ?? 0;
+  }
 }
 
 export async function listOrdersForUserPaged(client, userId, { limit, offset, search }) {
@@ -227,15 +264,30 @@ export async function listOrdersForUserPaged(client, userId, { limit, offset, se
   const params = [userId, ...cond.params, lim, off];
   const iLim = params.length - 1;
   const iOff = params.length;
-  const r = await client.query(
-    `SELECT ${ORDER_O}
+  const sqlFull = `SELECT ${ORDER_O}
      FROM orders o
      WHERE o.user_id = $1::uuid ${cond.sql}
      ORDER BY o.created_at DESC
-     LIMIT $${iLim} OFFSET $${iOff}`,
-    params
-  );
-  return r.rows;
+     LIMIT $${iLim} OFFSET $${iOff}`;
+  try {
+    const r = await client.query(sqlFull, params);
+    return r.rows;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    const cond2 = like ? userOrderSearchConditionCore(like, 2) : { sql: '', params: [] };
+    const params2 = [userId, ...cond2.params, lim, off];
+    const iLim2 = params2.length - 1;
+    const iOff2 = params2.length;
+    const r2 = await client.query(
+      `SELECT ${ORDER_O_CORE}
+       FROM orders o
+       WHERE o.user_id = $1::uuid ${cond2.sql}
+       ORDER BY o.created_at DESC
+       LIMIT $${iLim2} OFFSET $${iOff2}`,
+      params2
+    );
+    return r2.rows;
+  }
 }
 
 export async function countOrdersForSeller(client, sellerId, search) {

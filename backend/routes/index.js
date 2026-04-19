@@ -34,6 +34,7 @@ import {
   adminSellerWalletParamsSchema,
   adminWalletLedgerQuerySchema,
   adminWalletAuditQuerySchema,
+  adminPatchOrderSchema,
 } from '../validators/schemas.js';
 import { uploadImage } from '../middlewares/upload.js';
 import * as authController from '../controllers/auth.controller.js';
@@ -76,6 +77,14 @@ router.delete(
   requireRoles('admin'),
   validate(adminUserIdParamsSchema, 'params'),
   authController.adminDeleteUser
+);
+router.patch(
+  '/admin/orders/:orderId',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(sellerOrderFulfillmentParamsSchema, 'params'),
+  validate(adminPatchOrderSchema),
+  orderController.adminPatchOrder
 );
 router.post(
   '/admin/orders/:orderId/mark-paid',
