@@ -119,6 +119,33 @@ export function isWalletDashboardSchemaError(err) {
   return false;
 }
 
+const WALLET_DEGRADED_LOG_MS = 120_000;
+let lastLogOverviewDegraded = 0;
+let lastLogWithdrawalsDegraded = 0;
+
+function warnWalletSchemaDegraded(kind, err) {
+  const now = Date.now();
+  if (kind === 'overview') {
+    if (now - lastLogOverviewDegraded < WALLET_DEGRADED_LOG_MS) return;
+    lastLogOverviewDegraded = now;
+    console.warn(
+      '[wallet] getWalletOverview degraded (schema)',
+      err.code,
+      err.message,
+      '| fix: AUTO_MIGRATE_WALLET_ON_START=1 or npm run db:wallet'
+    );
+  } else {
+    if (now - lastLogWithdrawalsDegraded < WALLET_DEGRADED_LOG_MS) return;
+    lastLogWithdrawalsDegraded = now;
+    console.warn(
+      '[wallet] listMyWithdrawals degraded (schema)',
+      err.code,
+      err.message,
+      '| fix: AUTO_MIGRATE_WALLET_ON_START=1 or npm run db:wallet'
+    );
+  }
+}
+
 /**
  * When an order becomes paid: credit each seller's escrow from line items (idempotent per seller).
  */
@@ -283,7 +310,7 @@ export async function getWalletOverview(userId) {
       };
     } catch (err) {
       if (!isWalletDashboardSchemaError(err)) throw err;
-      console.warn('[wallet] getWalletOverview degraded (schema)', err.code, err.message);
+      warnWalletSchemaDegraded('overview', err);
       return {
         success: true,
         wallet_schema_incomplete: true,
@@ -457,7 +484,7 @@ export async function listMyWithdrawals(sellerId, { limit = 50, offset = 0 } = {
       };
     } catch (err) {
       if (!isWalletDashboardSchemaError(err)) throw err;
-      console.warn('[wallet] listMyWithdrawals degraded (schema)', err.code, err.message);
+      warnWalletSchemaDegraded('withdrawals', err);
       return {
         success: true,
         wallet_schema_incomplete: true,
