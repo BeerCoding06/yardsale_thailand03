@@ -51,7 +51,7 @@ function slipokErrorMessage(data) {
 
 async function checkSlipWithSlipok(body, file) {
   if (!hasSlipokConfig()) {
-    throw new AppError('SlipOK is not configured', 500, 'SLIPOK_NOT_CONFIGURED');
+    throw new AppError('SlipOK is not configured on this server', 503, 'SLIPOK_NOT_CONFIGURED');
   }
 
   const picked = resolveSlipokPayload(body, file);
@@ -66,26 +66,38 @@ async function checkSlipWithSlipok(body, file) {
   const log = body?.log !== undefined ? parseBool(body.log) : parseBool(config.slipok.defaultLog);
 
   let response;
-  if (picked.mode === 'file') {
-    const fd = new FormData();
-    const buf = await fs.readFile(picked.value.path);
-    const mime = picked.value.mimetype || 'application/octet-stream';
-    fd.append('files', new Blob([buf], { type: mime }), picked.value.originalname || 'slip.png');
-    fd.append('log', String(log));
-    if (amount !== undefined && Number.isFinite(amount)) {
-      fd.append('amount', String(amount));
+  try {
+    if (picked.mode === 'file') {
+      const fd = new FormData();
+      let buf;
+      try {
+        buf = await fs.readFile(picked.value.path);
+      } catch (e) {
+        console.error('[payment] read slip file failed', picked.value?.path, e?.message);
+        throw new AppError('Could not read the uploaded slip file', 400, 'SLIP_FILE_READ_FAILED');
+      }
+      const mime = picked.value.mimetype || 'application/octet-stream';
+      fd.append('files', new Blob([buf], { type: mime }), picked.value.originalname || 'slip.png');
+      fd.append('log', String(log));
+      if (amount !== undefined && Number.isFinite(amount)) {
+        fd.append('amount', String(amount));
+      }
+      response = await fetch(url, { method: 'POST', headers, body: fd });
+    } else {
+      const payload = { log };
+      if (picked.mode === 'data') payload.data = picked.value;
+      if (picked.mode === 'url') payload.url = picked.value;
+      if (amount !== undefined && Number.isFinite(amount)) payload.amount = amount;
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
     }
-    response = await fetch(url, { method: 'POST', headers, body: fd });
-  } else {
-    const payload = { log };
-    if (picked.mode === 'data') payload.data = picked.value;
-    if (picked.mode === 'url') payload.url = picked.value;
-    if (amount !== undefined && Number.isFinite(amount)) payload.amount = amount;
-    response = await fetch(url, {
-      method: 'POST',
-      headers: { ...headers, 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+  } catch (e) {
+    if (e instanceof AppError) throw e;
+    console.error('[payment] SlipOK request failed', e?.code, e?.message);
+    throw new AppError('Could not reach slip verification service. Please try again.', 502, 'SLIPOK_UNREACHABLE');
   }
 
   let data = null;
@@ -109,7 +121,7 @@ async function checkSlipWithSlipok(body, file) {
 
 export async function getSlipokQuota() {
   if (!hasSlipokConfig()) {
-    throw new AppError('SlipOK is not configured', 500, 'SLIPOK_NOT_CONFIGURED');
+    throw new AppError('SlipOK is not configured on this server', 503, 'SLIPOK_NOT_CONFIGURED');
   }
   const base = String(config.slipok.apiBase || 'https://api.slipok.com').replace(/\/$/, '');
   const url = `${base}/api/line/apikey/${config.slipok.branchId}/quota`;
@@ -160,7 +172,18 @@ export async function mockPayment(userId, body, file) {
     const updated = await orderModel.updateOrderStatus(client, orderId, 'paid', {
       slipImageUrl: slipUrl,
     });
-    await sellerWalletService.recordEscrowForPaidOrder(client, orderId);
+    await client.query('SAVEPOINT payment_wallet_escrow');
+    try {
+      await sellerWalletService.recordEscrowForPaidOrder(client, orderId);
+      await client.query('RELEASE SAVEPOINT payment_wallet_escrow');
+    } catch (err) {
+      await client.query('ROLLBACK TO SAVEPOINT payment_wallet_escrow');
+      const walletSkippable =
+        sellerWalletService.isWalletDashboardSchemaError(err) ||
+        (err instanceof AppError && err.code === 'WALLET_UPDATE_FAILED');
+      if (!walletSkippable) throw err;
+      console.warn('[payment] mockPayment: escrow skipped', orderId, err?.code, err?.message);
+    }
     return { order: updated, paid: true, slip: slipChecked };
   }).then((result) => {
     if (result.paid && orderId) {
