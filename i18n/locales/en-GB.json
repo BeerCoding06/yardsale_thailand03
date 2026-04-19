@@ -193,6 +193,7 @@
       "incomplete_data": "Please fill in all required fields",
       "create_order_failed": "Failed to create order",
       "no_valid_items": "No valid items in cart",
+      "stale_cart_yardsale": "Your cart has product IDs that are not valid for this shop (e.g. old data). Empty the cart, add items again from the product pages, then checkout.",
       "insufficient_stock": "Some items are out of stock or quantity is too high. Adjust or remove them from your cart.",
       "stock_check_failed": "Could not verify stock. Please try again.",
       "promptpay_link_failed": "Could not create payment link."

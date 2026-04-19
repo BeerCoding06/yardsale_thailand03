@@ -10,8 +10,13 @@ import * as sellerWalletService from './sellerWallet.service.js';
 function aggregateLineItems(lineItems) {
   const map = new Map();
   for (const li of lineItems) {
-    const q = map.get(li.product_id) || 0;
-    map.set(li.product_id, q + li.quantity);
+    const pid = String(li.product_id ?? '')
+      .trim()
+      .toLowerCase();
+    if (!pid) continue;
+    const q = map.get(pid) || 0;
+    const add = Number(li.quantity);
+    map.set(pid, q + (Number.isFinite(add) && add > 0 ? add : 0));
   }
   return [...map.entries()].map(([product_id, quantity]) => ({ product_id, quantity }));
 }
@@ -126,9 +131,22 @@ export async function createOrder(userId, payload) {
 
   const billingSnap = normalizeBillingFromPayload(payload?.billing);
 
-  return withTransaction(async (client) => {
+  try {
+    return await withTransaction(async (client) => {
     const productIds = lineItems.map((l) => l.product_id);
-    const locked = await productModel.lockProductsForUpdate(client, productIds);
+    let locked;
+    try {
+      locked = await productModel.lockProductsForUpdate(client, productIds);
+    } catch (err) {
+      if (err?.code === '22P02') {
+        throw new AppError(
+          'Invalid product id — clear the cart and add products from the shop again.',
+          400,
+          'INVALID_PRODUCT_ID'
+        );
+      }
+      throw err;
+    }
     const byId = new Map(locked.map((r) => [r.id, r]));
 
     for (const line of lineItems) {
@@ -181,7 +199,20 @@ export async function createOrder(userId, payload) {
 
     const items = await orderModel.getOrderItems(client, order.id);
     return { order: { ...formatOrderForApi(order), line_items: items } };
-  });
+    });
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    const code = String(err?.code || '');
+    console.error('[order] createOrder failed', { userId, code, message: err?.message });
+    if (code === '22P02') {
+      throw new AppError(
+        'Invalid product id — clear the cart and add products from the shop again.',
+        400,
+        'INVALID_PRODUCT_ID'
+      );
+    }
+    throw err;
+  }
 }
 
 export async function getOrder(orderId, userId, role) {

@@ -5,6 +5,13 @@ const emailRule = Joi.string().email({ tlds: { allow: false } }).trim().lowercas
 
 const uuid = Joi.string().uuid({ version: 'uuidv4' });
 
+/** ตรงกับที่ Postgres รับ — ไม่จำกัดเฉพาะ variant 4 (กัน 422 ผิดๆ + ลดความเสี่ยง client ส่ง UUID รูปแบบอื่น) */
+const uuidPostgresShape = Joi.string()
+  .trim()
+  .lowercase()
+  .pattern(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+  .messages({ 'string.pattern.base': 'must be a valid UUID' });
+
 const productListingStatus = Joi.string()
   .valid('pending_review', 'published', 'hidden')
   .optional();
@@ -77,7 +84,7 @@ export const checkEmailSchema = Joi.object({
 });
 
 export const cartAddSchema = Joi.object({
-  product_id: uuid.required(),
+  product_id: uuidPostgresShape.required(),
   quantity: Joi.number().integer().min(1).default(1),
 });
 
@@ -85,7 +92,7 @@ export const cartUpdateSchema = Joi.object({
   items: Joi.array()
     .items(
       Joi.object({
-        product_id: uuid.required(),
+        product_id: uuidPostgresShape.required(),
         quantity: Joi.number().integer().min(0).required(),
       })
     )
@@ -96,7 +103,7 @@ export const cartStockBodySchema = Joi.object({
   items: Joi.array()
     .items(
       Joi.object({
-        product_id: uuid.required(),
+        product_id: uuidPostgresShape.required(),
         quantity: Joi.number().integer().min(1).required(),
       })
     )
@@ -108,7 +115,7 @@ export const createOrderSchema = Joi.object({
   line_items: Joi.array()
     .items(
       Joi.object({
-        product_id: uuid.required(),
+        product_id: uuidPostgresShape.required(),
         quantity: Joi.number().integer().min(1).required(),
       })
     )

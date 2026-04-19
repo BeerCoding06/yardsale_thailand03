@@ -221,13 +221,19 @@ export const useCheckout = () => {
         return Number.isFinite(n) ? n : 0;
       };
 
+      /** ต้องเป็น UUID แบบ Postgres — ตะกร้าเก่า/localStorage อาจมีเลข WooCommerce ทำให้ API ได้ 500 (22P02) */
+      const pgUuidRe =
+        /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
       let line_items;
       if (hasRemoteApi) {
         line_items = cart.value
-          .map((item) => ({
-            product_id: String(item.product?.node?.databaseId ?? item.product?.node?.id ?? ''),
-            quantity: item.quantity || 1,
-          }))
+          .map((item) => {
+            const raw = String(
+              item.product?.node?.databaseId ?? item.product?.node?.id ?? ''
+            ).trim();
+            const product_id = pgUuidRe.test(raw) ? raw.toLowerCase() : '';
+            return { product_id, quantity: item.quantity || 1 };
+          })
           .filter((x) => x.product_id.length > 0);
       } else {
         line_items = cart.value.map(item => {
@@ -254,7 +260,11 @@ export const useCheckout = () => {
       }
 
       if (line_items.length === 0) {
-        throw new Error(t('checkout.error.no_valid_items'));
+        throw new Error(
+          hasRemoteApi
+            ? t('checkout.error.stale_cart_yardsale')
+            : t('checkout.error.no_valid_items')
+        );
       }
 
       const customerId = user.value.id || user.value.ID;
