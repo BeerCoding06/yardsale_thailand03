@@ -527,6 +527,7 @@
     "tracking_number": "หมายเลขพัสดุ",
     "tracking_number_label": "หมายเลขติดตาม",
     "tracking_from_seller": "เลขพัสดุจากผู้ขาย",
+    "courier_from_seller": "บริษัทขนส่งจากผู้ขาย",
     "shipping_method": "วิธีการจัดส่ง",
     "shipping_method_label": "วิธีจัดส่ง:",
     "shipping_date_label": "วันที่จัดส่ง:",

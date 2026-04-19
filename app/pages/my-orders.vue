@@ -37,6 +37,8 @@ function normalizeMyOrderRow(row) {
   if (o.status != null) o.status = String(o.status);
   if (o.order_status != null) o.order_status = String(o.order_status);
   o.is_paid = customerPaymentUiKey(o) === "paid";
+  o.tracking_number = String(o.tracking_number ?? o.trackingNumber ?? "").trim();
+  o.courier_name = String(o.courier_name ?? o.courierName ?? "").trim();
   return o;
 }
 
@@ -657,17 +659,34 @@ function payOrderLink(order) {
                           {{ currentShipmentTimelineLabel(order) }}
                         </p>
                       </div>
-                      <div v-if="order.tracking_number" class="text-right">
-                        <p
-                          class="text-xs text-neutral-500 dark:text-neutral-600 mb-1"
-                        >
-                          {{ $t('order.tracking_from_seller') }}
-                        </p>
-                        <p
-                          class="text-sm font-mono font-bold text-alizarin-crimson-600 dark:text-alizarin-crimson-400"
-                        >
-                          {{ order.tracking_number }}
-                        </p>
+                      <div
+                        v-if="order.courier_name || order.tracking_number"
+                        class="text-right space-y-3 max-w-[min(100%,20rem)] ml-auto"
+                      >
+                        <div v-if="order.courier_name">
+                          <p
+                            class="text-xs text-neutral-500 dark:text-neutral-600 mb-1"
+                          >
+                            {{ $t("order.courier_from_seller") }}
+                          </p>
+                          <p
+                            class="text-sm font-semibold text-black dark:text-white"
+                          >
+                            {{ order.courier_name }}
+                          </p>
+                        </div>
+                        <div v-if="order.tracking_number">
+                          <p
+                            class="text-xs text-neutral-500 dark:text-neutral-600 mb-1"
+                          >
+                            {{ $t("order.tracking_from_seller") }}
+                          </p>
+                          <p
+                            class="text-sm font-mono font-bold text-alizarin-crimson-600 dark:text-alizarin-crimson-400 break-all"
+                          >
+                            {{ order.tracking_number }}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>

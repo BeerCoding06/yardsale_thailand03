@@ -508,6 +508,7 @@
     "tracking_number": "Tracking Number",
     "tracking_number_label": "Tracking Number",
     "tracking_from_seller": "Tracking from seller",
+    "courier_from_seller": "Courier (from seller)",
     "shipping_method": "Shipping Method",
     "shipping_method_label": "Shipping Method:",
     "shipping_date_label": "Shipping Date:",
