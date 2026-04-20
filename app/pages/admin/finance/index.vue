@@ -10,6 +10,7 @@ definePageMeta({
 const { t } = useI18n();
 const { user, checkAuth } = useAuth();
 const { endpoint } = useCmsApi();
+const localePath = useLocalePath();
 
 const PAGE = 25;
 
@@ -272,6 +273,19 @@ function ledgerTypeLabel(type: string) {
   return t(map[k] || type || "—");
 }
 
+/** สถานะชำระจากคอลัมน์ orders.status — ให้ตรงกับหน้าแอดมินออเดอร์ */
+function ledgerPaymentStatusLabel(status: unknown) {
+  const k = String(status || "")
+    .toLowerCase()
+    .replace("cancelled", "canceled");
+  if (!k) return "—";
+  if (k === "payment_failed") return t("order.customer_payment.payment_failed");
+  if (k === "paid") return t("order.paid");
+  if (k === "canceled") return t("order.cancelled");
+  if (k === "pending") return t("order.pending");
+  return k;
+}
+
 const tabBtn = (active: boolean) =>
   [
     "px-4 py-2 rounded-xl text-sm font-semibold transition",
@@ -407,7 +421,7 @@ function applyAuditFilters() {
           </div>
           <div v-if="ledgerLoading" class="py-8 text-center text-neutral-500">{{ t("general.loading") }}</div>
           <div v-else class="overflow-x-auto">
-            <table class="w-full text-sm text-left min-w-[960px]">
+            <table class="w-full text-sm text-left min-w-[1100px]">
               <thead>
                 <tr class="border-b border-neutral-200 dark:border-neutral-700 text-neutral-500">
                   <th class="py-2 pr-2">{{ t("admin.finance.col_time") }}</th>
@@ -436,13 +450,34 @@ function applyAuditFilters() {
                     </div>
                   </td>
                   <td class="py-2 pr-2">
-                    <div class="max-w-[200px] truncate text-xs" :title="r.buyer_email || ''">
-                      {{ r.buyer_email || "—" }}
+                    <div class="max-w-[220px] text-xs leading-snug">
+                      <div
+                        class="font-medium text-neutral-800 dark:text-neutral-200 truncate"
+                        :title="String(r.buyer_name || '')"
+                      >
+                        {{ r.buyer_name || "—" }}
+                      </div>
+                      <div class="truncate text-neutral-500 dark:text-neutral-400" :title="String(r.buyer_email || '')">
+                        {{ r.buyer_email || "—" }}
+                      </div>
                     </div>
                   </td>
-                  <td class="py-2 pr-2 font-mono text-xs">{{ r.order_id ? String(r.order_id).slice(0, 8) + "…" : "—" }}</td>
+                  <td class="py-2 pr-2 align-top">
+                    <template v-if="r.order_id">
+                      <div class="font-mono text-[11px] leading-snug break-all max-w-[14rem] text-neutral-800 dark:text-neutral-200">
+                        {{ r.order_id }}
+                      </div>
+                      <NuxtLink
+                        :to="{ path: localePath('/admin/orders'), query: { q: String(r.order_id) } }"
+                        class="inline-block mt-1 text-xs text-alizarin-crimson-600 dark:text-alizarin-crimson-400 hover:underline"
+                      >
+                        {{ t("admin.finance.btn_verify_order") }}
+                      </NuxtLink>
+                    </template>
+                    <template v-else>—</template>
+                  </td>
                   <td class="py-2 pr-2">{{ r.order_total != null ? formatThb(r.order_total) : "—" }}</td>
-                  <td class="py-2 pr-2 text-xs">{{ r.order_status || "—" }}</td>
+                  <td class="py-2 pr-2 text-xs">{{ ledgerPaymentStatusLabel(r.order_status) }}</td>
                   <td class="py-2 max-w-[240px]">
                     <pre
                       class="text-[10px] leading-tight overflow-auto max-h-24 bg-neutral-100 dark:bg-neutral-900 rounded p-1"
@@ -569,11 +604,30 @@ function applyAuditFilters() {
       <div v-show="activeTab === 'audit'" class="space-y-4">
         <UCard>
           <div class="flex flex-wrap gap-3 items-end mb-4">
-            <UFormGroup :label="t('admin.finance.filter_action')" class="min-w-[180px]">
-              <UInput v-model="auditAction" placeholder="escrow_in" />
+            <UFormGroup :label="t('admin.finance.filter_action')" class="min-w-[200px]">
+              <select
+                v-model="auditAction"
+                class="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2 text-sm font-mono"
+              >
+                <option value="">{{ t("admin.finance.filter_all") }}</option>
+                <option value="escrow_in">escrow_in</option>
+                <option value="release">release</option>
+                <option value="release_failed_insufficient_escrow">release_failed_insufficient_escrow</option>
+                <option value="withdraw_request">withdraw_request</option>
+                <option value="withdraw_approve">withdraw_approve</option>
+                <option value="withdraw_reject">withdraw_reject</option>
+                <option value="withdraw_paid">withdraw_paid</option>
+              </select>
             </UFormGroup>
             <UFormGroup :label="t('admin.finance.filter_entity')" class="min-w-[160px]">
-              <UInput v-model="auditEntityType" placeholder="order" />
+              <select
+                v-model="auditEntityType"
+                class="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2 text-sm font-mono"
+              >
+                <option value="">{{ t("admin.finance.filter_all") }}</option>
+                <option value="order">order</option>
+                <option value="withdrawal">withdrawal</option>
+              </select>
             </UFormGroup>
             <UButton color="neutral" variant="soft" @click="applyAuditFilters">
               {{ t("admin.finance.apply_filters") }}

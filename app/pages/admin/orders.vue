@@ -224,8 +224,15 @@ async function saveEdit() {
   }
 }
 
+const route = useRoute();
+
 onMounted(() => {
   checkAuth();
+  const q = String(route.query.q || "").trim();
+  if (q) {
+    listSearch.value = q;
+    listPage.value = 1;
+  }
   fetchOrders();
 });
 </script>
