@@ -958,6 +958,7 @@
       "col_fee": "Fee",
       "col_net": "Net payout",
       "col_bank": "Bank",
+      "col_status": "Withdrawal status",
       "col_actions": "Actions",
       "col_action": "Action",
       "col_entity": "Entity",

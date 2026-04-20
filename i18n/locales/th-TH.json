@@ -976,6 +976,7 @@
       "col_fee": "ค่าธรรมเนียม",
       "col_net": "โอนสุทธิ",
       "col_bank": "ธนาคาร",
+      "col_status": "สถานะคำขอถอน",
       "col_actions": "การทำงาน",
       "col_action": "การกระทำ",
       "col_entity": "Entity",
