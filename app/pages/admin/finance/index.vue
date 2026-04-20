@@ -67,6 +67,44 @@ function formatThb(n: unknown) {
   }).format(x);
 }
 
+/** ตรงกับ backend/constants/withdrawalFees.js — คำนวณค่าธรรมเนียม 5% และยอดที่แอดมินโอน */
+const WD_FEE_PERCENT = 5;
+const WD_FEE_RATE = 0.05;
+
+function wdMoney2(v: unknown): number | null {
+  const x = Number(v);
+  if (!Number.isFinite(x)) return null;
+  return Math.round(x * 100) / 100;
+}
+
+function wdGross(w: unknown): number {
+  const g = wdMoney2((w as Record<string, unknown>)?.amount);
+  return g != null && g >= 0 ? g : 0;
+}
+
+function wdFeeAmount(w: unknown): number {
+  const o = w as Record<string, unknown>;
+  const gross = wdGross(w);
+  const api = wdMoney2(o?.withdrawal_fee_amount);
+  if (gross > 0 && (api == null || api === 0)) {
+    return Math.round(gross * WD_FEE_RATE * 100) / 100;
+  }
+  if (api != null && api >= 0) return api;
+  return Math.round(gross * WD_FEE_RATE * 100) / 100;
+}
+
+/** ยอดที่แอดมินต้องโอนเข้าบัญชีผู้ขาย (หลังหักค่าธรรมเนียม) */
+function wdNetTransfer(w: unknown): number {
+  const o = w as Record<string, unknown>;
+  const gross = wdGross(w);
+  const api = wdMoney2(o?.net_payout_amount);
+  if (gross > 0 && (api == null || api === 0)) {
+    return Math.round((gross - wdFeeAmount(w)) * 100) / 100;
+  }
+  if (api != null && api >= 0) return api;
+  return Math.round((gross - wdFeeAmount(w)) * 100) / 100;
+}
+
 function formatDt(iso: unknown) {
   if (!iso) return "—";
   const d = new Date(String(iso));
@@ -644,6 +682,11 @@ const financeDatesActive = computed(
               </select>
             </UFormGroup>
           </div>
+          <p
+            class="mb-3 rounded-lg bg-neutral-100 px-3 py-2 text-xs leading-snug text-neutral-600 dark:bg-neutral-800/80 dark:text-neutral-300"
+          >
+            {{ t("admin.finance.wd_admin_table_hint", { percent: WD_FEE_PERCENT }) }}
+          </p>
           <div v-if="wdLoading" class="py-8 text-center text-neutral-500">{{ t("general.loading") }}</div>
           <div v-else class="overflow-x-auto">
             <table class="w-full text-sm text-left min-w-[720px]">
@@ -654,7 +697,12 @@ const financeDatesActive = computed(
                   <th class="py-2 pr-2">{{ t("admin.finance.col_seller") }}</th>
                   <th class="py-2 pr-2">{{ t("admin.finance.col_gross") }}</th>
                   <th class="py-2 pr-2">{{ t("admin.finance.col_fee") }}</th>
-                  <th class="py-2 pr-2">{{ t("admin.finance.col_net") }}</th>
+                  <th class="py-2 pr-2">
+                    <span class="block">{{ t("admin.finance.col_net") }}</span>
+                    <span class="mt-0.5 block text-[10px] font-normal normal-case text-neutral-400 dark:text-neutral-500">
+                      {{ t("admin.finance.col_net_sub") }}
+                    </span>
+                  </th>
                   <th class="py-2 pr-2">{{ t("admin.finance.col_bank") }}</th>
                   <th class="py-2">{{ t("admin.finance.col_actions") }}</th>
                 </tr>
@@ -672,9 +720,18 @@ const financeDatesActive = computed(
                       {{ w.seller_email || "—" }}
                     </AdminTableTruncTooltip>
                   </td>
-                  <td class="py-2 pr-2">{{ formatThb(w.amount) }}</td>
-                  <td class="py-2 pr-2">{{ formatThb(w.withdrawal_fee_amount) }}</td>
-                  <td class="py-2 pr-2">{{ formatThb(w.net_payout_amount) }}</td>
+                  <td class="py-2 pr-2">{{ formatThb(wdGross(w)) }}</td>
+                  <td class="py-2 pr-2">
+                    <span class="tabular-nums">{{ formatThb(wdFeeAmount(w)) }}</span>
+                    <span class="mt-0.5 block text-[10px] text-neutral-500 dark:text-neutral-400">
+                      {{ t("admin.finance.wd_fee_of_gross", { percent: WD_FEE_PERCENT }) }}
+                    </span>
+                  </td>
+                  <td class="py-2 pr-2">
+                    <span class="font-semibold tabular-nums text-neutral-900 dark:text-white">{{
+                      formatThb(wdNetTransfer(w))
+                    }}</span>
+                  </td>
                   <td class="py-2 pr-2 text-xs">{{ w.payout_bank_code || "—" }}</td>
                   <td class="py-2">
                     <UButton size="xs" variant="soft" @click="openWithdrawalDetail(w.id)">
@@ -832,17 +889,40 @@ const financeDatesActive = computed(
         </h3>
         <div v-if="detailLoading" class="py-8 text-center text-neutral-500">{{ t("general.loading") }}</div>
         <template v-else-if="detailWithdrawal">
+          <div
+            class="mb-4 space-y-1 rounded-xl border border-alizarin-crimson-200 bg-alizarin-crimson-50 px-4 py-3 dark:border-alizarin-crimson-800/80 dark:bg-alizarin-crimson-950/35"
+          >
+            <p class="text-xs font-semibold text-alizarin-crimson-900 dark:text-alizarin-crimson-100">
+              {{ t("admin.finance.wd_admin_transfer_title") }}
+            </p>
+            <p class="text-2xl font-bold tabular-nums text-neutral-900 dark:text-white">
+              {{ formatThb(wdNetTransfer(detailWithdrawal)) }}
+            </p>
+            <p class="text-[11px] leading-snug text-neutral-600 dark:text-neutral-400">
+              {{
+                t("admin.finance.wd_fee_math", {
+                  gross: formatThb(wdGross(detailWithdrawal)),
+                  fee: formatThb(wdFeeAmount(detailWithdrawal)),
+                  percent: WD_FEE_PERCENT,
+                  net: formatThb(wdNetTransfer(detailWithdrawal)),
+                })
+              }}
+            </p>
+          </div>
           <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <dt class="text-neutral-500">{{ t("admin.finance.col_status") }}</dt>
             <dd>{{ wdStatusLabel(detailWithdrawal.status) }}</dd>
             <dt class="text-neutral-500">{{ t("admin.finance.col_seller") }}</dt>
             <dd class="break-all">{{ detailWithdrawal.seller_email }} ({{ detailWithdrawal.seller_id }})</dd>
             <dt class="text-neutral-500">{{ t("admin.finance.col_gross") }}</dt>
-            <dd>{{ formatThb(detailWithdrawal.amount) }}</dd>
+            <dd class="tabular-nums">{{ formatThb(wdGross(detailWithdrawal)) }}</dd>
             <dt class="text-neutral-500">{{ t("admin.finance.col_fee") }}</dt>
-            <dd>{{ formatThb(detailWithdrawal.withdrawal_fee_amount) }}</dd>
+            <dd class="tabular-nums">
+              {{ formatThb(wdFeeAmount(detailWithdrawal)) }}
+              <span class="text-xs text-neutral-500"> ({{ WD_FEE_PERCENT }}%)</span>
+            </dd>
             <dt class="text-neutral-500">{{ t("admin.finance.col_net") }}</dt>
-            <dd>{{ formatThb(detailWithdrawal.net_payout_amount) }}</dd>
+            <dd class="font-medium tabular-nums">{{ formatThb(wdNetTransfer(detailWithdrawal)) }}</dd>
             <dt class="text-neutral-500">{{ t("admin.finance.col_bank") }}</dt>
             <dd>{{ detailWithdrawal.payout_bank_code }}</dd>
             <dt class="text-neutral-500">{{ t("admin.finance.payout_name") }}</dt>
