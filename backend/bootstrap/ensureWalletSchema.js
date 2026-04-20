@@ -4,10 +4,8 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { pool } from '../models/db.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { WALLET_MIGRATION_SQL_PATHS } from '../db/walletMigrationPaths.js';
 
 function autoMigrateEnabled() {
   const v = String(process.env.AUTO_MIGRATE_WALLET_ON_START || '')
@@ -21,22 +19,16 @@ export async function ensureWalletSchemaOnStartup() {
 
   const client = await pool.connect();
   try {
-    const { rows } = await client.query(`
-      SELECT
-        to_regclass('public.seller_wallets') AS sw,
-        to_regclass('public.wallet_transactions') AS wt,
-        to_regclass('public.withdrawals') AS wd
-    `);
-    const r = rows[0];
-    if (r?.sw && r?.wt && r?.wd) {
-      console.info('[wallet] wallet tables present — skip AUTO_MIGRATE_WALLET_ON_START');
-      return;
+    console.warn(
+      '[wallet] applying',
+      WALLET_MIGRATION_SQL_PATHS.map((p) => path.basename(p)).join(', '),
+      '(AUTO_MIGRATE_WALLET_ON_START)'
+    );
+    for (const sqlPath of WALLET_MIGRATION_SQL_PATHS) {
+      const sql = fs.readFileSync(sqlPath, 'utf8');
+      await client.query(sql);
     }
-    const sqlPath = path.join(__dirname, '../db/migrations/20260417_seller_wallet_system.sql');
-    const sql = fs.readFileSync(sqlPath, 'utf8');
-    console.warn('[wallet] applying', path.basename(sqlPath), '(AUTO_MIGRATE_WALLET_ON_START)');
-    await client.query(sql);
-    console.info('[wallet] migration applied OK');
+    console.info('[wallet] migrations applied OK');
   } catch (e) {
     console.error('[wallet] AUTO_MIGRATE_WALLET_ON_START failed:', e?.code, e?.message);
   } finally {
