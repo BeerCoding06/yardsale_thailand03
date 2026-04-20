@@ -87,3 +87,50 @@ BEGIN
     ALTER TABLE public.orders ADD COLUMN funds_settled_at TIMESTAMPTZ;
   END IF;
 END $orders_wallet_cols$;
+
+-- withdrawals: บัญชีรับโอน + ค่าธรรมเนียม (เดิมแยก 20260418 / 20260419 — รวมที่นี่เพื่อ db:wallet ไฟล์เดียว)
+DO $withdrawals_payout_cols$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'withdrawals' AND column_name = 'payout_bank_code'
+  ) THEN
+    ALTER TABLE public.withdrawals ADD COLUMN payout_bank_code TEXT;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'withdrawals' AND column_name = 'payout_account_name'
+  ) THEN
+    ALTER TABLE public.withdrawals ADD COLUMN payout_account_name TEXT;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'withdrawals' AND column_name = 'payout_account_number'
+  ) THEN
+    ALTER TABLE public.withdrawals ADD COLUMN payout_account_number TEXT;
+  END IF;
+END $withdrawals_payout_cols$;
+
+DO $withdrawals_fee_cols$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'withdrawals' AND column_name = 'withdrawal_fee_amount'
+  ) THEN
+    ALTER TABLE public.withdrawals ADD COLUMN withdrawal_fee_amount NUMERIC(14, 2) NOT NULL DEFAULT 0;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'withdrawals' AND column_name = 'net_payout_amount'
+  ) THEN
+    ALTER TABLE public.withdrawals ADD COLUMN net_payout_amount NUMERIC(14, 2);
+  END IF;
+END $withdrawals_fee_cols$;
+
+UPDATE public.withdrawals
+SET
+  withdrawal_fee_amount = ROUND((amount * 0.05)::numeric, 2),
+  net_payout_amount = ROUND((amount * 0.95)::numeric, 2)
+WHERE (withdrawal_fee_amount IS NULL OR withdrawal_fee_amount = 0)
+  AND amount IS NOT NULL
+  AND amount > 0;

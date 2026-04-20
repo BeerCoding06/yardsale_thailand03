@@ -4,7 +4,8 @@ Funds from paid orders are credited per seller into **escrow**. When delivery is
 
 ## Database
 
-Apply migrations `20260417_seller_wallet_system.sql`, `20260418_withdrawals_payout_bank.sql`, `20260419_withdrawals_fee.sql` (หรือรัน `db/schema.sql` ที่อัปเดตแล้ว).
+รัน **`npm run db:wallet`** (หรือ `20260417_seller_wallet_system.sql` — รวมคอลัมน์ payout/fee แล้ว) หรือ `db/schema.sql` ที่อัปเดตแล้ว  
+ไฟล์ `20260418_*` / `20260419_*` ยังอยู่เพื่ออ้างอิง; เนื้อหาหลักรวมใน `20260417` แล้ว
 
 Tables: `seller_wallets`, `wallet_transactions`, `withdrawals`, `financial_audit_logs`; columns on `orders`: `buyer_confirmed_delivery_at`, `funds_settled_at`.  
 ตาราง `withdrawals`: รวม `payout_*`, `withdrawal_fee_amount`, `net_payout_amount`.
@@ -102,8 +103,7 @@ Body (ตัวเลขบัญชีจะเก็บเฉพาะหล�
 
 ### DB migration
 
-1. `backend/db/migrations/20260418_withdrawals_payout_bank.sql` — คอลัมน์บัญชีธนาคาร  
-2. `backend/db/migrations/20260419_withdrawals_fee.sql` — `withdrawal_fee_amount`, `net_payout_amount`
+`npm run db:wallet` รัน `backend/db/migrations/20260417_seller_wallet_system.sql` (ตาราง wallet + คอลัมน์ `withdrawals` payout/fee)
 
 ## Buyer
 
