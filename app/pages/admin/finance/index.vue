@@ -85,6 +85,16 @@ function formatJson(obj: unknown) {
   }
 }
 
+/** ข้อความเต็มสำหรับ tooltip คอลัมน์ผู้ซื้อ (ชื่อ · อีเมล) */
+function ledgerBuyerTip(row: unknown) {
+  const r = row as Record<string, unknown>;
+  const n = String(r?.buyer_name ?? "").trim();
+  const e = String(r?.buyer_email ?? "").trim();
+  if (!n && !e) return "";
+  if (n && e) return `${n} · ${e}`;
+  return n || e;
+}
+
 async function authFetch(path: string, opts: Record<string, unknown> = {}) {
   const jwt = user.value?.token;
   if (!jwt) throw new Error(String(t("auth.login_required")));
@@ -522,28 +532,49 @@ const financeDatesActive = computed(
                   <td class="py-2 pr-2">{{ ledgerTypeLabel(r.type) }}</td>
                   <td class="py-2 pr-2 font-medium">{{ formatThb(r.amount) }}</td>
                   <td class="py-2 pr-2">
-                    <div class="max-w-[200px] truncate text-xs" :title="r.seller_email || ''">
+                    <AdminTableTruncTooltip :tip="String(r.seller_email || '')" wrap-class="max-w-[200px]">
                       {{ r.seller_email || "—" }}
-                    </div>
+                    </AdminTableTruncTooltip>
                   </td>
                   <td class="py-2 pr-2">
-                    <div class="max-w-[220px] text-xs leading-snug">
+                    <UTooltip
+                      v-if="ledgerBuyerTip(r)"
+                      :text="ledgerBuyerTip(r)"
+                      :open-delay="200"
+                      :popper="{ placement: 'top', strategy: 'fixed' }"
+                    >
                       <div
-                        class="font-medium text-neutral-800 dark:text-neutral-200 truncate"
-                        :title="String(r.buyer_name || '')"
+                        class="max-w-[220px] cursor-help rounded text-xs leading-snug outline-none focus-visible:ring-2 focus-visible:ring-neutral-400/60 dark:focus-visible:ring-neutral-500/50 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-neutral-900"
+                        tabindex="0"
+                        role="button"
+                        :aria-label="ledgerBuyerTip(r)"
                       >
+                        <div class="font-medium truncate text-neutral-800 dark:text-neutral-200">
+                          {{ r.buyer_name || "—" }}
+                        </div>
+                        <div class="truncate text-neutral-500 dark:text-neutral-400">
+                          {{ r.buyer_email || "—" }}
+                        </div>
+                      </div>
+                    </UTooltip>
+                    <div v-else class="max-w-[220px] text-xs leading-snug">
+                      <div class="font-medium truncate text-neutral-800 dark:text-neutral-200">
                         {{ r.buyer_name || "—" }}
                       </div>
-                      <div class="truncate text-neutral-500 dark:text-neutral-400" :title="String(r.buyer_email || '')">
+                      <div class="truncate text-neutral-500 dark:text-neutral-400">
                         {{ r.buyer_email || "—" }}
                       </div>
                     </div>
                   </td>
                   <td class="py-2 pr-2 align-top">
                     <template v-if="r.order_id">
-                      <div class="font-mono text-[11px] leading-snug break-all max-w-[14rem] text-neutral-800 dark:text-neutral-200">
+                      <AdminTableTruncTooltip
+                        :tip="String(r.order_id)"
+                        wrap-class="max-w-[14rem]"
+                        inner-class="font-mono text-[11px] leading-snug text-neutral-800 dark:text-neutral-200"
+                      >
                         {{ r.order_id }}
-                      </div>
+                      </AdminTableTruncTooltip>
                       <NuxtLink
                         :to="{ path: localePath('/admin/orders'), query: { q: String(r.order_id) } }"
                         class="inline-block mt-1 text-xs text-alizarin-crimson-600 dark:text-alizarin-crimson-400 hover:underline"
@@ -636,8 +667,10 @@ const financeDatesActive = computed(
                 >
                   <td class="py-2 pr-2 whitespace-nowrap">{{ formatDt(w.requested_at) }}</td>
                   <td class="py-2 pr-2">{{ wdStatusLabel(w.status) }}</td>
-                  <td class="py-2 pr-2 text-xs max-w-[180px] truncate" :title="w.seller_email">
-                    {{ w.seller_email || "—" }}
+                  <td class="py-2 pr-2 text-xs">
+                    <AdminTableTruncTooltip :tip="String(w.seller_email || '')" wrap-class="max-w-[180px]">
+                      {{ w.seller_email || "—" }}
+                    </AdminTableTruncTooltip>
                   </td>
                   <td class="py-2 pr-2">{{ formatThb(w.amount) }}</td>
                   <td class="py-2 pr-2">{{ formatThb(w.withdrawal_fee_amount) }}</td>
@@ -732,9 +765,21 @@ const financeDatesActive = computed(
                   <td class="py-2 pr-2 whitespace-nowrap">{{ formatDt(a.created_at) }}</td>
                   <td class="py-2 pr-2 font-mono text-xs">{{ a.action }}</td>
                   <td class="py-2 pr-2">{{ a.entity_type }}</td>
-                  <td class="py-2 pr-2 font-mono text-xs">{{ a.entity_id ? String(a.entity_id).slice(0, 8) + "…" : "—" }}</td>
-                  <td class="py-2 pr-2 text-xs max-w-[160px] truncate" :title="a.actor_email || ''">
-                    {{ a.actor_email || "—" }}
+                  <td class="py-2 pr-2 font-mono text-xs">
+                    <AdminTableTruncTooltip
+                      v-if="a.entity_id"
+                      :tip="String(a.entity_id)"
+                      wrap-class="max-w-[7rem]"
+                      inner-class="font-mono text-xs"
+                    >
+                      {{ String(a.entity_id).slice(0, 8) }}…
+                    </AdminTableTruncTooltip>
+                    <template v-else>—</template>
+                  </td>
+                  <td class="py-2 pr-2 text-xs">
+                    <AdminTableTruncTooltip :tip="String(a.actor_email || '')" wrap-class="max-w-[160px]">
+                      {{ a.actor_email || "—" }}
+                    </AdminTableTruncTooltip>
                   </td>
                   <td class="py-2 max-w-[320px]">
                     <pre
