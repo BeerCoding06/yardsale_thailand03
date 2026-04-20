@@ -359,7 +359,7 @@ const financeDatesActive = computed(
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto space-y-6">
+  <div class="max-w-6xl mx-auto w-full min-w-0 space-y-6">
     <div>
       <h1 class="text-2xl font-bold text-neutral-900 dark:text-white">
         {{ t("admin.finance.title") }}
@@ -471,8 +471,8 @@ const financeDatesActive = computed(
       </div>
 
       <!-- Ledger -->
-      <div v-show="activeTab === 'ledger'" class="space-y-4">
-        <UCard>
+      <div v-show="activeTab === 'ledger'" class="space-y-4 min-w-0 max-w-full">
+        <UCard class="min-w-0 max-w-full overflow-hidden">
           <div class="flex flex-wrap gap-3 items-end mb-4">
             <UFormGroup :label="t('admin.finance.filter_type')" class="min-w-[160px]">
               <select
@@ -494,8 +494,11 @@ const financeDatesActive = computed(
             </UButton>
           </div>
           <div v-if="ledgerLoading" class="py-8 text-center text-neutral-500">{{ t("general.loading") }}</div>
-          <div v-else class="overflow-x-auto">
-            <table class="w-full text-sm text-left min-w-[1100px]">
+          <div
+            v-else
+            class="w-full min-w-0 max-w-full overflow-x-auto overflow-y-visible overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+          >
+            <table class="w-max min-w-[1100px] text-sm text-left">
               <thead>
                 <tr class="border-b border-neutral-200 dark:border-neutral-700 text-neutral-500">
                   <th class="py-2 pr-2">{{ t("admin.finance.col_time") }}</th>
