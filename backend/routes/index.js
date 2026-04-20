@@ -34,6 +34,8 @@ import {
   adminSellerWalletParamsSchema,
   adminWalletLedgerQuerySchema,
   adminWalletAuditQuerySchema,
+  adminWalletDashboardQuerySchema,
+  adminWithdrawalsListQuerySchema,
   adminPatchOrderSchema,
 } from '../validators/schemas.js';
 import { uploadImage } from '../middlewares/upload.js';
@@ -241,6 +243,7 @@ router.get(
   '/admin/wallet/dashboard',
   authMiddleware,
   requireRoles('admin'),
+  validate(adminWalletDashboardQuerySchema, 'query'),
   adminWalletController.getWalletDashboard
 );
 router.get(
@@ -261,6 +264,7 @@ router.get(
   '/admin/withdrawals',
   authMiddleware,
   requireRoles('admin'),
+  validate(adminWithdrawalsListQuerySchema, 'query'),
   adminWalletController.getAdminWithdrawals
 );
 router.get(

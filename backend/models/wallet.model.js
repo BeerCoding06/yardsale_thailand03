@@ -154,10 +154,23 @@ export async function insertFinancialAudit(client, { actorUserId, action, entity
   );
 }
 
-export async function countWithdrawalsByStatus(client) {
+export async function countWithdrawalsByStatus(client, { date_from: dateFrom = '', date_to: dateTo = '' } = {}) {
+  const parts = ['WHERE 1=1'];
+  const params = [];
+  let i = 1;
+  if (dateFrom && String(dateFrom).trim()) {
+    parts.push(`AND w.requested_at >= $${i++}::date`);
+    params.push(String(dateFrom).trim());
+  }
+  if (dateTo && String(dateTo).trim()) {
+    parts.push(`AND w.requested_at < ($${i++}::date + interval '1 day')`);
+    params.push(String(dateTo).trim());
+  }
+  const where = parts.join(' ');
   const r = await client.query(
-    `SELECT status::text AS status, COUNT(*)::int AS n, COALESCE(SUM(amount),0)::numeric(14,2) AS total_amount
-     FROM withdrawals GROUP BY status`
+    `SELECT w.status::text AS status, COUNT(*)::int AS n, COALESCE(SUM(w.amount),0)::numeric(14,2) AS total_amount
+     FROM withdrawals w ${where} GROUP BY w.status`,
+    params
   );
   const by = {};
   for (const row of r.rows) {
@@ -166,45 +179,70 @@ export async function countWithdrawalsByStatus(client) {
   return by;
 }
 
-export async function listWithdrawalsAdmin(client, { status, limit = 50, offset = 0 }) {
+export async function listWithdrawalsAdmin(
+  client,
+  { status, limit = 50, offset = 0, date_from: dateFrom = '', date_to: dateTo = '' } = {}
+) {
   const lim = Math.min(200, Math.max(1, limit));
   const off = Math.max(0, offset);
+  const parts = ['WHERE 1=1'];
+  const params = [];
+  let i = 1;
   if (status && String(status).trim()) {
-    const r = await client.query(
-      `SELECT w.*, u.email AS seller_email, u.name AS seller_name
-       FROM withdrawals w
-       JOIN users u ON u.id = w.seller_id
-       WHERE w.status = $1::withdrawal_status
-       ORDER BY w.requested_at DESC
-       LIMIT $2 OFFSET $3`,
-      [String(status).trim(), lim, off]
-    );
-    return r.rows;
+    parts.push(`AND w.status = $${i++}::withdrawal_status`);
+    params.push(String(status).trim());
   }
+  if (dateFrom && String(dateFrom).trim()) {
+    parts.push(`AND w.requested_at >= $${i++}::date`);
+    params.push(String(dateFrom).trim());
+  }
+  if (dateTo && String(dateTo).trim()) {
+    parts.push(`AND w.requested_at < ($${i++}::date + interval '1 day')`);
+    params.push(String(dateTo).trim());
+  }
+  params.push(lim, off);
+  const where = parts.join(' ');
+  const iLim = params.length - 1;
+  const iOff = params.length;
   const r = await client.query(
     `SELECT w.*, u.email AS seller_email, u.name AS seller_name
      FROM withdrawals w
      JOIN users u ON u.id = w.seller_id
+     ${where}
      ORDER BY w.requested_at DESC
-     LIMIT $1 OFFSET $2`,
-    [lim, off]
+     LIMIT $${iLim} OFFSET $${iOff}`,
+    params
   );
   return r.rows;
 }
 
-export async function countWithdrawalsAdmin(client, { status }) {
+export async function countWithdrawalsAdmin(
+  client,
+  { status, date_from: dateFrom = '', date_to: dateTo = '' } = {}
+) {
+  const parts = ['WHERE 1=1'];
+  const params = [];
+  let i = 1;
   if (status && String(status).trim()) {
-    const r = await client.query(
-      `SELECT COUNT(*)::int AS n FROM withdrawals WHERE status = $1::withdrawal_status`,
-      [String(status).trim()]
-    );
-    return r.rows[0]?.n ?? 0;
+    parts.push(`AND w.status = $${i++}::withdrawal_status`);
+    params.push(String(status).trim());
   }
-  const r = await client.query(`SELECT COUNT(*)::int AS n FROM withdrawals`);
+  if (dateFrom && String(dateFrom).trim()) {
+    parts.push(`AND w.requested_at >= $${i++}::date`);
+    params.push(String(dateFrom).trim());
+  }
+  if (dateTo && String(dateTo).trim()) {
+    parts.push(`AND w.requested_at < ($${i++}::date + interval '1 day')`);
+    params.push(String(dateTo).trim());
+  }
+  const r = await client.query(
+    `SELECT COUNT(*)::int AS n FROM withdrawals w ${parts.join(' ')}`,
+    params
+  );
   return r.rows[0]?.n ?? 0;
 }
 
-function buildLedgerFilter(type, sellerId) {
+function buildLedgerFilter({ type, sellerId, dateFrom, dateTo }) {
   const parts = ['WHERE 1=1'];
   const params = [];
   let i = 1;
@@ -216,17 +254,32 @@ function buildLedgerFilter(type, sellerId) {
     parts.push(`AND wt.seller_id = $${i++}::uuid`);
     params.push(String(sellerId).trim());
   }
+  if (dateFrom && String(dateFrom).trim()) {
+    parts.push(`AND wt.created_at >= $${i++}::date`);
+    params.push(String(dateFrom).trim());
+  }
+  if (dateTo && String(dateTo).trim()) {
+    parts.push(`AND wt.created_at < ($${i++}::date + interval '1 day')`);
+    params.push(String(dateTo).trim());
+  }
   return { sql: parts.join(' '), params };
 }
 
 /** รายการ ledger ทั้งแพลตฟอร์ม — CMS: ผู้ขาย + ออเดอร์ (ผู้ซื้อ) สำหรับบริบทการซื้อขาย */
 export async function listWalletTransactionsAdmin(
   client,
-  { limit = 50, offset = 0, type = '', seller_id: sellerId = '' } = {}
+  {
+    limit = 50,
+    offset = 0,
+    type = '',
+    seller_id: sellerId = '',
+    date_from: dateFrom = '',
+    date_to: dateTo = '',
+  } = {}
 ) {
   const lim = Math.min(200, Math.max(1, Number(limit) || 50));
   const off = Math.max(0, Number(offset) || 0);
-  const { sql: whereSql, params: fp } = buildLedgerFilter(type, sellerId);
+  const { sql: whereSql, params: fp } = buildLedgerFilter({ type, sellerId, dateFrom, dateTo });
   const params = [...fp, lim, off];
   const iLim = params.length - 1;
   const iOff = params.length;
@@ -264,8 +317,16 @@ export async function listWalletTransactionsAdmin(
   }
 }
 
-export async function countWalletTransactionsAdmin(client, { type = '', seller_id: sellerId = '' } = {}) {
-  const { sql: whereSql, params } = buildLedgerFilter(type, sellerId);
+export async function countWalletTransactionsAdmin(
+  client,
+  {
+    type = '',
+    seller_id: sellerId = '',
+    date_from: dateFrom = '',
+    date_to: dateTo = '',
+  } = {}
+) {
+  const { sql: whereSql, params } = buildLedgerFilter({ type, sellerId, dateFrom, dateTo });
   const r = await client.query(
     `SELECT COUNT(*)::int AS n FROM wallet_transactions wt ${whereSql}`,
     params
@@ -288,7 +349,14 @@ export async function listWalletTransactionsForWithdrawal(client, withdrawalId) 
 /** บันทึก audit ทางการเงิน — CMS */
 export async function listFinancialAuditLogsAdmin(
   client,
-  { limit = 50, offset = 0, action = '', entity_type: entityType = '' } = {}
+  {
+    limit = 50,
+    offset = 0,
+    action = '',
+    entity_type: entityType = '',
+    date_from: dateFrom = '',
+    date_to: dateTo = '',
+  } = {}
 ) {
   const lim = Math.min(200, Math.max(1, Number(limit) || 50));
   const off = Math.max(0, Number(offset) || 0);
@@ -302,6 +370,14 @@ export async function listFinancialAuditLogsAdmin(
   if (entityType && String(entityType).trim()) {
     parts.push(`AND f.entity_type = $${i++}`);
     params.push(String(entityType).trim());
+  }
+  if (dateFrom && String(dateFrom).trim()) {
+    parts.push(`AND f.created_at >= $${i++}::date`);
+    params.push(String(dateFrom).trim());
+  }
+  if (dateTo && String(dateTo).trim()) {
+    parts.push(`AND f.created_at < ($${i++}::date + interval '1 day')`);
+    params.push(String(dateTo).trim());
   }
   params.push(lim, off);
   const iLim = params.length - 1;
@@ -332,7 +408,15 @@ export async function listFinancialAuditLogsAdmin(
   }
 }
 
-export async function countFinancialAuditLogsAdmin(client, { action = '', entity_type: entityType = '' } = {}) {
+export async function countFinancialAuditLogsAdmin(
+  client,
+  {
+    action = '',
+    entity_type: entityType = '',
+    date_from: dateFrom = '',
+    date_to: dateTo = '',
+  } = {}
+) {
   const parts = ['WHERE 1=1'];
   const params = [];
   let i = 1;
@@ -343,6 +427,14 @@ export async function countFinancialAuditLogsAdmin(client, { action = '', entity
   if (entityType && String(entityType).trim()) {
     parts.push(`AND f.entity_type = $${i++}`);
     params.push(String(entityType).trim());
+  }
+  if (dateFrom && String(dateFrom).trim()) {
+    parts.push(`AND f.created_at >= $${i++}::date`);
+    params.push(String(dateFrom).trim());
+  }
+  if (dateTo && String(dateTo).trim()) {
+    parts.push(`AND f.created_at < ($${i++}::date + interval '1 day')`);
+    params.push(String(dateTo).trim());
   }
   const r = await client.query(
     `SELECT COUNT(*)::int AS n FROM financial_audit_logs f ${parts.join(' ')}`,

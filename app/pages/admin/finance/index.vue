@@ -41,6 +41,10 @@ const auditAction = ref("");
 const auditEntityType = ref("");
 const auditLoading = ref(false);
 
+/** ช่วงวันที่ (YYYY-MM-DD) — ใช้กับสรุป / ledger / ถอน / audit */
+const financeDateFrom = ref("");
+const financeDateTo = ref("");
+
 const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detailWithdrawal = ref<any>(null);
@@ -93,8 +97,17 @@ async function authFetch(path: string, opts: Record<string, unknown> = {}) {
   return $fetch<any>(endpoint(path), { ...rest, headers } as any);
 }
 
+function appendFinanceDates(q: Record<string, string | number>) {
+  const df = String(financeDateFrom.value || "").trim();
+  const dt = String(financeDateTo.value || "").trim();
+  if (df) q.date_from = df;
+  if (dt) q.date_to = dt;
+}
+
 async function loadDashboard() {
-  const res = await authFetch("admin/wallet/dashboard");
+  const q: Record<string, string> = {};
+  appendFinanceDates(q);
+  const res = await authFetch("admin/wallet/dashboard", { query: q });
   dashboard.value = pickInner(res) as Record<string, unknown>;
 }
 
@@ -105,6 +118,7 @@ async function loadLedger() {
     const q: Record<string, string | number> = { limit: PAGE, offset };
     if (ledgerType.value) q.type = ledgerType.value;
     if (ledgerSellerId.value.trim()) q.seller_id = ledgerSellerId.value.trim();
+    appendFinanceDates(q);
     const res = await authFetch("admin/wallet/ledger", { query: q });
     const inner = pickInner(res) as any;
     ledgerRows.value = Array.isArray(inner?.entries) ? inner.entries : [];
@@ -124,6 +138,7 @@ async function loadWithdrawals() {
     const offset = (wdPage.value - 1) * PAGE;
     const q: Record<string, string | number> = { limit: PAGE, offset };
     if (wdStatus.value) q.status = wdStatus.value;
+    appendFinanceDates(q);
     const res = await authFetch("admin/withdrawals", { query: q });
     const inner = pickInner(res) as any;
     wdRows.value = Array.isArray(inner?.withdrawals) ? inner.withdrawals : [];
@@ -144,6 +159,7 @@ async function loadAudit() {
     const q: Record<string, string | number> = { limit: PAGE, offset };
     if (auditAction.value.trim()) q.action = auditAction.value.trim();
     if (auditEntityType.value.trim()) q.entity_type = auditEntityType.value.trim();
+    appendFinanceDates(q);
     const res = await authFetch("admin/wallet/audit-log", { query: q });
     const inner = pickInner(res) as any;
     auditRows.value = Array.isArray(inner?.entries) ? inner.entries : [];
@@ -218,6 +234,7 @@ async function postWithdrawalAction(
 }
 
 watch(activeTab, async (tab: "summary" | "ledger" | "withdrawals" | "audit") => {
+  if (tab === "summary") await loadDashboard();
   if (tab === "ledger") await loadLedger();
   if (tab === "withdrawals") await loadWithdrawals();
   if (tab === "audit") await loadAudit();
@@ -313,6 +330,32 @@ function applyAuditFilters() {
   auditPage.value = 1;
   void loadAudit();
 }
+
+function applyFinanceDateFilters() {
+  const df = String(financeDateFrom.value || "").trim();
+  const dt = String(financeDateTo.value || "").trim();
+  if (df && dt && df > dt) {
+    push.error(t("admin.finance.date_range_invalid"));
+    return;
+  }
+  ledgerPage.value = 1;
+  wdPage.value = 1;
+  auditPage.value = 1;
+  void loadDashboard();
+  if (activeTab.value === "ledger") void loadLedger();
+  else if (activeTab.value === "withdrawals") void loadWithdrawals();
+  else if (activeTab.value === "audit") void loadAudit();
+}
+
+function clearFinanceDateFilters() {
+  financeDateFrom.value = "";
+  financeDateTo.value = "";
+  applyFinanceDateFilters();
+}
+
+const financeDatesActive = computed(
+  () => Boolean(String(financeDateFrom.value || "").trim() || String(financeDateTo.value || "").trim())
+);
 </script>
 
 <template>
@@ -348,6 +391,34 @@ function applyAuditFilters() {
         </button>
       </div>
 
+      <UCard class="mb-4">
+        <div class="flex flex-wrap gap-3 items-end">
+          <UFormGroup :label="t('admin.finance.filter_date_from')" class="min-w-[168px]">
+            <input
+              v-model="financeDateFrom"
+              type="date"
+              class="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2 text-sm"
+            />
+          </UFormGroup>
+          <UFormGroup :label="t('admin.finance.filter_date_to')" class="min-w-[168px]">
+            <input
+              v-model="financeDateTo"
+              type="date"
+              class="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-950 px-3 py-2 text-sm"
+            />
+          </UFormGroup>
+          <UButton color="neutral" variant="soft" @click="applyFinanceDateFilters">
+            {{ t("admin.finance.apply_date_filters") }}
+          </UButton>
+          <UButton color="neutral" variant="ghost" :disabled="!financeDatesActive" @click="clearFinanceDateFilters">
+            {{ t("admin.finance.clear_date_filters") }}
+          </UButton>
+        </div>
+        <p v-if="financeDatesActive" class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+          {{ t("admin.finance.date_range_scope") }}
+        </p>
+      </UCard>
+
       <!-- Summary -->
       <div v-show="activeTab === 'summary'" class="space-y-4">
         <div class="grid sm:grid-cols-2 gap-4">
@@ -368,6 +439,9 @@ function applyAuditFilters() {
           <h3 class="font-semibold text-neutral-900 dark:text-white mb-3">
             {{ t("admin.finance.withdrawals_by_status") }}
           </h3>
+          <p v-if="financeDatesActive" class="text-xs text-neutral-500 dark:text-neutral-400 mb-2">
+            {{ t("admin.finance.summary_date_filter_hint") }}
+          </p>
           <div class="overflow-x-auto">
             <table class="w-full text-sm text-left">
               <thead>

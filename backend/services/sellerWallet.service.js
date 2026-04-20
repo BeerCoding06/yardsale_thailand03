@@ -19,6 +19,16 @@ function money(n) {
   return Number(x.toFixed(2));
 }
 
+/** ค่า YYYY-MM-DD จาก query — ใช้กับ ledger / audit / ถอน / สรุปตามช่วง requested_at|created_at */
+function parseFinanceDateRange(query = {}) {
+  const date_from = query.date_from ? String(query.date_from).trim() : '';
+  const date_to = query.date_to ? String(query.date_to).trim() : '';
+  if (date_from && date_to && date_from > date_to) {
+    throw new AppError('date_from must be on or before date_to', 400, 'INVALID_DATE_RANGE');
+  }
+  return { date_from, date_to };
+}
+
 function isPaidStatus(raw) {
   if (raw == null) return false;
   if (typeof raw === 'object') {
@@ -496,13 +506,14 @@ export async function listMyWithdrawals(sellerId, { limit = 50, offset = 0 } = {
   }
 }
 
-export async function getAdminWithdrawalDashboard() {
+export async function getAdminWithdrawalDashboard(query = {}) {
+  const { date_from, date_to } = parseFinanceDateRange(query);
   const client = await pool.connect();
   try {
     let withdrawalsByStatus = {};
     let schemaIncomplete = false;
     try {
-      withdrawalsByStatus = await walletModel.countWithdrawalsByStatus(client);
+      withdrawalsByStatus = await walletModel.countWithdrawalsByStatus(client, { date_from, date_to });
     } catch (err) {
       if (!isWalletDashboardSchemaError(err)) throw err;
       schemaIncomplete = true;
@@ -540,14 +551,21 @@ export async function getAdminWithdrawalDashboard() {
 }
 
 export async function adminListWithdrawals(query) {
+  const { date_from, date_to } = parseFinanceDateRange(query);
   const client = await pool.connect();
   try {
     const limit = Number(query.limit) || 50;
     const offset = Number(query.offset) || 0;
     const status = query.status ? String(query.status).trim() : '';
     try {
-      const rows = await walletModel.listWithdrawalsAdmin(client, { status, limit, offset });
-      const total = await walletModel.countWithdrawalsAdmin(client, { status });
+      const rows = await walletModel.listWithdrawalsAdmin(client, {
+        status,
+        limit,
+        offset,
+        date_from,
+        date_to,
+      });
+      const total = await walletModel.countWithdrawalsAdmin(client, { status, date_from, date_to });
       return {
         success: true,
         wallet_schema_incomplete: false,
@@ -742,6 +760,7 @@ function formatWithdrawalAdminDetail(row) {
 
 /** CMS — บัญชีแยกประเภท wallet (escrow / release / withdraw / refund) พร้อมบริบทออเดอร์ */
 export async function adminListWalletLedger(query = {}) {
+  const { date_from, date_to } = parseFinanceDateRange(query);
   const client = await pool.connect();
   try {
     const limit = Number(query.limit) || 50;
@@ -754,8 +773,15 @@ export async function adminListWalletLedger(query = {}) {
         offset,
         type,
         seller_id,
+        date_from,
+        date_to,
       });
-      const total = await walletModel.countWalletTransactionsAdmin(client, { type, seller_id });
+      const total = await walletModel.countWalletTransactionsAdmin(client, {
+        type,
+        seller_id,
+        date_from,
+        date_to,
+      });
       return {
         success: true,
         wallet_schema_incomplete: false,
@@ -779,6 +805,7 @@ export async function adminListWalletLedger(query = {}) {
 
 /** CMS — financial_audit_logs */
 export async function adminListFinancialAuditLogs(query = {}) {
+  const { date_from, date_to } = parseFinanceDateRange(query);
   const client = await pool.connect();
   try {
     const limit = Number(query.limit) || 50;
@@ -791,8 +818,15 @@ export async function adminListFinancialAuditLogs(query = {}) {
         offset,
         action,
         entity_type,
+        date_from,
+        date_to,
       });
-      const total = await walletModel.countFinancialAuditLogsAdmin(client, { action, entity_type });
+      const total = await walletModel.countFinancialAuditLogsAdmin(client, {
+        action,
+        entity_type,
+        date_from,
+        date_to,
+      });
       return {
         success: true,
         wallet_schema_incomplete: false,

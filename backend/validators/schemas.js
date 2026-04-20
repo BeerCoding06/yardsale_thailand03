@@ -363,19 +363,48 @@ export const adminSellerWalletParamsSchema = Joi.object({
   sellerId: uuid.required(),
 });
 
+const financeDateFrom = Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional().allow('');
+const financeDateTo = Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).optional().allow('');
+
+function assertFinanceDateOrder(obj, helpers) {
+  const a = obj.date_from;
+  const b = obj.date_to;
+  if (a && b && String(a) > String(b)) {
+    return helpers.error('any.custom', { message: 'date_from must be on or before date_to' });
+  }
+  return obj;
+}
+
+export const adminWalletDashboardQuerySchema = Joi.object({
+  date_from: financeDateFrom,
+  date_to: financeDateTo,
+}).custom(assertFinanceDateOrder);
+
 export const adminWalletLedgerQuerySchema = Joi.object({
   limit: Joi.number().integer().min(1).max(200).default(50),
   offset: Joi.number().integer().min(0).max(500000).default(0),
   type: Joi.string().valid('escrow_in', 'release', 'withdraw', 'refund').optional().allow(''),
   seller_id: uuid.optional().allow(''),
-});
+  date_from: financeDateFrom,
+  date_to: financeDateTo,
+}).custom(assertFinanceDateOrder);
 
 export const adminWalletAuditQuerySchema = Joi.object({
   limit: Joi.number().integer().min(1).max(200).default(50),
   offset: Joi.number().integer().min(0).max(500000).default(0),
   action: Joi.string().trim().max(120).optional().allow(''),
   entity_type: Joi.string().trim().max(80).optional().allow(''),
-});
+  date_from: financeDateFrom,
+  date_to: financeDateTo,
+}).custom(assertFinanceDateOrder);
+
+export const adminWithdrawalsListQuerySchema = Joi.object({
+  limit: Joi.number().integer().min(1).max(200).default(50),
+  offset: Joi.number().integer().min(0).max(500000).default(0),
+  status: Joi.string().valid('pending', 'approved', 'paid', 'rejected').optional().allow(''),
+  date_from: financeDateFrom,
+  date_to: financeDateTo,
+}).custom(assertFinanceDateOrder);
 
 export {
   saveFcmTokenSchema,

@@ -2,8 +2,8 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { sendSuccess, sendSuccessNoStore } from '../utils/response.js';
 import * as sellerWalletService from '../services/sellerWallet.service.js';
 
-export const getWalletDashboard = asyncHandler(async (_req, res) => {
-  const data = await sellerWalletService.getAdminWithdrawalDashboard();
+export const getWalletDashboard = asyncHandler(async (req, res) => {
+  const data = await sellerWalletService.getAdminWithdrawalDashboard(req.query);
   sendSuccessNoStore(res, data);
 });
 
