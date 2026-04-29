@@ -3,6 +3,8 @@ import { withTransaction } from '../models/db.js';
 import * as orderModel from '../models/order.model.js';
 import * as orderService from './order.service.js';
 import * as sellerWalletService from './sellerWallet.service.js';
+import * as buyerWalletModel from '../models/buyerWallet.model.js';
+import * as buyerWalletService from './buyerWallet.service.js';
 import { config } from '../config/index.js';
 import fs from 'fs/promises';
 
@@ -187,6 +189,16 @@ export async function mockPayment(userId, body, file) {
         err?.code,
         err?.message
       );
+    }
+    await client.query('SAVEPOINT payment_paid_at');
+    try {
+      await buyerWalletModel.setPaidAt(client, orderId);
+      await client.query('RELEASE SAVEPOINT payment_paid_at');
+    } catch (err) {
+      await client.query('ROLLBACK TO SAVEPOINT payment_paid_at');
+      if (!buyerWalletService.isBuyerWalletSchemaError(err)) {
+        console.warn('[payment] mockPayment: paid_at failed', orderId, err?.code, err?.message);
+      }
     }
     return { order: updated, paid: true, slip: slipChecked, escrow_deferred: escrowDeferred };
   }).then((result) => {

@@ -406,6 +406,35 @@ export const adminWithdrawalsListQuerySchema = Joi.object({
   date_to: financeDateTo,
 }).custom(assertFinanceDateOrder);
 
+/* ===== Buyer Wallet ===== */
+
+export const buyerWalletTxQuerySchema = Joi.object({
+  limit: Joi.number().integer().min(1).max(100).default(20),
+  offset: Joi.number().integer().min(0).max(500000).default(0),
+});
+
+export const adminManualRefundBodySchema = Joi.object({
+  order_id: uuidPostgresShape.required(),
+  reason: Joi.string().valid('order_cancelled', 'not_shipped_3_days', 'product_defect', 'admin_manual').default('admin_manual'),
+  note: Joi.string().trim().max(500).optional().allow('', null),
+});
+
+export const adminBuyerWalletTxQuerySchema = Joi.object({
+  limit: Joi.number().integer().min(1).max(200).default(50),
+  offset: Joi.number().integer().min(0).max(500000).default(0),
+  user_id: uuid.optional().allow(''),
+  date_from: financeDateFrom,
+  date_to: financeDateTo,
+}).custom(assertFinanceDateOrder);
+
+export const adminRefundsQuerySchema = Joi.object({
+  limit: Joi.number().integer().min(1).max(200).default(50),
+  offset: Joi.number().integer().min(0).max(500000).default(0),
+  status: Joi.string().valid('pending', 'completed', 'failed', 'skipped').optional().allow(''),
+  date_from: financeDateFrom,
+  date_to: financeDateTo,
+}).custom(assertFinanceDateOrder);
+
 export {
   saveFcmTokenSchema,
   sendFcmNotificationSchema,

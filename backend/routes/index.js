@@ -51,6 +51,7 @@ import * as trackController from '../controllers/track.controller.js';
 import * as fcmController from '../controllers/fcm.controller.js';
 import * as walletController from '../controllers/wallet.controller.js';
 import * as adminWalletController from '../controllers/adminWallet.controller.js';
+import * as buyerWalletController from '../controllers/buyerWallet.controller.js';
 import { trackRateLimit } from '../middlewares/trackRateLimit.js';
 import { fcmBroadcastRateLimit, fcmSendNotificationRateLimit } from '../middlewares/fcmRateLimit.js';
 
@@ -304,6 +305,17 @@ router.get(
   validate(adminSellerWalletParamsSchema, 'params'),
   adminWalletController.getAdminSellerWallet
 );
+
+/* ===== Buyer Wallet ===== */
+
+router.get('/buyer-wallet', authMiddleware, buyerWalletController.getMyBuyerWallet);
+router.get('/buyer-wallet/transactions', authMiddleware, buyerWalletController.listMyBuyerWalletTxs);
+
+router.get('/admin/buyer-wallet/summary', authMiddleware, requireRoles('admin'), buyerWalletController.adminGetBuyerWalletSummary);
+router.get('/admin/buyer-wallet/transactions', authMiddleware, requireRoles('admin'), buyerWalletController.adminListBuyerWalletTxs);
+router.get('/admin/buyer-wallet/refunds', authMiddleware, requireRoles('admin'), buyerWalletController.adminListRefunds);
+router.post('/admin/buyer-wallet/refund', authMiddleware, requireRoles('admin'), buyerWalletController.adminManualRefund);
+router.post('/admin/buyer-wallet/trigger-unshipped-refunds', authMiddleware, requireRoles('admin'), buyerWalletController.adminTriggerUnshippedRefunds);
 
 router.post('/payment/mock', authMiddleware, (req, res, next) => {
   if (req.is('multipart/form-data')) {

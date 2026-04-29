@@ -6,6 +6,8 @@ import * as orderModel from '../models/order.model.js';
 import * as cartModel from '../models/cart.model.js';
 import * as seventeenTrack from './seventeenTrack.service.js';
 import * as sellerWalletService from './sellerWallet.service.js';
+import * as buyerWalletService from './buyerWallet.service.js';
+import * as buyerWalletModel from '../models/buyerWallet.model.js';
 
 function aggregateLineItems(lineItems) {
   const map = new Map();
@@ -444,6 +446,15 @@ export async function markOrderPaidAsAdmin(orderId, { slipImageUrl } = {}) {
         err?.message
       );
     }
+    await client.query('SAVEPOINT buyer_wallet_paid_at');
+    try {
+      await buyerWalletModel.setPaidAt(client, orderId);
+      await client.query('RELEASE SAVEPOINT buyer_wallet_paid_at');
+    } catch (err) {
+      await client.query('ROLLBACK TO SAVEPOINT buyer_wallet_paid_at');
+      if (!buyerWalletService.isBuyerWalletSchemaError(err)) throw err;
+      console.warn('[order] markOrderPaidAsAdmin: paid_at skipped (schema)', orderId, err?.code);
+    }
     return { order: formatOrderForApi(updated) };
   });
 }
@@ -536,6 +547,15 @@ export async function adminPatchOrder(orderId, body) {
               err?.message
             );
           }
+          await client.query('SAVEPOINT buyer_wallet_paid_at');
+          try {
+            await buyerWalletModel.setPaidAt(client, orderId);
+            await client.query('RELEASE SAVEPOINT buyer_wallet_paid_at');
+          } catch (err) {
+            await client.query('ROLLBACK TO SAVEPOINT buyer_wallet_paid_at');
+            if (!buyerWalletService.isBuyerWalletSchemaError(err)) throw err;
+            console.warn('[order] adminPatchOrder: paid_at skipped (schema)', orderId, err?.code);
+          }
         } else {
           const slip =
             body.slip_image_url != null && String(body.slip_image_url).trim() !== ''
@@ -621,6 +641,18 @@ export async function cancelOrder(orderId, userId, role) {
 
     await restoreStockForOrder(client, orderId);
     const updated = await orderModel.updateOrderStatus(client, orderId, 'canceled');
-    return { order: formatOrderForApi(updated) };
+
+    /** Auto-refund if order was paid before cancellation */
+    await client.query('SAVEPOINT buyer_wallet_refund');
+    try {
+      const refundResult = await buyerWalletService.triggerRefundOnCancel(client, orderId, order);
+      await client.query('RELEASE SAVEPOINT buyer_wallet_refund');
+      return { order: formatOrderForApi(updated), refund: refundResult };
+    } catch (err) {
+      await client.query('ROLLBACK TO SAVEPOINT buyer_wallet_refund');
+      if (!buyerWalletService.isBuyerWalletSchemaError(err)) throw err;
+      console.warn('[order] cancelOrder: refund skipped (schema)', orderId, err?.code);
+      return { order: formatOrderForApi(updated) };
+    }
   });
 }

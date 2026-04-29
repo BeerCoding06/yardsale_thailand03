@@ -8,6 +8,7 @@
     "dev": "node --watch server.js",
     "db:schema": "node scripts/run-schema.js",
     "db:wallet": "node scripts/run-wallet-migration.js",
+    "db:buyer-wallet": "node scripts/run-wallet-migration.js",
     "db:oauth": "node scripts/ensure-oauth-schema.js",
     "db:add-category-image": "node scripts/add-category-image-url.js",
     "db:seed": "node scripts/seed-demo.js"
