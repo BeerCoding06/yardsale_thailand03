@@ -311,11 +311,20 @@ router.get(
 router.get('/buyer-wallet', authMiddleware, buyerWalletController.getMyBuyerWallet);
 router.get('/buyer-wallet/transactions', authMiddleware, buyerWalletController.listMyBuyerWalletTxs);
 
+/* Refund requests — user */
+router.get('/buyer-wallet/eligible-orders', authMiddleware, buyerWalletController.getEligibleOrders);
+router.get('/buyer-wallet/refund-requests', authMiddleware, buyerWalletController.listMyRefundRequests);
+router.post('/buyer-wallet/refund-requests', authMiddleware, buyerWalletController.submitRefundRequest);
+
+/* Admin */
 router.get('/admin/buyer-wallet/summary', authMiddleware, requireRoles('admin'), buyerWalletController.adminGetBuyerWalletSummary);
 router.get('/admin/buyer-wallet/transactions', authMiddleware, requireRoles('admin'), buyerWalletController.adminListBuyerWalletTxs);
 router.get('/admin/buyer-wallet/refunds', authMiddleware, requireRoles('admin'), buyerWalletController.adminListRefunds);
 router.post('/admin/buyer-wallet/refund', authMiddleware, requireRoles('admin'), buyerWalletController.adminManualRefund);
 router.post('/admin/buyer-wallet/trigger-unshipped-refunds', authMiddleware, requireRoles('admin'), buyerWalletController.adminTriggerUnshippedRefunds);
+router.get('/admin/buyer-wallet/refund-requests', authMiddleware, requireRoles('admin'), buyerWalletController.adminListRefundRequests);
+router.post('/admin/buyer-wallet/refund-requests/:id/approve', authMiddleware, requireRoles('admin'), buyerWalletController.adminApproveRefundRequest);
+router.post('/admin/buyer-wallet/refund-requests/:id/reject', authMiddleware, requireRoles('admin'), buyerWalletController.adminRejectRefundRequest);
 
 router.post('/payment/mock', authMiddleware, (req, res, next) => {
   if (req.is('multipart/form-data')) {

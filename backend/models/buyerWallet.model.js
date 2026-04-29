@@ -243,6 +243,141 @@ export async function aggregateBuyerWallets(client) {
   return r.rows[0] || { total_wallets: 0, total_balance: 0 };
 }
 
+/* ===== Refund Requests (user-initiated, needs admin review) ===== */
+
+export async function createRefundRequest(client, { orderId, userId, reason, note }) {
+  const r = await client.query(
+    `INSERT INTO refund_requests (order_id, user_id, reason, note)
+     VALUES ($1::uuid, $2::uuid, $3::refund_reason, $4)
+     RETURNING id, order_id, user_id, reason::text, status::text, note, created_at`,
+    [orderId, userId, reason, note || null]
+  );
+  return r.rows[0];
+}
+
+export async function findRefundRequestByOrderId(client, orderId) {
+  const r = await client.query(
+    `SELECT id, order_id, user_id, reason::text, note, status::text,
+            admin_id, admin_note, reviewed_at, refund_id, created_at
+     FROM refund_requests WHERE order_id = $1::uuid LIMIT 1`,
+    [orderId]
+  );
+  return r.rows[0] || null;
+}
+
+export async function listRefundRequestsForUser(client, userId, { limit = 20, offset = 0 } = {}) {
+  const r = await client.query(
+    `SELECT rr.id, rr.order_id, rr.user_id, rr.reason::text, rr.note,
+            rr.status::text, rr.admin_note, rr.reviewed_at, rr.refund_id,
+            rr.created_at,
+            o.total_price AS order_amount, o.status::text AS order_status
+     FROM refund_requests rr
+     JOIN orders o ON o.id = rr.order_id
+     WHERE rr.user_id = $1::uuid
+     ORDER BY rr.created_at DESC
+     LIMIT $2 OFFSET $3`,
+    [userId, Math.min(100, Math.max(1, limit)), Math.max(0, offset)]
+  );
+  return r.rows;
+}
+
+export async function updateRefundRequest(client, requestId, {
+  status,
+  adminId,
+  adminNote,
+  refundId,
+}) {
+  const r = await client.query(
+    `UPDATE refund_requests
+     SET status     = $2::refund_request_status,
+         admin_id   = COALESCE($3::uuid, admin_id),
+         admin_note = COALESCE($4, admin_note),
+         refund_id  = COALESCE($5::uuid, refund_id),
+         reviewed_at = CASE WHEN $2 IN ('approved','rejected') THEN now() ELSE reviewed_at END
+     WHERE id = $1::uuid
+     RETURNING id, status::text, reviewed_at, admin_note, refund_id`,
+    [requestId, status, adminId || null, adminNote || null, refundId || null]
+  );
+  return r.rows[0] || null;
+}
+
+export async function lockRefundRequestById(client, requestId) {
+  const r = await client.query(
+    `SELECT rr.*, o.user_id AS order_user_id, o.total_price AS order_amount,
+            o.status::text AS order_status
+     FROM refund_requests rr
+     JOIN orders o ON o.id = rr.order_id
+     WHERE rr.id = $1::uuid FOR UPDATE`,
+    [requestId]
+  );
+  return r.rows[0] || null;
+}
+
+/** Admin: รายการคำขอคืนเงินทั้งหมด */
+export async function listRefundRequestsAdmin(
+  client,
+  { limit = 50, offset = 0, status = '', date_from: dateFrom = '', date_to: dateTo = '' } = {}
+) {
+  const lim = Math.min(200, Math.max(1, Number(limit) || 50));
+  const off = Math.max(0, Number(offset) || 0);
+  const parts = ['WHERE 1=1'];
+  const params = [];
+  let i = 1;
+  if (status) { parts.push(`AND rr.status = $${i++}::refund_request_status`); params.push(status); }
+  if (dateFrom) { parts.push(`AND rr.created_at >= $${i++}::date`); params.push(dateFrom); }
+  if (dateTo) { parts.push(`AND rr.created_at < ($${i++}::date + interval '1 day')`); params.push(dateTo); }
+  params.push(lim, off);
+  const iLim = params.length - 1;
+  const iOff = params.length;
+  const r = await client.query(
+    `SELECT rr.id, rr.order_id, rr.user_id, rr.reason::text, rr.note,
+            rr.status::text, rr.admin_note, rr.reviewed_at, rr.refund_id, rr.created_at,
+            u.email AS user_email, u.name AS user_name,
+            o.total_price AS order_amount, o.status::text AS order_status
+     FROM refund_requests rr
+     JOIN users u ON u.id = rr.user_id
+     JOIN orders o ON o.id = rr.order_id
+     ${parts.join(' ')}
+     ORDER BY rr.created_at DESC
+     LIMIT $${iLim} OFFSET $${iOff}`,
+    params
+  );
+  return r.rows;
+}
+
+export async function countRefundRequestsAdmin(client, { status = '' } = {}) {
+  const parts = ['WHERE 1=1'];
+  const params = [];
+  let i = 1;
+  if (status) { parts.push(`AND rr.status = $${i++}::refund_request_status`); params.push(status); }
+  const r = await client.query(
+    `SELECT COUNT(*)::int AS n FROM refund_requests rr ${parts.join(' ')}`,
+    params
+  );
+  return r.rows[0]?.n ?? 0;
+}
+
+/* ===== Eligible orders for refund request ===== */
+
+/** ออเดอร์ที่ชำระแล้ว ยังไม่มีคำขอคืนเงิน และยังไม่ถูกคืนเงินไปแล้ว */
+export async function listEligibleOrdersForRefundRequest(client, userId) {
+  const r = await client.query(
+    `SELECT o.id, o.total_price, o.status::text, o.created_at,
+            o.shipping_status, o.paid_at, o.refund_processed_at
+     FROM orders o
+     WHERE o.user_id = $1::uuid
+       AND o.status = 'paid'
+       AND o.refund_processed_at IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM refund_requests rr WHERE rr.order_id = o.id
+       )
+     ORDER BY o.created_at DESC
+     LIMIT 20`,
+    [userId]
+  );
+  return r.rows;
+}
+
 export async function listRefundsAdmin(
   client,
   { limit = 50, offset = 0, status = '', date_from: dateFrom = '', date_to: dateTo = '' } = {}

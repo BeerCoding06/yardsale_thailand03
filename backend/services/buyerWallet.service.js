@@ -440,3 +440,196 @@ export async function adminListRefunds(query = {}) {
     client.release();
   }
 }
+
+/* ===== User-Initiated Refund Request ===== */
+
+const ALLOWED_USER_REASONS = new Set(['product_defect', 'not_shipped_3_days']);
+
+/**
+ * ผู้ซื้อส่งคำขอคืนเงิน — ต้องรอแอดมินอนุมัติ
+ */
+export async function userRequestRefund(userId, { orderId, reason = 'product_defect', note }) {
+  if (!ALLOWED_USER_REASONS.has(reason)) {
+    throw new AppError('Invalid refund reason', 422, 'INVALID_REASON');
+  }
+
+  const client = await pool.connect();
+  try {
+    // ตรวจสอบออเดอร์
+    const order = await orderModel.getOrderById(client, orderId);
+    if (!order) throw new AppError('Order not found', 404, 'NOT_FOUND');
+    if (order.user_id !== userId) throw new AppError('Forbidden', 403, 'FORBIDDEN');
+    if (String(order.status).toLowerCase() !== 'paid') {
+      throw new AppError('Only paid orders can be refunded', 400, 'INVALID_ORDER_STATUS');
+    }
+    if (order.refund_processed_at) {
+      throw new AppError('This order has already been refunded', 400, 'ALREADY_REFUNDED');
+    }
+
+    // ตรวจ duplicate request
+    const existing = await buyerWalletModel.findRefundRequestByOrderId(client, orderId);
+    if (existing) {
+      throw new AppError(
+        existing.status === 'rejected'
+          ? 'Your refund request was rejected. Contact support for assistance.'
+          : 'A refund request for this order already exists.',
+        400,
+        'DUPLICATE_REQUEST'
+      );
+    }
+
+    const req = await buyerWalletModel.createRefundRequest(client, {
+      orderId,
+      userId,
+      reason,
+      note: note ? String(note).trim().slice(0, 500) : null,
+    });
+
+    console.info('[buyerWallet] refund_request created', { orderId, userId, reason });
+    return { success: true, request: req };
+  } finally {
+    client.release();
+  }
+}
+
+/** รายการคำขอคืนเงินของผู้ซื้อ */
+export async function listMyRefundRequests(userId, { limit = 20, offset = 0 } = {}) {
+  const client = await pool.connect();
+  try {
+    try {
+      const rows = await buyerWalletModel.listRefundRequestsForUser(client, userId, { limit, offset });
+      return { success: true, requests: rows };
+    } catch (err) {
+      if (!isBuyerWalletSchemaError(err)) throw err;
+      return { success: true, requests: [] };
+    }
+  } finally {
+    client.release();
+  }
+}
+
+/** ออเดอร์ที่สามารถขอคืนเงินได้ */
+export async function listEligibleOrdersForRefund(userId) {
+  const client = await pool.connect();
+  try {
+    try {
+      const rows = await buyerWalletModel.listEligibleOrdersForRefundRequest(client, userId);
+      return { success: true, orders: rows };
+    } catch (err) {
+      if (!isBuyerWalletSchemaError(err)) throw err;
+      return { success: true, orders: [] };
+    }
+  } finally {
+    client.release();
+  }
+}
+
+/* ===== Admin: Review Refund Requests ===== */
+
+export async function adminListRefundRequests(query = {}) {
+  const client = await pool.connect();
+  try {
+    const limit = Number(query.limit) || 50;
+    const offset = Number(query.offset) || 0;
+    try {
+      const rows = await buyerWalletModel.listRefundRequestsAdmin(client, {
+        limit,
+        offset,
+        status: query.status || '',
+        date_from: query.date_from || '',
+        date_to: query.date_to || '',
+      });
+      const total = await buyerWalletModel.countRefundRequestsAdmin(client, { status: query.status || '' });
+      return { success: true, requests: rows, pagination: { limit, offset, total } };
+    } catch (err) {
+      if (!isBuyerWalletSchemaError(err)) throw err;
+      return { success: true, requests: [], pagination: { limit, offset, total: 0 } };
+    }
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Admin อนุมัติคำขอ → ประมวลผล refund ทันที
+ */
+export async function adminApproveRefundRequest(adminUserId, requestId, adminNote) {
+  return withTransaction(async (client) => {
+    const req = await buyerWalletModel.lockRefundRequestById(client, requestId);
+    if (!req) throw new AppError('Refund request not found', 404, 'NOT_FOUND');
+    if (req.status !== 'pending') {
+      throw new AppError(`Request is already ${req.status}`, 400, 'INVALID_STATUS');
+    }
+
+    const amt = money(req.order_amount);
+    if (amt <= 0) throw new AppError('Order amount is zero', 400, 'ZERO_AMOUNT');
+
+    // ประมวลผล refund เข้า wallet
+    const refundResult = await processRefund(client, {
+      orderId: req.order_id,
+      userId: req.order_user_id,
+      amount: amt,
+      reason: req.reason || 'product_defect',
+      note: adminNote || `Approved by admin: ${req.reason}`,
+      actorUserId: adminUserId,
+    });
+
+    if (!refundResult.refunded) {
+      throw new AppError(
+        `Cannot process refund: ${refundResult.reason}`,
+        400,
+        'REFUND_FAILED'
+      );
+    }
+
+    // อัปเดตสถานะคำขอ
+    const updated = await buyerWalletModel.updateRefundRequest(client, requestId, {
+      status: 'approved',
+      adminId: adminUserId,
+      adminNote: adminNote || null,
+      refundId: refundResult.refund?.id || null,
+    });
+
+    await walletModel.insertFinancialAudit(client, {
+      actorUserId: adminUserId,
+      action: 'refund_request_approved',
+      entityType: 'refund_request',
+      entityId: requestId,
+      details: { order_id: req.order_id, amount: amt, user_id: req.order_user_id },
+    });
+
+    console.info('[buyerWallet] refund_request approved', { requestId, adminUserId, amount: amt });
+    notifyBuyerRefundCredited(req.order_user_id, amt, req.order_id).catch(() => {});
+    return { success: true, request: updated, refund: refundResult };
+  });
+}
+
+/**
+ * Admin ปฏิเสธคำขอ
+ */
+export async function adminRejectRefundRequest(adminUserId, requestId, adminNote) {
+  return withTransaction(async (client) => {
+    const req = await buyerWalletModel.lockRefundRequestById(client, requestId);
+    if (!req) throw new AppError('Refund request not found', 404, 'NOT_FOUND');
+    if (req.status !== 'pending') {
+      throw new AppError(`Request is already ${req.status}`, 400, 'INVALID_STATUS');
+    }
+
+    const updated = await buyerWalletModel.updateRefundRequest(client, requestId, {
+      status: 'rejected',
+      adminId: adminUserId,
+      adminNote: adminNote || null,
+    });
+
+    await walletModel.insertFinancialAudit(client, {
+      actorUserId: adminUserId,
+      action: 'refund_request_rejected',
+      entityType: 'refund_request',
+      entityId: requestId,
+      details: { order_id: req.order_id, reason: adminNote },
+    });
+
+    console.info('[buyerWallet] refund_request rejected', { requestId, adminUserId });
+    return { success: true, request: updated };
+  });
+}

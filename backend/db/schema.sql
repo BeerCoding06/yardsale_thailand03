@@ -570,6 +570,31 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_refunds_order
 CREATE INDEX IF NOT EXISTS idx_refunds_user ON refunds (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_refunds_status ON refunds (status, created_at DESC);
 
+/* ===== Refund Requests (user-initiated, admin review required) ===== */
+
+DO $$ BEGIN
+  CREATE TYPE refund_request_status AS ENUM ('pending', 'approved', 'rejected');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS refund_requests (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id    UUID NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
+  user_id     UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  reason      refund_reason NOT NULL DEFAULT 'product_defect',
+  note        TEXT,
+  status      refund_request_status NOT NULL DEFAULT 'pending',
+  admin_id    UUID REFERENCES users (id) ON DELETE SET NULL,
+  admin_note  TEXT,
+  reviewed_at TIMESTAMPTZ,
+  refund_id   UUID REFERENCES refunds (id) ON DELETE SET NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_refund_requests_order ON refund_requests (order_id);
+CREATE INDEX IF NOT EXISTS idx_rr_user   ON refund_requests (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_rr_status ON refund_requests (status, created_at DESC);
+
 DO $orders_buyer_wallet_cols$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'paid_at') THEN

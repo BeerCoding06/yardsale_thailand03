@@ -81,3 +81,67 @@ export async function adminTriggerUnshippedRefunds(req, res) {
     return handleError(res, err);
   }
 }
+
+/* ===== Refund Requests ===== */
+
+export async function getEligibleOrders(req, res) {
+  try {
+    const data = await buyerWalletService.listEligibleOrdersForRefund(req.user.id);
+    return res.json(data);
+  } catch (err) {
+    return handleError(res, err);
+  }
+}
+
+export async function submitRefundRequest(req, res) {
+  try {
+    const { order_id: orderId, reason, note } = req.body;
+    if (!orderId) throw new AppError('order_id is required', 422, 'VALIDATION_ERROR');
+    const data = await buyerWalletService.userRequestRefund(req.user.id, { orderId, reason, note });
+    return res.status(201).json(data);
+  } catch (err) {
+    return handleError(res, err);
+  }
+}
+
+export async function listMyRefundRequests(req, res) {
+  try {
+    const data = await buyerWalletService.listMyRefundRequests(req.user.id);
+    return res.json(data);
+  } catch (err) {
+    return handleError(res, err);
+  }
+}
+
+export async function adminListRefundRequests(req, res) {
+  try {
+    const data = await buyerWalletService.adminListRefundRequests(req.query);
+    return res.json(data);
+  } catch (err) {
+    return handleError(res, err);
+  }
+}
+
+export async function adminApproveRefundRequest(req, res) {
+  try {
+    const { id } = req.params;
+    const { admin_note: adminNote } = req.body;
+    if (!id) throw new AppError('id is required', 422, 'VALIDATION_ERROR');
+    const data = await buyerWalletService.adminApproveRefundRequest(req.user.id, id, adminNote);
+    return res.json(data);
+  } catch (err) {
+    return handleError(res, err);
+  }
+}
+
+export async function adminRejectRefundRequest(req, res) {
+  try {
+    const { id } = req.params;
+    const { admin_note: adminNote } = req.body;
+    if (!id) throw new AppError('id is required', 422, 'VALIDATION_ERROR');
+    const data = await buyerWalletService.adminRejectRefundRequest(req.user.id, id, adminNote);
+    return res.json(data);
+  } catch (err) {
+    return handleError(res, err);
+  }
+}

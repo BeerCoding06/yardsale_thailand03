@@ -7,4 +7,5 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const WALLET_MIGRATION_SQL_PATHS = [
   'migrations/20260417_seller_wallet_system.sql',
   'migrations/20260429_buyer_wallet_system.sql',
+  'migrations/20260429_refund_requests.sql',
 ].map((rel) => path.join(__dirname, rel));
