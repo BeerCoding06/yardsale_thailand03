@@ -212,7 +212,7 @@
       "subtitle": "Order #{n} · Amount ฿{amount}",
       "instructions": "Transfer the exact amount to the shop account below, choose the bank you transferred from, then upload your slip image or PDF. We verify with SlipOK before confirming payment. Bangkok Bank (BBL): wait 8 minutes before submitting the slip. Other banks: about 15 seconds.",
       "bank_section_title": "Shop bank account",
-      "bank_account_default": "Bank: Kasikornbank (KBank)\nAccount name: Paradorn Pokpingmueang\nPromptPay: 0901612496",
+      "bank_account_default": "Bank: Siam Commercial Bank (SCB)\nAccount name: บริษัท เอ็ม แอล ที เซ็นเตอร์ จำกัด\nAccount number: 429-140689-3",
       "qr_caption": "Scan QR to transfer",
       "qr_dynamic_scan_hint": "This QR embeds the amount — some bank apps cannot scan it. Try another bank app, transfer using the PromptPay number below, or ask the shop to disable “embed amount in QR” in server settings.",
       "qr_alt": "Thai QR Payment — PromptPay",

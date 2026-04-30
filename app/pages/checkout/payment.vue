@@ -671,49 +671,9 @@ const submitButtonText = computed(() => {
             {{ $t('checkout.payment_slip.bank_section_title') }}
           </h2>
 
-          <div class="flex flex-col items-center mb-4">
-            <div
-              class="rounded-2xl overflow-hidden bg-white p-3 shadow-lg border border-neutral-200 dark:border-neutral-600 max-w-[min(100%,280px)] w-full min-h-[280px] flex items-center justify-center"
-            >
-              <UIcon
-                v-if="effectivePromptPayId && qrGenerating"
-                name="i-svg-spinners-90-ring-with-bg"
-                class="w-12 h-12 text-neutral-400"
-              />
-              <img
-                v-else
-                :src="
-                  effectivePromptPayId && qrDataUrl ? qrDataUrl : fallbackQrSrc
-                "
-                :alt="$t('checkout.payment_slip.qr_alt')"
-                class="w-full h-auto object-contain"
-                width="280"
-                height="280"
-                loading="eager"
-                decoding="async"
-              />
-            </div>
-            <p
-              class="mt-3 text-sm font-medium text-teal-700 dark:text-teal-400 text-center px-2"
-            >
-              {{ $t('checkout.payment_slip.qr_caption') }}
-            </p>
-            <p
-              v-if="effectivePromptPayId && config.public.promptpayQrIncludeAmount"
-              class="mt-2 text-xs text-amber-800 dark:text-amber-200/90 text-center px-2 leading-relaxed max-w-sm mx-auto"
-            >
-              {{ $t('checkout.payment_slip.qr_dynamic_scan_hint') }}
-            </p>
-          </div>
+          <!-- QR code hidden temporarily -->
 
           <div class="flex flex-wrap gap-2 justify-center mb-4">
-            <button
-              type="button"
-              class="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition"
-              @click="copyPromptPay"
-            >
-              {{ $t('checkout.payment_slip.copy_promptpay') }}
-            </button>
             <button
               type="button"
               class="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-semibold bg-neutral-200 dark:bg-neutral-700 text-black dark:text-white hover:bg-neutral-300 dark:hover:bg-neutral-600 transition"
