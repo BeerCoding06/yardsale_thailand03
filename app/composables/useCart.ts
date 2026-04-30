@@ -6,6 +6,9 @@ import { serverCartRowsToCartItems, yardsaleProductRowToCartItem } from '~/utils
 import { messageFromYardsaleBody, yardsaleBodyIsFailure } from '~/utils/cmsApiEndpoint';
 import type { CartItem } from '~~/shared/types';
 
+/** โหลดตะกร้าจาก localStorage แค่ครั้งเดียวต่อแท็บ — กันหลายคอมโพเนนต์เรียก useCart() แล้ว onMounted ซ้ำ */
+let cartLocalStorageHydrated = false;
+
 export const useCart = () => {
   const { t } = useI18n();
   const {
@@ -221,10 +224,18 @@ export const useCart = () => {
 
       if (idx > -1) {
         const prev = cart.value[idx];
+        /**
+         * ยอดจาก API เป็นจำนวนรวมของบรรทัดนั้นหลังบันทึกแล้ว — ห้ามบวกซ้ำกับ prev
+         * (ถ้าเคยทำ prev + incoming เมื่อ incoming เป็นยอดรวม จะเกิด 1+2=3, 3+3=6...)
+         */
+        const lineTotal =
+          incoming.quantity != null && incoming.quantity !== ''
+            ? Math.max(1, Number(incoming.quantity))
+            : prev.quantity + 1;
         const merged = {
           ...prev,
           ...incoming,
-          quantity: prev.quantity + (incoming.quantity || 1),
+          quantity: Number.isFinite(lineTotal) ? lineTotal : prev.quantity + 1,
         };
         if (incoming.variation?.node && typeof incoming.variation.node.stockQuantity === 'number') {
           if (merged.variation?.node) {
@@ -598,6 +609,8 @@ export const useCart = () => {
 
   onMounted(() => {
     if (!import.meta.client) return;
+    if (cartLocalStorageHydrated) return;
+    cartLocalStorageHydrated = true;
     const stored = localStorage.getItem('cart');
     if (!stored) {
       return;

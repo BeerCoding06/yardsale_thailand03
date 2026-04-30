@@ -108,6 +108,9 @@ function sortMockProductList(list: AnyObj[], orderby: string, fieldby: string) {
   return copy;
 }
 
+/** โหมด mock /api/cart/add — เก็บยอดสะสมต่อคีย์จะได้คืนค่าเป็น total เหมือน backend จริง */
+const mockCartLineQtyByKey = new Map<string, number>();
+
 /** ออเดอร์ที่ชำระสลิปแล้ว (mock) — ให้ get-order แสดงสถานะ paid */
 const mockPaidOrderIds = new Set<string>();
 
@@ -477,11 +480,15 @@ export default defineNuxtPlugin(() => {
         };
       }
       const idKey = prod.databaseId ?? prod.id ?? pid;
+      const cartKey = `mock-${idKey}`;
+      const prevLine = mockCartLineQtyByKey.get(cartKey) ?? 0;
+      const nextQty = prevLine + 1;
+      mockCartLineQtyByKey.set(cartKey, nextQty);
       return {
         addToCart: {
           cartItem: {
-            key: `mock-${idKey}`,
-            quantity: 1,
+            key: cartKey,
+            quantity: nextQty,
             product: { node: { ...prod } },
           },
         },
