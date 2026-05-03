@@ -271,6 +271,17 @@ function reqReasonLabel(reason) {
   return reason;
 }
 
+function shippingStatusLabel(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'shipped' || s === 'out_for_delivery') return t('bwallet.shipped_label');
+  if (s === 'delivered') return t('bwallet.delivered_label');
+  return t('bwallet.not_shipped_label');
+}
+
+function orderDisplayDate(order) {
+  return formatDate(order.fulfillment_updated_at ?? order.paid_at ?? order.created_at);
+}
+
 /** แสดงเฉพาะคำขอที่ส่งไม่เกิน 3 วัน — พอครบ 3 วันการ์ดจะหายจากรายการนี้ */
 const REFUND_REQUEST_VISIBLE_MS = 3 * 24 * 60 * 60 * 1000;
 const recentRefundRequests = computed(() => {
@@ -370,6 +381,9 @@ onMounted(async () => {
             </div>
 
             <div class="p-5">
+              <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
+                {{ t("bwallet.request_refund_not_shipped_note") }}
+              </p>
               <p v-if="!eligibleOrders.length" class="text-sm text-neutral-500 dark:text-neutral-400">
                 {{ t("bwallet.no_eligible_orders") }}
               </p>
@@ -385,7 +399,7 @@ onMounted(async () => {
                       {{ formatMoney(order.total_price) }}
                     </p>
                     <p class="text-xs text-neutral-400 dark:text-neutral-500">
-                      {{ formatDate(order.paid_at ?? order.created_at) }}
+                      {{ orderDisplayDate(order) }} · {{ shippingStatusLabel(order.shipping_status) }}
                     </p>
                   </div>
                   <button type="button"

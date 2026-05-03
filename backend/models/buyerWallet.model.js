@@ -370,15 +370,25 @@ export async function countRefundRequestsAdmin(client, { status = '' } = {}) {
 export async function listEligibleOrdersForRefundRequest(client, userId) {
   const r = await client.query(
     `SELECT o.id, o.total_price, o.status::text, o.created_at,
-            o.shipping_status, o.paid_at, o.refund_processed_at
+            o.shipping_status, o.paid_at, o.fulfillment_updated_at, o.refund_processed_at
      FROM orders o
      WHERE o.user_id = $1::uuid
        AND o.status = 'paid'
+       AND o.paid_at IS NOT NULL
        AND o.refund_processed_at IS NULL
        AND NOT EXISTS (
          SELECT 1 FROM refund_requests rr WHERE rr.order_id = o.id
        )
-     ORDER BY o.created_at DESC
+       AND (
+         (COALESCE(o.shipping_status, 'pending') IN ('pending', 'preparing')
+           AND o.paid_at < now() - interval '3 days')
+         OR (COALESCE(o.shipping_status, 'pending') IN ('shipped', 'out_for_delivery', 'delivered')
+           AND o.fulfillment_updated_at >= now() - interval '3 days')
+       )
+     ORDER BY CASE
+       WHEN COALESCE(o.shipping_status, 'pending') IN ('pending', 'preparing') THEN o.paid_at
+       ELSE o.fulfillment_updated_at
+     END ASC
      LIMIT 20`,
     [userId]
   );
