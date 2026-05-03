@@ -46,6 +46,7 @@ if (config.oauth.facebook.appId && config.oauth.facebook.appSecret) {
         clientID: config.oauth.facebook.appId,
         clientSecret: config.oauth.facebook.appSecret,
         callbackURL: `${cb}/auth/facebook/callback`,
+        graphAPIVersion: config.oauth.facebook.graphApiVersion,
         profileFields: ['id', 'displayName', 'emails', 'picture.type(large)'],
       },
       async (_accessToken, _refreshToken, profile, done) => {

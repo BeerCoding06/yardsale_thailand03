@@ -90,6 +90,8 @@ export const config = {
     facebook: {
       appId: (process.env.FACEBOOK_APP_ID || '').trim(),
       appSecret: (process.env.FACEBOOK_APP_SECRET || '').trim(),
+      /** passport-facebook default เป็น v3.2 — Meta เลิกรองรับ → ต้องใช้เวอร์ชันใหม่ */
+      graphApiVersion: (process.env.FACEBOOK_GRAPH_API_VERSION || 'v21.0').trim() || 'v21.0',
     },
     line: {
       channelId: (process.env.LINE_CHANNEL_ID || '').trim(),

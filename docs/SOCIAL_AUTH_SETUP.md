@@ -61,8 +61,14 @@ Frontend (optional):
 ### Facebook
 
 1. [Meta for Developers](https://developers.facebook.com/) → Create app → Facebook Login → Settings.
-2. **Valid OAuth Redirect URIs**: `{OAUTH_CALLBACK_BASE}/auth/facebook/callback`.
+2. **Valid OAuth Redirect URIs**: `{OAUTH_CALLBACK_BASE}/auth/facebook/callback`  
+   ต้องตรงทุกตัวอักษรกับ URL ที่ผู้ใช้เปิดจริง (เช่น `https://www.yardsaleth.com/auth/facebook/callback` ถ้า `OAUTH_CALLBACK_BASE=https://www.yardsaleth.com`).
 3. Login ขอ scope **`public_profile`** และ **`email`** (ห้ามขอแค่ `email` — Meta แจ้ง Invalid Scopes).
+4. **Graph API:** Backend ใช้ `FACEBOOK_GRAPH_API_VERSION` (ค่าเริ่มต้น **`v21.0`**) — ไลบรารี `passport-facebook` เดิมชี้ **`v3.2`** ซึ่ง Meta เลิกรองรับ จึงตั้งเวอร์ชันใหม่ในโค้ดแล้ว หลัง deploy ให้ตรวจว่า URL ในเบราว์เซอร์เป็น `facebook.com/v21.0/...` (หรือเวอร์ชันที่คุณตั้ง) ไม่ใช่ `v3.2`.
+
+#### ข้อความ Facebook ว่า “แอพไม่ทำงาน” / App unavailable
+
+มักเกิดเมื่อแอปอยู่โหมด **Development** และบัญชี Facebook ที่ล็อกอิน **ไม่ได้อยู่ในรายการ** Developer / Tester / Admin ของแอป — ให้เพิ่มบัญชีใน **Roles → Testers** หรือสลับแอปเป็น **Live** (และทำตามข้อกำหนดของ Meta ให้ครบ) แล้วลองใหม่.
 
 ### LINE
 
