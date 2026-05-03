@@ -28,6 +28,15 @@ export async function createConversation(client, { userId, orderId }) {
   return r.rows[0];
 }
 
+/** order_id ต้องเป็นของ user นี้ — กัน FK / แอบแนบ order คนอื่น */
+export async function orderBelongsToUser(client, orderId, userId) {
+  const r = await client.query(
+    `SELECT 1 FROM orders WHERE id = $1::uuid AND user_id = $2::uuid LIMIT 1`,
+    [orderId, userId]
+  );
+  return r.rows.length > 0;
+}
+
 export async function listConversationsForAdmin(client, { limit, offset }) {
   const r = await client.query(
     `SELECT

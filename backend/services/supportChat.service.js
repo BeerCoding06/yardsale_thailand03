@@ -35,17 +35,56 @@ function mapConversationRow(row) {
  * เปิดการสนทนา: ถ้ามีเคส open อยู่แล้วคืนเคสเดิม — ไม่สร้างซ้ำ (partial unique index)
  */
 export async function startConversation(userId, { order_id }) {
-  return withTransaction(async (client) => {
-    const existing = await chatModel.findOpenConversation(client, userId);
-    if (existing) {
-      return { conversation: existing, created: false };
-    }
-    const conv = await chatModel.createConversation(client, {
-      userId,
-      orderId: order_id ?? null,
+  try {
+    return await withTransaction(async (client) => {
+      const existing = await chatModel.findOpenConversation(client, userId);
+      if (existing) {
+        return { conversation: existing, created: false };
+      }
+      if (order_id) {
+        const ok = await chatModel.orderBelongsToUser(client, order_id, userId);
+        if (!ok) {
+          throw new AppError('Order not found or does not belong to you', 400, 'BAD_ORDER_ID');
+        }
+      }
+      const conv = await chatModel.createConversation(client, {
+        userId,
+        orderId: order_id ?? null,
+      });
+      return { conversation: conv, created: true };
     });
-    return { conversation: conv, created: true };
-  });
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+
+    const code = err && typeof err === 'object' ? err.code : undefined;
+
+    if (code === '42P01' || code === '42704') {
+      throw new AppError(
+        'Support chat database is not ready. Apply migration (npm run db:support-chat) or restart the API.',
+        503,
+        'CHAT_SCHEMA_MISSING'
+      );
+    }
+
+    /** สองคำขอพร้อมกัน — คนที่สองชน partial unique open-per-user */
+    if (code === '23505') {
+      const client = await pool.connect();
+      try {
+        const existing = await chatModel.findOpenConversation(client, userId);
+        if (existing) {
+          return { conversation: existing, created: false };
+        }
+      } finally {
+        client.release();
+      }
+    }
+
+    if (code === '23503') {
+      throw new AppError('Invalid order or user reference', 400, 'BAD_ORDER_ID');
+    }
+
+    throw err;
+  }
 }
 
 export async function listAdminConversations(query) {
