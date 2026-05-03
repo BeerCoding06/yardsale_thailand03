@@ -390,7 +390,8 @@
     "remove_error": "Cannot remove item from cart",
     "update_error": "Cannot update item quantity",
     "add_error": "Cannot add item to cart",
-    "login_required": "Please sign in to add items to your cart."
+    "login_required": "Please sign in to add items to your cart.",
+    "session_expired": "Your cart expired after 48 hours without changes — it has been cleared."
   },
   "favorites": {
     "nothing_to_show_yet": "Nothing to show... yet!",

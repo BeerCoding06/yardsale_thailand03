@@ -1,8 +1,13 @@
 // app/composables/useCart.ts
 import { push } from 'notivue';
-import { isCartLineSalableBySnapshot } from '~/utils/cart-line-salable';
+import { isCartLineSalableBySnapshot, clampCartQuantitiesToStock } from '~/utils/cart-line-salable';
 import { wcStatusToCartStockToken } from '~/utils/stock-status-format';
 import { serverCartRowsToCartItems, yardsaleProductRowToCartItem } from '~/utils/yardsaleCart';
+import {
+  CART_LOCAL_STORAGE_KEY,
+  parseStoredCart,
+  stringifyStoredCart,
+} from '~/utils/cart-session-storage';
 import { messageFromYardsaleBody, yardsaleBodyIsFailure } from '~/utils/cmsApiEndpoint';
 import type { CartItem } from '~~/shared/types';
 
@@ -71,9 +76,10 @@ export const useCart = () => {
   };
 
   const updateCart = (next: CartItem[]) => {
-    cart.value = next;
+    const clamped = clampCartQuantitiesToStock(next) as CartItem[];
+    cart.value = clamped;
     if (import.meta.client) {
-      localStorage.setItem('cart', JSON.stringify(next));
+      localStorage.setItem(CART_LOCAL_STORAGE_KEY, stringifyStoredCart(clamped));
     }
   };
 
@@ -452,28 +458,40 @@ export const useCart = () => {
     try {
       if (hasRemoteApi) {
         if (!user.value?.token) {
-          const next = await Promise.all(
-            cart.value.map(async (item) => {
-              const pid = String(
-                item.product?.node?.databaseId ?? item.product?.node?.id ?? ''
-              );
-              if (!pid) return item;
-              try {
-                const data = (await fetchYardsale(`product/${pid}`)) as {
-                  product?: Record<string, unknown>;
-                } | null;
-                if (yardsaleBodyIsFailure(data)) return item;
-                const p = data?.product ?? (data as Record<string, unknown> | null);
-                if (!p || typeof p !== 'object') return item;
-                const qty = item.quantity || 1;
-                const line = yardsaleProductRowToCartItem(p, qty, resolveMediaUrl);
-                return line ? { ...line, quantity: qty } : item;
-              } catch {
-                return item;
+          const next: CartItem[] = [];
+          for (const item of cart.value) {
+            const pid = String(
+              item.product?.node?.databaseId ?? item.product?.node?.id ?? ''
+            );
+            if (!pid) {
+              next.push(item);
+              continue;
+            }
+            try {
+              const data = (await fetchYardsale(`product/${pid}`)) as {
+                product?: Record<string, unknown>;
+              } | null;
+              if (yardsaleBodyIsFailure(data)) {
+                next.push(item);
+                continue;
               }
-            })
-          );
-          updateCart(next as CartItem[]);
+              const p = data?.product ?? (data as Record<string, unknown> | null);
+              if (!p || typeof p !== 'object') {
+                next.push(item);
+                continue;
+              }
+              const stock = Number((p as { stock?: unknown }).stock ?? 0);
+              const wantQty = item.quantity || 1;
+              if (stock < 1) continue;
+              const cappedQty = Math.min(wantQty, stock);
+              const line = yardsaleProductRowToCartItem(p, cappedQty, resolveMediaUrl);
+              if (line) next.push({ ...line, quantity: cappedQty });
+              else next.push(item);
+            } catch {
+              next.push(item);
+            }
+          }
+          updateCart(next);
           return true;
         }
         const data = (await fetchYardsale('refresh-cart-stock', {
@@ -611,32 +629,17 @@ export const useCart = () => {
     if (!import.meta.client) return;
     if (cartLocalStorageHydrated) return;
     cartLocalStorageHydrated = true;
-    const stored = localStorage.getItem('cart');
-    if (!stored) {
+    const stored = localStorage.getItem(CART_LOCAL_STORAGE_KEY);
+    const { items: parsedItems, expired } = parseStoredCart(stored);
+    if (expired) {
+      localStorage.removeItem(CART_LOCAL_STORAGE_KEY);
+      push.info(t('cart.session_expired'));
+      updateCart([]);
       return;
     }
-    try {
-      const parsed = JSON.parse(stored) as CartItem[];
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        // Validate cart items structure
-        const validItems = parsed.filter(item => {
-          const isValid = item && 
-            typeof item.key === 'string' && 
-            typeof item.quantity === 'number' &&
-            item.product && 
-            item.product.node;
-          if (!isValid) {
-            console.warn('[useCart] Invalid cart item:', item);
-          }
-          return isValid;
-        });
-        updateCart(validItems);
-      } else {
-        updateCart([]);
-      }
-    } catch (error) {
-      console.error('[useCart] Error parsing cart from localStorage:', error);
-      updateCart([]);
+    const validItems = parsedItems as CartItem[];
+    if (validItems.length > 0) {
+      updateCart(validItems);
     }
   });
 
