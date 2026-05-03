@@ -448,7 +448,7 @@ const ALLOWED_USER_REASONS = new Set(['product_defect', 'not_shipped_3_days']);
 /**
  * ผู้ซื้อส่งคำขอคืนเงิน — ต้องรอแอดมินอนุมัติ
  */
-export async function userRequestRefund(userId, { orderId, reason = 'product_defect', note, evidencePaths }) {
+export async function userRequestRefund(userId, { orderId, reason = 'product_defect', note, evidencePaths, productItems }) {
   if (!ALLOWED_USER_REASONS.has(reason)) {
     throw new AppError('Invalid refund reason', 422, 'INVALID_REASON');
   }
@@ -492,12 +492,50 @@ export async function userRequestRefund(userId, { orderId, reason = 'product_def
       );
     }
 
+    // Validate provided product items (if any) against order items
+    let normalizedItems = [];
+    if (productItems != null) {
+      const provided = Array.isArray(productItems) ? productItems : [];
+      if (!provided.length) {
+        throw new AppError('product_items must be a non-empty array', 422, 'VALIDATION_ERROR');
+      }
+
+      const orderItems = await orderModel.getOrderItems(client, orderId);
+      const avail = new Map();
+      for (const it of orderItems) {
+        avail.set(String(it.product_id).trim().toLowerCase(), Number(it.quantity) || 0);
+      }
+
+      for (const it of provided) {
+        if (it == null) continue;
+        if (typeof it === 'string') {
+          const pid = String(it).trim();
+          if (!pid) continue;
+          if (!avail.has(pid.toLowerCase())) throw new AppError(`Product not in order: ${pid}`, 422, 'INVALID_PRODUCT');
+          normalizedItems.push({ product_id: pid, quantity: avail.get(pid.toLowerCase()) });
+          continue;
+        }
+        if (typeof it === 'object') {
+          const pid = String(it.product_id || it.productId || it.id || '').trim();
+          if (!pid) continue;
+          if (!avail.has(pid.toLowerCase())) throw new AppError(`Product not in order: ${pid}`, 422, 'INVALID_PRODUCT');
+          const q = Number(it.quantity) || avail.get(pid.toLowerCase()) || 1;
+          if (q <= 0) throw new AppError(`Invalid quantity for ${pid}`, 422, 'VALIDATION_ERROR');
+          if (q > (avail.get(pid.toLowerCase()) || 0)) throw new AppError(`Quantity exceeds ordered amount for ${pid}`, 422, 'INVALID_QUANTITY');
+          normalizedItems.push({ product_id: pid, quantity: q });
+          continue;
+        }
+        throw new AppError('Invalid product_items format', 422, 'VALIDATION_ERROR');
+      }
+    }
+
     const req = await buyerWalletModel.createRefundRequest(client, {
       orderId,
       userId,
       reason,
       note: note ? String(note).trim().slice(0, 500) : null,
       evidencePaths: paths,
+      productItems: normalizedItems,
     });
 
     console.info('[buyerWallet] refund_request created', { orderId, userId, reason });

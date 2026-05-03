@@ -48,6 +48,19 @@ function parseEvidencePaths(raw) {
   return [];
 }
 
+function parseProductItems(raw) {
+  if (Array.isArray(raw)) return raw.map((p) => ({ product_id: String(p.product_id || p.id || p.product || '').trim(), quantity: Number(p.quantity || p.qty || 0) }));
+  if (typeof raw === 'string') {
+    try {
+      const j = JSON.parse(raw);
+      return Array.isArray(j) ? j.map((p) => ({ product_id: String(p.product_id || p.id || p.product || '').trim(), quantity: Number(p.quantity || p.qty || 0) })) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 function isImageEvidencePath(p) {
   return /\.(jpe?g|png|gif|webp)$/i.test(String(p));
 }
@@ -248,6 +261,20 @@ onMounted(() => loadList());
             </div>
           </div>
           <p v-else class="text-xs text-amber-700 dark:text-amber-400">{{ t("admin.refund_requests.no_evidence") }}</p>
+        </div>
+
+        <div class="mt-4">
+          <p class="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-2">{{ t('admin.refund_requests.products') }}</p>
+          <div v-if="parseProductItems(r.product_items).length" class="space-y-2">
+            <div v-for="(pi, i) in parseProductItems(r.product_items)" :key="i" class="flex items-center justify-between bg-neutral-50 dark:bg-neutral-800 p-3 rounded-xl">
+              <div class="min-w-0">
+                <p class="text-sm font-medium truncate">{{ pi.product_id || '-' }}</p>
+                <p class="text-xs text-neutral-500">{{ t('admin.refund_requests.claimed_qty') }}: {{ pi.quantity }}</p>
+              </div>
+              <div class="text-sm text-neutral-600">&nbsp;</div>
+            </div>
+          </div>
+          <p v-else class="text-xs text-neutral-500">{{ t('admin.refund_requests.no_products') }}</p>
         </div>
 
         <div v-if="r.admin_note" class="mt-4 p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-xs">
