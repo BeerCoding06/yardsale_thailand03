@@ -30,7 +30,10 @@ function normalizePrimaryRole(u: unknown): string {
 }
 
 export function useRoles() {
-  const { user, isAuthenticated } = useAuth();
+  // Avoid importing `useAuth()` here to prevent circular module initialization
+  // Use the shared `user` state directly instead.
+  const user = useState<any>("user");
+  const isAuthenticated = computed(() => !!user.value);
 
   const role = computed(() => normalizePrimaryRole(user.value));
 
