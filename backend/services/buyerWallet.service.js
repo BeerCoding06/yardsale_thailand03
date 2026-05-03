@@ -458,7 +458,7 @@ export async function userRequestRefund(userId, { orderId, reason = 'product_def
     : [];
   if (paths.length < 1) {
     throw new AppError(
-      'Please attach at least one photo or document (e.g. payment slip, product photo).',
+      'Please attach at least one photo (maximum 5).',
       422,
       'EVIDENCE_REQUIRED'
     );
@@ -660,7 +660,7 @@ export async function adminApproveRefundRequest(adminUserId, requestId, adminNot
 /**
  * Admin ปฏิเสธคำขอ
  */
-export async function adminRejectRefundRequest(adminUserId, requestId, adminNote) {
+export async function adminRejectRefundRequest(adminUserId, requestId, adminNote, rejectionReason) {
   return withTransaction(async (client) => {
     const req = await buyerWalletModel.lockRefundRequestById(client, requestId);
     if (!req) throw new AppError('Refund request not found', 404, 'NOT_FOUND');
@@ -672,6 +672,7 @@ export async function adminRejectRefundRequest(adminUserId, requestId, adminNote
       status: 'rejected',
       adminId: adminUserId,
       adminNote: adminNote || null,
+      rejectionReason: rejectionReason || null,
     });
 
     await walletModel.insertFinancialAudit(client, {
@@ -679,7 +680,7 @@ export async function adminRejectRefundRequest(adminUserId, requestId, adminNote
       action: 'refund_request_rejected',
       entityType: 'refund_request',
       entityId: requestId,
-      details: { order_id: req.order_id, reason: adminNote },
+      details: { order_id: req.order_id, reason: adminNote, rejection_reason: rejectionReason || null },
     });
 
     console.info('[buyerWallet] refund_request rejected', { requestId, adminUserId });

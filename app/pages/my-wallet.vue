@@ -492,6 +492,14 @@ onMounted(async () => {
                       {{ t("bwallet.req_reviewed_at") }}: {{ formatDate(req.reviewed_at) }}
                     </p>
                   </div>
+                  <div v-if="req.rejection_reason" class="mt-2 p-3 rounded-lg bg-rose-50 dark:bg-rose-900/20 text-xs">
+                    <p class="text-xs font-medium text-rose-700 dark:text-rose-300 mb-0.5">{{ t('bwallet.rejection_reason_label') }}:</p>
+                    <p class="text-xs text-rose-700 dark:text-rose-300">{{ ( {
+                      insufficient_evidence: t('bwallet.rejection_reasons.insufficient_evidence'),
+                      not_eligible: t('bwallet.rejection_reasons.not_eligible'),
+                      fraud_or_policy: t('bwallet.rejection_reasons.fraud_or_policy'),
+                    }[req.rejection_reason] ) || req.rejection_reason }}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -657,7 +665,7 @@ onMounted(async () => {
                     ref="evidenceInputRef"
                     type="file"
                     multiple
-                    accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
                     class="block w-full text-sm text-neutral-600 dark:text-neutral-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-neutral-200 dark:file:bg-neutral-700 file:text-black dark:file:text-white"
                     @change="onEvidenceChange"
                   />

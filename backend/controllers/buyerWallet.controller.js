@@ -160,9 +160,9 @@ export async function adminApproveRefundRequest(req, res) {
 export async function adminRejectRefundRequest(req, res) {
   try {
     const { id } = req.params;
-    const { admin_note: adminNote } = req.body;
+    const { admin_note: adminNote, rejection_reason: rejectionReason } = req.body;
     if (!id) throw new AppError('id is required', 422, 'VALIDATION_ERROR');
-    const data = await buyerWalletService.adminRejectRefundRequest(req.user.id, id, adminNote);
+    const data = await buyerWalletService.adminRejectRefundRequest(req.user.id, id, adminNote, rejectionReason);
     return res.json(data);
   } catch (err) {
     return handleError(res, err);

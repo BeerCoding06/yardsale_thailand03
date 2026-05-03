@@ -15,6 +15,7 @@ const total = ref(0);
 const statusFilter = ref("");
 const actionBusy = ref(null);
 const rejectNote = ref("");
+const rejectReason = ref("");
 const noteOpenId = ref(null);
 
 async function headers() {
@@ -132,7 +133,7 @@ async function reject(id) {
     await $fetch(endpoint(`admin/buyer-wallet/refund-requests/${encodeURIComponent(id)}/reject`), {
       method: "POST",
       headers: { ...h, "Content-Type": "application/json" },
-      body: { admin_note: rejectNote.value.trim() || undefined },
+      body: { admin_note: rejectNote.value.trim() || undefined, rejection_reason: rejectReason.value || undefined },
     });
     rejectNote.value = "";
     noteOpenId.value = null;
@@ -281,6 +282,10 @@ onMounted(() => loadList());
           <span class="font-medium text-neutral-600 dark:text-neutral-400">{{ t("admin.refund_requests.admin_note") }}:</span>
           {{ r.admin_note }}
         </div>
+        <div v-if="r.rejection_reason" class="mt-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 text-xs">
+          <span class="font-medium text-rose-700 dark:text-rose-300">{{ t('admin.refund_requests.rejection_reason') }}:</span>
+          <span class="ml-2 text-rose-700 dark:text-rose-300">{{ r.rejection_reason }}</span>
+        </div>
 
         <div v-if="r.status === 'pending'" class="mt-4 flex flex-col sm:flex-row gap-2 sm:items-center">
           <button
@@ -301,12 +306,21 @@ onMounted(() => loadList());
         </div>
 
         <div v-if="noteOpenId === r.id && r.status === 'pending'" class="mt-3 space-y-2">
-          <textarea
-            v-model="rejectNote"
-            rows="2"
-            class="w-full rounded-xl border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
-            :placeholder="t('admin.refund_requests.reject_note_placeholder')"
-          />
+          <div class="grid grid-cols-1 gap-2">
+            <label class="text-xs text-neutral-600">{{ t('admin.refund_requests.reject_reason_label') }}</label>
+            <select v-model="rejectReason" class="rounded-xl border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm">
+              <option value="">{{ t('admin.refund_requests.reject_reason_other') }}</option>
+              <option value="insufficient_evidence">{{ t('admin.refund_requests.reject_reason_insufficient_evidence') }}</option>
+              <option value="not_eligible">{{ t('admin.refund_requests.reject_reason_not_eligible') }}</option>
+              <option value="fraud_or_policy">{{ t('admin.refund_requests.reject_reason_fraud') }}</option>
+            </select>
+            <textarea
+              v-model="rejectNote"
+              rows="2"
+              class="w-full rounded-xl border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
+              :placeholder="t('admin.refund_requests.reject_note_placeholder')"
+            />
+          </div>
           <button
             type="button"
             class="px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-semibold disabled:opacity-50"

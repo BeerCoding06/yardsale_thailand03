@@ -263,7 +263,7 @@ export async function createRefundRequest(client, { orderId, userId, reason, not
 export async function findRefundRequestByOrderId(client, orderId) {
   const r = await client.query(
     `SELECT id, order_id, user_id, reason::text, note, status::text,
-            COALESCE(evidence_paths, '[]'::jsonb) AS evidence_paths, COALESCE(product_items, '[]'::jsonb) AS product_items, admin_id, admin_note, reviewed_at, refund_id, created_at
+            COALESCE(evidence_paths, '[]'::jsonb) AS evidence_paths, COALESCE(product_items, '[]'::jsonb) AS product_items, rejection_reason, admin_id, admin_note, reviewed_at, refund_id, created_at
      FROM refund_requests WHERE order_id = $1::uuid LIMIT 1`,
     [orderId]
   );
@@ -273,7 +273,7 @@ export async function findRefundRequestByOrderId(client, orderId) {
 export async function listRefundRequestsForUser(client, userId, { limit = 20, offset = 0 } = {}) {
   const r = await client.query(
     `SELECT rr.id, rr.order_id, rr.user_id, rr.reason::text, rr.note,
-            COALESCE(rr.evidence_paths, '[]'::jsonb) AS evidence_paths, COALESCE(rr.product_items, '[]'::jsonb) AS product_items, rr.status::text, rr.admin_note, rr.reviewed_at, rr.refund_id,
+            COALESCE(rr.evidence_paths, '[]'::jsonb) AS evidence_paths, COALESCE(rr.product_items, '[]'::jsonb) AS product_items, rr.rejection_reason, rr.status::text, rr.admin_note, rr.reviewed_at, rr.refund_id,
             rr.created_at,
             o.total_price AS order_amount, o.status::text AS order_status
      FROM refund_requests rr
@@ -291,6 +291,7 @@ export async function updateRefundRequest(client, requestId, {
   adminId,
   adminNote,
   refundId,
+  rejectionReason,
 }) {
   const r = await client.query(
     `UPDATE refund_requests
@@ -298,10 +299,11 @@ export async function updateRefundRequest(client, requestId, {
          admin_id   = COALESCE($3::uuid, admin_id),
          admin_note = COALESCE($4, admin_note),
          refund_id  = COALESCE($5::uuid, refund_id),
+         rejection_reason = COALESCE($6, rejection_reason),
          reviewed_at = CASE WHEN $2 IN ('approved','rejected') THEN now() ELSE reviewed_at END
      WHERE id = $1::uuid
      RETURNING id, status::text, reviewed_at, admin_note, refund_id`,
-    [requestId, status, adminId || null, adminNote || null, refundId || null]
+    [requestId, status, adminId || null, adminNote || null, refundId || null, rejectionReason || null]
   );
   return r.rows[0] || null;
 }
@@ -336,7 +338,7 @@ export async function listRefundRequestsAdmin(
   const iOff = params.length;
   const r = await client.query(
     `SELECT rr.id, rr.order_id, rr.user_id, rr.reason::text, rr.note,
-            COALESCE(rr.evidence_paths, '[]'::jsonb) AS evidence_paths, COALESCE(rr.product_items, '[]'::jsonb) AS product_items, rr.status::text, rr.admin_note, rr.reviewed_at, rr.refund_id, rr.created_at,
+            COALESCE(rr.evidence_paths, '[]'::jsonb) AS evidence_paths, COALESCE(rr.product_items, '[]'::jsonb) AS product_items, rr.rejection_reason, rr.status::text, rr.admin_note, rr.reviewed_at, rr.refund_id, rr.created_at,
             u.email AS user_email, u.name AS user_name,
             o.total_price AS order_amount, o.status::text AS order_status
      FROM refund_requests rr

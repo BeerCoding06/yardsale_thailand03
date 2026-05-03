@@ -27,11 +27,11 @@ export const uploadImage = multer({
 });
 
 const evidenceMimeOk = (mime) =>
-  /^image\/(jpeg|png|gif|webp)$/i.test(mime || '') || String(mime).toLowerCase() === 'application/pdf';
+  /^image\/(jpeg|png|gif|webp)$/i.test(mime || '');
 
 const evidenceFileFilter = (_req, file, cb) => {
   if (evidenceMimeOk(file.mimetype)) return cb(null, true);
-  cb(new Error('Only JPEG, PNG, GIF, WebP or PDF files are allowed.'));
+  cb(new Error('Only JPEG, PNG, GIF or WebP image files are allowed.'));
 };
 
 /** สลิป/หลักฐานคำขอคืนเงิน — สูงสุด 5 ไฟล์, 5MB/ไฟล์ */
