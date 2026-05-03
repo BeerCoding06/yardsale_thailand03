@@ -7,6 +7,7 @@ const router = useRouter();
 const localePath = useLocalePath();
 const { endpoint, hasRemoteApi } = useCmsApi();
 const { t, locale } = useI18n();
+const runConfig = useRuntimeConfig();
 
 /* ─── helpers ─────────────────────────────── */
 const isThaiLocale = computed(() =>
@@ -63,6 +64,8 @@ const showModal    = ref(false);
 const modalOrder   = ref(null);
 const modalReason  = ref("product_defect");
 const modalNote    = ref("");
+const modalEvidenceFiles = ref([]);
+const evidenceInputRef = ref(null);
 const submitting   = ref(false);
 const submitError  = ref("");
 const submitSuccess = ref("");
@@ -145,33 +148,85 @@ async function refresh() {
 
 /* ─── modal ───────────────────────────────── */
 function openModal(order) {
-  modalOrder.value  = order;
+  modalOrder.value = order;
   modalReason.value = "product_defect";
-  modalNote.value   = "";
+  modalNote.value = "";
+  modalEvidenceFiles.value = [];
+  if (evidenceInputRef.value) evidenceInputRef.value.value = "";
   submitError.value = "";
   submitSuccess.value = "";
-  showModal.value   = true;
+  showModal.value = true;
 }
 
 function closeModal() {
   showModal.value = false;
   modalOrder.value = null;
+  modalEvidenceFiles.value = [];
+}
+
+function onEvidenceChange(e) {
+  const list = e.target?.files;
+  if (!list?.length) {
+    modalEvidenceFiles.value = [];
+    return;
+  }
+  modalEvidenceFiles.value = Array.from(list).slice(0, 5);
+  e.target.value = "";
+}
+
+function evidenceUrl(pathStr) {
+  const s = String(pathStr || "").trim();
+  if (!s) return "";
+  if (/^https?:\/\//i.test(s)) return s;
+  const origin = String(runConfig.public?.yardsaleBackendOrigin || "").replace(/\/$/, "");
+  if (origin) return origin + (s.startsWith("/") ? s : `/${s}`);
+  if (import.meta.client && typeof window !== "undefined") {
+    return window.location.origin + (s.startsWith("/") ? s : `/${s}`);
+  }
+  return s;
+}
+
+function parseEvidencePaths(raw) {
+  if (Array.isArray(raw)) return raw.map((p) => String(p)).filter(Boolean);
+  if (typeof raw === "string") {
+    try {
+      const j = JSON.parse(raw);
+      return Array.isArray(j) ? j.map((p) => String(p)).filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function isImageEvidencePath(p) {
+  return /\.(jpe?g|png|gif|webp)$/i.test(String(p));
 }
 
 async function submitRequest() {
   submitError.value = "";
   submitSuccess.value = "";
   if (!modalOrder.value) return;
+  if (!modalEvidenceFiles.value.length) {
+    submitError.value = t("bwallet.evidence_required");
+    return;
+  }
   submitting.value = true;
   try {
-    const h = await headers();
+    const h = { ...(await headers()) };
+    delete h["Content-Type"];
+    delete h["content-type"];
+    const fd = new FormData();
+    fd.append("order_id", modalOrder.value.id);
+    fd.append("reason", modalReason.value);
+    if (modalNote.value.trim()) fd.append("note", modalNote.value.trim());
+    for (const file of modalEvidenceFiles.value) {
+      fd.append("evidence", file);
+    }
     await $fetch(cmsPath("buyer-wallet/refund-requests"), {
-      method: "POST", headers: h,
-      body: {
-        order_id: modalOrder.value.id,
-        reason: modalReason.value,
-        note: modalNote.value.trim() || undefined,
-      },
+      method: "POST",
+      headers: h,
+      body: fd,
     });
     submitSuccess.value = t("bwallet.success_submitted");
     await toast(t("bwallet.success_submitted"));
@@ -364,6 +419,38 @@ onMounted(async () => {
                       <p v-if="req.note" class="text-xs text-neutral-500 dark:text-neutral-400 italic">
                         "{{ req.note }}"
                       </p>
+                      <div v-if="parseEvidencePaths(req.evidence_paths).length" class="mt-3 flex flex-wrap gap-2">
+                        <div
+                          v-for="(ep, ei) in parseEvidencePaths(req.evidence_paths)"
+                          :key="ei"
+                          class="shrink-0"
+                        >
+                          <a
+                            v-if="!isImageEvidencePath(ep)"
+                            :href="evidenceUrl(ep)"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-700 text-xs font-medium text-black dark:text-white hover:bg-neutral-300 dark:hover:bg-neutral-600"
+                          >
+                            <UIcon name="i-heroicons-document" class="w-4 h-4" />
+                            PDF
+                          </a>
+                          <a
+                            v-else
+                            :href="evidenceUrl(ep)"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="block"
+                          >
+                            <img
+                              :src="evidenceUrl(ep)"
+                              :alt="'evidence ' + (ei + 1)"
+                              class="h-16 w-16 object-cover rounded-lg border border-neutral-200 dark:border-neutral-700"
+                              loading="lazy"
+                            />
+                          </a>
+                        </div>
+                      </div>
                       <p class="text-xs text-neutral-400 dark:text-neutral-500">
                         {{ formatDate(req.created_at) }}
                       </p>
@@ -538,6 +625,27 @@ onMounted(async () => {
                     class="w-full rounded-xl border-2 border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-4 py-2.5 text-sm text-black dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 resize-none focus:border-alizarin-crimson-400 focus:outline-none transition" />
                 </div>
 
+                <!-- Evidence (required) -->
+                <div>
+                  <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+                    {{ t("bwallet.evidence_label") }}
+                  </label>
+                  <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-2">
+                    {{ t("bwallet.evidence_hint") }}
+                  </p>
+                  <input
+                    ref="evidenceInputRef"
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                    class="block w-full text-sm text-neutral-600 dark:text-neutral-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-neutral-200 dark:file:bg-neutral-700 file:text-black dark:file:text-white"
+                    @change="onEvidenceChange"
+                  />
+                  <p v-if="modalEvidenceFiles.length" class="text-xs text-neutral-600 dark:text-neutral-400 mt-2">
+                    {{ t("bwallet.evidence_count", { n: modalEvidenceFiles.length }) }}
+                  </p>
+                </div>
+
                 <!-- Error -->
                 <p v-if="submitError"
                   class="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-xl px-4 py-2.5">
@@ -554,7 +662,7 @@ onMounted(async () => {
                 </button>
                 <button type="button"
                   class="flex-1 px-4 py-2.5 bg-alizarin-crimson-600 dark:bg-alizarin-crimson-500 text-white rounded-xl text-sm font-semibold hover:bg-alizarin-crimson-700 dark:hover:bg-alizarin-crimson-600 transition disabled:opacity-50"
-                  :disabled="submitting" @click="submitRequest">
+                  :disabled="submitting || !modalEvidenceFiles.length" @click="submitRequest">
                   <span v-if="submitting" class="flex items-center justify-center gap-2">
                     <UIcon name="i-svg-spinners-90-ring-with-bg" class="w-4 h-4" />
                     {{ t("bwallet.modal_submitting") }}

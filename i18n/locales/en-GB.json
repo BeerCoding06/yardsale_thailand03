@@ -577,6 +577,10 @@
     "reason_not_shipped": "Not shipped within 3 days",
     "modal_note": "Additional details (optional)",
     "modal_note_placeholder": "Describe the issue with the product or why you need a refund...",
+    "evidence_label": "Proof (required)",
+    "evidence_hint": "Attach 1–5 photos or PDFs (e.g. payment slip, product photos). Max 5 MB per file.",
+    "evidence_required": "Please attach at least one image or document.",
+    "evidence_count": "{n} file(s) selected",
     "modal_submit": "Submit Request",
     "modal_cancel": "Cancel",
     "modal_submitting": "Submitting…",
@@ -890,6 +894,7 @@
       "users": "Users",
       "orders": "Orders",
       "support_chat": "Support chat",
+      "refund_requests": "Refund requests",
       "finance": "Finance & payouts"
     },
     "dashboard": {
@@ -901,7 +906,29 @@
       "users_desc": "Create, edit, delete users and set account status (public / pending / block).",
       "orders_desc": "All platform orders when logged in as admin.",
       "support_chat_desc": "Reply to buyers and sellers; resolve conversations.",
+      "refund_requests_desc": "Review buyer refund requests and attached evidence (slips, photos).",
       "finance_desc": "Ledger (escrow, releases, withdrawals), payout requests, and financial audit trail."
+    },
+    "refund_requests": {
+      "title": "Refund requests",
+      "subtitle": "Review submitted proofs before approving or rejecting.",
+      "filter_status": "Status",
+      "all": "All",
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "total": "total",
+      "empty": "No refund requests.",
+      "load_error": "Could not load refund requests.",
+      "action_error": "Action failed.",
+      "reason": "Reason",
+      "evidence": "Evidence attached",
+      "no_evidence": "No files attached (legacy request).",
+      "admin_note": "Admin note",
+      "approve": "Approve & refund wallet",
+      "reject": "Reject",
+      "reject_note_placeholder": "Optional note to the buyer…",
+      "confirm_reject": "Confirm reject"
     },
     "users": {
       "title": "Users",

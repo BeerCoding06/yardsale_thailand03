@@ -1,5 +1,6 @@
 import { AppError } from '../utils/AppError.js';
 import * as buyerWalletService from '../services/buyerWallet.service.js';
+import { config } from '../config/index.js';
 
 function handleError(res, err) {
   if (err instanceof AppError) {
@@ -95,9 +96,21 @@ export async function getEligibleOrders(req, res) {
 
 export async function submitRefundRequest(req, res) {
   try {
-    const { order_id: orderId, reason, note } = req.body;
+    const orderId = req.body?.order_id;
+    const reason = req.body?.reason;
+    const note = req.body?.note;
     if (!orderId) throw new AppError('order_id is required', 422, 'VALIDATION_ERROR');
-    const data = await buyerWalletService.userRequestRefund(req.user.id, { orderId, reason, note });
+
+    const files = Array.isArray(req.files) ? req.files : [];
+    const base = String(config.publicUploadBase || '/uploads').replace(/\/$/, '') || '/uploads';
+    const evidencePaths = files.map((f) => `${base}/${f.filename}`);
+
+    const data = await buyerWalletService.userRequestRefund(req.user.id, {
+      orderId,
+      reason,
+      note,
+      evidencePaths,
+    });
     return res.status(201).json(data);
   } catch (err) {
     return handleError(res, err);

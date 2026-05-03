@@ -7,6 +7,7 @@ import {
 } from './config/passport.config.js';
 import { ensureWalletSchemaOnStartup } from './bootstrap/ensureWalletSchema.js';
 import { ensureBuyerWalletSchemaOnStartup } from './bootstrap/ensureBuyerWalletSchema.js';
+import { ensureRefundRequestEvidenceColumnOnStartup } from './bootstrap/ensureRefundRequestEvidence.js';
 import { ensureSupportChatSchemaOnStartup } from './bootstrap/ensureSupportChatSchema.js';
 
 /** ผูก 0.0.0.0 — ใน Docker healthcheck ใช้ 127.0.0.1; ถ้าฟังเฉพาะ :: บาง image จะไม่รับ IPv4 loopback */
@@ -14,6 +15,7 @@ const host = String(process.env.HOST || '0.0.0.0').trim() || '0.0.0.0';
 
 async function main() {
   await ensureBuyerWalletSchemaOnStartup();
+  await ensureRefundRequestEvidenceColumnOnStartup();
   await ensureWalletSchemaOnStartup();
   await ensureSupportChatSchemaOnStartup();
   app.listen(config.port, host, () => {

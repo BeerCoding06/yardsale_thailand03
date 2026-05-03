@@ -46,6 +46,12 @@ const cards = computed(() => [
     icon: "i-heroicons-chat-bubble-left-right",
   },
   {
+    to: localePath("/admin/refund-requests"),
+    title: t("admin.nav.refund_requests"),
+    desc: t("admin.dashboard.refund_requests_desc"),
+    icon: "i-heroicons-paper-clip",
+  },
+  {
     to: localePath("/admin/finance"),
     title: t("admin.nav.finance"),
     desc: t("admin.dashboard.finance_desc"),

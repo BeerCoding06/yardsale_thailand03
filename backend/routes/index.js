@@ -43,7 +43,7 @@ import {
   chatListQuerySchema,
   chatAdminListQuerySchema,
 } from '../validators/schemas.js';
-import { uploadImage } from '../middlewares/upload.js';
+import { uploadImage, uploadRefundEvidence } from '../middlewares/upload.js';
 import * as authController from '../controllers/auth.controller.js';
 import * as productController from '../controllers/product.controller.js';
 import * as categoryController from '../controllers/category.controller.js';
@@ -320,7 +320,21 @@ router.get('/buyer-wallet/transactions', authMiddleware, buyerWalletController.l
 /* Refund requests — user */
 router.get('/buyer-wallet/eligible-orders', authMiddleware, buyerWalletController.getEligibleOrders);
 router.get('/buyer-wallet/refund-requests', authMiddleware, buyerWalletController.listMyRefundRequests);
-router.post('/buyer-wallet/refund-requests', authMiddleware, buyerWalletController.submitRefundRequest);
+router.post('/buyer-wallet/refund-requests', authMiddleware, (req, res, next) => {
+  uploadRefundEvidence.array('evidence', 5)(req, res, (err) => {
+    if (err) {
+      const msg =
+        err.code === 'LIMIT_FILE_SIZE'
+          ? 'Each file must be 5 MB or smaller.'
+          : err.message || 'Upload failed';
+      return res.status(400).json({
+        success: false,
+        error: { message: msg, code: err.code || 'UPLOAD_ERROR' },
+      });
+    }
+    next();
+  });
+}, buyerWalletController.submitRefundRequest);
 
 /* Admin */
 router.get('/admin/buyer-wallet/summary', authMiddleware, requireRoles('admin'), buyerWalletController.adminGetBuyerWalletSummary);

@@ -448,9 +448,23 @@ const ALLOWED_USER_REASONS = new Set(['product_defect', 'not_shipped_3_days']);
 /**
  * ผู้ซื้อส่งคำขอคืนเงิน — ต้องรอแอดมินอนุมัติ
  */
-export async function userRequestRefund(userId, { orderId, reason = 'product_defect', note }) {
+export async function userRequestRefund(userId, { orderId, reason = 'product_defect', note, evidencePaths }) {
   if (!ALLOWED_USER_REASONS.has(reason)) {
     throw new AppError('Invalid refund reason', 422, 'INVALID_REASON');
+  }
+
+  const paths = Array.isArray(evidencePaths)
+    ? evidencePaths.filter((p) => typeof p === 'string' && p.trim())
+    : [];
+  if (paths.length < 1) {
+    throw new AppError(
+      'Please attach at least one photo or document (e.g. payment slip, product photo).',
+      422,
+      'EVIDENCE_REQUIRED'
+    );
+  }
+  if (paths.length > 5) {
+    throw new AppError('Too many files (maximum 5).', 422, 'TOO_MANY_FILES');
   }
 
   const client = await pool.connect();
@@ -483,6 +497,7 @@ export async function userRequestRefund(userId, { orderId, reason = 'product_def
       userId,
       reason,
       note: note ? String(note).trim().slice(0, 500) : null,
+      evidencePaths: paths,
     });
 
     console.info('[buyerWallet] refund_request created', { orderId, userId, reason });

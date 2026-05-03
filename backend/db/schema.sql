@@ -583,6 +583,7 @@ CREATE TABLE IF NOT EXISTS refund_requests (
   user_id     UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
   reason      refund_reason NOT NULL DEFAULT 'product_defect',
   note        TEXT,
+  evidence_paths JSONB NOT NULL DEFAULT '[]'::jsonb,
   status      refund_request_status NOT NULL DEFAULT 'pending',
   admin_id    UUID REFERENCES users (id) ON DELETE SET NULL,
   admin_note  TEXT,

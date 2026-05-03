@@ -10,6 +10,7 @@ const links = computed(() => {
   const users = localePath("/admin/users");
   const orders = localePath("/admin/orders");
   const supportChat = localePath("/admin/chat");
+  const refundRequests = localePath("/admin/refund-requests");
   const finance = localePath("/admin/finance");
   const prods = localePath("/admin/products");
   const cats = localePath("/admin/categories");
@@ -58,6 +59,12 @@ const links = computed(() => {
       label: t("admin.nav.support_chat"),
       icon: "i-heroicons-chat-bubble-left-right",
       active: n(p) === n(supportChat),
+    },
+    {
+      to: refundRequests,
+      label: t("admin.nav.refund_requests"),
+      icon: "i-heroicons-paper-clip",
+      active: n(p) === n(refundRequests),
     },
     {
       to: finance,
