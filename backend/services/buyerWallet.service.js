@@ -709,3 +709,24 @@ export async function adminRejectRefundRequest(adminUserId, requestId, adminNote
     return { success: true, request: updated };
   });
 }
+
+/** Admin: mark refund-request product(s) as inspected (or un-inspect) */
+export async function adminSetRefundRequestInspected(adminUserId, requestId, inspected = true) {
+  return withTransaction(async (client) => {
+    const req = await buyerWalletModel.lockRefundRequestById(client, requestId);
+    if (!req) throw new AppError('Refund request not found', 404, 'NOT_FOUND');
+
+    const updated = await buyerWalletModel.setRefundRequestInspected(client, requestId, inspected === true);
+
+    await walletModel.insertFinancialAudit(client, {
+      actorUserId: adminUserId,
+      action: 'refund_request_inspected_toggled',
+      entityType: 'refund_request',
+      entityId: requestId,
+      details: { inspected: Boolean(inspected) },
+    });
+
+    console.info('[buyerWallet] refund_request inspected toggled', { requestId, adminUserId, inspected });
+    return { success: true, request: updated };
+  });
+}

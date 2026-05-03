@@ -934,7 +934,9 @@
       "approve": "Approve & refund wallet",
       "reject": "Reject",
       "reject_note_placeholder": "Optional note to the buyer…",
-      "confirm_reject": "Confirm reject"
+      "confirm_reject": "Confirm reject",
+      "inspected": "Inspected",
+      "not_inspected": "Not inspected"
     },
     "users": {
       "title": "Users",

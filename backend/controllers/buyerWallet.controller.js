@@ -168,3 +168,16 @@ export async function adminRejectRefundRequest(req, res) {
     return handleError(res, err);
   }
 }
+
+export async function adminSetRefundRequestInspected(req, res) {
+  try {
+    const { id } = req.params;
+    const { inspected } = req.body;
+    if (!id) throw new AppError('id is required', 422, 'VALIDATION_ERROR');
+    const flag = inspected === true || inspected === 'true' || inspected === '1' || inspected === 1;
+    const data = await buyerWalletService.adminSetRefundRequestInspected(req.user.id, id, flag);
+    return res.json(data);
+  } catch (err) {
+    return handleError(res, err);
+  }
+}

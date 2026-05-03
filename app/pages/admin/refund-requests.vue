@@ -125,6 +125,24 @@ async function approve(id) {
   }
 }
 
+async function toggleInspected(id, current) {
+  if (!id || actionBusy.value) return;
+  actionBusy.value = id;
+  try {
+    const h = await headers();
+    await $fetch(endpoint(`admin/buyer-wallet/refund-requests/${encodeURIComponent(id)}/inspect`), {
+      method: 'POST',
+      headers: { ...h, 'Content-Type': 'application/json' },
+      body: { inspected: !current },
+    });
+    await loadList();
+  } catch (e) {
+    listError.value = e?.data?.error?.message || e?.message || t('admin.refund_requests.action_error');
+  } finally {
+    actionBusy.value = null;
+  }
+}
+
 async function reject(id) {
   if (!id || actionBusy.value) return;
   actionBusy.value = id;
@@ -222,6 +240,12 @@ onMounted(() => loadList());
           </div>
           <div class="text-right">
             <p class="text-lg font-bold text-neutral-900 dark:text-white">{{ formatThb(r.order_amount) }}</p>
+            <div class="mt-2 text-sm">
+              <label class="inline-flex items-center gap-2 text-sm">
+                <input type="checkbox" :checked="!!r.product_inspected" :disabled="actionBusy === r.id" @change="toggleInspected(r.id, !!r.product_inspected)" class="w-4 h-4" />
+                <span class="text-xs text-neutral-600 dark:text-neutral-400">{{ r.product_inspected ? t('admin.refund_requests.inspected') : t('admin.refund_requests.not_inspected') }}</span>
+              </label>
+            </div>
           </div>
         </div>
 

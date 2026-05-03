@@ -938,7 +938,9 @@
       "approve": "อนุมัติและคืนเงินเข้ากระเป๋า",
       "reject": "ปฏิเสธ",
       "reject_note_placeholder": "หมายเหตุถึงผู้ซื้อ (ไม่บังคับ)…",
-      "confirm_reject": "ยืนยันปฏิเสธ"
+      "confirm_reject": "ยืนยันปฏิเสธ",
+      "inspected": "ตรวจแล้ว",
+      "not_inspected": "ยังไม่ได้ตรวจ"
     },
     "users": {
       "title": "ผู้ใช้",

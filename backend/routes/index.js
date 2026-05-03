@@ -346,6 +346,7 @@ router.post('/admin/orders/trigger-unshipped-cancels', authMiddleware, requireRo
 router.get('/admin/buyer-wallet/refund-requests', authMiddleware, requireRoles('admin'), buyerWalletController.adminListRefundRequests);
 router.post('/admin/buyer-wallet/refund-requests/:id/approve', authMiddleware, requireRoles('admin'), buyerWalletController.adminApproveRefundRequest);
 router.post('/admin/buyer-wallet/refund-requests/:id/reject', authMiddleware, requireRoles('admin'), buyerWalletController.adminRejectRefundRequest);
+router.post('/admin/buyer-wallet/refund-requests/:id/inspect', authMiddleware, requireRoles('admin'), buyerWalletController.adminSetRefundRequestInspected);
 
 /* ===== Support chat ===== */
 router.post(
