@@ -585,6 +585,8 @@
     "modal_cancel": "ยกเลิก",
     "modal_submitting": "กำลังส่ง…",
     "my_requests_title": "สถานะคำขอคืนเงิน",
+    "my_requests_subtitle": "แสดงเฉพาะคำขอที่ส่งภายใน 3 วันล่าสุด — ครบ 3 วันแล้วรายการจะไม่แสดงที่นี่",
+    "requests_older_hidden": "คำขอคืนเงินที่เก่ากว่า 3 วันไม่แสดงในรายการนี้แล้ว",
     "no_requests": "ยังไม่มีคำขอคืนเงิน",
     "req_status_pending": "รอการพิจารณา",
     "req_status_approved": "อนุมัติแล้ว",

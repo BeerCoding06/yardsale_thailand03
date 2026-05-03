@@ -245,15 +245,17 @@ export async function aggregateBuyerWallets(client) {
 
 /* ===== Refund Requests (user-initiated, needs admin review) ===== */
 
-export async function createRefundRequest(client, { orderId, userId, reason, note, evidencePaths }) {
+export async function createRefundRequest(client, { orderId, userId, reason, note, evidencePaths, productItems }) {
   const paths = Array.isArray(evidencePaths) ? evidencePaths : [];
   const pathsJson = JSON.stringify(paths);
+  const items = Array.isArray(productItems) ? productItems : [];
+  const itemsJson = JSON.stringify(items);
   const r = await client.query(
-    `INSERT INTO refund_requests (order_id, user_id, reason, note, evidence_paths)
-     VALUES ($1::uuid, $2::uuid, $3::refund_reason, $4, $5::jsonb)
+    `INSERT INTO refund_requests (order_id, user_id, reason, note, evidence_paths, product_items)
+     VALUES ($1::uuid, $2::uuid, $3::refund_reason, $4, $5::jsonb, $6::jsonb)
      RETURNING id, order_id, user_id, reason::text, status::text, note,
-               evidence_paths, created_at`,
-    [orderId, userId, reason, note || null, pathsJson]
+               evidence_paths, COALESCE(product_items, '[]'::jsonb) AS product_items, created_at`,
+    [orderId, userId, reason, note || null, pathsJson, itemsJson]
   );
   return r.rows[0];
 }
@@ -261,7 +263,7 @@ export async function createRefundRequest(client, { orderId, userId, reason, not
 export async function findRefundRequestByOrderId(client, orderId) {
   const r = await client.query(
     `SELECT id, order_id, user_id, reason::text, note, status::text,
-            COALESCE(evidence_paths, '[]'::jsonb) AS evidence_paths, admin_id, admin_note, reviewed_at, refund_id, created_at
+            COALESCE(evidence_paths, '[]'::jsonb) AS evidence_paths, COALESCE(product_items, '[]'::jsonb) AS product_items, admin_id, admin_note, reviewed_at, refund_id, created_at
      FROM refund_requests WHERE order_id = $1::uuid LIMIT 1`,
     [orderId]
   );
@@ -271,7 +273,7 @@ export async function findRefundRequestByOrderId(client, orderId) {
 export async function listRefundRequestsForUser(client, userId, { limit = 20, offset = 0 } = {}) {
   const r = await client.query(
     `SELECT rr.id, rr.order_id, rr.user_id, rr.reason::text, rr.note,
-            COALESCE(rr.evidence_paths, '[]'::jsonb) AS evidence_paths, rr.status::text, rr.admin_note, rr.reviewed_at, rr.refund_id,
+            COALESCE(rr.evidence_paths, '[]'::jsonb) AS evidence_paths, COALESCE(rr.product_items, '[]'::jsonb) AS product_items, rr.status::text, rr.admin_note, rr.reviewed_at, rr.refund_id,
             rr.created_at,
             o.total_price AS order_amount, o.status::text AS order_status
      FROM refund_requests rr
@@ -334,7 +336,7 @@ export async function listRefundRequestsAdmin(
   const iOff = params.length;
   const r = await client.query(
     `SELECT rr.id, rr.order_id, rr.user_id, rr.reason::text, rr.note,
-            COALESCE(rr.evidence_paths, '[]'::jsonb) AS evidence_paths, rr.status::text, rr.admin_note, rr.reviewed_at, rr.refund_id, rr.created_at,
+            COALESCE(rr.evidence_paths, '[]'::jsonb) AS evidence_paths, COALESCE(rr.product_items, '[]'::jsonb) AS product_items, rr.status::text, rr.admin_note, rr.reviewed_at, rr.refund_id, rr.created_at,
             u.email AS user_email, u.name AS user_name,
             o.total_price AS order_amount, o.status::text AS order_status
      FROM refund_requests rr

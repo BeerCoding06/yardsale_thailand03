@@ -271,6 +271,17 @@ function reqReasonLabel(reason) {
   return reason;
 }
 
+/** แสดงเฉพาะคำขอที่ส่งไม่เกิน 3 วัน — พอครบ 3 วันการ์ดจะหายจากรายการนี้ */
+const REFUND_REQUEST_VISIBLE_MS = 3 * 24 * 60 * 60 * 1000;
+const recentRefundRequests = computed(() => {
+  const now = Date.now();
+  return myRequests.value.filter((req) => {
+    const ts = req.created_at ? new Date(req.created_at).getTime() : 0;
+    if (!Number.isFinite(ts)) return false;
+    return now - ts <= REFUND_REQUEST_VISIBLE_MS;
+  });
+});
+
 /* ─── mount ───────────────────────────────── */
 onMounted(async () => {
   checkAuth();
@@ -393,15 +404,24 @@ onMounted(async () => {
               <h2 class="text-base font-semibold text-black dark:text-white">
                 {{ t("bwallet.my_requests_title") }}
               </h2>
+              <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                {{ t("bwallet.my_requests_subtitle") }}
+              </p>
             </div>
 
             <div class="p-5">
-              <p v-if="!myRequests.length" class="text-sm text-neutral-500 dark:text-neutral-400">
+              <p
+                v-if="myRequests.length && !recentRefundRequests.length"
+                class="text-sm text-neutral-500 dark:text-neutral-400 mb-3"
+              >
+                {{ t("bwallet.requests_older_hidden") }}
+              </p>
+              <p v-if="!recentRefundRequests.length && !myRequests.length" class="text-sm text-neutral-500 dark:text-neutral-400">
                 {{ t("bwallet.no_requests") }}
               </p>
 
-              <div v-else class="space-y-3">
-                <div v-for="req in myRequests" :key="req.id"
+              <div v-else-if="recentRefundRequests.length" class="space-y-3">
+                <div v-for="req in recentRefundRequests" :key="req.id"
                   class="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800">
                   <div class="flex items-start justify-between gap-3 flex-wrap">
                     <div class="space-y-1 min-w-0">

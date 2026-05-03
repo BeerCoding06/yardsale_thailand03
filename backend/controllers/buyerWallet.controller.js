@@ -104,12 +104,22 @@ export async function submitRefundRequest(req, res) {
     const files = Array.isArray(req.files) ? req.files : [];
     const base = String(config.publicUploadBase || '/uploads').replace(/\/$/, '') || '/uploads';
     const evidencePaths = files.map((f) => `${base}/${f.filename}`);
+    // Accept optional product_items in body (JSON array or stringified JSON)
+    let productItems = req.body?.product_items || req.body?.product_items_json || null;
+    if (typeof productItems === 'string' && productItems.trim()) {
+      try {
+        productItems = JSON.parse(productItems);
+      } catch {
+        productItems = null;
+      }
+    }
 
     const data = await buyerWalletService.userRequestRefund(req.user.id, {
       orderId,
       reason,
       note,
       evidencePaths,
+      productItems,
     });
     return res.status(201).json(data);
   } catch (err) {

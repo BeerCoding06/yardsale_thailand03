@@ -585,6 +585,8 @@
     "modal_cancel": "Cancel",
     "modal_submitting": "Submitting…",
     "my_requests_title": "My Refund Requests",
+    "my_requests_subtitle": "Showing requests from the last 3 days only. Older requests are hidden here.",
+    "requests_older_hidden": "Your refund requests older than 3 days are no longer shown in this list.",
     "no_requests": "No refund requests yet.",
     "req_status_pending": "Pending Review",
     "req_status_approved": "Approved",
