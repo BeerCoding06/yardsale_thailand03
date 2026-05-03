@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useChat } from '~/composables/useChat';
+
 const localePath = useLocalePath();
 const route = useRoute();
 const { t } = useI18n();
@@ -7,6 +9,7 @@ const links = computed(() => {
   const dash = localePath("/admin");
   const users = localePath("/admin/users");
   const orders = localePath("/admin/orders");
+  const supportChat = localePath("/admin/chat");
   const finance = localePath("/admin/finance");
   const prods = localePath("/admin/products");
   const cats = localePath("/admin/categories");
@@ -51,6 +54,12 @@ const links = computed(() => {
       active: n(p) === n(orders) || p.startsWith(n(orders) + "/"),
     },
     {
+      to: supportChat,
+      label: t("admin.nav.support_chat"),
+      icon: "i-heroicons-chat-bubble-left-right",
+      active: n(p) === n(supportChat),
+    },
+    {
       to: finance,
       label: t("admin.nav.finance"),
       icon: "i-heroicons-banknotes",
@@ -58,6 +67,21 @@ const links = computed(() => {
     },
   ];
 });
+
+const { fetchAdminConversations } = useChat();
+
+const unreadBadge = ref(0);
+
+async function loadUnread() {
+  try {
+    const data = await fetchAdminConversations({ limit: 1, offset: 0 });
+    unreadBadge.value = (data as any)?.unread_total ?? 0;
+  } catch {
+    unreadBadge.value = 0;
+  }
+}
+
+onMounted(loadUnread);
 </script>
 
 <template>
@@ -87,6 +111,7 @@ const links = computed(() => {
           ]"
         >
           <UIcon :name="item.icon" class="w-5 h-5 shrink-0" />
+          <span v-if="item.label === t('admin.nav.support_chat') && unreadBadge > 0" class="relative inline-flex rounded-full h-[18px] w-[18px] bg-alizarin-crimson-700 text-[10px] items-center justify-center shadow font-semibold text-white">{{ unreadBadge }}</span>
           {{ item.label }}
         </NuxtLink>
       </nav>

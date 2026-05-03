@@ -40,6 +40,12 @@ const cards = computed(() => [
     icon: "i-heroicons-clipboard-document-list",
   },
   {
+    to: localePath("/admin/chat"),
+    title: t("admin.nav.support_chat"),
+    desc: t("admin.dashboard.support_chat_desc"),
+    icon: "i-heroicons-chat-bubble-left-right",
+  },
+  {
     to: localePath("/admin/finance"),
     title: t("admin.nav.finance"),
     desc: t("admin.dashboard.finance_desc"),
