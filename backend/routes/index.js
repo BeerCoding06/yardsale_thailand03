@@ -37,6 +37,11 @@ import {
   adminWalletDashboardQuerySchema,
   adminWithdrawalsListQuerySchema,
   adminPatchOrderSchema,
+  chatStartBodySchema,
+  chatSendBodySchema,
+  chatIdParamsSchema,
+  chatListQuerySchema,
+  chatAdminListQuerySchema,
 } from '../validators/schemas.js';
 import { uploadImage } from '../middlewares/upload.js';
 import * as authController from '../controllers/auth.controller.js';
@@ -52,6 +57,7 @@ import * as fcmController from '../controllers/fcm.controller.js';
 import * as walletController from '../controllers/wallet.controller.js';
 import * as adminWalletController from '../controllers/adminWallet.controller.js';
 import * as buyerWalletController from '../controllers/buyerWallet.controller.js';
+import * as supportChatController from '../controllers/supportChat.controller.js';
 import { trackRateLimit } from '../middlewares/trackRateLimit.js';
 import { fcmBroadcastRateLimit, fcmSendNotificationRateLimit } from '../middlewares/fcmRateLimit.js';
 
@@ -325,6 +331,49 @@ router.post('/admin/buyer-wallet/trigger-unshipped-refunds', authMiddleware, req
 router.get('/admin/buyer-wallet/refund-requests', authMiddleware, requireRoles('admin'), buyerWalletController.adminListRefundRequests);
 router.post('/admin/buyer-wallet/refund-requests/:id/approve', authMiddleware, requireRoles('admin'), buyerWalletController.adminApproveRefundRequest);
 router.post('/admin/buyer-wallet/refund-requests/:id/reject', authMiddleware, requireRoles('admin'), buyerWalletController.adminRejectRefundRequest);
+
+/* ===== Support chat ===== */
+router.post(
+  '/chat/start',
+  authMiddleware,
+  requireRoles('user', 'seller'),
+  validate(chatStartBodySchema),
+  supportChatController.start
+);
+router.get(
+  '/chat/unread',
+  authMiddleware,
+  requireRoles('user', 'seller'),
+  supportChatController.unreadForUser
+);
+router.get(
+  '/chat/conversations',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(chatAdminListQuerySchema, 'query'),
+  supportChatController.adminList
+);
+router.get(
+  '/chat/:id/messages',
+  authMiddleware,
+  validate(chatIdParamsSchema, 'params'),
+  validate(chatListQuerySchema, 'query'),
+  supportChatController.messages
+);
+router.post(
+  '/chat/:id/send',
+  authMiddleware,
+  validate(chatIdParamsSchema, 'params'),
+  validate(chatSendBodySchema),
+  supportChatController.send
+);
+router.post(
+  '/chat/:id/resolve',
+  authMiddleware,
+  requireRoles('admin'),
+  validate(chatIdParamsSchema, 'params'),
+  supportChatController.resolve
+);
 
 router.post('/payment/mock', authMiddleware, (req, res, next) => {
   if (req.is('multipart/form-data')) {

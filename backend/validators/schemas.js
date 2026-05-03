@@ -435,6 +435,30 @@ export const adminRefundsQuerySchema = Joi.object({
   date_to: financeDateTo,
 }).custom(assertFinanceDateOrder);
 
+/* ===== Support chat ===== */
+
+export const chatStartBodySchema = Joi.object({
+  order_id: uuidPostgresShape.optional().allow(null, ''),
+});
+
+export const chatSendBodySchema = Joi.object({
+  message: Joi.string().trim().min(1).max(8000).required(),
+});
+
+export const chatIdParamsSchema = Joi.object({
+  id: uuidPostgresShape.required(),
+});
+
+export const chatListQuerySchema = Joi.object({
+  limit: Joi.number().integer().min(1).max(200).default(100),
+  offset: Joi.number().integer().min(0).max(500000).default(0),
+});
+
+export const chatAdminListQuerySchema = Joi.object({
+  limit: Joi.number().integer().min(1).max(100).default(30),
+  offset: Joi.number().integer().min(0).max(500000).default(0),
+});
+
 export {
   saveFcmTokenSchema,
   sendFcmNotificationSchema,

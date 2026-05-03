@@ -11,7 +11,8 @@
     "db:buyer-wallet": "node scripts/run-wallet-migration.js",
     "db:oauth": "node scripts/ensure-oauth-schema.js",
     "db:add-category-image": "node scripts/add-category-image-url.js",
-    "db:seed": "node scripts/seed-demo.js"
+    "db:seed": "node scripts/seed-demo.js",
+    "db:support-chat": "node scripts/run-support-chat-migration.js"
   },
   "dependencies": {
     "connect-pg-simple": "^9.0.1",

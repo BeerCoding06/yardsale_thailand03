@@ -148,6 +148,7 @@ export default defineNuxtConfig({
     "/register-user": { ssr: true, prerender: false },
     "/payment-successful": { prerender: false, ssr: false }, // Client-side only
     "/checkout/payment": { prerender: false, ssr: false },
+    "/chat": { prerender: false, ssr: false },
     "/admin/**": { prerender: false, ssr: false },
   },
 
