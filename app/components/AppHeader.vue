@@ -28,6 +28,10 @@ const { fetchUnreadCount } = useChat();
 
 const chatUnreadBadge = ref(0);
 
+// ต้องประกาศก่อน watch()/loadChatUnread — มิฉะนั้น TDZ: Cannot access before initialization
+const isClient = ref(false);
+const clientIsAuthenticated = ref(false);
+
 async function loadChatUnread() {
   if (clientIsAuthenticated.value && !isAdmin.value) {
     try {
@@ -42,10 +46,6 @@ async function loadChatUnread() {
 }
 
 watch(clientIsAuthenticated, loadChatUnread);
-
-// Client-side only state to prevent hydration mismatch
-const isClient = ref(false);
-const clientIsAuthenticated = ref(false);
 
 // Check auth on mount to prevent hydration mismatch
 onMounted(() => {
