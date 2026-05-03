@@ -61,6 +61,10 @@ export const config = {
     if (raw) return raw;
     return 'http://localhost:3000';
   })(),
+  autoCancelUnshipped: {
+    enabled: envFlag('AUTO_CANCEL_UNSHIPPED'),
+    intervalMinutes: Number(process.env.AUTO_CANCEL_UNSHIPPED_INTERVAL_MINUTES) || 60,
+  },
   /**
    * บรรทัด log [payment-audit] … สำหรับไล่ production (ไม่ล็อก slip/base64)
    * เปิดชั่วคราว: PAYMENT_AUDIT_LOG=1

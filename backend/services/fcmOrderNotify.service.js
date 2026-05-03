@@ -43,3 +43,34 @@ export async function notifySellersOrderPaid(orderId) {
     client.release();
   }
 }
+
+export async function notifySellersOrderAutoCanceled(orderId) {
+  if (!firebaseMessaging.isFcmConfigured()) return;
+  const client = await pool.connect();
+  try {
+    const sellerIds = await fcmTokenModel.listSellerIdsForOrder(client, orderId);
+    if (!sellerIds.length) return;
+
+    const tokenSet = new Set();
+    for (const sid of sellerIds) {
+      const tokens = await fcmTokenModel.listTokensForUser(client, sid);
+      for (const t of tokens) tokenSet.add(t);
+    }
+    const tokens = [...tokenSet];
+    if (!tokens.length) return;
+
+    const shortRef = String(orderId).replace(/-/g, '').slice(0, 12);
+    const click = ordersUrlForPush();
+    await firebaseMessaging.sendToDevices(
+      tokens,
+      'Order auto-canceled',
+      `Order #${shortRef} was automatically canceled because it was not shipped within 3 days.`,
+      { type: 'order_auto_canceled', order_id: String(orderId), click_action: click },
+      { clickAction: click }
+    );
+  } catch (e) {
+    console.warn('[fcm] notifySellersOrderAutoCanceled:', e?.message || e);
+  } finally {
+    client.release();
+  }
+}

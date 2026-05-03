@@ -53,6 +53,11 @@ export const cancelOrder = asyncHandler(async (req, res) => {
   sendSuccess(res, { success: true, ...data });
 });
 
+export const adminTriggerAutoCancelUnshippedOrders = asyncHandler(async (req, res) => {
+  const data = await orderService.triggerAutoCancelUnshippedOrders(req.user.id);
+  sendSuccess(res, { success: true, ...data });
+});
+
 export const patchSellerOrderFulfillment = asyncHandler(async (req, res) => {
   const data = await orderService.updateSellerOrderFulfillment(
     req.user.id,

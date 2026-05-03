@@ -7,6 +7,7 @@ import * as cartModel from '../models/cart.model.js';
 import * as seventeenTrack from './seventeenTrack.service.js';
 import * as sellerWalletService from './sellerWallet.service.js';
 import * as buyerWalletService from './buyerWallet.service.js';
+import * as fcmOrderNotify from './fcmOrderNotify.service.js';
 import * as buyerWalletModel from '../models/buyerWallet.model.js';
 
 function aggregateLineItems(lineItems) {
@@ -621,6 +622,42 @@ export async function adminPatchOrder(orderId, body) {
     const items = await orderModel.getOrderItems(client, orderId);
     return { order: { ...formatOrderForApi(fresh), line_items: items } };
   });
+}
+
+export async function triggerAutoCancelUnshippedOrders(actorUserId = null) {
+  const client = await pool.connect();
+  const results = [];
+  try {
+    const orders = await buyerWalletModel.findOrdersPaidNotShipped(client, 3);
+    console.info(`[order] auto-cancel check: ${orders.length} eligible order(s)`);
+
+    for (const order of orders) {
+      try {
+        const result = await withTransaction(async (tx) => {
+          const current = await orderModel.getOrderById(tx, order.id);
+          if (!current) throw new AppError('Order not found', 404, 'NOT_FOUND');
+
+          await restoreStockForOrder(tx, order.id);
+          const updated = await orderModel.updateOrderStatus(tx, order.id, 'canceled');
+          const refundResult = await buyerWalletService.triggerRefundOnCancel(tx, order.id, current);
+          return { order: updated, refund: refundResult };
+        });
+
+        if (result.refund?.refunded) {
+          buyerWalletService.notifyBuyerOrderAutoCanceled(order.user_id, order.id, order.total_price).catch(() => {});
+        }
+        fcmOrderNotify.notifySellersOrderAutoCanceled(order.id).catch(() => {});
+
+        results.push({ order_id: order.id, canceled: true, refund: result.refund });
+      } catch (err) {
+        console.error('[order] auto-cancel failed', { orderId: order.id, err: err?.message });
+        results.push({ order_id: order.id, canceled: false, error: String(err?.message || err) });
+      }
+    }
+    return { checked: orders.length, results };
+  } finally {
+    client.release();
+  }
 }
 
 export async function cancelOrder(orderId, userId, role) {

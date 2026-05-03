@@ -1,5 +1,6 @@
 import app from './app.js';
 import { config } from './config/index.js';
+import * as orderService from './services/order.service.js';
 import {
   oauthFacebookConfigured,
   oauthGoogleConfigured,
@@ -29,6 +30,26 @@ async function main() {
       console.warn(
         `[server] Google OAuth disabled: GOOGLE_CLIENT_ID set=${id} GOOGLE_CLIENT_SECRET set=${sec} (both required on this Node process — not only Nuxt)`
       );
+    }
+
+    if (config.autoCancelUnshipped.enabled) {
+      const intervalMinutes = Math.max(1, Number(config.autoCancelUnshipped.intervalMinutes) || 60);
+      const intervalMs = intervalMinutes * 60 * 1000;
+      const runAutoCancel = async () => {
+        try {
+          const result = await orderService.triggerAutoCancelUnshippedOrders(null);
+          console.info('[server] auto-cancel unshipped orders completed', {
+            checked: result.checked,
+            results: Array.isArray(result.results) ? result.results.length : 0,
+          });
+        } catch (err) {
+          console.error('[server] auto-cancel unshipped orders failed', err);
+        }
+      };
+
+      console.info(`[server] auto-cancel unshipped orders enabled; interval=${intervalMinutes}min`);
+      runAutoCancel().catch((err) => console.error('[server] auto-cancel startup failed', err));
+      setInterval(runAutoCancel, intervalMs);
     }
   });
 }

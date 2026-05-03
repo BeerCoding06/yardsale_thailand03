@@ -342,6 +342,7 @@ router.get('/admin/buyer-wallet/transactions', authMiddleware, requireRoles('adm
 router.get('/admin/buyer-wallet/refunds', authMiddleware, requireRoles('admin'), buyerWalletController.adminListRefunds);
 router.post('/admin/buyer-wallet/refund', authMiddleware, requireRoles('admin'), buyerWalletController.adminManualRefund);
 router.post('/admin/buyer-wallet/trigger-unshipped-refunds', authMiddleware, requireRoles('admin'), buyerWalletController.adminTriggerUnshippedRefunds);
+router.post('/admin/orders/trigger-unshipped-cancels', authMiddleware, requireRoles('admin'), orderController.adminTriggerAutoCancelUnshippedOrders);
 router.get('/admin/buyer-wallet/refund-requests', authMiddleware, requireRoles('admin'), buyerWalletController.adminListRefundRequests);
 router.post('/admin/buyer-wallet/refund-requests/:id/approve', authMiddleware, requireRoles('admin'), buyerWalletController.adminApproveRefundRequest);
 router.post('/admin/buyer-wallet/refund-requests/:id/reject', authMiddleware, requireRoles('admin'), buyerWalletController.adminRejectRefundRequest);

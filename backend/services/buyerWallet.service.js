@@ -60,6 +60,28 @@ async function notifyBuyerRefundCredited(userId, amount, orderId) {
   }
 }
 
+export async function notifyBuyerOrderAutoCanceled(userId, orderId, amount) {
+  if (!firebaseMessaging.isFcmConfigured()) return;
+  const client = await pool.connect();
+  try {
+    const tokens = await fcmTokenModel.listTokensForUser(client, userId);
+    if (!tokens.length) return;
+    const shortRef = String(orderId).replace(/-/g, '').slice(0, 12);
+    const click = walletUrl();
+    await firebaseMessaging.sendToDevices(
+      tokens,
+      'Order automatically canceled',
+      `Order #${shortRef} was automatically canceled because it was not shipped within 3 days. ฿${money(amount).toFixed(2)} has been returned to your wallet.`,
+      { type: 'order_auto_canceled', order_id: String(orderId), click_action: click },
+      { clickAction: click }
+    );
+  } catch (e) {
+    console.warn('[buyerWallet] notifyBuyerOrderAutoCanceled:', e?.message || e);
+  } finally {
+    client.release();
+  }
+}
+
 /**
  * Core refund logic — runs inside an existing transaction (client).
  * - Creates refund record
