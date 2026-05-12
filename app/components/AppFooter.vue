@@ -3,6 +3,7 @@
 const config = useRuntimeConfig();
 const colorMode = useColorMode();
 const { locale, locales, setLocale } = useI18n();
+const localePath = useLocalePath();
 
 const isOpen = ref(false);
 const dropdownRef = ref();
@@ -24,13 +25,36 @@ const chooseLocale = code => {
 </script>
 
 <template>
-  <footer class="my-5 flex items-center justify-between gap-3 px-5 text-[13px] font-semibold text-secondary-text dark:text-secondary-text-d">
-    <div class="truncate">
-      <a class="transition-all hover:text-black hover:dark:text-neutral-100" href="https://github.com/zackha/yardsale_thailand" target="_blank">
-        Yardsale Thailand v{{ config.public.version }}
-      </a>
-      —
-      {{ $t('footer.developed_by_author') }}
+  <footer
+    class="my-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-5 text-[13px] font-semibold text-secondary-text dark:text-secondary-text-d"
+  >
+    <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-1">
+      <div class="truncate">
+        <a
+          class="transition-all hover:text-black hover:dark:text-neutral-100"
+          href="https://github.com/zackha/yardsale_thailand"
+          target="_blank"
+        >
+          Yardsale Thailand v{{ config.public.version }}
+        </a>
+        —
+        {{ $t("footer.developed_by_author") }}
+      </div>
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] sm:text-[13px]">
+        <NuxtLink
+          :to="localePath('/guide/seller')"
+          class="shrink-0 text-alizarin-crimson-600 dark:text-alizarin-crimson-400 transition-colors hover:underline"
+        >
+          {{ $t("footer.guide_seller") }}
+        </NuxtLink>
+        <span class="text-neutral-400 dark:text-neutral-600" aria-hidden="true">·</span>
+        <NuxtLink
+          :to="localePath('/guide/buyer')"
+          class="shrink-0 text-alizarin-crimson-600 dark:text-alizarin-crimson-400 transition-colors hover:underline"
+        >
+          {{ $t("footer.guide_buyer") }}
+        </NuxtLink>
+      </div>
     </div>
 
     <div class="flex flex-none items-center gap-3">

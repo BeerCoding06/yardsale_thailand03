@@ -1504,6 +1504,9 @@ const handleSubmit = async (e) => {
               >
                 {{ errors.regular_price }}
               </p>
+              <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">
+                {{ $t("create_product.regular_price_shipping_hint") }}
+              </p>
             </div>
 
             <div>

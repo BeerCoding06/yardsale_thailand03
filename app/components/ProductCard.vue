@@ -106,6 +106,15 @@ function productLink(product) {
             :aria-label="String(product.name || $t('common.product'))"
             tabindex="-1"
           />
+          <div
+            class="absolute bottom-2 left-2 z-[8] max-w-[calc(100%-5rem)] pointer-events-none"
+          >
+            <span
+              class="inline-flex items-center rounded-lg bg-emerald-600/95 dark:bg-emerald-500/95 px-2 py-1 text-[10px] sm:text-xs font-semibold text-white shadow-sm"
+            >
+              {{ $t("product.free_shipping_badge") }}
+            </span>
+          </div>
           <div class="absolute top-2 right-2 z-[7] flex items-center gap-1.5 pointer-events-auto">
             <button
               type="button"
@@ -137,6 +146,11 @@ function productLink(product) {
               :regular-price="product.regularPrice || ''"
               variant="card"
             />
+            <p
+              class="text-xs font-semibold text-emerald-700 dark:text-emerald-400 -mt-0.5"
+            >
+              {{ $t("product.free_shipping_badge") }}
+            </p>
             <div
               :class="[
                 'font-normal text-[#5f5f5f] dark:text-[#a3a3a3] break-words',
