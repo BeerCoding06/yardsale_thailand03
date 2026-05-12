@@ -1,6 +1,10 @@
 <!-- Admin: refund requests + evidence review -->
 <script setup>
-definePageMeta({ middleware: ["auth", "admin"], ssr: false });
+definePageMeta({
+  layout: "admin",
+  middleware: "admin",
+  ssr: false,
+});
 
 const { t } = useI18n();
 const { user, checkAuth } = useAuth();
