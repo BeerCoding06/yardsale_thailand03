@@ -18,6 +18,7 @@ const error = ref(null);
 
 const wallet = ref(null);
 const transactions = ref([]);
+const pendingEscrowOrders = ref([]);
 const withdrawalPolicy = ref(null);
 const bankOptions = ref(null);
 const withdrawals = ref([]);
@@ -156,6 +157,9 @@ async function loadWallet() {
   const body = unwrapApi(raw);
   wallet.value = body?.wallet ?? null;
   transactions.value = Array.isArray(body?.transactions) ? body.transactions : [];
+  pendingEscrowOrders.value = Array.isArray(body?.pending_escrow_orders)
+    ? body.pending_escrow_orders
+    : [];
   withdrawalPolicy.value = body?.withdrawal_policy ?? null;
 }
 
@@ -369,6 +373,45 @@ onMounted(async () => {
           <p v-if="wallet?.updated_at" class="text-xs text-neutral-500 dark:text-neutral-400">
             {{ t("wallet.updated_at") }}: {{ formatDate(wallet.updated_at) }}
           </p>
+
+          <div
+            class="rounded-2xl border-2 border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-black/20 p-6"
+          >
+            <h2 class="text-lg font-semibold text-black dark:text-white mb-1">
+              {{ t("wallet.pending_escrow_section") }}
+            </h2>
+            <p v-if="!pendingEscrowOrders.length" class="text-sm text-neutral-500 dark:text-neutral-400">
+              {{ t("wallet.pending_escrow_empty") }}
+            </p>
+            <ul v-else class="mt-3 space-y-3">
+              <li
+                v-for="row in pendingEscrowOrders"
+                :key="row.order_id"
+                class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border border-neutral-200 dark:border-neutral-700 p-4"
+              >
+                <div>
+                  <p class="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                    {{ t("wallet.pending_order_label") }} #{{ String(row.order_id || "").slice(0, 8) }}
+                  </p>
+                  <p class="text-lg font-bold text-black dark:text-white">
+                    {{ formatMoney(row.total_price ?? 0) }}
+                  </p>
+                  <p
+                    v-if="row.escrow_auto_confirm_at"
+                    class="text-xs text-neutral-600 dark:text-neutral-300 mt-1"
+                  >
+                    {{ t("wallet.pending_auto_at") }}: {{ formatDate(row.escrow_auto_confirm_at) }}
+                  </p>
+                </div>
+                <NuxtLink
+                  :to="localePath(`/order/${row.order_id}`)"
+                  class="inline-flex justify-center px-4 py-2 rounded-xl bg-neutral-900 text-white text-sm font-semibold hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200 transition shrink-0"
+                >
+                  {{ t("wallet.view_order") }}
+                </NuxtLink>
+              </li>
+            </ul>
+          </div>
 
           <!-- Policy -->
           <div

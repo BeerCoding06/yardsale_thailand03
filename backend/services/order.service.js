@@ -76,7 +76,7 @@ function computeOrderLifecycle(row) {
   if (st === 'payment_failed') return 'payment_failed';
   if (st === 'paid') {
     if (row.funds_settled_at) return 'completed';
-    if (sellerWalletService.isDeliveryConfirmedForWalletRelease(row)) return 'delivered';
+    if (sellerWalletService.isPhysicallyDelivered(row)) return 'delivered';
     if (ship === 'shipped' || ship === 'out_for_delivery') return 'shipped';
     return 'paid';
   }
@@ -102,6 +102,13 @@ export function formatOrderForApi(row) {
       country: snap.country || 'TH',
     };
   }
+  const st = coerceOrderStatusText(row.status);
+  const buyer_can_confirm_received =
+    st === 'paid' &&
+    sellerWalletService.isPhysicallyDelivered(row) &&
+    !row.buyer_confirmed_delivery_at &&
+    !row.funds_settled_at;
+
   return {
     ...row,
     billing,
@@ -111,6 +118,10 @@ export function formatOrderForApi(row) {
     order_lifecycle: computeOrderLifecycle(row),
     buyer_confirmed_delivery_at: row.buyer_confirmed_delivery_at ?? null,
     funds_settled_at: row.funds_settled_at ?? null,
+    delivered_at: row.delivered_at ?? null,
+    auto_confirmed_at: row.auto_confirmed_at ?? null,
+    escrow_auto_confirm_at: sellerWalletService.computeEscrowAutoConfirmDeadlineForOrder(row),
+    buyer_can_confirm_received,
   };
 }
 
@@ -408,18 +419,22 @@ export async function updateSellerOrderFulfillment(userId, orderId, body, role) 
   }
 
   return withTransaction(async (tx) => {
-    const updated = await orderModel.updateOrderFulfillment(tx, orderId, {
+    let updated = await orderModel.updateOrderFulfillment(tx, orderId, {
       shipping_status: shippingStatus,
       tracking_number: nextTn,
       shipping_receipt_number: nextReceipt,
       courier_name: nextCourier,
     });
+    if (updated && sellerWalletService.isPhysicallyDelivered(updated)) {
+      await orderModel.touchDeliveredAtIfUnset(tx, orderId);
+    }
     const walletRelease = await sellerWalletService.tryReleaseOrderFunds(
       tx,
       orderId,
       'fulfillment_update'
     );
-    return { order: formatOrderForApi(updated), wallet_release: walletRelease };
+    const fresh = await orderModel.getOrderById(tx, orderId);
+    return { order: formatOrderForApi(fresh || updated), wallet_release: walletRelease };
   });
 }
 
@@ -467,7 +482,25 @@ export async function confirmBuyerDelivery(orderId, buyerUserId) {
     if (order.user_id !== buyerUserId) {
       throw new AppError('Only the buyer can confirm delivery', 403, 'FORBIDDEN');
     }
-    await orderModel.setBuyerConfirmedDeliveryAt(client, orderId);
+    const st = coerceOrderStatusText(order.status);
+    if (st !== 'paid') {
+      throw new AppError('Order must be paid before confirming receipt', 400, 'INVALID_STATUS');
+    }
+    if (order.funds_settled_at) {
+      throw new AppError('Order funds are already settled', 400, 'ALREADY_SETTLED');
+    }
+    if (order.buyer_confirmed_delivery_at) {
+      throw new AppError('Receipt already confirmed', 400, 'ALREADY_CONFIRMED');
+    }
+    if (!sellerWalletService.isPhysicallyDelivered(order)) {
+      throw new AppError('Order is not marked as delivered yet', 400, 'NOT_DELIVERED');
+    }
+
+    const confirmed = await orderModel.setBuyerConfirmedDeliveryAt(client, orderId);
+    if (!confirmed) {
+      throw new AppError('Receipt already confirmed', 400, 'ALREADY_CONFIRMED');
+    }
+
     const walletRelease = await sellerWalletService.tryReleaseOrderFunds(
       client,
       orderId,
@@ -602,6 +635,9 @@ export async function adminPatchOrder(orderId, body) {
         shipping_receipt_number,
         courier_name,
       });
+      if (row && sellerWalletService.isPhysicallyDelivered(row)) {
+        await orderModel.touchDeliveredAtIfUnset(client, orderId);
+      }
       await client.query('SAVEPOINT admin_wallet_release');
       try {
         await sellerWalletService.tryReleaseOrderFunds(client, orderId, 'admin_patch');
@@ -658,6 +694,53 @@ export async function triggerAutoCancelUnshippedOrders(actorUserId = null) {
   } finally {
     client.release();
   }
+}
+
+/**
+ * Auto-confirm delivered orders after 48h without buyer action — releases escrow per seller wallet rules.
+ */
+export async function runAutoConfirmDeliveredOrders() {
+  const listClient = await pool.connect();
+  let ids = [];
+  try {
+    ids = await orderModel.listOrderIdsReadyForAutoConfirm(listClient);
+  } catch (e) {
+    if (e?.code === '42703') {
+      return { checked: 0, results: [], skipped: 'orders_schema' };
+    }
+    throw e;
+  } finally {
+    listClient.release();
+  }
+
+  const results = [];
+  for (const row of ids) {
+    const orderId = row.id;
+    try {
+      const one = await withTransaction(async (tx) => {
+        const locked = await orderModel.lockOrderForUpdate(tx, orderId);
+        if (!locked) return { order_id: orderId, ok: false, error: 'not_found' };
+        if (!sellerWalletService.isEscrowReleaseEligible(locked)) {
+          return { order_id: orderId, ok: true, skipped: 'not_eligible' };
+        }
+        const wr = await sellerWalletService.tryReleaseOrderFunds(tx, orderId, 'auto_confirm_48h');
+        const fresh = await orderModel.getOrderById(tx, orderId);
+        if (
+          fresh?.funds_settled_at &&
+          !fresh.buyer_confirmed_delivery_at &&
+          !fresh.auto_confirmed_at
+        ) {
+          await orderModel.setAutoConfirmedAtIfUnset(tx, orderId);
+        }
+        return { order_id: orderId, ok: true, wallet_release: wr };
+      });
+      results.push(one);
+    } catch (err) {
+      console.error('[order] escrow auto-confirm failed', { orderId, err: err?.message });
+      results.push({ order_id: orderId, ok: false, error: String(err?.message || err) });
+    }
+  }
+  return { checked: ids.length, results };
 }
 
 export async function cancelOrder(orderId, userId, role) {

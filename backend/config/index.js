@@ -65,6 +65,11 @@ export const config = {
     enabled: envFlag('AUTO_CANCEL_UNSHIPPED'),
     intervalMinutes: Number(process.env.AUTO_CANCEL_UNSHIPPED_INTERVAL_MINUTES) || 60,
   },
+  /** ปล่อย escrow อัตโนมัติหลังผู้ซื้อไม่กดยืนยัน 48 ชม. — เปิด: ESCROW_AUTO_CONFIRM_ENABLED=1 */
+  escrowAutoConfirm: {
+    enabled: envFlag('ESCROW_AUTO_CONFIRM_ENABLED'),
+    intervalMinutes: Number(process.env.ESCROW_AUTO_CONFIRM_INTERVAL_MINUTES) || 15,
+  },
   /**
    * บรรทัด log [payment-audit] … สำหรับไล่ production (ไม่ล็อก slip/base64)
    * เปิดชั่วคราว: PAYMENT_AUDIT_LOG=1

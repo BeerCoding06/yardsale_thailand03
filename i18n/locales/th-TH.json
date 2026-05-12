@@ -536,7 +536,12 @@
     "wd_approved": "อนุมัติแล้ว",
     "wd_rejected": "ปฏิเสธ",
     "wd_paid": "โอนแล้ว",
-    "wd_unknown": "ไม่ระบุ"
+    "wd_unknown": "ไม่ระบุ",
+    "pending_escrow_section": "ออเดอร์ที่รอปล่อยเงิน (escrow)",
+    "pending_escrow_empty": "ไม่มีออเดอร์ที่รอผู้ซื้อยืนยันรับสินค้า",
+    "pending_order_label": "ออเดอร์",
+    "pending_auto_at": "ปล่อยอัตโนมัติภายใน",
+    "view_order": "ดูออเดอร์"
   },
   "bwallet": {
     "title": "กระเป๋าเงินของฉัน",
@@ -690,6 +695,14 @@
     "error_loading": "เกิดข้อผิดพลาดในการโหลดรายละเอียดออเดอร์",
     "payment_method_unknown": "วิธีชำระเงิน",
     "line_items_title": "รายการสินค้า",
+    "confirm_received_title": "ยืนยันรับสินค้า",
+    "confirm_received_hint": "เมื่อยืนยันแล้ว ระบบจะปล่อยเงินให้ผู้ขาย หากไม่ดำเนินการ ระบบจะยืนยันอัตโนมัติภายใน 48 ชั่วโมงหลังจัดส่งสำเร็จ",
+    "confirm_received_button": "ยืนยันรับสินค้า",
+    "confirm_received_success": "ขอบคุณค่ะ/ครับ — คำสั่งซื้อเสร็จสมบูรณ์แล้ว",
+    "confirm_received_error": "ยืนยันรับสินค้าไม่สำเร็จ ลองใหม่อีกครั้ง",
+    "confirm_received_submitting": "กำลังยืนยัน…",
+    "escrow_countdown_remaining": "ยืนยันอัตโนมัติภายใน {time}",
+    "escrow_auto_confirm_pending": "ถึงเวลายืนยันอัตโนมัติแล้ว กำลังอัปเดตยอดเงิน",
     "price_times_qty": "฿{price} × {qty}",
     "shipment_section_title": "ไทม์ไลน์การจัดส่ง",
     "track_order": "ติดตามพัสดุ",

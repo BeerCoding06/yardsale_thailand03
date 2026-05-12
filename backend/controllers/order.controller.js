@@ -85,6 +85,12 @@ export const confirmBuyerDelivery = asyncHandler(async (req, res) => {
   sendSuccess(res, { success: true, ...data });
 });
 
+/** แอดมิน / cron: ปล่อย escrow ออเดอร์ที่จัดส่งแล้วครบ 48 ชม. โดยไม่มีผู้ซื้อยืนยัน */
+export const adminRunAutoConfirmDeliveredOrders = asyncHandler(async (_req, res) => {
+  const data = await orderService.runAutoConfirmDeliveredOrders();
+  sendSuccess(res, { success: true, ...data });
+});
+
 /** แอดมิน: บังคับสถานะจัดส่งเป็น delivered + พยายามปล่อยเงิน */
 export const adminMarkOrderDelivered = asyncHandler(async (req, res) => {
   const data = await orderService.adminMarkOrderDelivered(req.params.orderId);

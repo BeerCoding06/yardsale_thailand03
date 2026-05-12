@@ -35,7 +35,7 @@ export function lineItemRowToApi(row) {
 /** รวมคอลัมน์ wallet/จัดส่ง — ต้องรัน migration wallet (buyer_confirmed_delivery_at, funds_settled_at) */
 const ORDER_SELECT_BASE = `id, user_id, total_price, status, slip_image_url, created_at,
   billing_snapshot, shipping_status, tracking_number, shipping_receipt_number, courier_name, fulfillment_updated_at,
-  buyer_confirmed_delivery_at, funds_settled_at`;
+  buyer_confirmed_delivery_at, funds_settled_at, delivered_at, auto_confirmed_at`;
 
 const ORDER_O = ORDER_SELECT_BASE.split(',')
   .map((s) => `o.${s.trim()}`)
@@ -43,7 +43,8 @@ const ORDER_O = ORDER_SELECT_BASE.split(',')
 
 /** เมื่อ migration wallet ยังไม่รันบน orders — กัน 42703 บน list seller / admin orders */
 const ORDER_SELECT_NO_WALLET = `id, user_id, total_price, status, slip_image_url, created_at,
-  billing_snapshot, shipping_status, tracking_number, shipping_receipt_number, courier_name, fulfillment_updated_at`;
+  billing_snapshot, shipping_status, tracking_number, shipping_receipt_number, courier_name, fulfillment_updated_at,
+  delivered_at, auto_confirmed_at`;
 const ORDER_O_NO_WALLET = ORDER_SELECT_NO_WALLET.split(',')
   .map((s) => `o.${s.trim()}`)
   .join(', ');
@@ -668,13 +669,95 @@ export async function countSellersWithPositiveShareForOrder(client, orderId) {
 
 export async function setBuyerConfirmedDeliveryAt(client, orderId) {
   const id = asOrderUuid(orderId);
-  const r = await client.query(
-    `UPDATE orders SET buyer_confirmed_delivery_at = COALESCE(buyer_confirmed_delivery_at, now())
-     WHERE id = $1::uuid
-     RETURNING ${ORDER_SELECT_BASE}`,
+  const r = await queryWithOrderReturningFallback(
+    client,
+    (cols) =>
+      `UPDATE orders SET buyer_confirmed_delivery_at = now()
+       WHERE id = $1::uuid AND buyer_confirmed_delivery_at IS NULL
+       RETURNING ${cols}`,
     [id]
   );
   return r.rows[0] || null;
+}
+
+export async function touchDeliveredAtIfUnset(client, orderId) {
+  const id = asOrderUuid(orderId);
+  const r = await queryWithOrderReturningFallback(
+    client,
+    (cols) =>
+      `UPDATE orders SET delivered_at = COALESCE(delivered_at, now())
+       WHERE id = $1::uuid AND delivered_at IS NULL
+       RETURNING ${cols}`,
+    [id]
+  );
+  return r.rows[0] || null;
+}
+
+export async function setAutoConfirmedAtIfUnset(client, orderId) {
+  const id = asOrderUuid(orderId);
+  const r = await queryWithOrderReturningFallback(
+    client,
+    (cols) =>
+      `UPDATE orders SET auto_confirmed_at = COALESCE(auto_confirmed_at, now())
+       WHERE id = $1::uuid AND auto_confirmed_at IS NULL
+       RETURNING ${cols}`,
+    [id]
+  );
+  return r.rows[0] || null;
+}
+
+/** ออเดอร์ที่รอ auto-confirm หลังครบ 48 ชม. จาก delivered_at */
+export async function listOrderIdsReadyForAutoConfirm(client) {
+  try {
+    const r = await client.query(
+      `SELECT o.id
+       FROM orders o
+       WHERE o.status = 'paid'::order_status
+         AND o.funds_settled_at IS NULL
+         AND o.buyer_confirmed_delivery_at IS NULL
+         AND o.delivered_at IS NOT NULL
+         AND o.delivered_at + interval '48 hours' <= NOW()
+         AND (
+           LOWER(REGEXP_REPLACE(TRIM(COALESCE(o.shipping_status::text, '')), '-', '_', 'g')) IN (
+             'delivered', 'delivery_success', 'delivered_ok', 'successfully_delivered', 'pod'
+           )
+           OR COALESCE(o.shipping_status::text, '') ~ 'จัดส่งสำเร็จ|ส่งมอบแล้ว|นำส่งสำเร็จ'
+           OR COALESCE(o.shipping_status::text, '') ~* 'delivery[[:space:]]*success|successfully[[:space:]]*delivered'
+         )
+       ORDER BY o.delivered_at ASC
+       LIMIT 200`
+    );
+    return r.rows;
+  } catch (e) {
+    if (e?.code === '42703') return [];
+    throw e;
+  }
+}
+
+/** ออเดอร์ที่ยังไม่ปิดบัญชีกระเป๋าผู้ขาย (paid, funds ยังไม่ settle) ที่มีสินค้าของผู้ขาย */
+export async function listSellerPendingEscrowOrders(client, sellerId, limit = 20) {
+  try {
+    const r = await client.query(
+      `SELECT o.id, o.total_price, o.shipping_status, o.delivered_at,
+              o.buyer_confirmed_delivery_at, o.funds_settled_at, o.created_at
+       FROM orders o
+       WHERE o.id IN (
+         SELECT DISTINCT oi.order_id
+         FROM order_items oi
+         INNER JOIN products p ON p.id = oi.product_id
+         WHERE p.seller_id = $1::uuid
+       )
+         AND o.status = 'paid'::order_status
+         AND o.funds_settled_at IS NULL
+       ORDER BY o.created_at DESC
+       LIMIT $2::int`,
+      [sellerId, limit]
+    );
+    return r.rows;
+  } catch (e) {
+    if (e?.code === '42703' || e?.code === '42P01') return [];
+    throw e;
+  }
 }
 
 export async function setFundsSettledAtIfUnset(client, orderId) {
@@ -690,12 +773,15 @@ export async function setFundsSettledAtIfUnset(client, orderId) {
 
 export async function adminSetShippingDelivered(client, orderId) {
   const id = asOrderUuid(orderId);
-  const r = await client.query(
-    `UPDATE orders SET
+  const r = await queryWithOrderReturningFallback(
+    client,
+    (cols) =>
+      `UPDATE orders SET
        shipping_status = 'delivered',
-       fulfillment_updated_at = now()
+       fulfillment_updated_at = now(),
+       delivered_at = COALESCE(delivered_at, now())
      WHERE id = $1::uuid
-     RETURNING ${ORDER_SELECT_BASE}`,
+     RETURNING ${cols}`,
     [id]
   );
   return r.rows[0] || null;

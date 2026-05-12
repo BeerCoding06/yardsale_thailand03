@@ -536,7 +536,12 @@
     "wd_approved": "Approved",
     "wd_rejected": "Rejected",
     "wd_paid": "Paid out",
-    "wd_unknown": "Unknown"
+    "wd_unknown": "Unknown",
+    "pending_escrow_section": "Orders pending release (escrow)",
+    "pending_escrow_empty": "No paid orders are waiting for buyer confirmation.",
+    "pending_order_label": "Order",
+    "pending_auto_at": "Auto-release by",
+    "view_order": "View order"
   },
   "bwallet": {
     "title": "My Wallet",
@@ -686,6 +691,14 @@
     "unit_price": "Unit price",
     "payment_method_unknown": "Payment method",
     "line_items_title": "Order items",
+    "confirm_received_title": "Confirm receipt",
+    "confirm_received_hint": "After you confirm, payment is released to the seller. If you take no action, the order auto-completes 48 hours after delivery.",
+    "confirm_received_button": "Confirm received",
+    "confirm_received_success": "Thank you — your order is completed.",
+    "confirm_received_error": "Could not confirm receipt. Try again.",
+    "confirm_received_submitting": "Confirming…",
+    "escrow_countdown_remaining": "Auto-confirm in {time}",
+    "escrow_auto_confirm_pending": "Auto-confirmation is due; balances should update shortly.",
     "price_times_qty": "฿{price} × {qty}",
     "shipment_section_title": "Shipment timeline",
     "track_order": "Track Order",

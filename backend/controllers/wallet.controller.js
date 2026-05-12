@@ -7,6 +7,15 @@ export const getWallet = asyncHandler(async (req, res) => {
   sendSuccessNoStore(res, data);
 });
 
+/** Escrow movements only (subset of GET /wallet for clients that poll transactions). */
+export const getWalletTransactions = asyncHandler(async (req, res) => {
+  const data = await sellerWalletService.getWalletOverview(req.user.id);
+  sendSuccessNoStore(res, {
+    transactions: data.transactions,
+    wallet_schema_incomplete: data.wallet_schema_incomplete,
+  });
+});
+
 export const getWithdrawalBankOptions = asyncHandler(async (_req, res) => {
   const data = sellerWalletService.getPayoutBankOptions();
   sendSuccessNoStore(res, data);

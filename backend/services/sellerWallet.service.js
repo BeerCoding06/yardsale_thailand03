@@ -46,13 +46,9 @@ function normalizeShippingStatusKey(raw) {
     .replace(/\s+/g, '_');
 }
 
-/**
- * ยืนยันการส่งมอบสำหรับปล่อย escrow — รองรับค่า/ข้อความจากขนส่งที่ไม่ตรงทุกตัวกับ `delivered`
- */
-export function isDeliveryConfirmedForWalletRelease(order) {
+/** สถานะขนส่งถือว่า “ส่งถึงผู้ซื้อแล้ว” (ยังไม่ปล่อยเงิน — ต้องรอยืนยันผู้ซื้อหรือครบ 48 ชม.) */
+export function isPhysicallyDelivered(order) {
   if (!order) return false;
-  if (order.buyer_confirmed_delivery_at != null) return true;
-
   const raw = order.shipping_status;
   const norm = normalizeShippingStatusKey(raw);
   if (norm === 'delivered') return true;
@@ -64,15 +60,40 @@ export function isDeliveryConfirmedForWalletRelease(order) {
   ) {
     return true;
   }
-
   const plain = String(raw || '');
   if (
     /จัดส่งสำเร็จ|ส่งมอบแล้ว|นำส่งสำเร็จ|delivery\s*success|successfully\s*delivered|\bpod\b/i.test(plain)
   ) {
     return true;
   }
-
   return false;
+}
+
+const ESCROW_AUTO_CONFIRM_MS = 48 * 3600 * 1000;
+
+/** วันที่ระบบจะยืนยันอัตโนมัติ (ISO) — null ถ้าไม่มี countdown */
+export function computeEscrowAutoConfirmDeadlineForOrder(order) {
+  if (!order || order.funds_settled_at != null || order.buyer_confirmed_delivery_at != null) {
+    return null;
+  }
+  if (!isPhysicallyDelivered(order) || !order.delivered_at) return null;
+  const t = new Date(order.delivered_at).getTime();
+  if (!Number.isFinite(t)) return null;
+  return new Date(t + ESCROW_AUTO_CONFIRM_MS).toISOString();
+}
+
+/**
+ * ปล่อย escrow → available เมื่อ: ผู้ซื้อยืนยันรับ หรือ ส่งถึงแล้ว + มี delivered_at + ครบ 48 ชม.
+ */
+export function isEscrowReleaseEligible(order) {
+  if (!order) return false;
+  if (order.buyer_confirmed_delivery_at != null) return true;
+  if (!isPhysicallyDelivered(order)) return false;
+  const d = order.delivered_at;
+  if (!d) return false;
+  const t = new Date(d).getTime();
+  if (!Number.isFinite(t)) return false;
+  return Date.now() >= t + ESCROW_AUTO_CONFIRM_MS;
 }
 
 function formatWalletRow(row) {
@@ -214,8 +235,8 @@ export async function recordEscrowForPaidOrder(client, orderId) {
 }
 
 /**
- * Release escrow → available when delivery criteria met (idempotent per seller).
- * Criteria: order paid AND (shipping_status ถือว่าส่งมอบแล้ว หรือ buyer_confirmed_delivery_at)
+ * Release escrow → available when: buyer confirmed receipt, or physically delivered
+ * with `delivered_at` set and 48 hours elapsed since then (idempotent per seller).
  */
 export async function tryReleaseOrderFunds(client, orderId, trigger = 'unknown') {
   const order = await orderModel.lockOrderForUpdate(client, orderId);
@@ -224,7 +245,7 @@ export async function tryReleaseOrderFunds(client, orderId, trigger = 'unknown')
     return { released: false, reason: 'not_paid' };
   }
 
-  if (!isDeliveryConfirmedForWalletRelease(order)) {
+  if (!isEscrowReleaseEligible(order)) {
     return { released: false, reason: 'delivery_not_confirmed' };
   }
 
@@ -264,7 +285,12 @@ export async function tryReleaseOrderFunds(client, orderId, trigger = 'unknown')
       type: 'release',
       amount: amt,
       status: 'completed',
-      metadata: { trigger },
+      metadata: {
+        trigger,
+        ...(trigger === 'auto_confirm_48h' && {
+          auto_confirm_reason: 'delivered_48h_no_buyer_confirm',
+        }),
+      },
     });
     await walletModel.insertFinancialAudit(client, {
       actorUserId: null,
@@ -301,6 +327,21 @@ export async function getWalletOverview(userId) {
       await walletModel.ensureSellerWallet(client, userId);
       const w = await walletModel.getSellerWallet(client, userId);
       const tx = await walletModel.listWalletTransactionsForSeller(client, userId, { limit: 40, offset: 0 });
+      let pendingEscrowOrders = [];
+      try {
+        const rows = await orderModel.listSellerPendingEscrowOrders(client, userId, 25);
+        pendingEscrowOrders = rows.map((row) => ({
+          order_id: row.id,
+          total_price: money(row.total_price),
+          shipping_status: row.shipping_status,
+          delivered_at: row.delivered_at,
+          buyer_confirmed_delivery_at: row.buyer_confirmed_delivery_at,
+          escrow_auto_confirm_at: computeEscrowAutoConfirmDeadlineForOrder(row),
+        }));
+      } catch (e) {
+        if (e?.code !== '42703' && e?.code !== '42P01') throw e;
+        pendingEscrowOrders = [];
+      }
       return {
         success: true,
         wallet_schema_incomplete: false,
@@ -310,6 +351,7 @@ export async function getWalletOverview(userId) {
           escrow_balance: 0,
           updated_at: null,
         },
+        pending_escrow_orders: pendingEscrowOrders,
         transactions: tx.map(formatTxRow),
         withdrawal_policy: {
           fee_percent: WITHDRAWAL_FEE_PERCENT,
@@ -330,6 +372,7 @@ export async function getWalletOverview(userId) {
           escrow_balance: 0,
           updated_at: null,
         },
+        pending_escrow_orders: [],
         transactions: [],
         withdrawal_policy: {
           fee_percent: WITHDRAWAL_FEE_PERCENT,

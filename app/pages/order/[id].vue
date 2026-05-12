@@ -5,7 +5,8 @@ definePageMeta({
   ssr: false,
 });
 
-import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
+import { unwrapYardsaleResponse, messageFromYardsaleBody } from "~/utils/cmsApiEndpoint";
+import { useNow } from "@vueuse/core";
 import {
   buildShipmentTimelineSteps,
   getShipmentActiveStepIndex,
@@ -26,6 +27,9 @@ const isLoading = ref(true);
 const order = ref(null);
 const error = ref(null);
 const showTrackingModal = ref(false);
+const confirmSubmitting = ref(false);
+
+const now = useNow({ interval: 1000 });
 
 const timelineSteps = computed(() =>
   order.value ? buildShipmentTimelineSteps(order.value) : []
@@ -43,6 +47,42 @@ const canOpenTracking = computed(() => {
   const o = order.value;
   if (String(o.tracking_number || o.trackingNumber || "").trim()) return true;
   return getShipmentActiveStepIndex(o) >= 2;
+});
+
+const isOrderBuyer = computed(() => {
+  const uid = String(user.value?.id ?? user.value?.ID ?? "")
+    .toLowerCase()
+    .trim();
+  const bid = String(order.value?.user_id ?? "")
+    .toLowerCase()
+    .trim();
+  return !!uid && !!bid && uid === bid;
+});
+
+const showBuyerConfirmEscrow = computed(
+  () => !!order.value && isOrderBuyer.value && !!order.value.buyer_can_confirm_received
+);
+
+function formatEscrowDuration(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return "";
+  const totalSec = Math.floor(ms / 1000);
+  const days = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const sec = totalSec % 60;
+  if (days > 0) return `${days}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m ${sec}s`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+const escrowCountdownText = computed(() => {
+  if (!showBuyerConfirmEscrow.value || !order.value?.escrow_auto_confirm_at) return "";
+  const end = new Date(order.value.escrow_auto_confirm_at).getTime();
+  const left = end - now.value.getTime();
+  if (!Number.isFinite(left)) return "";
+  if (left <= 0) return t("order.escrow_auto_confirm_pending");
+  return t("order.escrow_countdown_remaining", { time: formatEscrowDuration(left) });
 });
 
 function notifyShipmentFingerprintChange() {
@@ -64,6 +104,37 @@ function notifyShipmentFingerprintChange() {
     sessionStorage.setItem(key, fp);
   } catch {
     /* ignore */
+  }
+}
+
+function applyOrderFromApi(o) {
+  order.value = {
+    ...o,
+    total: String(o.total_price ?? o.total ?? 0),
+    date_created: o.created_at ?? o.date_created,
+  };
+  notifyShipmentFingerprintChange();
+}
+
+async function confirmReceived() {
+  if (!hasRemoteApi || !user.value?.token || confirmSubmitting.value) return;
+  try {
+    confirmSubmitting.value = true;
+    const id = encodeURIComponent(String(orderId.value));
+    const raw = await $fetch(endpoint(`orders/${id}/confirm-received`), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${user.value.token}` },
+    });
+    const inner = unwrapYardsaleResponse(raw) ?? raw;
+    const o = inner?.order;
+    if (o) {
+      applyOrderFromApi(o);
+      notify(t("order.confirm_received_success"), "success");
+    }
+  } catch (e) {
+    notify(messageFromYardsaleBody(e?.data, t("order.confirm_received_error")), "error");
+  } finally {
+    confirmSubmitting.value = false;
   }
 }
 
@@ -104,12 +175,7 @@ const fetchOrder = async () => {
       const inner = unwrapYardsaleResponse(raw) ?? raw;
       const o = inner?.order;
       if (o) {
-        order.value = {
-          ...o,
-          total: String(o.total_price ?? o.total ?? 0),
-          date_created: o.created_at ?? o.date_created,
-        };
-        notifyShipmentFingerprintChange();
+        applyOrderFromApi(o);
       } else {
         error.value = t("order.order_not_found");
       }
@@ -295,6 +361,41 @@ onMounted(async () => {
           </div>
 
           <OrderTrackingModal v-model="showTrackingModal" :order="order" />
+
+          <div
+            v-if="showBuyerConfirmEscrow"
+            class="bg-white/80 dark:bg-black/20 rounded-2xl p-6 shadow-lg border-2 border-emerald-200 dark:border-emerald-800 mb-6"
+          >
+            <h2 class="text-xl font-semibold mb-2 text-black dark:text-white">
+              {{ $t("order.confirm_received_title") }}
+            </h2>
+            <p class="text-sm text-neutral-600 dark:text-neutral-400 mb-3">
+              {{ $t("order.confirm_received_hint") }}
+            </p>
+            <p
+              v-if="escrowCountdownText"
+              class="text-sm font-medium text-emerald-800 dark:text-emerald-200 mb-4"
+            >
+              {{ escrowCountdownText }}
+            </p>
+            <button
+              type="button"
+              class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+              :disabled="confirmSubmitting"
+              @click="confirmReceived"
+            >
+              <UIcon
+                v-if="confirmSubmitting"
+                name="i-svg-spinners-90-ring-with-bg"
+                class="h-5 w-5"
+              />
+              {{
+                confirmSubmitting
+                  ? $t("order.confirm_received_submitting")
+                  : $t("order.confirm_received_button")
+              }}
+            </button>
+          </div>
 
           <!-- Billing Address Card -->
           <div

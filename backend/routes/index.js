@@ -218,6 +218,12 @@ router.post(
   validate(sellerOrderFulfillmentParamsSchema, 'params'),
   orderController.confirmBuyerDelivery
 );
+router.post(
+  '/orders/:orderId/confirm-received',
+  authMiddleware,
+  validate(sellerOrderFulfillmentParamsSchema, 'params'),
+  orderController.confirmBuyerDelivery
+);
 router.post('/cancel-order', authMiddleware, validate(cancelOrderSchema), orderController.cancelOrder);
 
 router.get(
@@ -225,6 +231,12 @@ router.get(
   authMiddleware,
   requireRoles('user', 'seller', 'admin'),
   walletController.getWallet
+);
+router.get(
+  '/wallet/transactions',
+  authMiddleware,
+  requireRoles('user', 'seller', 'admin'),
+  walletController.getWalletTransactions
 );
 router.get(
   '/wallet/bank-options',
@@ -343,6 +355,12 @@ router.get('/admin/buyer-wallet/refunds', authMiddleware, requireRoles('admin'),
 router.post('/admin/buyer-wallet/refund', authMiddleware, requireRoles('admin'), buyerWalletController.adminManualRefund);
 router.post('/admin/buyer-wallet/trigger-unshipped-refunds', authMiddleware, requireRoles('admin'), buyerWalletController.adminTriggerUnshippedRefunds);
 router.post('/admin/orders/trigger-unshipped-cancels', authMiddleware, requireRoles('admin'), orderController.adminTriggerAutoCancelUnshippedOrders);
+router.post(
+  '/admin/orders/run-auto-confirm-delivered',
+  authMiddleware,
+  requireRoles('admin'),
+  orderController.adminRunAutoConfirmDeliveredOrders
+);
 router.get('/admin/buyer-wallet/refund-requests', authMiddleware, requireRoles('admin'), buyerWalletController.adminListRefundRequests);
 router.post('/admin/buyer-wallet/refund-requests/:id/approve', authMiddleware, requireRoles('admin'), buyerWalletController.adminApproveRefundRequest);
 router.post('/admin/buyer-wallet/refund-requests/:id/reject', authMiddleware, requireRoles('admin'), buyerWalletController.adminRejectRefundRequest);

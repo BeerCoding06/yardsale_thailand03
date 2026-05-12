@@ -11,4 +11,5 @@ export const WALLET_MIGRATION_SQL_PATHS = [
   'migrations/20260503_refund_request_evidence.sql',
   'migrations/20260504_refund_request_products.sql',
   'migrations/20260506_refund_request_inspected.sql',
+  'migrations/20260512_escrow_delivered_at.sql',
 ].map((rel) => path.join(__dirname, rel));

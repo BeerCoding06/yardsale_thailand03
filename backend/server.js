@@ -10,6 +10,7 @@ import { ensureWalletSchemaOnStartup } from './bootstrap/ensureWalletSchema.js';
 import { ensureBuyerWalletSchemaOnStartup } from './bootstrap/ensureBuyerWalletSchema.js';
 import { ensureRefundRequestEvidenceColumnOnStartup } from './bootstrap/ensureRefundRequestEvidence.js';
 import { ensureSupportChatSchemaOnStartup } from './bootstrap/ensureSupportChatSchema.js';
+import { ensureEscrowDeliveryColumnsOnStartup } from './bootstrap/ensureEscrowDeliveryColumns.js';
 
 /** ผูก 0.0.0.0 — ใน Docker healthcheck ใช้ 127.0.0.1; ถ้าฟังเฉพาะ :: บาง image จะไม่รับ IPv4 loopback */
 const host = String(process.env.HOST || '0.0.0.0').trim() || '0.0.0.0';
@@ -18,6 +19,7 @@ async function main() {
   await ensureBuyerWalletSchemaOnStartup();
   await ensureRefundRequestEvidenceColumnOnStartup();
   await ensureWalletSchemaOnStartup();
+  await ensureEscrowDeliveryColumnsOnStartup();
   await ensureSupportChatSchemaOnStartup();
   app.listen(config.port, host, () => {
     console.info(`[server] http://${host}:${config.port}`);
@@ -50,6 +52,26 @@ async function main() {
       console.info(`[server] auto-cancel unshipped orders enabled; interval=${intervalMinutes}min`);
       runAutoCancel().catch((err) => console.error('[server] auto-cancel startup failed', err));
       setInterval(runAutoCancel, intervalMs);
+    }
+
+    if (config.escrowAutoConfirm.enabled) {
+      const intervalMinutes = Math.max(1, Number(config.escrowAutoConfirm.intervalMinutes) || 15);
+      const intervalMs = intervalMinutes * 60 * 1000;
+      const runEscrowAutoConfirm = async () => {
+        try {
+          const result = await orderService.runAutoConfirmDeliveredOrders();
+          console.info('[server] escrow auto-confirm delivered orders completed', {
+            checked: result.checked,
+            results: Array.isArray(result.results) ? result.results.length : 0,
+          });
+        } catch (err) {
+          console.error('[server] escrow auto-confirm failed', err);
+        }
+      };
+
+      console.info(`[server] escrow auto-confirm enabled; interval=${intervalMinutes}min`);
+      runEscrowAutoConfirm().catch((err) => console.error('[server] escrow auto-confirm startup failed', err));
+      setInterval(runEscrowAutoConfirm, intervalMs);
     }
   });
 }
