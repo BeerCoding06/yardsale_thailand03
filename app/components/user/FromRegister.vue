@@ -183,7 +183,7 @@ const handleSubmit = async (e) => {
     const firstName = form.value.first_name.trim();
     const lastName = form.value.last_name.trim();
     const nameParts = [firstName, lastName].filter(Boolean);
-    const payload: Record<string, unknown> = {
+    const payload = {
       email: form.value.email.trim(),
       password: form.value.password,
       name: nameParts.join(" ") || undefined,
