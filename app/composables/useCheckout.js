@@ -114,7 +114,7 @@ export const useCheckout = () => {
         ...(jwtToken ? { headers: { Authorization: `Bearer ${jwtToken}` } } : {}),
       });
 
-      // ถ้า API ส่ง billing มา (จาก WooCommerce/WordPress) ใช้เขียนทับ
+      // ถ้า API ส่ง billing มา ใช้เขียนทับ
       const billing = customerData?.billing ?? customerData?.customer;
       if (billing && typeof billing === 'object') {
         customerBillingData.value = billing;
@@ -221,7 +221,7 @@ export const useCheckout = () => {
         return Number.isFinite(n) ? n : 0;
       };
 
-      /** ต้องเป็น UUID แบบ Postgres — ตะกร้าเก่า/localStorage อาจมีเลข WooCommerce ทำให้ API ได้ 500 (22P02) */
+      /** ต้องเป็น UUID แบบ Postgres — ตะกร้าเก่า/localStorage อาจมีค่าผิดรูปแบบทำให้ API ได้ 500 (22P02) */
       const pgUuidRe =
         /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
       let line_items;

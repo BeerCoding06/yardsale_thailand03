@@ -153,7 +153,7 @@ const getItemImage = (item) => {
     return fromApi.trim();
   }
 
-  // First, try WooCommerce image data (immediate)
+  // First, try images array (immediate)
   if (item.images && Array.isArray(item.images) && item.images.length > 0) {
     const img = item.images[0];
     if (img.src) return img.src;
@@ -170,7 +170,7 @@ const getItemImage = (item) => {
     return item.image.sourceUrl;
   }
   
-  // If image is in meta_data (WooCommerce format)
+  // If image is in meta_data
   if (item.meta_data && Array.isArray(item.meta_data)) {
     const imageMeta = item.meta_data.find(meta => meta.key === '_product_image' || meta.key === 'image');
     if (imageMeta && imageMeta.value) {
@@ -178,12 +178,12 @@ const getItemImage = (item) => {
     }
   }
   
-  // Then try WordPress REST API cache
+  // Then try product image cache
   if (item.product_id && productImages.value.has(item.product_id)) {
     return productImages.value.get(item.product_id);
   }
 
-  // If no image found and has product id, try to fetch from WordPress REST API (async)
+  // If no image found and has product id, try to fetch from catalog (async)
   if (item.product_id && !productImages.value.has(item.product_id)) {
     fetchProductImageFromCatalog(item.product_id).catch(() => {
       // Silently fail
@@ -335,7 +335,7 @@ const fetchOrders = async () => {
     orders.value = list.map(normalizeMyOrderRow);
     hasLoadedOrders.value = true;
 
-    // Fetch product images from WordPress REST API for line items without images (in background)
+    // Fetch product images for line items without images (in background)
     const productIds = new Set();
     orders.value.forEach((order) => {
       if (order.line_items && Array.isArray(order.line_items)) {
@@ -353,7 +353,7 @@ const fetchOrders = async () => {
       }
     });
 
-    // Fetch images from WordPress REST API (in background, don't wait)
+    // Fetch images from catalog (in background, don't wait)
     Array.from(productIds).forEach(productId => {
       fetchProductImageFromCatalog(productId).catch(() => {
         // Silently fail

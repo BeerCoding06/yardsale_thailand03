@@ -71,7 +71,7 @@ const errors = ref({
   images: "",
 });
 
-// Categories from WordPress
+// Categories
 const categories = ref([]);
 const isLoadingCategories = ref(false);
 const selectedCategoryIds = ref([]);
@@ -86,7 +86,7 @@ const uploadedImages = ref([]);
 const categorySelect = ref(null);
 const tagsSelect = ref(null);
 
-// Tags from WordPress
+// Tags
 const tags = ref([]);
 const isLoadingTags = ref(false);
 const selectedTags = ref([]);
@@ -251,7 +251,7 @@ const loadProductData = () => {
   form.value.type = prod.type || "variable";
 
   // Load prices - handle both string and number formats, empty strings, and null
-  // WooCommerce API may return empty string "" for regular_price when there's a sale price
+  // API may return empty string "" for regular_price when there's a sale price
   // In that case, we need to parse price_html or check meta_data
   let regularPrice = prod.regular_price;
   let salePrice = prod.sale_price;
@@ -466,7 +466,7 @@ watch(
   { immediate: true, deep: true }
 );
 
-// Fetch categories and tags from WordPress
+// Fetch categories and tags
 onMounted(async () => {
   isLoadingCategories.value = true;
   isLoadingTags.value = true;
@@ -514,7 +514,7 @@ onMounted(async () => {
     if (categories.value.length === 0) {
       message.value = {
         type: "error",
-        text: "ไม่พบหมวดหมู่สินค้า กรุณาตรวจสอบว่า WordPress มี WooCommerce Product Categories หรือไม่",
+        text: "ไม่พบหมวดหมู่สินค้า กรุณาตรวจสอบว่ามีหมวดหมู่ในระบบหรือไม่",
       };
     }
 
@@ -1157,12 +1157,12 @@ const handleSubmit = async (e) => {
       sku: form.value.sku || undefined,
     };
 
-    // Upload images to WordPress media library first
+    // Upload images first
 
     if (uploadedImages.value && uploadedImages.value.length > 0) {
       const uploadedImageUrls = [];
 
-      // Upload each image to WordPress
+      // Upload each image
       for (const img of uploadedImages.value) {
         if (img && img.file) {
           try {
@@ -1175,7 +1175,7 @@ const handleSubmit = async (e) => {
               formData.append("token", token);
             }
 
-            // Upload to WordPress media library (JWT in header + FormData so server always gets it)
+            // Upload image (JWT in header + FormData so server always gets it)
             const uploadResult = await $fetch("/api/upload-image", {
               method: "POST",
               body: formData,

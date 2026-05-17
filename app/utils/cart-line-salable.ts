@@ -1,6 +1,5 @@
 /**
- * WooCommerce บางครั้งค้าง stock_status = outofstock ทั้งที่ stock_quantity พอ
- * (เช่น สินค้าเคยถูกยกเลิก/แก้สต็อกใน WC แล้วแต่สถานะไม่อัปเดต)
+ * บางครั้ง stock_status = outofstock ทั้งที่ stock_quantity พอ
  * ถ้ามีจำนวนสต็อกชัดเจนและเพียงพอต่อ qty ในตะกร้า ให้ถือว่าขายได้
  */
 export function isCartLineSalableBySnapshot(

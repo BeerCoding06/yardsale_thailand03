@@ -202,7 +202,7 @@ const errors = ref({
   images: "",
 });
 
-// Categories from WordPress
+// Categories
 const categories = ref([]);
 const isLoadingCategories = ref(false);
 const selectedCategoryIds = ref([]);
@@ -223,7 +223,7 @@ const descriptionEditorInstance = ref(null);
 const shortDescriptionEditor = ref(null);
 const shortDescriptionEditorInstance = ref(null);
 
-// Tags from WordPress
+// Tags
 const tags = ref([]);
 const isLoadingTags = ref(false);
 const selectedTags = ref([]);
@@ -391,13 +391,13 @@ const initTagsSelect2 = () => {
   }
 };
 
-// Fetch categories and tags from WordPress
+// Fetch categories and tags
 onMounted(async () => {
   isLoadingCategories.value = true;
   isLoadingTags.value = true;
 
   try {
-    // Fetch categories for form select (wp-categories ใช้ WooCommerce API; fallback ไป /api/categories)
+    // Fetch categories for form select (fallback ไป /api/categories)
     try {
       let categoriesData = await $fetch(cmsPath("wp-categories")).catch(() => null);
       categoriesData = unwrapApiPayload(categoriesData);
@@ -1236,7 +1236,7 @@ const handleSubmit = async (e) => {
       return;
     }
 
-    // Prepare payload (mock / WordPress)
+    // Prepare payload
     const payload = {
       name: productForm.value.name,
       type: productForm.value.type || "simple", // Use simple product type
@@ -1254,12 +1254,12 @@ const handleSubmit = async (e) => {
       post_author: user.value.id, // Add logged-in user ID as post_author
     };
 
-    // Upload images to WordPress media library first
+    // Upload images first
 
     if (uploadedImages.value && uploadedImages.value.length > 0) {
       const uploadedImageUrls = [];
 
-      // Upload each image to WordPress
+      // Upload each image
       for (const img of uploadedImages.value) {
         if (img && img.file) {
           try {
@@ -1272,7 +1272,7 @@ const handleSubmit = async (e) => {
               formData.append("token", token);
             }
 
-            // Upload to WordPress media library (JWT in header + FormData so server always gets it)
+            // Upload image (JWT in header + FormData so server always gets it)
             const uploadResult = await $fetch("/api/upload-image", {
               method: "POST",
               body: formData,
@@ -1346,7 +1346,7 @@ const handleSubmit = async (e) => {
       }
     });
 
-    // Include JWT so Nuxt calls WordPress plugin (create as logged-in user); token in body in case header is stripped
+    // Include JWT (create as logged-in user); token in body in case header is stripped
     const token = user.value?.token;
     if (token) {
       payload.token = token;

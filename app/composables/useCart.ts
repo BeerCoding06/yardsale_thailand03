@@ -83,7 +83,7 @@ export const useCart = () => {
     }
   };
 
-  /** parentProductId = WooCommerce parent product id เมื่อ productId คือ variation id */
+  /** parentProductId = parent product id เมื่อ productId คือ variation id */
   const handleAddToCart = async (productId: number | string, parentProductId?: number) => {
     try {
       addToCartButtonStatus.value = 'loading';

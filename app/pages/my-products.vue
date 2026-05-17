@@ -183,7 +183,7 @@ function formatModerationAt(iso: unknown) {
   });
 }
 
-// Get product image URL from WooCommerce data
+// Get product image URL
 const getProductImage = (product: any) => {
   if (!product) return null;
 
@@ -191,7 +191,7 @@ const getProductImage = (product: any) => {
     return product.image_url;
   }
 
-  // Try WooCommerce images array
+  // Try images array
   if (product.images && Array.isArray(product.images) && product.images.length > 0) {
     const img = product.images[0];
     if (img.src) return img.src;

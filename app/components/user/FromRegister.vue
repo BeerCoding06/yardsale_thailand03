@@ -13,6 +13,7 @@
 
 <script setup>
 const { t } = useI18n();
+const { endpoint } = useCmsApi();
 
 /** Error codes → `register_form.errors.<code>` */
 const EMAIL_IN_USE = "email_in_use";
@@ -23,8 +24,6 @@ const form = ref({
   first_name: "",
   last_name: "",
   password: "",
-  send_user_notification: true,
-  roles: ["customer"],
 });
 const isSubmitting = ref(false);
 const message = ref(null);
@@ -63,7 +62,7 @@ const checkEmailExists = async (email) => {
   emailCheckTimeout.value = setTimeout(async () => {
     isCheckingEmail.value = true;
     try {
-      const result = await $fetch("/api/check-email", {
+      const result = await $fetch(endpoint("check-email"), {
         query: { email: email.trim() },
       });
 
@@ -111,7 +110,7 @@ watch(
     if (newVal && newVal.trim()) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (emailRegex.test(newVal)) {
-        // Check if email exists in WordPress
+        // Check if email already exists
         checkEmailExists(newVal);
       } else {
         // Clear error if email format is invalid (will be caught by validation)
@@ -181,28 +180,22 @@ const handleSubmit = async (e) => {
   }
   isSubmitting.value = true;
   try {
-    const payload = {
-      username: form.value.username.trim(),
+    const firstName = form.value.first_name.trim();
+    const lastName = form.value.last_name.trim();
+    const nameParts = [firstName, lastName].filter(Boolean);
+    const payload: Record<string, unknown> = {
       email: form.value.email.trim(),
       password: form.value.password,
-      first_name: form.value.first_name.trim() || undefined,
-      last_name: form.value.last_name.trim() || undefined,
-      roles: form.value.roles,
-      send_user_notification: form.value.send_user_notification,
+      name: nameParts.join(" ") || undefined,
+      username: form.value.username.trim() || undefined,
     };
     Object.keys(payload).forEach((key) => {
-      if (payload[key] === undefined) {
-        delete payload[key];
-      }
+      if (payload[key] === undefined) delete payload[key];
     });
 
-
-    // Send to Nuxt API endpoint (which will call WordPress API)
-    const response = await $fetch("/api/create-user", {
+    const response = await $fetch(endpoint("create-user"), {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: payload,
     });
 
@@ -219,8 +212,6 @@ const handleSubmit = async (e) => {
         first_name: "",
         last_name: "",
         password: "",
-        send_user_notification: true,
-        roles: ["customer"],
       };
       errors.value = {
         username: "",

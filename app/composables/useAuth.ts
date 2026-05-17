@@ -182,7 +182,7 @@ export const useAuth = () => {
     }
   };
 
-  /** ดึงข้อมูล user ล่าสุดจาก WordPress (ใช้ในหน้า profile เพื่อให้ได้ first_name, last_name ฯลฯ) */
+  /** ดึงข้อมูล user ล่าสุด (ใช้ในหน้า profile เพื่อให้ได้ first_name, last_name ฯลฯ) */
   const fetchUser = async (userId?: number) => {
     const id = userId ?? user.value?.id ?? user.value?.ID;
     if (!id) return null;

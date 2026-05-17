@@ -61,7 +61,7 @@ const isLoading = ref(false);
 const message = ref(null);
 const errors = ref({});
 
-// Redirect to login if not authenticated; ถ้า login แล้ว ให้ดึงข้อมูล user จาก WordPress มาแสดง
+// Redirect to login if not authenticated; ถ้า login แล้ว ให้ดึงข้อมูล user มาแสดง
 onMounted(async () => {
   isClient.value = true;
   if (!isAuthenticated.value) {
@@ -220,7 +220,7 @@ const uploadProfilePicture = async () => {
   }
 };
 
-// Update profile (ส่ง JWT ไปให้ server เรียก WordPress แทนการกรอกรหัสผ่าน)
+// Update profile (ส่ง JWT ไปให้ server)
 const updateProfile = async () => {
   try {
     isLoading.value = true;

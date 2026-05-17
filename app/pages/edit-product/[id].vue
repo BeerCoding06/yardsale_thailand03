@@ -51,7 +51,7 @@ const fetchProduct = async () => {
       postAuthor = postAuthorMeta ? parseInt(postAuthorMeta.value) : null;
     }
 
-    // Also check via WordPress REST API if available
+    // Also check via author field if available
     if (productData.author) {
       const authorId = parseInt(productData.author);
       if (authorId && authorId !== user.value?.id) {

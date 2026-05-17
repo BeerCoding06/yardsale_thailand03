@@ -1,5 +1,5 @@
 /**
- * แมปสินค้าจาก Yardsale Express (PostgreSQL) → รูปแบบใกล้เคียง WooCommerce ที่ UI เดิมใช้
+ * แมปสินค้าจาก Yardsale Express (PostgreSQL) → รูปแบบที่ UI ใช้
  */
 import { useRuntimeConfig } from "nuxt/app";
 import {
@@ -21,7 +21,7 @@ export function unwrapYardsaleResponse(res: unknown): any {
 
 /**
  * หน้าร้าน (ลิสต์ / รายละเอียด / ค้นหา): แสดงเฉพาะสินค้าที่ listing_status เผยแพร่
- * ไม่มีฟิลด์ = legacy หรือ mock WooCommerce → ถือว่าแสดงได้
+ * ไม่มีฟิลด์ = legacy หรือ mock → ถือว่าแสดงได้
  */
 export function isStorefrontPublishedProduct(
   product: Record<string, unknown> | null | undefined
