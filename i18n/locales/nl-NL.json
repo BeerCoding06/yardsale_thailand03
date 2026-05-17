@@ -459,9 +459,9 @@
     "messages": {
       "wait_email_check": "Please wait for the email check to finish",
       "check_form": "Please check the form",
-      "success": "WordPress user created successfully!",
+      "success": "Account created successfully!",
       "error_email_conflict": "This email may already be registered.",
-      "error_create_failed": "Failed to create WordPress user"
+      "error_create_failed": "Failed to create account"
     }
   },
   "auth": {
@@ -767,9 +767,9 @@
     "email_format_invalid": "Invalid email format",
     "wait_email_check": "Please wait for email verification to complete",
     "check_data": "Please check the entered data",
-    "user_created": "WordPress user created successfully!",
+    "user_created": "User created successfully!",
     "email_may_exist": "An error may have occurred because this email already exists in the system",
-    "create_error": "An error occurred while creating WordPress user",
+    "create_error": "An error occurred while creating user",
     "username_placeholder": "Enter username"
   },
   "create_product": {
@@ -819,7 +819,7 @@
     "please_enter_description": "Please enter product description",
     "sale_price_must_be_lower": "Sale price must be lower than regular price",
     "cannot_load_categories": "Cannot load product categories",
-    "no_categories_found": "No product categories found. Please check if WordPress has WooCommerce Product Categories",
+    "no_categories_found": "No product categories found. Please add categories in the admin panel.",
     "cannot_load_data": "Cannot load data",
     "cannot_upload_image": "Cannot upload image",
     "unknown_error": "Unknown error",

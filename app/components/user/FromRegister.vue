@@ -14,6 +14,9 @@
 <script setup>
 const { t } = useI18n();
 const { endpoint } = useCmsApi();
+const { setTokensAndHydrate } = useAuth();
+const localePath = useLocalePath();
+const router = useRouter();
 
 /** Error codes → `register_form.errors.<code>` */
 const EMAIL_IN_USE = "email_in_use";
@@ -199,6 +202,13 @@ const handleSubmit = async (e) => {
       body: payload,
     });
 
+    const raw = response;
+    const token = raw?.data?.token ?? raw?.token;
+    if (token) {
+      await setTokensAndHydrate({ token });
+      await router.push(localePath("/profile"));
+      return;
+    }
 
     message.value = {
       type: "success",

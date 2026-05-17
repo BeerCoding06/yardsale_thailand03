@@ -503,9 +503,9 @@
     "messages": {
       "wait_email_check": "กรุณารอการตรวจสอบอีเมลให้เสร็จ",
       "check_form": "กรุณาตรวจสอบข้อมูลที่กรอก",
-      "success": "สร้างผู้ใช้ WordPress สำเร็จ!",
+      "success": "สร้างบัญชีสำเร็จ!",
       "error_email_conflict": "เกิดข้อผิดพลาดอาจเกิดจาก อีเมลนี้ได้มีผู้ใช้ในระบบแล้ว",
-      "error_create_failed": "เกิดข้อผิดพลาดในการสร้างผู้ใช้ WordPress"
+      "error_create_failed": "เกิดข้อผิดพลาดในการสร้างบัญชี"
     }
   },
   "auth": {
@@ -813,7 +813,7 @@
     "last_name": "นามสกุล",
     "display_name": "ชื่อที่แสดง",
     "email": "อีเมล",
-    "email_readonly": "อีเมลแสดงเพื่อดูเท่านั้น การเปลี่ยนอีเมลทำได้ใน WordPress",
+    "email_readonly": "อีเมลแสดงเพื่อดูเท่านั้น",
     "user_info": "ข้อมูลผู้ใช้",
     "user_profile": "โปรไฟล์ผู้ใช้",
     "username": "ชื่อผู้ใช้",
@@ -893,9 +893,9 @@
     "email_format_invalid": "รูปแบบอีเมลไม่ถูกต้อง",
     "wait_email_check": "กรุณารอการตรวจสอบอีเมลให้เสร็จ",
     "check_data": "กรุณาตรวจสอบข้อมูลที่กรอก",
-    "user_created": "สร้างผู้ใช้ WordPress สำเร็จ!",
-    "email_may_exist": "เกิดข้อผิดพลาดอาจเกิดจาก อีเมลนี้ได้มีผู้ใช้ในระบบแล้ว",
-    "create_error": "เกิดข้อผิดพลาดในการสร้างผู้ใช้ WordPress",
+    "user_created": "สร้างผู้ใช้สำเร็จ!",
+      "email_may_exist": "เกิดข้อผิดพลาดอาจเกิดจาก อีเมลนี้ได้มีผู้ใช้ในระบบแล้ว",
+    "create_error": "เกิดข้อผิดพลาดในการสร้างผู้ใช้",
     "username_placeholder": "กรอกชื่อผู้ใช้"
   },
   "create_product": {
@@ -945,7 +945,7 @@
     "please_enter_description": "กรุณากรอกคำอธิบายสินค้า",
     "sale_price_must_be_lower": "ราคาขายต้องต่ำกว่าราคาปกติ",
     "cannot_load_categories": "ไม่สามารถโหลดหมวดหมู่สินค้าได้",
-    "no_categories_found": "ไม่พบหมวดหมู่สินค้า กรุณาตรวจสอบว่า WordPress มี WooCommerce Product Categories หรือไม่",
+    "no_categories_found": "ไม่พบหมวดหมู่สินค้า กรุณาเพิ่มหมวดหมู่ในระบบ",
     "cannot_load_data": "ไม่สามารถโหลดข้อมูลได้",
     "cannot_upload_image": "ไม่สามารถอัปโหลดรูปภาพได้",
     "unknown_error": "Unknown error",
