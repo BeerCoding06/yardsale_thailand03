@@ -12,7 +12,8 @@
     "db:oauth": "node scripts/ensure-oauth-schema.js",
     "db:add-category-image": "node scripts/add-category-image-url.js",
     "db:seed": "node scripts/seed-demo.js",
-    "db:support-chat": "node scripts/run-support-chat-migration.js"
+    "db:support-chat": "node scripts/run-support-chat-migration.js",
+    "db:tracking-logs": "node scripts/run-tracking-logs-migration.js"
   },
   "dependencies": {
     "connect-pg-simple": "^9.0.1",
