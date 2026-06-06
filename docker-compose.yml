@@ -84,6 +84,8 @@ services:
       SLIPOK_LOG_DEFAULT: ${SLIPOK_LOG_DEFAULT:-true}
       # Thailand Post Track&Trace — EMS / ไปรษณีย์ไทย (เลขลงท้าย TH); สร้าง key ที่ https://track.thailandpost.co.th/dashboard
       THAILAND_POST_API_KEY: ${THAILAND_POST_API_KEY:-}
+      # แนะนำ production: ใส่ base64 แทน plain key ถ้า token มี $ (Docker Compose ตัด $ ออก)
+      THAILAND_POST_API_KEY_B64: ${THAILAND_POST_API_KEY_B64:-}
       # 17TRACK — fallback สำหรับขนส่งอื่น; POST /api/track
       SEVENTEEN_TRACK_API_KEY: ${SEVENTEEN_TRACK_API_KEY:-}
       SEVENTEEN_TRACK_BASE_URL: ${SEVENTEEN_TRACK_BASE_URL:-https://api.17track.net}

@@ -110,6 +110,7 @@ app.get('/health', (_req, res) => {
       /** ไม่เปิดเผย key — ใช้ debug ว่า env เข้า container หรือยัง (ความยาวถูกต้อง = 100) */
       thailandPostConfigured: !!config.thailandPost.apiKey,
       thailandPostKeyLength: config.thailandPost.apiKey ? config.thailandPost.apiKey.length : 0,
+      thailandPostKeySource: config.thailandPost.apiKeySource || 'plain',
       seventeenTrackConfigured: !!config.seventeenTrack.apiKey,
     },
   });

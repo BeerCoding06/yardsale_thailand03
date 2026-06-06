@@ -20,6 +20,20 @@ function normalizeOAuthCallbackBase(raw) {
   return s;
 }
 
+/** อ่าน Thailand Post API key — รองรับ base64 เพื่อหลีกเลี่ยง $ ถูก Docker Compose ตัด */
+function readThailandPostApiKey() {
+  const b64 = (process.env.THAILAND_POST_API_KEY_B64 || '').trim();
+  if (b64) {
+    try {
+      const decoded = Buffer.from(b64, 'base64').toString('utf8').trim();
+      if (decoded) return decoded;
+    } catch {
+      /* fall through */
+    }
+  }
+  return (process.env.THAILAND_POST_API_KEY || '').trim();
+}
+
 export const config = {
   port: Number(process.env.PORT) || 4000,
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -38,7 +52,9 @@ export const config = {
   },
   /** Thailand Post Track&Trace REST API — https://track.thailandpost.co.th/developerGuide */
   thailandPost: {
-    apiKey: (process.env.THAILAND_POST_API_KEY || '').trim(),
+    apiKey: readThailandPostApiKey(),
+    /** แหล่งที่มาของ key (debug /health — ไม่เปิดเผยค่า) */
+    apiKeySource: (process.env.THAILAND_POST_API_KEY_B64 || '').trim() ? 'b64' : 'plain',
   },
   /** 17TRACK Tracking API v2.4 — https://api.17track.net (fallback for non-TH barcodes) */
   seventeenTrack: {
