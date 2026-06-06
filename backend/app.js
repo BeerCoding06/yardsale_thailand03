@@ -10,6 +10,7 @@ import { pool } from './models/db.js';
 import './config/passport.config.js';
 import apiRoutes from './routes/index.js';
 import authSocialRoutes from './routes/auth.social.routes.js';
+import * as seventeenTrackWebhookController from './controllers/seventeenTrackWebhook.controller.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -99,6 +100,15 @@ app.use(
   })
 );
 app.use(passport.initialize());
+
+/** 17TRACK webhook — raw body required for SHA256 signature verification */
+app.get('/api/webhooks/17track', seventeenTrackWebhookController.ping);
+app.post(
+  '/api/webhooks/17track',
+  express.raw({ type: 'application/json', limit: '2mb' }),
+  seventeenTrackWebhookController.receive
+);
+
 app.use(express.json({ limit: '2mb' }));
 app.use(config.publicUploadBase, express.static(uploadAbs));
 
@@ -116,6 +126,7 @@ app.get('/health', (_req, res) => {
       thailandPostExpectedKeyLength: tp.expectedKeyLength,
       ...(tp.hint ? { thailandPostHint: tp.hint } : {}),
       seventeenTrackConfigured: !!config.seventeenTrack.apiKey,
+      seventeenTrackWebhookUrl: '/api/webhooks/17track',
     },
   });
 });

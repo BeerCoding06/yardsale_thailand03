@@ -147,7 +147,7 @@ function collectEvents(trackInfo) {
   return out;
 }
 
-function normalizeAcceptedItem(item) {
+export function normalizeAcceptedItem(item) {
   const trackingNumber = String(item?.number || '').trim();
   const carrierCode = item?.carrier ?? null;
   const ti = item?.track_info || {};

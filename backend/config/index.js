@@ -104,10 +104,14 @@ export const config = {
     expectedKeyLength: THAILAND_POST_KEY_LEN,
     hint: thailandPostConfig.hint,
   },
-  /** 17TRACK Tracking API v2.4 — https://api.17track.net (fallback for non-TH barcodes) */
+  /** 17TRACK Tracking API v2.4 — https://api.17track.net (all non–Thailand Post carriers) */
   seventeenTrack: {
     apiKey: process.env.SEVENTEEN_TRACK_API_KEY || '',
     baseUrl: (process.env.SEVENTEEN_TRACK_BASE_URL || 'https://api.17track.net').replace(/\/$/, ''),
+    /** Dev only: skip sign header check on POST /api/webhooks/17track */
+    webhookSkipVerify:
+      process.env.NODE_ENV !== 'production' &&
+      String(process.env.SEVENTEEN_TRACK_WEBHOOK_SKIP_VERIFY || '').trim() === '1',
   },
   /**
    * Firebase Cloud Messaging HTTP v1

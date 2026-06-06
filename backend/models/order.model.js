@@ -667,6 +667,26 @@ export async function countSellersWithPositiveShareForOrder(client, orderId) {
   return r.rows[0]?.n ?? 0;
 }
 
+/** ออเดอร์ที่ชำระแล้วและมีเลขพัสดุตรงกัน — ใช้รับ webhook จาก 17TRACK */
+export async function listPaidOrdersByTrackingNumber(client, trackingNumber) {
+  const tn = String(trackingNumber || '').trim();
+  if (!tn) return [];
+  try {
+    const r = await client.query(
+      `SELECT ${ORDER_SELECT_BASE}
+       FROM orders
+       WHERE status = 'paid'::order_status
+         AND UPPER(TRIM(COALESCE(tracking_number, ''))) = UPPER(TRIM($1))
+       ORDER BY created_at DESC`,
+      [tn]
+    );
+    return r.rows;
+  } catch (e) {
+    if (e?.code === '42703') return [];
+    throw e;
+  }
+}
+
 export async function setBuyerConfirmedDeliveryAt(client, orderId) {
   const id = asOrderUuid(orderId);
   const r = await queryWithOrderReturningFallback(

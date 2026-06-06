@@ -1,3 +1,38 @@
+# 17TRACK Package Webhook (V2.4)
+
+Configure in [17TRACK API dashboard](https://api.17track.net/admin/settings):
+
+| Setting | Value |
+|---------|--------|
+| **Webhook URL** | `https://api.yardsaleth.com/api/webhooks/17track` |
+| **Version** | V2.4 |
+
+### Trigger statuses (เลือกทั้งหมด)
+
+- Not found / ไม่พบ
+- Info received / รับข้อมูลแล้ว
+- In transit / กำลังขนส่ง
+- Expired / หมดอายุ
+- Available for pickup / รับของ
+- Out for delivery / กำลังจัดส่ง
+- Delivery failed / ไม่มีการจัดส่ง
+
+When 17TRACK pushes `TRACKING_UPDATED`, the backend:
+
+1. Verifies header `sign` = SHA256(`rawBody + "/" + SEVENTEEN_TRACK_API_KEY`)
+2. Finds paid orders with matching `tracking_number`
+3. Updates `shipping_status`, `courier_name` (if empty), `fulfillment_updated_at`
+4. Sets `delivered_at` when status maps to delivered
+5. Appends row to `tracking_logs`
+
+**Test:** Dashboard → WebHook test → paste URL → Test (expects HTTP 200).
+
+**Health:** `GET https://api.yardsaleth.com/api/webhooks/17track` → `{ "success": true, "data": { "ok": true } }`
+
+**Note:** Thailand Post barcodes use the official API via `POST /api/track`, not this webhook. Register non–Thailand Post numbers via 17TRACK (happens automatically on first `/api/track` or seller fulfillment save).
+
+---
+
 # Shipment tracking API
 
 ## Flow
