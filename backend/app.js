@@ -103,14 +103,18 @@ app.use(express.json({ limit: '2mb' }));
 app.use(config.publicUploadBase, express.static(uploadAbs));
 
 app.get('/health', (_req, res) => {
+  const tp = config.thailandPost;
   res.json({
     success: true,
     data: {
       ok: true,
-      /** ไม่เปิดเผย key — ใช้ debug ว่า env เข้า container หรือยัง (ความยาวถูกต้อง = 100) */
-      thailandPostConfigured: !!config.thailandPost.apiKey,
-      thailandPostKeyLength: config.thailandPost.apiKey ? config.thailandPost.apiKey.length : 0,
-      thailandPostKeySource: config.thailandPost.apiKeySource || 'plain',
+      thailandPostConfigured: !!tp.apiKey,
+      thailandPostKeyLength: tp.apiKey ? tp.apiKey.length : 0,
+      thailandPostKeySource: tp.apiKeySource,
+      thailandPostPlainEnvLength: tp.plainEnvLength,
+      thailandPostB64EnvSet: tp.b64EnvSet,
+      thailandPostExpectedKeyLength: tp.expectedKeyLength,
+      ...(tp.hint ? { thailandPostHint: tp.hint } : {}),
       seventeenTrackConfigured: !!config.seventeenTrack.apiKey,
     },
   });

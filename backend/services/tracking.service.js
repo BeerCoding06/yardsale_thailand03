@@ -78,12 +78,18 @@ export async function trackShipment({ trackingNumber, carrier, language }) {
 
   const client = await pool.connect();
   try {
-    await trackingLogModel.insertTrackingLog(client, {
-      trackingNumber: normalized.trackingNumber,
-      carrier: normalized.carrier,
-      status: normalized.currentStatus,
-      rawResponse: upstream,
-    });
+    try {
+      await trackingLogModel.insertTrackingLog(client, {
+        trackingNumber: normalized.trackingNumber,
+        carrier: normalized.carrier,
+        status: normalized.currentStatus,
+        rawResponse: upstream,
+      });
+    } catch (e) {
+      /** audit log เป็น optional — อย่าให้ track ล้มถ้ายังไม่ได้ migrate tracking_logs */
+      const code = e?.code;
+      if (code !== '42P01' && code !== '42703') throw e;
+    }
   } finally {
     client.release();
   }

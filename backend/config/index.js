@@ -20,19 +20,64 @@ function normalizeOAuthCallbackBase(raw) {
   return s;
 }
 
-/** อ่าน Thailand Post API key — รองรับ base64 เพื่อหลีกเลี่ยง $ ถูก Docker Compose ตัด */
-function readThailandPostApiKey() {
-  const b64 = (process.env.THAILAND_POST_API_KEY_B64 || '').trim();
-  if (b64) {
-    try {
-      const decoded = Buffer.from(b64, 'base64').toString('utf8').trim();
-      if (decoded) return decoded;
-    } catch {
-      /* fall through */
-    }
+/** ความยาว token ไปรษณีย์ไทยมาตรฐาน (ใช้ตรวจ plain key ถูก Docker ตัดหรือไม่) */
+const THAILAND_POST_KEY_LEN = 100;
+
+function decodeThailandPostKeyB64(b64) {
+  if (!b64) return '';
+  try {
+    return Buffer.from(String(b64).trim(), 'base64').toString('utf8').trim();
+  } catch {
+    return '';
   }
-  return (process.env.THAILAND_POST_API_KEY || '').trim();
 }
+
+/** อ่าน Thailand Post API key — รองรับ base64 เพื่อหลีกเลี่ยง $ ถูก Docker Compose ตัด */
+function buildThailandPostConfig() {
+  const b64Raw = (process.env.THAILAND_POST_API_KEY_B64 || '').trim();
+  const plainRaw = (process.env.THAILAND_POST_API_KEY || '').trim();
+  const fromB64 = decodeThailandPostKeyB64(b64Raw);
+
+  if (fromB64.length === THAILAND_POST_KEY_LEN) {
+    return {
+      apiKey: fromB64,
+      apiKeySource: 'b64',
+      plainEnvLength: plainRaw.length,
+      b64EnvSet: !!b64Raw,
+      hint: null,
+    };
+  }
+
+  if (plainRaw.length === THAILAND_POST_KEY_LEN) {
+    return {
+      apiKey: plainRaw,
+      apiKeySource: 'plain',
+      plainEnvLength: plainRaw.length,
+      b64EnvSet: !!b64Raw,
+      hint: null,
+    };
+  }
+
+  let hint = null;
+  if (plainRaw.length > 0 && plainRaw.length !== THAILAND_POST_KEY_LEN) {
+    hint =
+      `THAILAND_POST_API_KEY length is ${plainRaw.length} (expected ${THAILAND_POST_KEY_LEN}) — Docker likely stripped $ from the token. Remove THAILAND_POST_API_KEY and set THAILAND_POST_API_KEY_B64 instead.`;
+  } else if (b64Raw && fromB64.length !== THAILAND_POST_KEY_LEN) {
+    hint = 'THAILAND_POST_API_KEY_B64 is set but decodes to wrong length — re-encode the token with: echo -n TOKEN | base64';
+  } else if (!plainRaw && !b64Raw) {
+    hint = 'Set THAILAND_POST_API_KEY (local) or THAILAND_POST_API_KEY_B64 (Dokploy/production).';
+  }
+
+  return {
+    apiKey: '',
+    apiKeySource: b64Raw ? 'b64_invalid' : plainRaw ? 'plain_invalid' : 'none',
+    plainEnvLength: plainRaw.length,
+    b64EnvSet: !!b64Raw,
+    hint,
+  };
+}
+
+const thailandPostConfig = buildThailandPostConfig();
 
 export const config = {
   port: Number(process.env.PORT) || 4000,
@@ -52,9 +97,12 @@ export const config = {
   },
   /** Thailand Post Track&Trace REST API — https://track.thailandpost.co.th/developerGuide */
   thailandPost: {
-    apiKey: readThailandPostApiKey(),
-    /** แหล่งที่มาของ key (debug /health — ไม่เปิดเผยค่า) */
-    apiKeySource: (process.env.THAILAND_POST_API_KEY_B64 || '').trim() ? 'b64' : 'plain',
+    apiKey: thailandPostConfig.apiKey,
+    apiKeySource: thailandPostConfig.apiKeySource,
+    plainEnvLength: thailandPostConfig.plainEnvLength,
+    b64EnvSet: thailandPostConfig.b64EnvSet,
+    expectedKeyLength: THAILAND_POST_KEY_LEN,
+    hint: thailandPostConfig.hint,
   },
   /** 17TRACK Tracking API v2.4 — https://api.17track.net (fallback for non-TH barcodes) */
   seventeenTrack: {
