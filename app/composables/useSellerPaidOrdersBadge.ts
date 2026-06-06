@@ -1,7 +1,7 @@
 import { unwrapYardsaleResponse } from "~/utils/cmsApiEndpoint";
 
 /**
- * Badge จำนวนออเดอร์ที่ลูกค้าชำระแล้ว (status=paid) — เมนู seller-orders
+ * Badge จำนวนออเดอร์ที่ลูกค้าชำระแล้วแต่ยังไม่จัดส่ง (pending/preparing) — เมนู seller-orders
  */
 export function useSellerPaidOrdersBadge() {
   const { user } = useAuth();

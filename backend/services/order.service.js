@@ -309,7 +309,7 @@ export async function listSellerOrders(sellerId) {
   }
 }
 
-/** จำนวนออเดอร์ที่ลูกค้าชำระแล้ว — badge เมนู seller-orders */
+/** จำนวนออเดอร์ชำระแล้วแต่ยังไม่จัดส่ง — badge เมนู seller-orders */
 export async function countSellerPaidOrders(userId, role) {
   const client = await pool.connect();
   try {

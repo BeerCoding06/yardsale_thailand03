@@ -807,7 +807,7 @@ export async function adminSetShippingDelivered(client, orderId) {
   return r.rows[0] || null;
 }
 
-/** ออเดอร์ที่ลูกค้าชำระแล้ว (status=paid) — สำหรับ badge แจ้งเตือนผู้ขาย */
+/** ออเดอร์ชำระแล้วแต่ยังไม่จัดส่ง — badge แจ้งเตือนผู้ขาย */
 export async function countPaidOrdersForSeller(client, sellerId) {
   const r = await client.query(
     `SELECT COUNT(DISTINCT o.id)::int AS c
@@ -815,16 +815,20 @@ export async function countPaidOrdersForSeller(client, sellerId) {
      JOIN order_items oi ON oi.order_id = o.id
      JOIN products p ON p.id = oi.product_id
      WHERE p.seller_id = $1::uuid
-       AND o.status = 'paid'::order_status`,
+       AND o.status = 'paid'::order_status
+       AND COALESCE(o.shipping_status, 'pending') IN ('pending', 'preparing')`,
     [sellerId]
   );
   return r.rows[0]?.c ?? 0;
 }
 
-/** ออเดอร์ชำระแล้วทั้งระบบ (แอดมิน) */
+/** ออเดอร์ชำระแล้วแต่ยังไม่จัดส่งทั้งระบบ (แอดมิน) */
 export async function countPaidOrdersAll(client) {
   const r = await client.query(
-    `SELECT COUNT(*)::int AS c FROM orders o WHERE o.status = 'paid'::order_status`
+    `SELECT COUNT(*)::int AS c
+     FROM orders o
+     WHERE o.status = 'paid'::order_status
+       AND COALESCE(o.shipping_status, 'pending') IN ('pending', 'preparing')`
   );
   return r.rows[0]?.c ?? 0;
 }
