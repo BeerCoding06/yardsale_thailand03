@@ -117,16 +117,17 @@ function applyOrderFromApi(o) {
   notifyShipmentFingerprintChange();
 }
 
-/** ดึงสถานะจริงจาก Thailand Post API แล้วอัปเดต timeline บนหน้ารายละเอียด */
+/** ดึงสถานะจริงจาก carrier API แล้วอัปเดต timeline บนหน้ารายละเอียด */
 async function refreshLiveShippingStatus() {
   const o = order.value;
   const tn = String(o?.tracking_number || o?.trackingNumber || "").trim();
-  if (!hasRemoteApi || !tn || !/^[A-Z]{2}\d{9}TH$/i.test(tn)) return;
+  if (!hasRemoteApi || !tn) return;
+  const courier = String(o?.courier_name || o?.courierName || "").trim();
   try {
     const lang = String(locale.value || "").toLowerCase().startsWith("th") ? "TH" : "EN";
     const raw = await $fetch(endpoint("track"), {
       method: "POST",
-      body: { trackingNumber: tn, language: lang },
+      body: { trackingNumber: tn, language: lang, courierName: courier || undefined },
     });
     const data = raw?.success === true && raw.data ? raw.data : raw?.data ?? raw;
     const ship = inferShippingStatusFromTrackApi(data);

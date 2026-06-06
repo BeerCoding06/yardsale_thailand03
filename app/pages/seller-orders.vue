@@ -17,6 +17,7 @@ const { endpoint, hasRemoteApi } = useCmsApi();
 const { resolveMediaUrl } = useStorefrontCatalog();
 const { paymentLabel, paymentColorClass, customerPaymentUiKey } =
   useCustomerPaymentStatus();
+const { refreshPaidCount: refreshSellerPaidCount } = useSellerPaidOrdersBadge();
 
 const isClient = ref(false);
 const isLoading = ref(true);
@@ -304,6 +305,7 @@ const fetchOrders = async () => {
     orders.value = [];
   } finally {
     isLoading.value = false;
+    await refreshSellerPaidCount();
   }
 };
 

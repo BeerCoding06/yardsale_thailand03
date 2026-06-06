@@ -144,10 +144,10 @@ export function inferShippingStatusFromTrackApi(data: {
   if (code >= 201 && code <= 207) return "shipped";
   if (code >= 101 && code <= 103) return "preparing";
 
-  const text = `${data.currentStatus || ""} ${latest?.status || ""}`.toLowerCase();
-  if (/นำจ่ายสำเร็จ|final delivery|\bdelivered\b/.test(text)) return "delivered";
-  if (/ออกไปนำจ่าย|อยู่ระหว่างการนำจ่าย|out for delivery/.test(text)) return "out_for_delivery";
-  if (/ระหว่างขนส่ง|in transit|ส่งออก/.test(text)) return "shipped";
-  if (/รับฝาก|รับเข้า|posting|collection/.test(text)) return "preparing";
+  const text = `${data.currentStatus || ""} ${history.map((e) => e.status || "").join(" ")} ${latest?.status || ""}`.toLowerCase();
+  if (/นำจ่ายสำเร็จ|จัดส่งสำเร็จ|final delivery|\bdelivered\b|delivery success/.test(text)) return "delivered";
+  if (/ออกไปนำจ่าย|อยู่ระหว่างการนำจ่าย|out for delivery|on vehicle|delivering/.test(text)) return "out_for_delivery";
+  if (/ระหว่างขนส่ง|in transit|ส่งออก|picked up|depart|arriv/.test(text)) return "shipped";
+  if (/รับฝาก|รับเข้า|posting|collection|info received/.test(text)) return "preparing";
   return null;
 }

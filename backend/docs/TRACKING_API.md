@@ -1,19 +1,25 @@
-# Shipment tracking API (Thailand Post + 17TRACK)
+# Shipment tracking API
 
 ## Flow
 
-`Frontend → POST /api/track → Backend → Thailand Post REST API (TH barcodes) **or** 17TRACK v2.4 → normalized JSON + optional row in tracking_logs`
+`Frontend → POST /api/track → Backend → provider by courier → normalized JSON + optional row in tracking_logs`
 
-**Priority:** Barcodes matching Thailand Post format (`^[A-Z]{2}\d{9}TH$`, e.g. `EQ191963463TH`) use the **official Thailand Post Track&Trace API** when `THAILAND_POST_API_KEY` is set. Other carriers fall back to 17TRACK when `SEVENTEEN_TRACK_API_KEY` is set.
+| Carrier | Provider |
+|---------|----------|
+| **Thailand Post** (barcode `^[A-Z]{2}\d{9}TH$`) | Official Thailand Post Track&Trace API |
+| **Flash Express** | Website scraping |
+| **J&T Express** | Website scraping |
+| **Kerry Express** | Website scraping |
+| **DHL / FedEx** | 17TRACK v2.4 |
 
-**Seller fulfillment:** `PATCH /api/seller-orders/:orderId/fulfillment` with `tracking_number` (and optional `shipping_receipt_number`, `courier_name`). The client does not send `shipping_status`. The backend calls Thailand Post (or 17TRACK) when configured, maps the result to `shipping_status` (`pending` … `delivered`), and fills `courier_name` when the seller left it blank. If no provider is configured or lookup fails, `shipping_status` is set to `shipped` when a non-empty tracking number is saved. Clearing `tracking_number` resets `shipping_status` to `pending`.
+**Seller fulfillment:** `PATCH /api/seller-orders/:orderId/fulfillment` with `tracking_number` (and optional `shipping_receipt_number`, `courier_name`). The client does not send `shipping_status`. The backend routes by barcode pattern + `courier_name`, maps the result to `shipping_status` (`pending` … `delivered`), and fills `courier_name` when the seller left it blank. If lookup fails, `shipping_status` is set to `shipped` when a non-empty tracking number is saved. Clearing `tracking_number` resets `shipping_status` to `pending`.
 
 ## Environment
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `THAILAND_POST_API_KEY` | Yes (EMS / ไปรษณีย์ไทย) | API key from [Thailand Post dashboard](https://track.thailandpost.co.th/dashboard) |
-| `SEVENTEEN_TRACK_API_KEY` | Optional | 17TRACK key for Kerry / Flash / other carriers |
+| `THAILAND_POST_API_KEY` or `THAILAND_POST_API_KEY_B64` | Yes (ไปรษณีย์ไทย) | API key from [Thailand Post dashboard](https://track.thailandpost.co.th/dashboard). Prefer `_B64` in Docker if key contains `$`. |
+| `SEVENTEEN_TRACK_API_KEY` | Yes (DHL / FedEx only) | 17TRACK key — not used for Flash / J&T / Kerry |
 | `SEVENTEEN_TRACK_BASE_URL` | No | Default `https://api.17track.net` |
 | `TRACK_API_RATE_LIMIT_PER_MINUTE` | No | Default `30` per client IP on `/api/track` |
 
@@ -28,6 +34,8 @@ Run DB migration / `schema` so table `tracking_logs` exists.
 | 301–302 | ออกไปนำจ่าย | `out_for_delivery` |
 | 501 (+ delivery_status `S`) | นำจ่ายสำเร็จ | `delivered` |
 
+Scraped carriers (Flash / J&T / Kerry) use keyword matching on status text (Thai + English).
+
 ## Request
 
 `POST /api/track`
@@ -35,12 +43,14 @@ Run DB migration / `schema` so table `tracking_logs` exists.
 ```json
 {
   "trackingNumber": "EQ191963463TH",
-  "language": "TH"
+  "language": "TH",
+  "courierName": "Flash Express"
 }
 ```
 
 - `trackingNumber` (required): tracking / consignment number.
-- `carrier` (optional): 17TRACK carrier key when auto-detect fails (non-TH barcodes).
+- `courierName` (optional): seller-selected courier — helps route Flash / J&T / Kerry / DHL / FedEx when barcode alone is ambiguous.
+- `carrier` (optional): 17TRACK carrier key (`100001` = DHL, `100003` = FedEx) when auto-detect fails.
 - `language` (optional): `TH` or `EN` for Thailand Post responses.
 
 ## Example success response
@@ -69,18 +79,22 @@ Run DB migration / `schema` so table `tracking_logs` exists.
 
 (`trackingHistory` is newest-first.)
 
+Provider values: `thailand_post`, `scrape_flash`, `scrape_jt`, `scrape_kerry`, `17track`.
+
 ## Error handling strategy
 
 | Situation | HTTP | `error.code` (typical) |
 |-----------|------|------------------------|
 | Validation (missing/invalid `trackingNumber`) | 400 | Joi / validation layer |
+| Unknown / unsupported courier | 400 | `TRACKING_UNSUPPORTED_COURIER` |
 | No tracking provider configured | 503 | `TRACKING_NOT_CONFIGURED` |
+| Scrape / upstream failure | 502 | `TRACKING_SCRAPE_FAILED` / `TRACKING_LOOKUP_FAILED` |
 | Upstream auth / invalid key | 502 | `TRACKING_UPSTREAM_AUTH` |
 | Rate limit | 429 | `TRACKING_UPSTREAM_RATE_LIMIT` |
 | Number not found | 404 | `TRACKING_NOT_FOUND` |
 
 ## Database (`tracking_logs`)
 
-Same as before — audit log per lookup:
+Audit log per lookup:
 
 - `tracking_number`, `carrier` (resolved display name), `status` (current text), `raw_response` (full JSON from upstream), `created_at`.

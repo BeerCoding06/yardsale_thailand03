@@ -1,4 +1,6 @@
 <script setup>
+import { courierTrackingUrl } from "~/utils/courierTracking";
+
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   order: { type: Object, default: null },
@@ -32,8 +34,6 @@ const courierLogo = computed(() => {
   return typeof u === "string" && u.trim() ? u.trim() : "";
 });
 
-const isThailandPost = computed(() => /^[A-Z]{2}\d{9}TH$/i.test(trackingNumber.value));
-
 const trackLoading = ref(false);
 const trackError = ref("");
 const liveTrack = ref(null);
@@ -47,7 +47,13 @@ async function fetchLiveTracking() {
     const lang = String(locale.value || "").toLowerCase().startsWith("th") ? "TH" : "EN";
     const raw = await $fetch(endpoint("track"), {
       method: "POST",
-      body: { trackingNumber: n, language: lang },
+      body: {
+        trackingNumber: n,
+        language: lang,
+        courierName: courierName.value !== t("order.tracking_modal.courier_placeholder")
+          ? courierName.value
+          : undefined,
+      },
     });
     const data = raw?.success === true && raw.data ? raw.data : raw?.data ?? raw;
     if (data && typeof data === "object") {
@@ -103,14 +109,18 @@ const trackExternalUrl = computed(() => {
   const direct = o.courier_tracking_url || o.courierTrackingUrl;
   if (typeof direct === "string" && direct.trim().startsWith("http")) return direct.trim();
   const n = trackingNumber.value;
-  if (n && isThailandPost.value) {
-    return `https://track.thailandpost.co.th/?trackNumber=${encodeURIComponent(n)}`;
-  }
   if (n) {
+    const url = courierTrackingUrl(
+      n,
+      courierName.value !== t("order.tracking_modal.courier_placeholder") ? courierName.value : undefined
+    );
+    if (url) return url;
     return `https://www.google.com/search?q=${encodeURIComponent(`${courierName.value} ${n} track`)}`;
   }
   return "#";
 });
+
+const isThailandPost = computed(() => /^[A-Z]{2}\d{9}TH$/i.test(trackingNumber.value));
 
 function close() {
   isOpen.value = false;
@@ -226,7 +236,7 @@ function formatHistoryTime(iso) {
         </div>
       </div>
 
-      <!-- Live tracking history from Thailand Post / 17TRACK API -->
+      <!-- Live tracking history from carrier API -->
       <div
         v-if="trackingHistory.length"
         class="mb-6 max-h-56 overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900/50"

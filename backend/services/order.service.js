@@ -309,6 +309,19 @@ export async function listSellerOrders(sellerId) {
   }
 }
 
+/** จำนวนออเดอร์ที่ลูกค้าชำระแล้ว — badge เมนู seller-orders */
+export async function countSellerPaidOrders(userId, role) {
+  const client = await pool.connect();
+  try {
+    if (role === 'admin') {
+      return await orderModel.countPaidOrdersAll(client);
+    }
+    return await orderModel.countPaidOrdersForSeller(client, userId);
+  } finally {
+    client.release();
+  }
+}
+
 export async function listAllOrdersAdmin(opts = {}) {
   const client = await pool.connect();
   try {
@@ -396,13 +409,17 @@ export async function updateSellerOrderFulfillment(userId, orderId, body, role) 
     if (explicitShip != null) {
       shippingStatus = explicitShip;
       if (nextTn) {
-        const resolved = await trackingService.tryResolveTrackingForFulfillment(nextTn, undefined);
+        const resolved = await trackingService.tryResolveTrackingForFulfillment(nextTn, {
+          courierName: nextCourier,
+        });
         if (resolved?.normalized && !nextCourier) {
           nextCourier = String(resolved.normalized.carrier || '').trim();
         }
       }
     } else if (nextTn) {
-      const resolved = await trackingService.tryResolveTrackingForFulfillment(nextTn, undefined);
+      const resolved = await trackingService.tryResolveTrackingForFulfillment(nextTn, {
+        courierName: nextCourier,
+      });
       if (resolved?.normalized) {
         shippingStatus = trackingService.mapNormalizedToShippingStatus(resolved.normalized);
         if (!nextCourier) {

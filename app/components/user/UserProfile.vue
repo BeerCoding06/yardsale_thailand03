@@ -3,6 +3,11 @@
 const auth = useAuth();
 const { user, isAuthenticated, logout, checkAuth, fetchUser } = auth;
 const { canAccessSellerPortal, isAdmin } = useRoles();
+const {
+  badgeLabel: sellerPaidBadgeLabel,
+  refreshPaidCount: refreshSellerPaidCount,
+  showBadge: showSellerPaidBadge,
+} = useSellerPaidOrdersBadge();
 const router = useRouter();
 const { t } = useI18n();
 const localePath = useLocalePath();
@@ -70,6 +75,9 @@ onMounted(async () => {
   }
   await fetchUser();
   loadProfileData();
+  if (canAccessSellerPortal.value) {
+    await refreshSellerPaidCount();
+  }
 });
 
 // Load profile data
@@ -582,10 +590,18 @@ const updateProfile = async () => {
                 </NuxtLink>
                 <NuxtLink
                   v-if="canAccessSellerPortal"
-                  to="/seller-orders"
+                  :to="localePath('/seller-orders')"
                   class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white border-2 border-transparent hover:border-neutral-200 dark:hover:border-neutral-700"
                 >
-                  <UIcon name="i-heroicons-credit-card" class="w-5 h-5" />
+                  <span class="relative shrink-0">
+                    <UIcon name="i-heroicons-credit-card" class="w-5 h-5" />
+                    <span
+                      v-if="showSellerPaidBadge"
+                      class="absolute -top-1.5 -right-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-alizarin-crimson-700 px-1 text-[10px] font-semibold leading-none text-white shadow"
+                    >
+                      {{ sellerPaidBadgeLabel() }}
+                    </span>
+                  </span>
                   <span class="font-medium">{{ $t("auth.seller_orders") }}</span>
                 </NuxtLink>
                 <NuxtLink

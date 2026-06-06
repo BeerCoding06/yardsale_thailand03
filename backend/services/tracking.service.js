@@ -4,74 +4,128 @@ import { pool } from '../models/db.js';
 import * as trackingLogModel from '../models/trackingLog.model.js';
 import * as thailandPost from './thailandPost.service.js';
 import * as seventeenTrack from './seventeenTrack.service.js';
+import * as flashScraper from './scrape/flashExpress.scraper.js';
+import * as jtScraper from './scrape/jtExpress.scraper.js';
+import * as kerryScraper from './scrape/kerryExpress.scraper.js';
+import { mapScrapedToShippingStatus } from './scrape/scrapeNormalize.js';
+import { resolveTrackingProvider } from './courierRouter.js';
 
 export { isThailandPostBarcode } from './thailandPost.service.js';
+export { resolveTrackingProvider, courierTrackingUrl } from './courierRouter.js';
 
 export function mapNormalizedToShippingStatus(normalized) {
   if (!normalized) return 'shipped';
-  if (normalized.provider === 'thailand_post') {
+  const provider = normalized.provider;
+  if (provider === 'thailand_post') {
     return thailandPost.mapNormalizedToShippingStatus(normalized);
   }
-  return seventeenTrack.mapNormalizedToShippingStatus(normalized);
+  if (provider === '17track' || normalized._rawItem) {
+    return seventeenTrack.mapNormalizedToShippingStatus(normalized);
+  }
+  if (String(provider || '').startsWith('scrape_')) {
+    return mapScrapedToShippingStatus(normalized);
+  }
+  return mapScrapedToShippingStatus(normalized);
+}
+
+async function resolveByProvider(route, { trackingNumber, carrier, language, courierName }) {
+  const tn = String(trackingNumber || '').trim();
+  switch (route.provider) {
+    case 'thailand_post': {
+      const thp = await thailandPost.trackShipment({ trackingNumber: tn, language });
+      return { normalized: thp, upstream: thp.upstream, provider: 'thailand_post' };
+    }
+    case 'scrape_flash': {
+      const r = await flashScraper.trackShipment({ trackingNumber: tn });
+      return { normalized: r.normalized, upstream: r.upstream, provider: 'scrape_flash' };
+    }
+    case 'scrape_jt': {
+      const r = await jtScraper.trackShipment({ trackingNumber: tn });
+      return { normalized: r.normalized, upstream: r.upstream, provider: 'scrape_jt' };
+    }
+    case 'scrape_kerry': {
+      const r = await kerryScraper.trackShipment({ trackingNumber: tn });
+      return { normalized: r.normalized, upstream: r.upstream, provider: 'scrape_kerry' };
+    }
+    case '17track': {
+      const c = route.seventeenTrackCarrier ?? carrier;
+      const st = await seventeenTrack.tryResolveTrackingForFulfillment(tn, c);
+      if (!st) {
+        throw new AppError('Could not load tracking from 17TRACK', 502, 'TRACKING_LOOKUP_FAILED');
+      }
+      if (st.normalized && route.carrierLabel && !st.normalized.carrier) {
+        st.normalized.carrier = route.carrierLabel;
+      }
+      return { ...st, provider: '17track' };
+    }
+    default:
+      throw new AppError(
+        `Unsupported courier for tracking${courierName ? `: ${courierName}` : ''}. Set courier name (Flash / J&T / Kerry / DHL / FedEx) or use Thailand Post barcode.`,
+        400,
+        'TRACKING_UNSUPPORTED_COURIER'
+      );
+  }
 }
 
 /**
- * Resolve tracking for fulfillment — Thailand Post first for *TH barcodes, else 17TRACK.
+ * Resolve tracking for fulfillment — route by courier / barcode pattern.
  */
-export async function tryResolveTrackingForFulfillment(trackingNumber, carrier) {
+export async function tryResolveTrackingForFulfillment(trackingNumber, options = {}) {
   const tn = String(trackingNumber || '').trim();
   if (!tn) return null;
 
-  if (thailandPost.isThailandPostBarcode(tn) && config.thailandPost.apiKey) {
-    const thp = await thailandPost.tryResolveTrackingForFulfillment(tn);
-    if (thp) return thp;
-  }
+  const carrier = options.carrier ?? options.seventeenTrackCarrier;
+  const courierName = options.courierName ?? options.courier_name;
+  const route = resolveTrackingProvider({ trackingNumber: tn, courierName, carrier });
 
-  return seventeenTrack.tryResolveTrackingForFulfillment(tn, carrier);
+  if (route.provider === 'thailand_post' && !config.thailandPost.apiKey) return null;
+  if (route.provider === '17track' && !config.seventeenTrack.apiKey) return null;
+  if (route.provider === 'unknown') return null;
+
+  try {
+    return await resolveByProvider(route, {
+      trackingNumber: tn,
+      carrier: route.seventeenTrackCarrier ?? carrier,
+      language: options.language,
+      courierName,
+    });
+  } catch {
+    return null;
+  }
 }
 
 /**
- * POST /api/track — route to Thailand Post or 17TRACK.
+ * POST /api/track — Thailand Post | Scraping | 17TRACK (DHL/FedEx)
  */
-export async function trackShipment({ trackingNumber, carrier, language }) {
+export async function trackShipment({ trackingNumber, carrier, language, courierName }) {
   const tn = String(trackingNumber || '').trim();
   if (!tn) {
     throw new AppError('trackingNumber is required', 400, 'VALIDATION_ERROR');
   }
 
-  let resolved = null;
+  const route = resolveTrackingProvider({ trackingNumber: tn, courierName, carrier });
 
-  if (thailandPost.isThailandPostBarcode(tn) && config.thailandPost.apiKey) {
-    try {
-      const thp = await thailandPost.trackShipment({ trackingNumber: tn, language });
-      resolved = { normalized: thp, upstream: thp.upstream, provider: 'thailand_post' };
-    } catch (e) {
-      if (
-        e instanceof AppError &&
-        !['TRACKING_NOT_CONFIGURED', 'TRACKING_NOT_THAILAND_POST'].includes(e.code)
-      ) {
-        throw e;
-      }
-    }
+  if (route.provider === 'thailand_post' && !config.thailandPost.apiKey) {
+    throw new AppError(
+      'Thailand Post tracking is not configured (set THAILAND_POST_API_KEY_B64)',
+      503,
+      'TRACKING_NOT_CONFIGURED'
+    );
+  }
+  if (route.provider === '17track' && !config.seventeenTrack.apiKey) {
+    throw new AppError(
+      '17TRACK is not configured (required for DHL / FedEx)',
+      503,
+      'TRACKING_NOT_CONFIGURED'
+    );
   }
 
-  if (!resolved) {
-    if (!config.seventeenTrack.apiKey) {
-      if (thailandPost.isThailandPostBarcode(tn) && !config.thailandPost.apiKey) {
-        throw new AppError(
-          'Thailand Post tracking is not configured (set THAILAND_POST_API_KEY)',
-          503,
-          'TRACKING_NOT_CONFIGURED'
-        );
-      }
-      throw new AppError('Shipment tracking is not configured', 503, 'TRACKING_NOT_CONFIGURED');
-    }
-    const st = await seventeenTrack.tryResolveTrackingForFulfillment(tn, carrier);
-    if (!st) {
-      throw new AppError('Could not load tracking information', 502, 'TRACKING_LOOKUP_FAILED');
-    }
-    resolved = { ...st, provider: '17track' };
-  }
+  const resolved = await resolveByProvider(route, {
+    trackingNumber: tn,
+    carrier: route.seventeenTrackCarrier ?? carrier,
+    language,
+    courierName,
+  });
 
   const normalized = resolved.normalized;
   const upstream = resolved.upstream;
@@ -86,7 +140,6 @@ export async function trackShipment({ trackingNumber, carrier, language }) {
         rawResponse: upstream,
       });
     } catch (e) {
-      /** audit log เป็น optional — อย่าให้ track ล้มถ้ายังไม่ได้ migrate tracking_logs */
       const code = e?.code;
       if (code !== '42P01' && code !== '42703') throw e;
     }

@@ -620,6 +620,9 @@ export default defineNuxtPlugin(() => {
       const raw = String(query.get("order_id") || query.get("id") || "1").trim() || "1";
       return { success: true, order: pickOrder(raw) };
     }
+    if (p === "/api/seller-orders/paid-count") {
+      return { success: true, paid_count: 0 };
+    }
     if (p === "/api/my-orders-jwt" || p === "/api/my-orders" || p === "/api/seller-orders") {
       const { page, pageSize, q } = mockParseListPagination(query);
       const orders: AnyObj[] = [];

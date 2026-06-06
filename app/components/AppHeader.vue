@@ -25,6 +25,12 @@ const {
 } = useStorefrontCatalog();
 
 const { fetchUnreadCount } = useChat();
+const {
+  paidCount: sellerPaidCount,
+  badgeLabel: sellerPaidBadgeLabel,
+  refreshPaidCount: refreshSellerPaidCount,
+  showBadge: showSellerPaidBadge,
+} = useSellerPaidOrdersBadge();
 
 const chatUnreadBadge = ref(0);
 
@@ -45,7 +51,18 @@ async function loadChatUnread() {
   }
 }
 
-watch(clientIsAuthenticated, loadChatUnread);
+async function loadSellerBadges() {
+  if (clientIsAuthenticated.value && canAccessSellerPortal.value) {
+    await refreshSellerPaidCount();
+  } else {
+    await refreshSellerPaidCount();
+  }
+}
+
+watch(clientIsAuthenticated, () => {
+  loadChatUnread();
+  loadSellerBadges();
+});
 
 // Check auth on mount to prevent hydration mismatch
 onMounted(() => {
@@ -56,6 +73,8 @@ onMounted(() => {
     nextTick(() => {
       clientIsAuthenticated.value = isAuthenticated.value;
       loadChatUnread();
+      loadSellerBadges();
+      sellerBadgePollTimer = setInterval(loadSellerBadges, 60_000);
     });
   }
 });
@@ -87,9 +106,15 @@ watch(
       cartModal.value = false;
       profileModal.value = false;
       suggestionMenu.value = false;
+      loadSellerBadges();
     }
   }
 );
+
+let sellerBadgePollTimer = null;
+onUnmounted(() => {
+  if (sellerBadgePollTimer) clearInterval(sellerBadgePollTimer);
+});
 
 const search = () => {
   if (!searchQuery.value.trim()) {
@@ -635,7 +660,15 @@ const totalQuantity = computed(() =>
               @click="profileModal = false"
               class="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-black/5 dark:hover:bg-white/10 transition text-black dark:text-white"
             >
-              <UIcon name="i-heroicons-credit-card" class="w-5 h-5" />
+              <span class="relative shrink-0">
+                <UIcon name="i-heroicons-credit-card" class="w-5 h-5" />
+                <span
+                  v-if="showSellerPaidBadge"
+                  class="absolute -top-1.5 -right-2 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-alizarin-crimson-700 px-1 text-[10px] font-semibold leading-none text-white shadow"
+                >
+                  {{ sellerPaidBadgeLabel() }}
+                </span>
+              </span>
               <span class="font-medium">{{ $t("auth.seller_orders") }}</span>
             </NuxtLink>
             <NuxtLink

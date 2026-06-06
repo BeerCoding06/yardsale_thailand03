@@ -199,6 +199,12 @@ router.post('/create-order', authMiddleware, validate(createOrderSchema), orderC
 router.get('/get-order/:id', authMiddleware, orderController.getOrder);
 router.get('/my-orders', authMiddleware, orderController.myOrders);
 router.get(
+  '/seller-orders/paid-count',
+  authMiddleware,
+  requireRoles('user', 'seller', 'admin'),
+  orderController.sellerPaidOrdersCount
+);
+router.get(
   '/seller-orders',
   authMiddleware,
   requireRoles('user', 'seller', 'admin'),

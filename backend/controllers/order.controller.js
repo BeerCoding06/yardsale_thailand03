@@ -48,6 +48,15 @@ export const sellerOrders = asyncHandler(async (req, res) => {
   sendSuccessNoStore(res, { success: true, orders: data.orders, pagination: data.pagination });
 });
 
+export const sellerPaidOrdersCount = asyncHandler(async (req, res) => {
+  const role = req.user.role;
+  if (!['user', 'seller', 'admin'].includes(role)) {
+    throw new AppError('Seller access required', 403, 'FORBIDDEN');
+  }
+  const paid_count = await orderService.countSellerPaidOrders(req.user.id, role);
+  sendSuccessNoStore(res, { paid_count });
+});
+
 export const cancelOrder = asyncHandler(async (req, res) => {
   const data = await orderService.cancelOrder(req.body.order_id, req.user.id, req.user.role);
   sendSuccess(res, { success: true, ...data });
