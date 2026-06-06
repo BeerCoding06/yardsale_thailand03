@@ -80,6 +80,33 @@ function mapStatusCodeToShippingStatus(statusCode, deliveryStatus, statusDescrip
   return 'shipped';
 }
 
+function parseUpstreamJson(text, { phase = 'request' } = {}) {
+  if (!text || !String(text).trim()) {
+    throw new AppError(
+      `Thailand Post ${phase} returned empty body`,
+      502,
+      'TRACKING_UPSTREAM_INVALID'
+    );
+  }
+  const raw = String(text).trim();
+  if (raw.startsWith('<!') || raw.startsWith('<html')) {
+    throw new AppError(
+      'Thailand Post API key is invalid or rejected (upstream returned HTML). Check THAILAND_POST_API_KEY length is 100 and $ characters are not stripped by Docker Compose (use $$ in .env).',
+      502,
+      'TRACKING_UPSTREAM_AUTH'
+    );
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new AppError(
+      `Thailand Post ${phase} returned non-JSON (HTTP body starts with: ${raw.slice(0, 80)})`,
+      502,
+      'TRACKING_UPSTREAM_INVALID'
+    );
+  }
+}
+
 async function fetchAccessToken() {
   const apiKey = config.thailandPost.apiKey;
   if (!apiKey) {
@@ -100,12 +127,7 @@ async function fetchAccessToken() {
   });
 
   const text = await res.text();
-  let json;
-  try {
-    json = text ? JSON.parse(text) : {};
-  } catch {
-    throw new AppError('Invalid response from Thailand Post', 502, 'TRACKING_UPSTREAM_INVALID');
-  }
+  const json = parseUpstreamJson(text, { phase: 'auth' });
 
   if (!res.ok) {
     throw new AppError(
@@ -140,12 +162,7 @@ async function postTrack(body, { retries = 2 } = {}) {
     });
 
     const text = await res.text();
-    let json;
-    try {
-      json = text ? JSON.parse(text) : {};
-    } catch {
-      throw new AppError('Invalid response from Thailand Post', 502, 'TRACKING_UPSTREAM_INVALID');
-    }
+    const json = parseUpstreamJson(text, { phase: 'track' });
 
     if (res.status === 401 && attempt < retries) {
       cachedAccessToken = null;
