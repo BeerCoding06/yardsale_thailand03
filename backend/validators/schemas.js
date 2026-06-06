@@ -331,14 +331,14 @@ export const productActionSchema = Joi.object({
   product_id: uuid.required(),
 });
 
-/** POST /api/track — Thailand Post | Scraping (Flash/J&T/Kerry) | 17TRACK (DHL/FedEx) */
+/** POST /api/track — Thailand Post | 17TRACK (all other carriers) */
 export const trackShipmentSchema = Joi.object({
   trackingNumber: Joi.string().trim().min(3).max(100).required(),
-  /** Optional 17TRACK carrier key when auto-detect fails (DHL/FedEx) */
+  /** Optional 17TRACK carrier key (e.g. 100235 Flash TH, 100271 J&T TH) */
   carrier: Joi.number().integer().positive().optional(),
   /** Thailand Post API language: TH | EN */
   language: Joi.string().trim().valid('TH', 'EN', 'th', 'en').optional(),
-  /** Seller-selected courier name — used to route Flash / J&T / Kerry / DHL / FedEx */
+  /** Seller-selected courier name — helps 17TRACK auto-detect carrier */
   courierName: Joi.string().trim().max(120).optional(),
 });
 
