@@ -103,7 +103,15 @@ app.use(express.json({ limit: '2mb' }));
 app.use(config.publicUploadBase, express.static(uploadAbs));
 
 app.get('/health', (_req, res) => {
-  res.json({ success: true, data: { ok: true } });
+  res.json({
+    success: true,
+    data: {
+      ok: true,
+      /** ไม่เปิดเผย key — ใช้ debug ว่า env เข้า container หรือยัง */
+      thailandPostConfigured: !!config.thailandPost.apiKey,
+      seventeenTrackConfigured: !!config.seventeenTrack.apiKey,
+    },
+  });
 });
 
 app.use('/auth', authSocialRoutes);
