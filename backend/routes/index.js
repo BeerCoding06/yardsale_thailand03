@@ -111,7 +111,7 @@ router.post(
 );
 router.post('/check-email', validate(checkEmailSchema), authController.checkEmail);
 
-/** Shipment tracking (17TRACK) — see backend/docs/TRACKING_API.md */
+/** Shipment tracking (Thailand Post + 17TRACK) — see backend/docs/TRACKING_API.md */
 router.post('/track', trackRateLimit, validate(trackShipmentSchema), trackController.trackShipment);
 
 router.post('/save-token', authMiddleware, validate(saveFcmTokenSchema), fcmController.saveToken);

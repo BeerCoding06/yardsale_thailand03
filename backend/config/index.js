@@ -36,7 +36,11 @@ export const config = {
     apiBase: process.env.SLIPOK_API_BASE || 'https://api.slipok.com',
     defaultLog: process.env.SLIPOK_LOG_DEFAULT || 'true',
   },
-  /** 17TRACK Tracking API v2.4 — https://api.17track.net */
+  /** Thailand Post Track&Trace REST API — https://track.thailandpost.co.th/developerGuide */
+  thailandPost: {
+    apiKey: (process.env.THAILAND_POST_API_KEY || '').trim(),
+  },
+  /** 17TRACK Tracking API v2.4 — https://api.17track.net (fallback for non-TH barcodes) */
   seventeenTrack: {
     apiKey: process.env.SEVENTEEN_TRACK_API_KEY || '',
     baseUrl: (process.env.SEVENTEEN_TRACK_BASE_URL || 'https://api.17track.net').replace(/\/$/, ''),

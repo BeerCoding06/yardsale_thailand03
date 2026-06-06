@@ -331,11 +331,13 @@ export const productActionSchema = Joi.object({
   product_id: uuid.required(),
 });
 
-/** POST /api/track — 17TRACK lookup */
+/** POST /api/track — Thailand Post (TH barcodes) or 17TRACK */
 export const trackShipmentSchema = Joi.object({
   trackingNumber: Joi.string().trim().min(3).max(100).required(),
   /** Optional 17TRACK carrier key when auto-detect fails */
   carrier: Joi.number().integer().positive().optional(),
+  /** Thailand Post API language: TH | EN */
+  language: Joi.string().trim().valid('TH', 'EN', 'th', 'en').optional(),
 });
 
 export const walletWithdrawBodySchema = Joi.object({

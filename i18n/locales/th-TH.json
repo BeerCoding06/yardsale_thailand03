@@ -768,6 +768,9 @@
       "live_status": "สถานะล่าสุด",
       "updated_at": "อัปเดตล่าสุด: {time}",
       "open_courier": "ติดตามที่เว็บขนส่ง",
+      "open_thailand_post": "ติดตามที่ไปรษณีย์ไทย",
+      "history_title": "ประวัติการขนส่ง",
+      "fetch_error": "ไม่สามารถโหลดสถานะจาก API ได้",
       "close": "ปิด",
       "status_unknown": "ไม่ระบุ"
     }

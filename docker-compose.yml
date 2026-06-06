@@ -82,7 +82,9 @@ services:
       SLIPOK_API_KEY: ${SLIPOK_API_KEY:-}
       SLIPOK_API_BASE: ${SLIPOK_API_BASE:-https://api.slipok.com}
       SLIPOK_LOG_DEFAULT: ${SLIPOK_LOG_DEFAULT:-true}
-      # 17TRACK — POST /api/track (header 17token); ว่าง = endpoint คืน TRACKING_NOT_CONFIGURED
+      # Thailand Post Track&Trace — EMS / ไปรษณีย์ไทย (เลขลงท้าย TH); สร้าง key ที่ https://track.thailandpost.co.th/dashboard
+      THAILAND_POST_API_KEY: ${THAILAND_POST_API_KEY:-}
+      # 17TRACK — fallback สำหรับขนส่งอื่น; POST /api/track
       SEVENTEEN_TRACK_API_KEY: ${SEVENTEEN_TRACK_API_KEY:-}
       SEVENTEEN_TRACK_BASE_URL: ${SEVENTEEN_TRACK_BASE_URL:-https://api.17track.net}
       TRACK_API_RATE_LIMIT_PER_MINUTE: ${TRACK_API_RATE_LIMIT_PER_MINUTE:-30}

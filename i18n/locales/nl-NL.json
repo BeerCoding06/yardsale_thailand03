@@ -644,7 +644,13 @@
       "open_courier": "Track on courier website",
       "close": "Close",
       "status_unknown": "Unknown"
-    }
+    },
+    "confirm_received_title": "Confirm receipt",
+    "confirm_received_hint": "After you confirm, payment is released to the seller. If you take no action, the order auto-completes 48 hours after delivery.",
+    "confirm_received_button": "Confirm received",
+    "confirm_received_success": "Thank you — your order is completed.",
+    "confirm_received_error": "Could not confirm receipt. Try again.",
+    "confirm_received_submitting": "Confirming…"
   },
   "shipping": {
     "pending": "Pending Shipping",

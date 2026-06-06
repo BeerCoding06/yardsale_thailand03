@@ -126,3 +126,28 @@ export function orderShipmentFingerprint(order: OrderLike | null | undefined): s
   if (!order) return "";
   return `${norm(order.status)}|${norm(order.shipping_status)}`;
 }
+
+/**
+ * Infer shipping_status from POST /api/track response (Thailand Post status codes).
+ * Returns null if unknown.
+ */
+export function inferShippingStatusFromTrackApi(data: {
+  currentStatus?: string | null;
+  trackingHistory?: Array<{ stage?: string | null; status?: string | null }> | null;
+} | null | undefined): string | null {
+  if (!data) return null;
+  const history = data.trackingHistory || [];
+  const latest = history[0];
+  const code = parseInt(String(latest?.stage || ""), 10);
+  if (code === 501) return "delivered";
+  if (code === 301 || code === 302) return "out_for_delivery";
+  if (code >= 201 && code <= 207) return "shipped";
+  if (code >= 101 && code <= 103) return "preparing";
+
+  const text = `${data.currentStatus || ""} ${latest?.status || ""}`.toLowerCase();
+  if (/นำจ่ายสำเร็จ|final delivery|\bdelivered\b/.test(text)) return "delivered";
+  if (/ออกไปนำจ่าย|อยู่ระหว่างการนำจ่าย|out for delivery/.test(text)) return "out_for_delivery";
+  if (/ระหว่างขนส่ง|in transit|ส่งออก/.test(text)) return "shipped";
+  if (/รับฝาก|รับเข้า|posting|collection/.test(text)) return "preparing";
+  return null;
+}

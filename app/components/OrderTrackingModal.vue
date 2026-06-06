@@ -7,6 +7,7 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue"]);
 
 const { t, locale } = useI18n();
+const { endpoint, hasRemoteApi } = useCmsApi();
 
 const isOpen = computed({
   get: () => props.modelValue,
@@ -31,7 +32,49 @@ const courierLogo = computed(() => {
   return typeof u === "string" && u.trim() ? u.trim() : "";
 });
 
+const isThailandPost = computed(() => /^[A-Z]{2}\d{9}TH$/i.test(trackingNumber.value));
+
+const trackLoading = ref(false);
+const trackError = ref("");
+const liveTrack = ref(null);
+
+async function fetchLiveTracking() {
+  const n = trackingNumber.value;
+  if (!n || !hasRemoteApi) return;
+  trackLoading.value = true;
+  trackError.value = "";
+  try {
+    const lang = String(locale.value || "").toLowerCase().startsWith("th") ? "TH" : "EN";
+    const raw = await $fetch(endpoint("track"), {
+      method: "POST",
+      body: { trackingNumber: n, language: lang },
+    });
+    const data = raw?.success === true && raw.data ? raw.data : raw?.data ?? raw;
+    if (data && typeof data === "object") {
+      liveTrack.value = data;
+    }
+  } catch (err) {
+    trackError.value =
+      err?.data?.error?.message || err?.data?.message || t("order.tracking_modal.fetch_error");
+    liveTrack.value = null;
+  } finally {
+    trackLoading.value = false;
+  }
+}
+
+watch(
+  () => [isOpen.value, trackingNumber.value],
+  ([open, tn]) => {
+    if (open && tn) fetchLiveTracking();
+    if (!open) {
+      liveTrack.value = null;
+      trackError.value = "";
+    }
+  }
+);
+
 const liveStatus = computed(() => {
+  if (liveTrack.value?.currentStatus) return liveTrack.value.currentStatus;
   const o = props.order;
   if (!o) return t("order.tracking_modal.status_unknown");
   const s = String(o.shipping_status || o.shippingStatus || "").toLowerCase();
@@ -49,12 +92,20 @@ const liveStatus = computed(() => {
   return String(o.shipping_status || o.shippingStatus || o.status || "—");
 });
 
+const trackingHistory = computed(() => {
+  const rows = liveTrack.value?.trackingHistory;
+  return Array.isArray(rows) ? rows : [];
+});
+
 const trackExternalUrl = computed(() => {
   const o = props.order;
   if (!o) return "#";
   const direct = o.courier_tracking_url || o.courierTrackingUrl;
   if (typeof direct === "string" && direct.trim().startsWith("http")) return direct.trim();
   const n = trackingNumber.value;
+  if (n && isThailandPost.value) {
+    return `https://track.thailandpost.co.th/?trackNumber=${encodeURIComponent(n)}`;
+  }
   if (n) {
     return `https://www.google.com/search?q=${encodeURIComponent(`${courierName.value} ${n} track`)}`;
   }
@@ -66,8 +117,13 @@ function close() {
 }
 
 const updatedAt = computed(() => {
-  const o = props.order;
-  const raw = o?.date_updated || o?.updated_at || o?.date_modified || o?.date_created;
+  const raw =
+    liveTrack.value?.updatedAt ||
+    props.order?.fulfillment_updated_at ||
+    props.order?.date_updated ||
+    props.order?.updated_at ||
+    props.order?.date_modified ||
+    props.order?.date_created;
   if (!raw) return "";
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return "";
@@ -76,6 +132,16 @@ const updatedAt = computed(() => {
     timeStyle: "short",
   }).format(d);
 });
+
+function formatHistoryTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat(locale.value, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(d);
+}
 </script>
 
 <template>
@@ -140,14 +206,52 @@ const updatedAt = computed(() => {
             <p class="text-xs text-neutral-500 dark:text-neutral-400">
               {{ $t('order.tracking_modal.live_status') }}
             </p>
-            <p class="font-medium text-black dark:text-white">
-              {{ liveStatus }}
-            </p>
+            <div class="flex items-center gap-2">
+              <UIcon
+                v-if="trackLoading"
+                name="i-heroicons-arrow-path"
+                class="h-4 w-4 animate-spin text-neutral-400"
+              />
+              <p class="font-medium text-black dark:text-white">
+                {{ liveStatus }}
+              </p>
+            </div>
             <p v-if="updatedAt" class="mt-1 text-xs text-neutral-500">
               {{ $t('order.tracking_modal.updated_at', { time: updatedAt }) }}
             </p>
+            <p v-if="trackError" class="mt-2 text-xs text-red-600 dark:text-red-400">
+              {{ trackError }}
+            </p>
           </div>
         </div>
+      </div>
+
+      <!-- Live tracking history from Thailand Post / 17TRACK API -->
+      <div
+        v-if="trackingHistory.length"
+        class="mb-6 max-h-56 overflow-y-auto rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900/50"
+      >
+        <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+          {{ $t('order.tracking_modal.history_title') }}
+        </p>
+        <ul class="space-y-3">
+          <li
+            v-for="(ev, idx) in trackingHistory"
+            :key="`${ev.time}-${idx}`"
+            class="border-l-2 pl-3"
+            :class="idx === 0 ? 'border-emerald-500' : 'border-neutral-200 dark:border-neutral-700'"
+          >
+            <p class="text-sm font-medium text-black dark:text-white">
+              {{ ev.status }}
+            </p>
+            <p v-if="ev.location" class="text-xs text-neutral-500 dark:text-neutral-400">
+              {{ ev.location }}
+            </p>
+            <p v-if="ev.time" class="mt-0.5 text-xs text-neutral-400">
+              {{ formatHistoryTime(ev.time) }}
+            </p>
+          </li>
+        </ul>
       </div>
 
       <a
@@ -157,7 +261,7 @@ const updatedAt = computed(() => {
         class="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-alizarin-crimson-600 px-4 py-3 font-semibold text-white shadow transition hover:bg-alizarin-crimson-700 dark:bg-alizarin-crimson-500 dark:hover:bg-alizarin-crimson-600"
       >
         <UIcon name="i-heroicons-arrow-top-right-on-square" class="h-5 w-5" />
-        {{ $t('order.tracking_modal.open_courier') }}
+        {{ isThailandPost ? $t('order.tracking_modal.open_thailand_post') : $t('order.tracking_modal.open_courier') }}
       </a>
 
       <button

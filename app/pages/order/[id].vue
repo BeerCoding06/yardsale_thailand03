@@ -10,6 +10,7 @@ import { useNow } from "@vueuse/core";
 import {
   buildShipmentTimelineSteps,
   getShipmentActiveStepIndex,
+  inferShippingStatusFromTrackApi,
   orderShipmentFingerprint,
 } from "~/utils/shipmentTimeline";
 
@@ -116,6 +117,31 @@ function applyOrderFromApi(o) {
   notifyShipmentFingerprintChange();
 }
 
+/** ดึงสถานะจริงจาก Thailand Post API แล้วอัปเดต timeline บนหน้ารายละเอียด */
+async function refreshLiveShippingStatus() {
+  const o = order.value;
+  const tn = String(o?.tracking_number || o?.trackingNumber || "").trim();
+  if (!hasRemoteApi || !tn || !/^[A-Z]{2}\d{9}TH$/i.test(tn)) return;
+  try {
+    const lang = String(locale.value || "").toLowerCase().startsWith("th") ? "TH" : "EN";
+    const raw = await $fetch(endpoint("track"), {
+      method: "POST",
+      body: { trackingNumber: tn, language: lang },
+    });
+    const data = raw?.success === true && raw.data ? raw.data : raw?.data ?? raw;
+    const ship = inferShippingStatusFromTrackApi(data);
+    if (ship && order.value) {
+      order.value = {
+        ...order.value,
+        shipping_status: ship,
+        fulfillment_updated_at: data?.updatedAt || order.value.fulfillment_updated_at,
+      };
+    }
+  } catch {
+    /* ไม่บังคับ — ใช้ค่าจาก DB ถ้า API ล้มเหลว */
+  }
+}
+
 async function confirmReceived() {
   if (!hasRemoteApi || !user.value?.token || confirmSubmitting.value) return;
   try {
@@ -176,6 +202,7 @@ const fetchOrder = async () => {
       const o = inner?.order;
       if (o) {
         applyOrderFromApi(o);
+        await refreshLiveShippingStatus();
       } else {
         error.value = t("order.order_not_found");
       }

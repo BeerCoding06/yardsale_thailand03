@@ -764,6 +764,9 @@
       "live_status": "Latest status",
       "updated_at": "Last update: {time}",
       "open_courier": "Track on courier website",
+      "open_thailand_post": "Track on Thailand Post",
+      "history_title": "Tracking history",
+      "fetch_error": "Could not load status from tracking API",
       "close": "Close",
       "status_unknown": "Unknown"
     }

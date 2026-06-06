@@ -4,7 +4,7 @@ import { paginationMeta } from '../utils/pagination.js';
 import * as productModel from '../models/product.model.js';
 import * as orderModel from '../models/order.model.js';
 import * as cartModel from '../models/cart.model.js';
-import * as seventeenTrack from './seventeenTrack.service.js';
+import * as trackingService from './tracking.service.js';
 import * as sellerWalletService from './sellerWallet.service.js';
 import * as buyerWalletService from './buyerWallet.service.js';
 import * as fcmOrderNotify from './fcmOrderNotify.service.js';
@@ -396,15 +396,15 @@ export async function updateSellerOrderFulfillment(userId, orderId, body, role) 
     if (explicitShip != null) {
       shippingStatus = explicitShip;
       if (nextTn) {
-        const resolved = await seventeenTrack.tryResolveTrackingForFulfillment(nextTn, undefined);
+        const resolved = await trackingService.tryResolveTrackingForFulfillment(nextTn, undefined);
         if (resolved?.normalized && !nextCourier) {
           nextCourier = String(resolved.normalized.carrier || '').trim();
         }
       }
     } else if (nextTn) {
-      const resolved = await seventeenTrack.tryResolveTrackingForFulfillment(nextTn, undefined);
+      const resolved = await trackingService.tryResolveTrackingForFulfillment(nextTn, undefined);
       if (resolved?.normalized) {
-        shippingStatus = seventeenTrack.mapNormalizedToShippingStatus(resolved.normalized);
+        shippingStatus = trackingService.mapNormalizedToShippingStatus(resolved.normalized);
         if (!nextCourier) {
           nextCourier = String(resolved.normalized.carrier || '').trim();
         }

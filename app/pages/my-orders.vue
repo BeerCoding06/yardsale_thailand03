@@ -66,6 +66,11 @@ const cancelMessage = ref(null);
 const showCancelModal = ref(false);
 const orderToCancel = ref(null);
 
+const confirmingOrderId = ref(null);
+const confirmMessage = ref(null);
+const showConfirmModal = ref(false);
+const orderToConfirm = ref(null);
+
 // Format order date
 const formatDate = (dateString) => {
   if (!dateString) return "";
@@ -480,6 +485,42 @@ const cancelOrder = async () => {
 
 const canCancelOrder = (order) => canCancelByPaymentRules(order);
 
+const canConfirmDelivery = (order) => !!order?.buyer_can_confirm_received;
+
+const openConfirmModal = (orderId) => {
+  orderToConfirm.value = orderId;
+  showConfirmModal.value = true;
+};
+
+const closeConfirmModal = () => {
+  showConfirmModal.value = false;
+  orderToConfirm.value = null;
+};
+
+const confirmReceived = async () => {
+  if (!orderToConfirm.value || !user.value) return;
+  const orderId = orderToConfirm.value;
+  closeConfirmModal();
+  confirmingOrderId.value = orderId;
+  confirmMessage.value = null;
+  try {
+    await $fetch(cmsPath(`orders/${orderId}/confirm-received`), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${user.value?.token || ""}` },
+    });
+    confirmMessage.value = { type: "success", text: t("order.confirm_received_success") };
+    await fetchOrders();
+  } catch (err) {
+    console.error("[my-orders] confirm-received error:", err);
+    confirmMessage.value = {
+      type: "error",
+      text: err?.data?.error?.message || err?.data?.message || t("order.confirm_received_error"),
+    };
+  } finally {
+    confirmingOrderId.value = null;
+  }
+};
+
 /** ลิงก์ไปหน้าอัปโหลดสลิป (โอนเงิน) */
 function payOrderLink(order) {
   const amt = order?.total_price ?? order?.total ?? "";
@@ -587,7 +628,7 @@ function payOrderLink(order) {
           </template>
 
           <template v-else>
-            <!-- Cancel Message -->
+            <!-- Cancel / Confirm Message -->
             <div
               v-if="cancelMessage"
               :class="[
@@ -598,6 +639,17 @@ function payOrderLink(order) {
               ]"
             >
               {{ cancelMessage.text }}
+            </div>
+            <div
+              v-if="confirmMessage"
+              :class="[
+                'mb-4 p-4 rounded-xl',
+                confirmMessage.type === 'success'
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200'
+                  : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200',
+              ]"
+            >
+              {{ confirmMessage.text }}
             </div>
 
             <div class="space-y-4">
@@ -665,6 +717,31 @@ function payOrderLink(order) {
                     >
                       {{ $t('order.view_details') }}
                     </NuxtLink>
+                    <!-- ปุ่มยืนยันรับสินค้า -->
+                    <button
+                      v-if="canConfirmDelivery(order)"
+                      @click="openConfirmModal(order.id)"
+                      :disabled="confirmingOrderId === order.id"
+                      class="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-700 dark:hover:bg-blue-600 transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <UIcon
+                        v-if="confirmingOrderId === order.id"
+                        name="i-heroicons-arrow-path"
+                        class="w-4 h-4 animate-spin"
+                      />
+                      <UIcon
+                        v-else
+                        name="i-heroicons-check-circle"
+                        class="w-4 h-4"
+                      />
+                      <span>
+                        {{
+                          confirmingOrderId === order.id
+                            ? $t('order.confirm_received_submitting')
+                            : $t('order.confirm_received_button')
+                        }}
+                      </span>
+                    </button>
                     <button
                       v-if="canCancelOrder(order)"
                       @click="openCancelModal(order.id)"
@@ -909,6 +986,53 @@ function payOrderLink(order) {
         </div>
       </template>
     </ClientOnly>
+
+    <!-- Confirm Received Modal -->
+    <UModal v-model="showConfirmModal" :ui="{
+      overlay: {
+        background: 'bg-black/50 dark:bg-black/70 backdrop-blur-sm',
+      },
+      width: 'w-full sm:max-w-md',
+    }">
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-xl font-bold text-black dark:text-white">
+            {{ $t('order.confirm_received_title') }}
+          </h3>
+          <button
+            @click="closeConfirmModal"
+            class="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition"
+          >
+            <UIcon name="i-heroicons-x-mark" class="w-5 h-5 text-neutral-500 dark:text-neutral-400" />
+          </button>
+        </div>
+
+        <div class="mb-6">
+          <div class="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-blue-100 dark:bg-blue-900/30 rounded-full">
+            <UIcon name="i-heroicons-check-circle" class="w-8 h-8 text-blue-600 dark:text-blue-400" />
+          </div>
+          <p class="text-center text-neutral-700 dark:text-neutral-300 text-base">
+            {{ $t('order.confirm_received_hint') }}
+          </p>
+        </div>
+
+        <div class="flex gap-3">
+          <button
+            @click="closeConfirmModal"
+            class="flex-1 px-4 py-3 bg-neutral-200 dark:bg-neutral-800 text-black dark:text-white rounded-xl font-semibold hover:bg-neutral-300 dark:hover:bg-neutral-700 transition"
+          >
+            {{ $t('profile.cancel') }}
+          </button>
+          <button
+            @click="confirmReceived"
+            class="flex-1 px-4 py-3 bg-blue-600 dark:bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-700 dark:hover:bg-blue-600 transition shadow-lg flex items-center justify-center gap-2"
+          >
+            <UIcon name="i-heroicons-check-circle" class="w-5 h-5" />
+            {{ $t('order.confirm_received_button') }}
+          </button>
+        </div>
+      </div>
+    </UModal>
 
     <!-- Cancel Order Confirmation Modal -->
     <UModal v-model="showCancelModal" :ui="{
