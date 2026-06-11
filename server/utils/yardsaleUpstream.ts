@@ -42,6 +42,29 @@ function publicExpressOriginFromNuxtEnv(): string | null {
 }
 
 /**
+ * ฐาน API สาธารณะจาก BASE_URL โปรเจกต์ (www → api subdomain)
+ */
+function inferredPublicApiOrigin(): string | null {
+  const base = String(
+    process.env.BASE_URL || process.env.NUXT_PUBLIC_BASE_URL || ""
+  ).trim();
+  if (!base) return null;
+  try {
+    const u = new URL(base);
+    const host = u.hostname.toLowerCase();
+    if (host === "www.yardsaleth.com" || host === "yardsaleth.com") {
+      return "https://api.yardsaleth.com";
+    }
+    if (host.startsWith("www.")) {
+      return `${u.protocol}//api.${host.slice(4)}`;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/**
  * รายการ URL ฐานของ Express ที่ Nitro จะลอง proxy ตามลำดับ
  * - `YARDSALE_BACKEND_INTERNAL_URL` = URL เต็มฐาน (เช่น http://ชื่อ-container:4000) สำหรับ Dokploy แบบแยก stack
  * - `NUXT_YARDSALE_PROXY_TARGET` = ฐานเดียวกัน (เช่น http://backend:4000)
@@ -54,6 +77,7 @@ export function getYardsaleUpstreamBases(_event?: H3Event): string[] {
   ).trim();
   const fromEnv = String(process.env.NUXT_YARDSALE_PROXY_TARGET ?? "").trim();
   const publicOrigin = publicExpressOriginFromNuxtEnv();
+  const inferredApi = inferredPublicApiOrigin();
   if (process.env.NODE_ENV === "production") {
     return dedupeBases([
       fullInternal,
@@ -62,6 +86,7 @@ export function getYardsaleUpstreamBases(_event?: H3Event): string[] {
       "http://host.docker.internal:4000",
       "http://172.17.0.1:4000",
       ...(publicOrigin ? [publicOrigin] : []),
+      ...(inferredApi ? [inferredApi] : []),
     ]);
   }
   return dedupeBases([
@@ -69,6 +94,7 @@ export function getYardsaleUpstreamBases(_event?: H3Event): string[] {
     fromEnv,
     "http://127.0.0.1:4000",
     ...(publicOrigin ? [publicOrigin] : []),
+    ...(inferredApi ? [inferredApi] : []),
   ]);
 }
 
@@ -123,15 +149,28 @@ const HOP_BY_HOP = new Set([
   "proxy-authorization",
 ]);
 
-export function buildUpstreamFetchHeaders(event: H3Event): Headers {
+export function buildUpstreamFetchHeaders(
+  event: H3Event,
+  targetBase?: string
+): Headers {
   const headers = new Headers();
   const incoming = getRequestHeaders(event);
   for (const [rawKey, rawVal] of Object.entries(incoming)) {
     if (rawVal === undefined || rawVal === null) continue;
     const lk = rawKey.toLowerCase();
     if (HOP_BY_HOP.has(lk)) continue;
+    /** อย่าส่ง Host ของหน้าเว็บไป upstream คนละโดเมน — มักทำให้ Caddy/API ตอบ 502 */
+    if (lk === "host") continue;
     const val = Array.isArray(rawVal) ? rawVal.join(", ") : String(rawVal);
     headers.set(rawKey, val);
+  }
+  if (targetBase) {
+    try {
+      const host = new URL(targetBase).host;
+      if (host) headers.set("Host", host);
+    } catch {
+      /* ignore */
+    }
   }
   return headers;
 }
@@ -170,9 +209,6 @@ export async function yardsaleFetchFromBases(
   expressRelPath: string,
   search: string
 ): Promise<Response> {
-  const headers = buildUpstreamFetchHeaders(event);
-  /** ไม่ขอ gzip จาก upstream — กัน Node fetch ถอดรหัสแล้วยังมี Content-Encoding ทำให้เบราว์เซอร์ถอดซ้ำ → ERR_CONTENT_DECODING_FAILED */
-  headers.delete("accept-encoding");
   const method = String(event.method || "GET").toUpperCase();
   const path = expressRelPath.startsWith("/")
     ? expressRelPath
@@ -186,6 +222,8 @@ export async function yardsaleFetchFromBases(
     const url = `${base.replace(/\/$/, "")}${path}${search}`;
     const isLast = i === bases.length - 1;
     try {
+      const headers = buildUpstreamFetchHeaders(event, base);
+      headers.delete("accept-encoding");
       const res = await fetch(url, {
         method,
         headers,

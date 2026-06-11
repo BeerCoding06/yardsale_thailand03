@@ -55,7 +55,7 @@ onMounted(async () => {
       </p>
       <NuxtLink
         :to="localePath('/login')"
-        class="mt-6 inline-block text-alizarin-crimson-600 dark:text-alizarin-crimson-400 underline"
+        class="mt-6 inline-block text-link-accent underline"
       >
         กลับไปหน้าเข้าสู่ระบบ
       </NuxtLink>

@@ -109,8 +109,24 @@ export default defineNuxtConfig({
   routeRules: {
     "/**": {
       headers: {
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
         "Permissions-Policy":
           "interest-cohort=(), browsing-topics=(), attribution-reporting=()",
+        "Content-Security-Policy": [
+          "default-src 'self'",
+          "base-uri 'self'",
+          "form-action 'self'",
+          "frame-ancestors 'self'",
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com",
+          "style-src 'self' 'unsafe-inline'",
+          "img-src 'self' data: blob: https: http:",
+          "font-src 'self' data: https:",
+          "connect-src 'self' https: wss:",
+          "frame-src 'self' https://accounts.google.com https://www.facebook.com https://access.line.me",
+          "worker-src 'self' blob:",
+          "manifest-src 'self'",
+        ].join("; "),
       },
     },
     "/logo.png": {

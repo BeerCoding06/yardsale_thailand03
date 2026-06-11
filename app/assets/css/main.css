@@ -23,5 +23,10 @@
   .placeholder-app-muted::placeholder {
     @apply text-neutral-600 dark:text-neutral-400;
   }
+
+  /** ลิงก์สีแบรนด์ — contrast ≥ 4.5:1 (Lighthouse) */
+  .text-link-accent {
+    @apply text-alizarin-crimson-700 dark:text-alizarin-crimson-300;
+  }
 }
 

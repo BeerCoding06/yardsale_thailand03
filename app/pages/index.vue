@@ -327,7 +327,7 @@ async function loadProducts() {
     }
     hasFetched.value = true;
   } catch (e) {
-    console.error("[index] loadProducts", e);
+    if (import.meta.dev) console.error("[index] loadProducts", e);
     if (gen !== loadProductsGeneration) return;
     productsData.value = [];
     productPagination.value = {

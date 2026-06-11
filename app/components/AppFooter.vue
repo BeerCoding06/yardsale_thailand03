@@ -43,14 +43,14 @@ const chooseLocale = code => {
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] sm:text-[13px]">
         <NuxtLink
           :to="localePath('/guide/seller')"
-          class="shrink-0 text-alizarin-crimson-600 dark:text-alizarin-crimson-400 transition-colors hover:underline"
+          class="shrink-0 text-link-accent transition-colors hover:underline"
         >
           {{ $t("footer.guide_seller") }}
         </NuxtLink>
-        <span class="text-neutral-400 dark:text-neutral-600" aria-hidden="true">·</span>
+        <span class="text-neutral-500 dark:text-neutral-400" aria-hidden="true">·</span>
         <NuxtLink
           :to="localePath('/guide/buyer')"
-          class="shrink-0 text-alizarin-crimson-600 dark:text-alizarin-crimson-400 transition-colors hover:underline"
+          class="shrink-0 text-link-accent transition-colors hover:underline"
         >
           {{ $t("footer.guide_buyer") }}
         </NuxtLink>

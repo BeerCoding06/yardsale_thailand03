@@ -13,7 +13,7 @@ definePageMeta({
     >
       <NuxtLink
         :to="localePath('/guide/seller')"
-        class="text-alizarin-crimson-600 dark:text-alizarin-crimson-400 hover:underline"
+        class="text-link-accent hover:underline"
       >
         {{ $t("guide.nav_to_seller") }}
       </NuxtLink>
