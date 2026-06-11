@@ -13,13 +13,37 @@ const props = defineProps({
 });
 
 const { t } = useI18n();
+const { canonicalUrl, hreflangLinks } = useSiteSeo();
+const config = useRuntimeConfig();
+const ogImage = `${config.public?.baseUrl || "https://www.yardsaleth.com"}/logo.png`;
 
 const sectionIndexes = computed(() =>
   Array.from({ length: Math.max(0, props.sectionCount) }, (_, i) => i + 1)
 );
 
+const title = computed(() => t(props.prefix + ".meta_title"));
+const description = computed(() => {
+  const lead = t(props.prefix + ".lead");
+  return String(lead || "").slice(0, 160);
+});
+
+useSeoMeta(() => ({
+  title: title.value,
+  description: description.value,
+  ogTitle: title.value,
+  ogDescription: description.value,
+  ogUrl: canonicalUrl(),
+  ogImage,
+  ogType: "article",
+  twitterTitle: title.value,
+  twitterDescription: description.value,
+  twitterImage: ogImage,
+  twitterCard: "summary_large_image",
+  robots: "index, follow",
+}));
+
 useHead(() => ({
-  title: t(props.prefix + ".meta_title"),
+  link: [{ rel: "canonical", href: canonicalUrl() }, ...hreflangLinks()],
 }));
 </script>
 

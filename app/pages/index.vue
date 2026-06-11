@@ -8,6 +8,7 @@ const router = useRouter();
 const { name } = useAppConfig().site;
 const url = useRequestURL();
 const { locale } = useI18n();
+const { hreflangLinks } = useSiteSeo();
 /** ต้องเรียกนอก useHead — ภายใน callback ของ unhead อาจไม่มี Nuxt context (SSR /locale) */
 const runtimeConfig = useRuntimeConfig();
 const canonical = computed(() => {
@@ -130,6 +131,17 @@ const seoContent = computed(() => {
   };
 });
 
+const indexRobots = computed(() => {
+  const hasSearch = typeof route.query.q === "string" && route.query.q.trim();
+  const pageRaw = route.query.page;
+  const pageStr = String(Array.isArray(pageRaw) ? pageRaw[0] : pageRaw || "1").trim();
+  const pageNum = parseInt(pageStr, 10);
+  if (hasSearch || (Number.isFinite(pageNum) && pageNum > 1)) {
+    return "noindex, follow";
+  }
+  return "index, follow";
+});
+
 useSeoMeta(() => ({
   title: seoContent.value.title,
   description: seoContent.value.description,
@@ -143,6 +155,7 @@ useSeoMeta(() => ({
   twitterDescription: seoContent.value.description,
   twitterImage: seoContent.value.ogImageLogo,
   twitterCard: "summary_large_image",
+  robots: indexRobots.value,
 }));
 
 const PAGE_SIZE = 24;
@@ -214,6 +227,7 @@ const lcpImageSrcSet = computed(() => {
 useHead(() => ({
   link: [
     { rel: "canonical", href: seoContent.value.canonicalUrl },
+    ...hreflangLinks("/"),
     ...(lcpImageHref.value
       ? [
           {

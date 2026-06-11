@@ -1,6 +1,11 @@
-/* eslint-disable no-undef */
-importScripts("https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js");
+/**
+ * FCM background handler (ES module — ไม่ใช้ firebase *-compat ที่ Chrome มักเตือน deprecated API)
+ */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {
+  getMessaging,
+  onBackgroundMessage,
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-sw.js";
 
 const params = new URL(self.location.href).searchParams;
 const firebaseConfig = {
@@ -12,13 +17,15 @@ const firebaseConfig = {
   appId: params.get("appId") || "",
 };
 
-const hasConfig = Object.values(firebaseConfig).every((value) => !!String(value).trim());
+const hasConfig = Object.values(firebaseConfig).every((value) =>
+  Boolean(String(value).trim())
+);
 
 if (hasConfig) {
-  firebase.initializeApp(firebaseConfig);
-  const messaging = firebase.messaging();
+  const app = initializeApp(firebaseConfig);
+  const messaging = getMessaging(app);
 
-  messaging.onBackgroundMessage((payload) => {
+  onBackgroundMessage(messaging, (payload) => {
     const title = payload?.notification?.title || "New notification";
     const body = payload?.notification?.body || "";
     const image =

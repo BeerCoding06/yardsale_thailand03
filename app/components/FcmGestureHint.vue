@@ -1,4 +1,4 @@
-<!-- ปุ่มขอสิทธิ์แจ้งเตือน (Safari เดสก์ท็อป / iOS PWA) — ต้องมาจาก user gesture -->
+<!-- ปุ่มขอสิทธิ์แจ้งเตือน — ต้องมาจาก user gesture (ทุกเบราว์เซอร์) -->
 <script setup lang="ts">
 const { user } = useAuth();
 const { awaitingSafariGesture, enablePushFromUserGesture, dismissPushPermissionPrompt } =

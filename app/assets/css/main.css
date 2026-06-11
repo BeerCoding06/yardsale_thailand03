@@ -10,5 +10,18 @@
     content: "*";
     @apply ml-0.5 font-semibold text-red-600 dark:text-red-400;
   }
+
+  /** ข้อความรอง / ไอคอน — contrast ≥ 4.5:1 (Lighthouse) */
+  .text-app-muted {
+    @apply text-neutral-600 dark:text-neutral-300;
+  }
+
+  .text-app-icon {
+    @apply text-neutral-600 dark:text-neutral-300;
+  }
+
+  .placeholder-app-muted::placeholder {
+    @apply text-neutral-600 dark:text-neutral-400;
+  }
 }
 

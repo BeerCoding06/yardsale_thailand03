@@ -60,13 +60,13 @@ const discountPercentage = computed(() => {
     <div v-else-if="variant === 'card'" class="flex gap-1">
       <template v-if="isSale && salePrice && parsePrice(salePrice) > 0">
         <span v-html="salePrice"></span>
-        <span class="text-[#5f5f5f] dark:text-[#a3a3a3] line-through" v-html="regularPrice"></span>
+        <span class="text-app-muted line-through" v-html="regularPrice"></span>
       </template>
       <template v-else-if="regularPrice && parsePrice(regularPrice) > 0">
         <span v-html="regularPrice"></span>
       </template>
       <template v-else>
-        <span class="text-[#5f5f5f] dark:text-[#a3a3a3]">-</span>
+        <span class="text-app-muted">-</span>
       </template>
     </div>
 

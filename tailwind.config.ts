@@ -14,8 +14,12 @@ export default <Partial<Config>>{
         '3xl': '1920px',
       },
       colors: {
-        'secondary-text': '#737373',
-        'secondary-text-d': '#a8a8a8',
+        /** WCAG AA on #fff / #fafafa (≥4.5:1) */
+        'secondary-text': '#525252',
+        /** WCAG AA on dark surfaces */
+        'secondary-text-d': '#d4d4d4',
+        'muted-fg': '#525252',
+        'muted-fg-dark': '#d4d4d4',
         'alizarin-crimson': {
           '50': '#fff0f2',
           '100': '#ffdde2',

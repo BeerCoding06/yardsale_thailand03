@@ -4,9 +4,10 @@ const { name } = useAppConfig().site;
 const url = useRequestURL();
 const localePath = useLocalePath();
 const { locale } = useI18n();
+const { canonicalUrl, hreflangLinks } = useSiteSeo();
 
 const categoriesData = ref([]);
-const canonical = url.origin + url.pathname;
+const canonical = computed(() => canonicalUrl("/categories"));
 const config = useRuntimeConfig();
 const ogImageLogo = `${config.public?.baseUrl || url.origin}/logo.svg`;
 
@@ -27,7 +28,7 @@ useSeoMeta(() => ({
   ogTitle: seo.value.title,
   description: seo.value.description,
   ogDescription: seo.value.description,
-  ogUrl: canonical,
+  ogUrl: canonical.value,
   keywords: seo.value.keywords,
   twitterTitle: seo.value.title,
   twitterDescription: seo.value.description,
@@ -37,7 +38,7 @@ useSeoMeta(() => ({
 }));
 
 useHead(() => ({
-  link: [{ rel: "canonical", href: canonical }],
+  link: [{ rel: "canonical", href: canonical.value }, ...hreflangLinks("/categories")],
   meta: [
     { name: "robots", content: "index, follow" },
     { name: "author", content: "YardsaleThailand" },

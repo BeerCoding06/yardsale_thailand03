@@ -153,20 +153,20 @@ function productLink(product) {
             </p>
             <div
               :class="[
-                'font-normal text-[#5f5f5f] dark:text-[#a3a3a3] break-words',
+                'font-semibold text-neutral-900 dark:text-neutral-100 break-words',
                 product.allPaStyle?.nodes?.[0]?.name ? 'line-clamp-2' : 'line-clamp-3',
               ]"
             >
               {{ product.name }}
             </div>
             <div
-              class="font-normal text-[#5f5f5f] dark:text-[#a3a3a3] line-clamp-1 min-h-[20px]"
+              class="font-normal text-app-muted line-clamp-1 min-h-[20px]"
               v-if="product.allPaStyle?.nodes?.[0]?.name"
             >
               {{ product.allPaStyle.nodes[0].name }}
             </div>
             <div
-              class="font-normal text-xs text-[#5f5f5f] dark:text-[#a3a3a3] min-h-[18px]"
+              class="font-normal text-xs text-app-muted min-h-[18px]"
               :class="{
                 invisible:
                   product.stockQuantity === null || product.stockQuantity === undefined,

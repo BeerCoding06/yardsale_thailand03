@@ -6,6 +6,7 @@ import { Swiper, SwiperSlide } from "swiper/vue";
 import { Navigation, Pagination, Thumbs } from "swiper/modules";
 const { isOpenImageSliderModal } = useComponents();
 const localePath = useLocalePath();
+const { hreflangLinks } = useSiteSeo();
 
 import "swiper/css";
 import "swiper/css/navigation";
@@ -407,7 +408,12 @@ useSeoMeta(() => ({
 }));
 
 useHead(() => ({
-  link: [{ rel: "canonical", href: productCanonical.value }],
+  link: [
+    { rel: "canonical", href: productCanonical.value },
+    ...(isPublicStorefrontListing.value
+      ? hreflangLinks(`/product/${Array.isArray(route.params.id) ? route.params.id[0] : route.params.id}`)
+      : []),
+  ],
   meta: [
     { name: "author", content: "YardsaleThailand" },
     { name: "publisher", content: "YardsaleThailand" },

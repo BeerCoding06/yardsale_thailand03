@@ -107,6 +107,12 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
+    "/**": {
+      headers: {
+        "Permissions-Policy":
+          "interest-cohort=(), browsing-topics=(), attribution-reporting=()",
+      },
+    },
     "/logo.png": {
       headers: {
         "cache-control": "public, max-age=31536000, immutable",
@@ -124,6 +130,16 @@ export default defineNuxtConfig({
     "/nl": { ssr: true, prerender: false },
     "/de": { ssr: true, prerender: false },
     "/categories": { ssr: true, prerender: false },
+    "/en/categories": { ssr: true, prerender: false },
+    "/nb/categories": { ssr: true, prerender: false },
+    "/nl/categories": { ssr: true, prerender: false },
+    "/de/categories": { ssr: true, prerender: false },
+    "/guide/seller": { ssr: true, prerender: false },
+    "/guide/buyer": { ssr: true, prerender: false },
+    "/en/guide/**": { ssr: true, prerender: false },
+    "/nb/guide/**": { ssr: true, prerender: false },
+    "/nl/guide/**": { ssr: true, prerender: false },
+    "/de/guide/**": { ssr: true, prerender: false },
     "/favorites": { ssr: true, prerender: false },
     // Dynamic routes - use SSR instead of prerender to avoid payload file issues
     "/product/**": { ssr: true, prerender: false },

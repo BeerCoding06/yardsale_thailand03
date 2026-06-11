@@ -127,7 +127,7 @@ const reloadCategories = async () => {
             class="mb-2 p-2 flex items-center justify-center bg-black/5 hover:bg-black/10 dark:bg-white/15 hover:dark:bg-white/20 transition active:scale-95"
           >
             <UIcon
-              class="text-[#5f5f5f] dark:text-[#b7b7b7]"
+              class="text-app-icon"
               name="i-iconamoon-heart-fill"
               size="24"
             />
@@ -139,7 +139,7 @@ const reloadCategories = async () => {
             :to="localePath('/categories')"
           >
             <UIcon
-              class="text-[#5f5f5f] dark:text-[#b7b7b7]"
+              class="text-app-icon"
               name="i-iconamoon-category-fill"
               size="26"
             />

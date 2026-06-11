@@ -297,13 +297,13 @@ const totalQuantity = computed(() =>
               >
                 <div
                   v-if="!suggestionMenu"
-                  class="flex text-neutral-500 dark:text-neutral-400"
+                  class="flex text-app-icon"
                 >
                   <UIcon name="i-iconamoon-search-bold" size="20" />
                 </div>
                 <div class="flex w-full">
                   <input
-                    class="w-full bg-transparent py-2 outline-none placeholder:text-[#757575] placeholder:dark:text-neutral-400"
+                    class="w-full bg-transparent py-2 outline-none placeholder-app-muted"
                     type="text"
                     v-model="searchQuery"
                     @keyup.enter="search"
@@ -346,7 +346,7 @@ const totalQuantity = computed(() =>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
-              class="text-[#5f5f5f] dark:text-[#b7b7b7] w-[26px]"
+              class="text-app-icon w-[26px]"
               fill="currentColor"
             >
               <path
@@ -386,7 +386,7 @@ const totalQuantity = computed(() =>
               <UIcon
                 v-else
                 name="i-heroicons-user-circle"
-                class="text-[#5f5f5f] dark:text-[#b7b7b7] w-[26px] h-[26px]"
+                class="text-app-icon w-[26px] h-[26px]"
               />
             </button>
 
@@ -486,7 +486,7 @@ const totalQuantity = computed(() =>
                     v-if="!product.image?.sourceUrl && !product.galleryImages?.nodes?.[0]?.sourceUrl"
                     class="absolute h-full w-full dark:bg-neutral-800 bg-neutral-200 flex items-center justify-center"
                   >
-                    <UIcon name="i-iconamoon-image" class="w-16 h-16 text-neutral-400" />
+                    <UIcon name="i-iconamoon-image" class="w-16 h-16 text-app-muted" />
                   </div>
                 </div>
                 <div
@@ -498,7 +498,7 @@ const totalQuantity = computed(() =>
                     variant="card"
                   />
                   <div>{{ product.name }}</div>
-                  <div v-if="product.allPaStyle?.nodes?.[0]?.name" class="font-normal text-[#5f5f5f] dark:text-[#a3a3a3]">
+                  <div v-if="product.allPaStyle?.nodes?.[0]?.name" class="font-normal text-app-muted">
                     {{ product.allPaStyle.nodes[0].name }}
                   </div>
                 </div>
@@ -545,7 +545,7 @@ const totalQuantity = computed(() =>
       class="hover:bg-white/65 dark:hover:bg-white/10 transition shadow-2xl mt-3 lg:mt-4 mx-3 lg:mx-5 items-center justify-center min-w-12 min-h-12 rounded-[2rem] right-0 fixed flex z-50 bg-white/85 dark:bg-black/30 dark:border dark:border-white/10 cart-button-bezel backdrop-blur-lg"
     >
       <UIcon
-        class="text-[#5f5f5f] dark:text-[#b7b7b7]"
+        class="text-app-icon"
         name="i-iconamoon-close"
         size="26"
       />
@@ -593,7 +593,7 @@ const totalQuantity = computed(() =>
                   }}
                 </p>
                 <p
-                  class="text-xs text-neutral-500 dark:text-neutral-400 truncate"
+                  class="text-xs text-app-muted truncate"
                 >
                   {{ user && user.email ? user.email : "" }}
                 </p>

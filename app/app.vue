@@ -3,14 +3,14 @@
 import { materialTheme } from "notivue";
 
 const { site } = useAppConfig();
-const { name, description } = site;
+const { siteName, siteDescription, organizationJsonLd } = useSiteSeo();
 const config = useRuntimeConfig();
-const ogImageLogo = `${config.public?.baseUrl || 'https://www.yardsaleth.com'}/logo.svg`;
+const ogImageLogo = `${config.public?.baseUrl || 'https://www.yardsaleth.com'}/logo.png`;
 const { locale } = useI18n();
 const globalKeywords = computed(() => {
   if (locale.value === "th") {
     return [
-      name,
+      siteName.value,
       "ตลาดของมือสอง",
       "ซื้อของมือสองออนไลน์",
       "ขายของมือสอง",
@@ -21,7 +21,7 @@ const globalKeywords = computed(() => {
     ].join(", ");
   }
   return [
-    name,
+    siteName.value,
     "second hand marketplace",
     "buy used products",
     "sell used products",
@@ -56,11 +56,10 @@ const ogLocaleTag = computed(() => {
 
 useHead({
   htmlAttrs: { lang: htmlLang },
-  titleTemplate: (chunk?: string) => (chunk ? `${chunk} - ${name}` : name),
+  titleTemplate: (chunk?: string) => (chunk ? `${chunk} - ${siteName.value}` : siteName.value),
   link: [
     { rel: "dns-prefetch", href: "//api.yardsaleth.com" },
     { rel: "preconnect", href: "https://api.yardsaleth.com", crossorigin: "" },
-    /** PWA — Safari iOS 16.4+ รับ Web Push ได้ดีขึ้นเมื่อ “เพิ่มไปที่หน้าจอโฮม” แล้วเปิดจากไอคอน */
     { rel: "manifest", href: "/manifest.json" },
     { rel: "apple-touch-icon", href: "/logo.png", sizes: "180x180" },
   ],
@@ -71,15 +70,23 @@ useHead({
       name: "apple-mobile-web-app-status-bar-style",
       content: "black-translucent",
     },
-    { name: "apple-mobile-web-app-title", content: name },
+    { name: "apple-mobile-web-app-title", content: siteName.value },
     { name: "theme-color", content: "#fafafa" },
+    { name: "author", content: "YardsaleThailand" },
+    { name: "publisher", content: "YardsaleThailand" },
+  ],
+  script: [
+    {
+      type: "application/ld+json",
+      children: JSON.stringify(organizationJsonLd()),
+    },
   ],
 });
 
 useSeoMeta({
-  description,
+  description: siteDescription,
   ogType: "website",
-  ogSiteName: name,
+  ogSiteName: siteName,
   ogLocale: ogLocaleTag,
   ogImage: ogImageLogo,
   twitterCard: "summary_large_image",

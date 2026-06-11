@@ -40,14 +40,11 @@ function clearFcmGestureDismissedThisSession() {
   }
 }
 
-/** ขอสิทธิ์แจ้งเตือนหลัง user gesture (Safari เดสก์ท็อป + iOS PWA) */
+/** ขอสิทธิ์แจ้งเตือนหลัง user gesture เท่านั้น — ลด third-party cookies + deprecated API จาก Firebase */
 function pushPermissionShouldWaitForGesture(): boolean {
   if (!import.meta.client) return false;
   if (typeof Notification === "undefined") return false;
-  if (Notification.permission !== "default") return false;
-  if (isDesktopSafari()) return true;
-  if (isIOSDevice() && isStandaloneDisplayMode()) return true;
-  return false;
+  return Notification.permission === "default";
 }
 
 export function useFcmPush() {
@@ -158,7 +155,7 @@ export function useFcmPush() {
       swUrl.searchParams.set(key, value);
     });
     const registration = await navigator.serviceWorker.register(swUrl.toString(), {
-      type: "classic",
+      type: "module",
       scope: "/",
       updateViaCache: "none",
     });
@@ -270,6 +267,10 @@ export function useFcmPush() {
       if (!isFcmGestureDismissedThisSession()) {
         schedulePermissionAfterGesture(userId);
       }
+      return null;
+    }
+
+    if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
       return null;
     }
 

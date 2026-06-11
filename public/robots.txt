@@ -1,8 +1,6 @@
+# Served dynamically from server/routes/robots.txt.get.ts in production.
+# Fallback for static hosting:
 User-agent: *
 Allow: /
 
-Sitemap: https://yardsaleth.com/sitemap.xml
-User-agent: *
-Allow: /
-
-Sitemap: https://yardsaleth.com/sitemap.xml
+Sitemap: https://www.yardsaleth.com/sitemap.xml
