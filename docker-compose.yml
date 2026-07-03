@@ -2,17 +2,15 @@
 # เครือข่าย traefik ของ Dokploy (สร้างบน host แล้ว: dokploy-network)
 #
 # โดเมน:
-#   Frontend — https://yardsaleth.com (Traefik labels บน service app; www → apex)
-#   Backend  — https://api.yardsaleth.com ผ่าน Caddy บน host (ไม่ใช้ Traefik สำหรับ API)
+#   Frontend — https://yardsaleth.com (Traefik labels บน service app)
+#   Backend  — https://api.yardsaleth.com (Traefik labels บน service backend — /api + /uploads)
 #
-# API + Caddy: บนเซิร์ฟเวอร์ที่ Caddy จับ :443 อยู่แล้ว — backend publish ที่ 127.0.0.1:4000
-# ให้เพิ่มใน Caddyfile แล้ว reload:
-#   api.yardsaleth.com {
-#       reverse_proxy 172.17.0.1:4000
-#   }
-# ถ้า reverse_proxy ไม่ถึง host ให้ใส่ใน compose ของ Caddy: extra_hosts: ["host.docker.internal:host-gateway"]
-# แล้วใช้ reverse_proxy host.docker.internal:4000
-# ลบโดเมน api.yardsaleth.com ออกจาก Domains ใน Dokploy (กันชน TLS กับ Caddy)
+# สำคัญ (Cloudflare Full strict / Error 526 บน /uploads):
+#   - Express ให้บริการทั้ง /api/* และ /uploads/* ที่พอร์ต 4000 (Option A — service เดียว)
+#   - อย่าให้ /uploads ชี้ไป container อื่นหรือ HTTP-only โดยไม่มี TLS
+#   - ถ้าเคยใช้ Caddy บน host สำหรับ api.yardsaleth.com ให้ลบ block นั้นออก (กันชน :443 กับ Traefik)
+#   - ใน Dokploy Domains: ลบ domain ซ้ำ api.yardsaleth.com ที่แยก path /uploads ไป service อื่น
+#   - ใช้ labels ด้านล่างของ backend เป็นแหล่ง routing หลัก
 #
 # ตั้งค่าใน Dokploy → Environment (ของแอป Compose นี้) ก่อน Deploy:
 #   POSTGRES_PASSWORD และ JWT_SECRET ต้องมีค่า — ใส่เป็นสองแถว แยก Key / Value
@@ -21,7 +19,7 @@
 #   BASE_URL, NUXT_PUBLIC_CMS_API_BASE, NUXT_PUBLIC_YARDSALE_BACKEND_ORIGIN, NUXT_PUBLIC_STORE_BANK_TRANSFER_INFO, NUXT_PUBLIC_PROMPTPAY_QR_URL, NUXT_PUBLIC_PROMPTPAY_ID (เลขพร้อมเพย์ → สร้าง QR ในเบราว์เซอร์), NUXT_PUBLIC_PROMPTPAY_QR_INCLUDE_AMOUNT=true ฝังยอดใน QR (บางแอปสแกนไม่ได้ — ปล่อยว่าง/false แนะนำ), NUXT_IMAGE_DOMAINS
 #   DB_PASSWORD ถ้า Nuxt build ต้องคุย MySQL ภายนอก
 #
-# Traefik (เฉพาะ app): cert resolver ชื่อ letsencrypt — ถ้า Dokploy ใช้ชื่ออื่น แก้ labels ของ app
+# Traefik: cert resolver ชื่อ letsencrypt — ถ้า Dokploy ใช้ชื่ออื่น แก้ labels ของ app และ backend
 
 services:
   postgres:
@@ -98,10 +96,36 @@ services:
       # หรือ FIREBASE_CREDENTIALS_JSON / FIREBASE_CREDENTIALS (path ใน volume)
     volumes:
       - yardsale_uploads:/app/uploads
-    # ต้อง publish 0.0.0.0:4000 เพื่อให้ Caddy (container) ยิงมาที่ 172.17.0.1:4000 ได้ — ถ้าใช้ 127.0.0.1:4000 อย่างเดียว bridge จะ connection refused
-    # กัน port scan ได้ด้วย firewall บน VPS (อนุญาตแค่ Cloudflare / IP คุณถ้าต้องการ)
+    # Publish 4000 สำหรับ debug / health จาก host (Traefik ใช้ docker network ภายใน)
     ports:
       - "4000:4000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      # api.yardsaleth.com — Express: /api/* + /uploads/* (static) ที่พอร์ต 4000
+      # priority สูงกว่า router จาก Dokploy UI ที่อาจแยก path แล้วชี้ service ผิด → CF 526
+      - "traefik.http.routers.yardsaleth-api-uploads.rule=Host(`api.yardsaleth.com`) && PathPrefix(`/uploads`)"
+      - "traefik.http.routers.yardsaleth-api-uploads.priority=220"
+      - "traefik.http.routers.yardsaleth-api-uploads.entrypoints=websecure"
+      - "traefik.http.routers.yardsaleth-api-uploads.tls=true"
+      - "traefik.http.routers.yardsaleth-api-uploads.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.yardsaleth-api-uploads.middlewares=yardsaleth-api-compress"
+      - "traefik.http.routers.yardsaleth-api-uploads.service=yardsaleth-api"
+      - "traefik.http.routers.yardsaleth-api.rule=Host(`api.yardsaleth.com`)"
+      - "traefik.http.routers.yardsaleth-api.priority=200"
+      - "traefik.http.routers.yardsaleth-api.entrypoints=websecure"
+      - "traefik.http.routers.yardsaleth-api.tls=true"
+      - "traefik.http.routers.yardsaleth-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.yardsaleth-api.middlewares=yardsaleth-api-compress"
+      - "traefik.http.routers.yardsaleth-api.service=yardsaleth-api"
+      - "traefik.http.services.yardsaleth-api.loadbalancer.server.port=4000"
+      - "traefik.http.middlewares.yardsaleth-api-compress.compress=true"
+      # HTTP → HTTPS
+      - "traefik.http.routers.yardsaleth-api-http.rule=Host(`api.yardsaleth.com`)"
+      - "traefik.http.routers.yardsaleth-api-http.entrypoints=web"
+      - "traefik.http.routers.yardsaleth-api-http.middlewares=yardsaleth-api-redirect-https"
+      - "traefik.http.middlewares.yardsaleth-api-redirect-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.yardsaleth-api-redirect-https.redirectscheme.permanent=true"
     # /health ไม่แตะ DB — ใช้ module http (ไม่พึ่ง fetch) ลดโอกาส probe ล้มบน Alpine
     healthcheck:
       test:

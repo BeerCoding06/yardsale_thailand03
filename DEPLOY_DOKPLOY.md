@@ -76,13 +76,40 @@ FIREBASE_CREDENTIALS_JSON=
 - **แตะหน้าจอครั้งหนึ่ง:** Safari/WebKit มักไม่ยอมให้ขอสิทธิ์แจ้งเตือนตอนโหลดหน้า — แอปจะรอ **คลิก/แตะครั้งแรก** แล้วค่อยเปิด dialog อนุญาต (ดู `useFcmPush.ts`)
 - **ไม่มี env พิเศษ** สำหรับ Safari นอกจาก HTTPS + ชุด Firebase ด้านบนให้ครบ
 
-## 4) Domain routing in Dokploy
+## 4) Domain routing (Traefik + Cloudflare Full strict)
 
-Recommended:
-- Frontend service domain: `www.your-domain.com`
-- Backend service domain: `api.your-domain.com`
+**Architecture (Option A):** Express serves both `/api/*` and `/uploads/*` on port **4000**. Traefik terminates TLS and forwards to the same `backend` container.
 
-Enable SSL (Let's Encrypt) for both.
+### Compose labels (preferred)
+
+`docker-compose.dokploy.yml` and `docker-compose.yml` define Traefik labels on **`backend`**:
+
+| Router | Rule | Entrypoint | TLS |
+|--------|------|------------|-----|
+| `yardsaleth-api-uploads` | `Host(api...) && PathPrefix(/uploads)` | `websecure` | `letsencrypt` (priority **220**) |
+| `yardsaleth-api` | `Host(api...)` | `websecure` | `letsencrypt` (priority **200**) |
+| `yardsaleth-api-http` | `Host(api...)` | `web` | redirect → HTTPS |
+
+Replace `api.yardsaleth.com` with your API host if different.
+
+### Dokploy UI — avoid duplicate routing
+
+1. **Do not** add a separate Dokploy Domain for `api.your-domain.com` with path `/uploads` pointing to another service (common cause of **Cloudflare 526** on images only).
+2. Either rely on **compose labels only** for `api.*`, or use **one** Dokploy domain entry for the whole API host → `backend:4000` — not split by path.
+3. Remove any **Caddy** (or nginx) block on the host that also binds `api.your-domain.com` on `:443` — only **Traefik** should terminate HTTPS for that host.
+
+### Cloudflare
+
+- SSL mode: **Full (strict)**
+- DNS: proxied (orange cloud) to your VPS
+- Origin must present a **valid** cert (Let's Encrypt via Traefik)
+
+Recommended domains:
+
+- Frontend: `www.your-domain.com` (Traefik labels on `frontend` / `app`)
+- Backend: `api.your-domain.com` (Traefik labels on `backend`)
+
+Enable SSL (Let's Encrypt) in Dokploy for Traefik if not already configured globally.
 
 ## 5) First deploy order
 
@@ -106,11 +133,13 @@ Run from your machine:
 
 ```bash
 curl -i https://api.your-domain.com/api/products
+curl -I https://api.your-domain.com/uploads/
 curl -i https://www.your-domain.com
 ```
 
 Expected:
 - API returns `200` with JSON.
+- `/uploads/` returns `200`, `404`, or `403` — **not** Cloudflare `526`.
 - Frontend returns `200`.
 
 Then test in browser:
@@ -145,6 +174,34 @@ git push
 ### Frontend cannot call backend (`Failed to fetch`)
 - Check `NUXT_PUBLIC_CMS_API_BASE` points to public API URL.
 - Check backend domain SSL and CORS (`CORS_ORIGINS`).
+
+### Cloudflare Error **526** on `/uploads` (or entire `api.*`)
+
+**Symptom:** `https://api.your-domain.com/uploads/...` returns Cloudflare 526; sometimes `/api` works but `/uploads` does not.
+
+**Cause:** Origin TLS mismatch — Cloudflare (Full strict) connects to an origin that does not present a valid certificate for that host/path. Typical misconfigs:
+
+- Dokploy UI routes `/api` → backend but `/uploads` → another container (HTTP-only or wrong cert)
+- **Caddy/nginx** on host still handles `api.*` while Traefik also tries to (wrong cert or stale config)
+- Router missing `entrypoints=websecure` or `tls.certresolver=letsencrypt`
+
+**Fix:**
+
+1. Redeploy with current compose (Traefik labels on `backend` — see section 4).
+2. In Dokploy → Domains: remove duplicate `api.*` entries that split paths.
+3. On VPS: stop/remove Caddy `api.your-domain.com` block if present; reload Traefik/Dokploy stack.
+4. Verify from outside Cloudflare (optional, on VPS):
+
+```bash
+curl -kI --resolve api.your-domain.com:443:127.0.0.1 https://api.your-domain.com/uploads/
+openssl s_client -connect 127.0.0.1:443 -servername api.your-domain.com </dev/null 2>/dev/null | openssl x509 -noout -subject -dates
+```
+
+5. Purge Cloudflare cache if needed; retest:
+
+```bash
+curl -I https://api.your-domain.com/uploads/
+```
 
 ### Images not loading
 - Ensure `NUXT_IMAGE_DOMAINS` includes backend image host.
